@@ -1,0 +1,121 @@
+package com.assistant.service;
+
+import com.assistant.config.AppConfig;
+import com.assistant.model.FileNode;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
+@Service
+public class FileService {
+
+    private final AppConfig appConfig;
+
+    public FileService(AppConfig appConfig) {
+        this.appConfig = appConfig;
+    }
+
+    public Path getProjectRoot() {
+        String path = appConfig.getProject().getPath();
+        if (path == null || path.isBlank()) {
+            throw new IllegalStateException("Project path not configured. Set app.project.path in application.yml");
+        }
+        Path root = Path.of(path);
+        if (!Files.isDirectory(root)) {
+            throw new IllegalStateException("Project path does not exist: " + root);
+        }
+        return root;
+    }
+
+    public FileNode getFileTree() throws IOException {
+        Path root = getProjectRoot();
+        return buildTree(root, root);
+    }
+
+    private FileNode buildTree(Path current, Path root) throws IOException {
+        String relativePath = root.relativize(current).toString().replace('\\', '/');
+        if (relativePath.isEmpty()) {
+            relativePath = ".";
+        }
+
+        FileNode node = new FileNode(current.getFileName().toString(), relativePath, Files.isDirectory(current));
+
+        if (Files.isDirectory(current)) {
+            try (Stream<Path> entries = Files.list(current)) {
+                entries
+                    .filter(p -> !isHidden(p))
+                    .sorted(Comparator
+                        .comparing((Path p) -> !Files.isDirectory(p))
+                        .thenComparing(p -> p.getFileName().toString().toLowerCase()))
+                    .forEach(p -> {
+                        try {
+                            node.getChildren().add(buildTree(p, root));
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+            }
+        }
+
+        return node;
+    }
+
+    private boolean isHidden(Path path) {
+        String name = path.getFileName().toString();
+        return name.startsWith(".") || name.equals("node_modules") || name.equals("target");
+    }
+
+    public String readFile(String relativePath) throws IOException {
+        Path file = resolveAndValidate(relativePath);
+        return Files.readString(file, StandardCharsets.UTF_8);
+    }
+
+    public void writeFile(String relativePath, String content) throws IOException {
+        Path file = resolveAndValidate(relativePath);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+    }
+
+    public boolean fileExists(String relativePath) {
+        try {
+            Path file = getProjectRoot().resolve(relativePath).normalize();
+            return Files.exists(file) && file.startsWith(getProjectRoot());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Reads lines from a file. Both start and end are 1-based inclusive.
+     */
+    public String readFileLines(String relativePath, int startLine, int endLine) throws IOException {
+        Path file = resolveAndValidate(relativePath);
+        var lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        int start = Math.max(0, startLine - 1);
+        int end = Math.min(lines.size(), endLine);
+        return String.join("\n", lines.subList(start, end));
+    }
+
+    public int countLines(String relativePath) throws IOException {
+        Path file = resolveAndValidate(relativePath);
+        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+            return (int) lines.count();
+        }
+    }
+
+    private Path resolveAndValidate(String relativePath) throws IOException {
+        Path root = getProjectRoot();
+        Path file = root.resolve(relativePath).normalize();
+        if (!file.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (!Files.exists(file)) {
+            throw new NoSuchFileException(relativePath);
+        }
+        return file;
+    }
+}

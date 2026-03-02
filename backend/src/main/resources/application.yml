@@ -1,0 +1,17 @@
+server:
+  port: 8080
+
+app:
+  ai:
+    api-url: https://api.eecc.ai
+    api-key: ${AI_API_KEY:your-api-key-here}
+    model: gpt-5.2
+  project:
+    path: ${PROJECT_PATH:}
+    always-include:
+      - story.md
+
+spring:
+  web:
+    resources:
+      static-locations: classpath:/static/

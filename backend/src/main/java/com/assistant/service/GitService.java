@@ -1,0 +1,129 @@
+package com.assistant.service;
+
+import com.assistant.config.AppConfig;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.springframework.stereotype.Service;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+
+@Service
+public class GitService {
+
+    private final AppConfig appConfig;
+
+    public GitService(AppConfig appConfig) {
+        this.appConfig = appConfig;
+    }
+
+    private Path getProjectPath() {
+        return Path.of(appConfig.getProject().getPath());
+    }
+
+    private Git openRepo() throws IOException {
+        File gitDir = new File(getProjectPath().toFile(), ".git");
+        if (!gitDir.exists()) {
+            throw new IOException("Not a git repository: " + getProjectPath());
+        }
+        Repository repository = new FileRepositoryBuilder()
+                .setGitDir(gitDir)
+                .build();
+        return new Git(repository);
+    }
+
+    public Map<String, Object> status() throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            Status status = git.status().call();
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("added", new ArrayList<>(status.getAdded()));
+            result.put("modified", new ArrayList<>(status.getModified()));
+            result.put("removed", new ArrayList<>(status.getRemoved()));
+            result.put("untracked", new ArrayList<>(status.getUntracked()));
+            result.put("changed", new ArrayList<>(status.getChanged()));
+            result.put("isClean", status.isClean());
+            return result;
+        }
+    }
+
+    public Map<String, String> commit(String message) throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            git.add().addFilepattern(".").call();
+            RevCommit commit = git.commit().setMessage(message).call();
+            return Map.of(
+                    "hash", commit.getName(),
+                    "message", commit.getFullMessage()
+            );
+        }
+    }
+
+    public String diff() throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (DiffFormatter formatter = new DiffFormatter(out)) {
+                formatter.setRepository(git.getRepository());
+
+                AbstractTreeIterator oldTree;
+                ObjectId head = git.getRepository().resolve("HEAD^{tree}");
+                if (head != null) {
+                    CanonicalTreeParser parser = new CanonicalTreeParser();
+                    parser.reset(git.getRepository().newObjectReader(), head);
+                    oldTree = parser;
+                } else {
+                    oldTree = new CanonicalTreeParser();
+                }
+
+                FileTreeIterator newTree = new FileTreeIterator(git.getRepository());
+                List<DiffEntry> diffs = formatter.scan(oldTree, newTree);
+                for (DiffEntry entry : diffs) {
+                    formatter.format(entry);
+                }
+            }
+            return out.toString();
+        }
+    }
+
+    public List<Map<String, String>> log(int limit) throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            List<Map<String, String>> commits = new ArrayList<>();
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    .withZone(ZoneId.systemDefault());
+
+            for (RevCommit commit : git.log().setMaxCount(limit).call()) {
+                Map<String, String> entry = new LinkedHashMap<>();
+                entry.put("hash", commit.getName().substring(0, 8));
+                entry.put("message", commit.getShortMessage());
+                entry.put("author", commit.getAuthorIdent().getName());
+                entry.put("date", dtf.format(Instant.ofEpochSecond(commit.getCommitTime())));
+                commits.add(entry);
+            }
+            return commits;
+        }
+    }
+
+    public void init() throws IOException, GitAPIException {
+        Git.init().setDirectory(getProjectPath().toFile()).call().close();
+    }
+
+    public boolean isRepo() {
+        File gitDir = new File(getProjectPath().toFile(), ".git");
+        return gitDir.exists() && gitDir.isDirectory();
+    }
+}
