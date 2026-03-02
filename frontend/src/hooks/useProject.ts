@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { FileNode } from '../types.ts';
-import { filesApi } from '../api.ts';
+import { filesApi, projectApi } from '../api.ts';
 
 export function useProject() {
+  const [projectPath, setProjectPath] = useState<string>('');
   const [fileTree, setFileTree] = useState<FileNode | null>(null);
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
@@ -16,12 +17,28 @@ export function useProject() {
       setFileTree(tree);
     } catch (err) {
       console.error('Failed to load file tree:', err);
+      setFileTree(null);
     }
   }, []);
 
   useEffect(() => {
-    refreshTree();
+    projectApi.current().then((info) => {
+      setProjectPath(info.path);
+      if (info.hasProject) {
+        refreshTree();
+      }
+    }).catch(console.error);
   }, [refreshTree]);
+
+  const openProject = useCallback(async (path: string) => {
+    const result = await projectApi.open(path);
+    setProjectPath(result.path);
+    setFileTree(result.tree);
+    setOpenFilePath(null);
+    setFileContent('');
+    setFileLines(0);
+    setIsDirty(false);
+  }, []);
 
   const openFile = useCallback(async (path: string) => {
     setLoading(true);
@@ -54,6 +71,7 @@ export function useProject() {
   }, [openFilePath, fileContent, isDirty]);
 
   return {
+    projectPath,
     fileTree,
     openFilePath,
     fileContent,
@@ -61,6 +79,7 @@ export function useProject() {
     isDirty,
     loading,
     refreshTree,
+    openProject,
     openFile,
     updateContent,
     saveFile,

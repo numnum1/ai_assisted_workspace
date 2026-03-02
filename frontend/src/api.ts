@@ -8,12 +8,16 @@ async function get<T>(path: string): Promise<T> {
   return res.json();
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+async function postRaw(path: string, body: unknown): Promise<Response> {
+  return fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await postRaw(path, body);
   if (!res.ok) throw new Error(`POST ${path}: ${res.status}`);
   return res.json();
 }
@@ -38,6 +42,16 @@ export const filesApi = {
 
 export const modesApi = {
   getAll: () => get<Mode[]>('/modes'),
+};
+
+export const projectApi = {
+  current: () => get<{ path: string; hasProject: boolean }>('/project/current'),
+  open: async (path: string): Promise<{ status: string; path: string; tree: FileNode }> => {
+    const res = await postRaw('/project/open', { path });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Failed to open: ${res.status}`);
+    return data;
+  },
 };
 
 export const gitApi = {

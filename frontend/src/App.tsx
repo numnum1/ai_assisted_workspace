@@ -1,9 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
+import { FolderOpen } from 'lucide-react';
 import { FileTree } from './components/FileTree.tsx';
 import { Editor } from './components/Editor.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
+import { CommandPalette } from './components/CommandPalette.tsx';
+import type { CommandAction } from './components/CommandPalette.tsx';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
@@ -13,6 +16,28 @@ function App() {
   const chat = useChat();
   const refs = useReferencedFiles();
   const [selectedMode, setSelectedMode] = useState('review');
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const commandActions: CommandAction[] = useMemo(() => [
+    {
+      id: 'open-folder',
+      label: 'Open Folder',
+      shortcut: 'Ctrl+Shift+A',
+      icon: <FolderOpen size={16} />,
+      handler: () => {},
+    },
+  ], []);
 
   const handleFileDragStart = useCallback((_path: string) => {
     // Visual feedback could be added here
@@ -27,6 +52,13 @@ function App() {
 
   return (
     <div className="app">
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        actions={commandActions}
+        onOpenFolder={project.openProject}
+      />
+
       <Group direction="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="50%">
           <FileTree
