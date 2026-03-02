@@ -28,7 +28,7 @@ function App() {
   return (
     <div className="app">
       <Group direction="horizontal" className="app-panels">
-        <Panel defaultSize={18} minSize={12} maxSize={30}>
+        <Panel defaultSize="18%" minSize="10%" maxSize="50%">
           <FileTree
             tree={project.fileTree}
             activeFile={project.openFilePath}
@@ -39,7 +39,7 @@ function App() {
 
         <Separator className="resize-handle" />
 
-        <Panel defaultSize={45} minSize={25}>
+        <Panel defaultSize="45%" minSize="15%">
           <Editor
             content={project.fileContent}
             filePath={project.openFilePath}
@@ -51,7 +51,7 @@ function App() {
 
         <Separator className="resize-handle" />
 
-        <Panel defaultSize={37} minSize={20}>
+        <Panel defaultSize="37%" minSize="15%">
           <ChatPanel
             messages={chat.messages}
             streaming={chat.streaming}
