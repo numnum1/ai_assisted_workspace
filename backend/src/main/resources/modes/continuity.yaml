@@ -1,4 +1,5 @@
 name: Continuity Check
+color: "#cba6f7"
 systemPrompt: |
   You are a continuity checker for a creative writing project. Compare the active file
   against all referenced material and find contradictions in:

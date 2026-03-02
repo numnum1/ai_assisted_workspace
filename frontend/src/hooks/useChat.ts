@@ -15,9 +15,11 @@ export function useChat() {
       activeFile: string | null,
       mode: string,
       referencedFiles: string[],
+      modeName?: string,
+      modeColor?: string,
     ) => {
       setError(null);
-      const userMsg: ChatMessage = { role: 'user', content: text };
+      const userMsg: ChatMessage = { role: 'user', content: text, mode: modeName, modeColor };
       const newMessages = [...messages, userMsg];
       setMessages(newMessages);
       setStreaming(true);

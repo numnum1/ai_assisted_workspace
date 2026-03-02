@@ -7,6 +7,8 @@ import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
+import type { Mode } from './types.ts';
+import { modesApi } from './api.ts';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
@@ -15,7 +17,12 @@ function App() {
   const project = useProject();
   const chat = useChat();
   const refs = useReferencedFiles();
+  const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
+
+  useEffect(() => {
+    modesApi.getAll().then(setModes).catch(console.error);
+  }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -45,9 +52,10 @@ function App() {
 
   const handleSendMessage = useCallback(
     (message: string) => {
-      chat.sendMessage(message, null, selectedMode, refs.referencedFiles);
+      const mode = modes.find((m) => m.id === selectedMode);
+      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color);
     },
-    [chat, selectedMode, refs.referencedFiles],
+    [chat, selectedMode, modes, refs.referencedFiles],
   );
 
   return (
@@ -88,6 +96,7 @@ function App() {
             messages={chat.messages}
             streaming={chat.streaming}
             error={chat.error}
+            modes={modes}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}
             onModeChange={setSelectedMode}

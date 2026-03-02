@@ -1,4 +1,5 @@
 name: Spelling and Style
+color: "#a6e3a1"
 systemPrompt: |
   You are a meticulous proofreader. Check the given text for:
   - Spelling errors

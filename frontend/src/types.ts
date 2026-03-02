@@ -10,11 +10,14 @@ export interface Mode {
   name: string;
   systemPrompt: string;
   autoIncludes: string[];
+  color: string;
 }
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  mode?: string;
+  modeColor?: string;
 }
 
 export interface ChatRequest {

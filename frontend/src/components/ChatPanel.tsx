@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Trash2 } from 'lucide-react';
-import type { ChatMessage } from '../types.ts';
+import type { ChatMessage, Mode } from '../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 
@@ -8,6 +8,7 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   streaming: boolean;
   error: string | null;
+  modes: Mode[];
   selectedMode: string;
   referencedFiles: string[];
   onModeChange: (mode: string) => void;
@@ -18,10 +19,20 @@ interface ChatPanelProps {
   onRemoveFile: (path: string) => void;
 }
 
+function getContrastingTextColor(hexColor?: string): string | undefined {
+  if (!hexColor || !/^#[0-9A-Fa-f]{6}$/.test(hexColor)) return undefined;
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#1e1e2e' : '#f5f5ff';
+}
+
 export function ChatPanel({
   messages,
   streaming,
   error,
+  modes,
   selectedMode,
   referencedFiles,
   onModeChange,
@@ -40,7 +51,7 @@ export function ChatPanel({
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        <ModeSelector selectedMode={selectedMode} onModeChange={onModeChange} />
+        <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
         <button className="chat-clear-btn" onClick={onClear} title="Clear chat">
           <Trash2 size={14} />
         </button>
@@ -57,9 +68,31 @@ export function ChatPanel({
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={`chat-message ${msg.role}`}>
-            <div className="chat-message-role">
-              {msg.role === 'user' ? 'You' : 'Assistant'}
+          <div
+            key={i}
+            className={`chat-message ${msg.role}`}
+            style={msg.role === 'user' && msg.modeColor ? {
+              backgroundColor: msg.modeColor,
+              borderLeftColor: msg.modeColor,
+              color: getContrastingTextColor(msg.modeColor),
+            } : undefined}
+          >
+            <div
+              className="chat-message-role"
+              style={msg.role === 'user' && msg.modeColor ? { color: getContrastingTextColor(msg.modeColor) } : undefined}
+            >
+              {msg.role === 'user' ? (
+                <span>
+                  You
+                  {msg.mode && (
+                    <span className="chat-message-mode" style={{ color: getContrastingTextColor(msg.modeColor) }}>
+                      {' · '}{msg.mode}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                'Assistant'
+              )}
             </div>
             <div className="chat-message-content">
               {msg.content}

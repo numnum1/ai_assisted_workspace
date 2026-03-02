@@ -32,6 +32,7 @@ public class ModeService {
                 mode.setId(id);
                 mode.setName((String) data.getOrDefault("name", id));
                 mode.setSystemPrompt((String) data.getOrDefault("systemPrompt", ""));
+                mode.setColor((String) data.getOrDefault("color", "#89b4fa"));
 
                 Object autoIncludes = data.get("autoIncludes");
                 if (autoIncludes instanceof List<?> list) {

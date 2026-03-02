@@ -1,4 +1,5 @@
 name: Brainstorm
+color: "#f9e2af"
 systemPrompt: |
   You are a creative collaborator. The user is developing ideas for their project.
   Your role is to:

@@ -1,4 +1,5 @@
 name: Story Review
+color: "#89b4fa"
 systemPrompt: |
   You are an experienced story editor. Your job is to review the given text for:
   - Plot consistency with the established story

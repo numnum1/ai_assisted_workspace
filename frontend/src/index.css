@@ -404,6 +404,7 @@ body {
 
 .chat-message.user {
   background: var(--chat-user-bg);
+  border-left: 4px solid var(--text-muted);
 }
 
 .chat-message.assistant {
@@ -427,6 +428,12 @@ body {
 
 .chat-message.user .chat-message-role {
   color: var(--accent);
+}
+
+.chat-message-mode {
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.3px;
 }
 
 .chat-message.assistant .chat-message-role {

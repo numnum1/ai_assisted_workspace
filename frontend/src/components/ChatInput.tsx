@@ -33,7 +33,7 @@ export function ChatInput({
   }, [text, streaming, onSend]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -81,7 +81,7 @@ export function ChatInput({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           onInput={handleTextareaInput}
-          placeholder={streaming ? 'AI is responding...' : 'Type a message... (Ctrl+Enter to send, drop files here)'}
+          placeholder={streaming ? 'AI is responding...' : 'Type a message... (Enter to send, Shift+Enter for newline, drop files here)'}
           disabled={streaming}
           rows={1}
         />
@@ -94,7 +94,7 @@ export function ChatInput({
             className="chat-send-btn"
             onClick={handleSend}
             disabled={!text.trim()}
-            title="Send (Ctrl+Enter)"
+            title="Send (Enter)"
           >
             <Send size={16} />
           </button>
