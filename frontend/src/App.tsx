@@ -45,9 +45,9 @@ function App() {
 
   const handleSendMessage = useCallback(
     (message: string) => {
-      chat.sendMessage(message, project.openFilePath, selectedMode, refs.referencedFiles);
+      chat.sendMessage(message, null, selectedMode, refs.referencedFiles);
     },
-    [chat, project.openFilePath, selectedMode, refs.referencedFiles],
+    [chat, selectedMode, refs.referencedFiles],
   );
 
   return (

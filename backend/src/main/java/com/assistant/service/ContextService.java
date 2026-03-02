@@ -77,18 +77,6 @@ public class ContextService {
             }
         }
 
-        // 4. Include active file
-        if (request.getActiveFile() != null && !request.getActiveFile().isBlank()) {
-            try {
-                String content = fileService.readFile(request.getActiveFile());
-                systemPrompt.append("=== ACTIVE FILE: ").append(request.getActiveFile()).append(" ===\n");
-                systemPrompt.append(content).append("\n\n");
-                includedFiles.add(request.getActiveFile());
-            } catch (IOException e) {
-                systemPrompt.append("=== ").append(request.getActiveFile()).append(" [read error] ===\n\n");
-            }
-        }
-
         messages.add(new ChatMessage("system", systemPrompt.toString()));
 
         // 5. Add conversation history
