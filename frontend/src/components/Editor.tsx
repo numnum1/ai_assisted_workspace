@@ -1,10 +1,11 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Save } from 'lucide-react';
+import { Save, BookOpen, Code } from 'lucide-react';
+import { createReadingTheme } from './readingTheme';
 
 interface EditorProps {
   content: string;
@@ -14,11 +15,14 @@ interface EditorProps {
   onSave: () => void;
 }
 
+type EditorMode = 'editor' | 'reading';
+
 export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  const [mode, setMode] = useState<EditorMode>('editor');
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
@@ -32,31 +36,66 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     }]);
   }, []);
 
+  const toggleKeymap = useCallback(() => {
+    return keymap.of([{
+      key: 'Mod-Shift-r',
+      run: () => {
+        setMode(prev => prev === 'editor' ? 'reading' : 'editor');
+        return true;
+      },
+    }]);
+  }, []);
+
   useEffect(() => {
     if (!editorRef.current) return;
 
+    const cursorPos = viewRef.current
+      ? viewRef.current.state.selection.main.head
+      : 0;
+
+    const sharedExtensions = [
+      drawSelection(),
+      history(),
+      markdown(),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+      saveKeymap(),
+      toggleKeymap(),
+      EditorView.lineWrapping,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          onChangeRef.current(update.state.doc.toString());
+        }
+      }),
+    ];
+
+    const editorExtensions = [
+      lineNumbers(),
+      highlightActiveLine(),
+      oneDark,
+      EditorView.theme({
+        '&': { height: '100%' },
+        '.cm-scroller': { overflow: 'auto' },
+      }),
+    ];
+
+    const readingExtensions = [
+      createReadingTheme(),
+    ];
+
+    const extensions = [
+      ...sharedExtensions,
+      ...(mode === 'editor' ? editorExtensions : readingExtensions),
+    ];
+
     const state = EditorState.create({
       doc: content,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLine(),
-        drawSelection(),
-        history(),
-        markdown(),
-        oneDark,
-        keymap.of([...defaultKeymap, ...historyKeymap]),
-        saveKeymap(),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            onChangeRef.current(update.state.doc.toString());
-          }
-        }),
-        EditorView.theme({
-          '&': { height: '100%' },
-          '.cm-scroller': { overflow: 'auto' },
-        }),
-      ],
+      extensions,
+      selection: { anchor: Math.min(cursorPos, content.length) },
     });
+
+    if (viewRef.current) {
+      viewRef.current.destroy();
+    }
 
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
@@ -65,9 +104,8 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
       view.destroy();
       viewRef.current = null;
     };
-    // Only re-create when the file path changes (new file opened)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filePath]);
+  }, [filePath, mode]);
 
   if (!filePath) {
     return (
@@ -79,20 +117,30 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   }
 
   return (
-    <div className="editor-container">
+    <div className={`editor-container ${mode === 'reading' ? 'editor-reading-mode' : ''}`}>
       <div className="editor-header">
         <span className="editor-filename">
           {filePath}
           {isDirty && <span className="editor-dirty"> *</span>}
         </span>
-        <button
-          className="editor-save-btn"
-          onClick={onSave}
-          disabled={!isDirty}
-          title="Save (Ctrl+S)"
-        >
-          <Save size={14} />
-        </button>
+        <div className="editor-header-actions">
+          <button
+            className={`editor-mode-btn ${mode === 'reading' ? 'active' : ''}`}
+            onClick={() => setMode(prev => prev === 'editor' ? 'reading' : 'editor')}
+            title={mode === 'editor' ? 'Lesemodus (Ctrl+Shift+R)' : 'Editor (Ctrl+Shift+R)'}
+          >
+            {mode === 'editor' ? <BookOpen size={14} /> : <Code size={14} />}
+            <span>{mode === 'editor' ? 'Lesen' : 'Editor'}</span>
+          </button>
+          <button
+            className="editor-save-btn"
+            onClick={onSave}
+            disabled={!isDirty}
+            title="Save (Ctrl+S)"
+          >
+            <Save size={14} />
+          </button>
+        </div>
       </div>
       <div className="editor-content" ref={editorRef} />
     </div>

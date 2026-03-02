@@ -163,6 +163,37 @@ body {
   font-weight: bold;
 }
 
+.editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editor-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.editor-mode-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.editor-mode-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .editor-save-btn {
   display: flex;
   align-items: center;
@@ -194,6 +225,49 @@ body {
 
 .editor-content .cm-editor {
   height: 100%;
+}
+
+.editor-reading-mode .editor-content {
+  background: #faf8f4;
+}
+
+.editor-reading-mode .editor-header {
+  background: #f0ede6;
+  border-bottom-color: #ddd8cf;
+}
+
+.editor-reading-mode .editor-filename {
+  color: #6b6560;
+}
+
+.editor-reading-mode .editor-dirty {
+  color: #b8860b;
+}
+
+.editor-reading-mode .editor-save-btn {
+  color: #6b6560;
+  border-color: #ddd8cf;
+}
+
+.editor-reading-mode .editor-save-btn:hover:not(:disabled) {
+  background: #e8e3da;
+  color: #3c3835;
+}
+
+.editor-reading-mode .editor-mode-btn {
+  color: #6b6560;
+  border-color: #ddd8cf;
+}
+
+.editor-reading-mode .editor-mode-btn:hover {
+  background: #e8e3da;
+  color: #3c3835;
+}
+
+.editor-reading-mode .editor-mode-btn.active {
+  background: rgba(139, 115, 85, 0.15);
+  border-color: #8b7355;
+  color: #8b7355;
 }
 
 .editor-empty {
