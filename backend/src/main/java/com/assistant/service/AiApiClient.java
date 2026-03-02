@@ -40,6 +40,11 @@ public class AiApiClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
                 .retrieve()
+                .onStatus(status -> status.isError(), resp ->
+                        resp.bodyToMono(String.class)
+                                .defaultIfEmpty("")
+                                .map(body -> new RuntimeException(
+                                        "AI API error " + resp.statusCode().value() + ": " + body)))
                 .bodyToFlux(String.class)
                 .filter(line -> !line.isBlank() && !line.equals("[DONE]"))
                 .mapNotNull(this::extractContent);
@@ -64,6 +69,11 @@ public class AiApiClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
                 .retrieve()
+                .onStatus(status -> status.isError(), resp ->
+                        resp.bodyToMono(String.class)
+                                .defaultIfEmpty("")
+                                .map(body -> new RuntimeException(
+                                        "AI API error " + resp.statusCode().value() + ": " + body)))
                 .bodyToMono(String.class)
                 .block();
 

@@ -12,6 +12,8 @@ app:
       - story.md
 
 spring:
+  profiles:
+    active: local
   web:
     resources:
       static-locations: classpath:/static/

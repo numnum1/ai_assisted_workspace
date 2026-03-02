@@ -84,12 +84,21 @@ export function streamChat(
     signal: controller.signal,
   })
     .then(async (res) => {
-      if (!res.ok) throw new Error(`Chat error: ${res.status}`);
+      if (!res.ok) {
+        let detail = `Chat error: ${res.status}`;
+        try {
+          const body = await res.text();
+          if (body) detail += ` — ${body}`;
+        } catch { /* ignore */ }
+        throw new Error(detail);
+      }
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No response body');
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let currentEvent = '';
+      let doneHandled = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -100,27 +109,29 @@ export function streamChat(
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('event:context')) {
-            continue;
-          } else if (line.startsWith('data:') && !line.includes('[DONE]')) {
+          if (line.startsWith('event:')) {
+            currentEvent = line.substring(6).trim();
+          } else if (line.startsWith('data:')) {
             const data = line.substring(5);
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.includedFiles) {
-                onContext(parsed);
-                continue;
-              }
-            } catch {
-              // Not JSON, treat as token
+            if (currentEvent === 'context') {
+              try {
+                onContext(JSON.parse(data));
+              } catch { /* ignore malformed context */ }
+            } else if (currentEvent === 'error') {
+              onError(new Error(data));
+              doneHandled = true;
+            } else if (currentEvent === 'done') {
+              onDone();
+              doneHandled = true;
+            } else if (currentEvent === 'token') {
+              const unescaped = data.replace(/\\n/g, '\n');
+              onToken(unescaped);
             }
-            const unescaped = data.replace(/\\n/g, '\n');
-            onToken(unescaped);
-          } else if (line.startsWith('event:done')) {
-            onDone();
+            currentEvent = '';
           }
         }
       }
-      onDone();
+      if (!doneHandled) onDone();
     })
     .catch((err) => {
       if (err.name !== 'AbortError') onError(err);
