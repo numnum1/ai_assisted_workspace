@@ -7,6 +7,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { Save, BookOpen, Code, MessageSquareText } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
 import { createCommentExtension } from './commentExtension';
+import { hideMarksExtension } from './hideMarksExtension';
 import { CommentSidebar } from './CommentSidebar';
 import type { CommentPosition } from './commentExtension';
 
@@ -93,6 +94,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     const readingExtensions = [
       createReadingTheme(),
       createCommentExtension(handleCommentPositions),
+      hideMarksExtension(),
     ];
 
     const extensions = [
