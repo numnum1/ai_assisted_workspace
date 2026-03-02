@@ -46,7 +46,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r') {
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         setMode(prev => prev === 'editor' ? 'reading' : 'editor');
       }
@@ -65,6 +65,9 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
 
     const cursorPos = viewRef.current
       ? viewRef.current.state.selection.main.head
+      : 0;
+    const scrollPos = viewRef.current
+      ? (viewRef.current.visibleRanges[0]?.from ?? 0)
       : 0;
 
     const sharedExtensions = [
@@ -114,6 +117,14 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
 
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
+
+    if (scrollPos > 0) {
+      requestAnimationFrame(() => {
+        view.dispatch({
+          effects: EditorView.scrollIntoView(scrollPos, { y: 'start' }),
+        });
+      });
+    }
 
     if (mode === 'reading') {
       view.contentDOM.blur();
@@ -181,7 +192,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
           <button
             className={`editor-mode-btn ${isReading ? 'active' : ''}`}
             onClick={() => setMode(prev => prev === 'editor' ? 'reading' : 'editor')}
-            title={mode === 'editor' ? 'Lesemodus (Ctrl+R)' : 'Editor (Ctrl+R)'}
+            title={mode === 'editor' ? 'Lesemodus (Alt+R)' : 'Editor (Alt+R)'}
           >
             {mode === 'editor' ? <BookOpen size={14} /> : <Code size={14} />}
             <span>{mode === 'editor' ? 'Lesen' : 'Editor'}</span>
