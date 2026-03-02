@@ -11,7 +11,7 @@ interface FileTreeProps {
 
 export function FileTree({ tree, activeFile, onFileClick, onFileDragStart }: FileTreeProps) {
   if (!tree) {
-    return <div className="file-tree-empty">Loading project...</div>;
+    return <div className="file-tree-empty">Shift + Ctrl + A to open a project...</div>;
   }
 
   return (
