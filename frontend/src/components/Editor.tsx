@@ -44,14 +44,15 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     }]);
   }, []);
 
-  const toggleKeymap = useCallback(() => {
-    return keymap.of([{
-      key: 'Mod-Shift-r',
-      run: () => {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
         setMode(prev => prev === 'editor' ? 'reading' : 'editor');
-        return true;
-      },
-    }]);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   const handleCommentPositions = useCallback((positions: CommentPosition[], height: number) => {
@@ -72,7 +73,6 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
       markdown(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       saveKeymap(),
-      toggleKeymap(),
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -114,6 +114,10 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
 
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
+
+    if (mode === 'reading') {
+      view.contentDOM.blur();
+    }
 
     let scrollCleanup: (() => void) | undefined;
     if (mode === 'reading') {
@@ -177,7 +181,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
           <button
             className={`editor-mode-btn ${isReading ? 'active' : ''}`}
             onClick={() => setMode(prev => prev === 'editor' ? 'reading' : 'editor')}
-            title={mode === 'editor' ? 'Lesemodus (Ctrl+Shift+R)' : 'Editor (Ctrl+Shift+R)'}
+            title={mode === 'editor' ? 'Lesemodus (Ctrl+R)' : 'Editor (Ctrl+R)'}
           >
             {mode === 'editor' ? <BookOpen size={14} /> : <Code size={14} />}
             <span>{mode === 'editor' ? 'Lesen' : 'Editor'}</span>

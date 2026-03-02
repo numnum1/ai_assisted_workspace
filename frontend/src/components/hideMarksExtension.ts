@@ -16,14 +16,18 @@ const LINK_MARK_PARENTS = new Set(['Link', 'Image']);
 function buildMarkDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const state = view.state;
-  const cursorLine = state.doc.lineAt(state.selection.main.head);
+  const cursorLine = view.hasFocus
+    ? state.doc.lineAt(state.selection.main.head)
+    : null;
   const hidden = Decoration.replace({});
 
   syntaxTree(state).iterate({
     enter(node) {
-      const nodeLine = state.doc.lineAt(node.from);
-      if (nodeLine.number === cursorLine.number) {
-        return;
+      if (cursorLine !== null) {
+        const nodeLine = state.doc.lineAt(node.from);
+        if (nodeLine.number === cursorLine.number) {
+          return;
+        }
       }
 
       if (HIDDEN_MARKS.has(node.name)) {
@@ -67,7 +71,7 @@ const hideMarksPlugin = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      if (update.selectionSet || update.docChanged || update.viewportChanged) {
+      if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged) {
         this.decorations = buildMarkDecorations(update.view);
       }
     }

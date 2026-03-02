@@ -52,7 +52,9 @@ function buildDecorations(view: EditorView): DecorationSet {
   const comments = view.state.field(commentField);
   const builder = new RangeSetBuilder<Decoration>();
   const doc = view.state.doc;
-  const cursorLine = doc.lineAt(view.state.selection.main.head);
+  const cursorLine = view.hasFocus
+    ? doc.lineAt(view.state.selection.main.head)
+    : null;
 
   for (const comment of comments) {
     let from = comment.from;
@@ -63,6 +65,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 
     // Show comment on any line the cursor is on (single or multi-line)
     const cursorIsInside =
+      cursorLine !== null &&
       cursorLine.number >= startLine.number &&
       cursorLine.number <= endLine.number;
     if (cursorIsInside) {
@@ -90,7 +93,7 @@ const hideCommentsPlugin = ViewPlugin.fromClass(
       this.decorations = buildDecorations(view);
     }
     update(update: ViewUpdate) {
-      if (update.selectionSet || update.docChanged || update.viewportChanged) {
+      if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged) {
         this.decorations = buildDecorations(update.view);
       }
     }
