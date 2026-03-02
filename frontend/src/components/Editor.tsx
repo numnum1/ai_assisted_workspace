@@ -21,18 +21,40 @@ interface EditorProps {
 
 type EditorMode = 'editor' | 'reading';
 
+interface ScrollState {
+  cursorPos: number;
+  topLine: number;
+}
+
 export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  const scrollStateRef = useRef<ScrollState>({ cursorPos: 0, topLine: 1 });
   const [mode, setMode] = useState<EditorMode>('editor');
   const [showComments, setShowComments] = useState(false);
   const [commentPositions, setCommentPositions] = useState<CommentPosition[]>([]);
   const [contentHeight, setContentHeight] = useState(0);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+
+  const captureScrollState = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    scrollStateRef.current = {
+      cursorPos: view.state.selection.main.head,
+      topLine: view.state.doc.lineAt(
+        view.lineBlockAtHeight(view.scrollDOM.scrollTop).from
+      ).number,
+    };
+  }, []);
+
+  const toggleMode = useCallback(() => {
+    captureScrollState();
+    setMode(prev => prev === 'editor' ? 'reading' : 'editor');
+  }, [captureScrollState]);
 
   const saveKeymap = useCallback(() => {
     return keymap.of([{
@@ -48,12 +70,12 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     const handler = (e: KeyboardEvent) => {
       if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
-        setMode(prev => prev === 'editor' ? 'reading' : 'editor');
+        toggleMode();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [toggleMode]);
 
   const handleCommentPositions = useCallback((positions: CommentPosition[], height: number) => {
     setCommentPositions(positions);
@@ -63,12 +85,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const cursorPos = viewRef.current
-      ? viewRef.current.state.selection.main.head
-      : 0;
-    const scrollPos = viewRef.current
-      ? (viewRef.current.visibleRanges[0]?.from ?? 0)
-      : 0;
+    const { cursorPos, topLine } = scrollStateRef.current;
 
     const sharedExtensions = [
       drawSelection(),
@@ -111,17 +128,16 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
       selection: { anchor: Math.min(cursorPos, content.length) },
     });
 
-    if (viewRef.current) {
-      viewRef.current.destroy();
-    }
-
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
 
-    if (scrollPos > 0) {
+    if (topLine > 1) {
       requestAnimationFrame(() => {
-        view.dispatch({
-          effects: EditorView.scrollIntoView(scrollPos, { y: 'start' }),
+        requestAnimationFrame(() => {
+          const lineStart = view.state.doc.line(
+            Math.min(topLine, view.state.doc.lines)
+          ).from;
+          view.scrollDOM.scrollTop = view.lineBlockAt(lineStart).top;
         });
       });
     }
@@ -191,7 +207,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
           )}
           <button
             className={`editor-mode-btn ${isReading ? 'active' : ''}`}
-            onClick={() => setMode(prev => prev === 'editor' ? 'reading' : 'editor')}
+            onClick={toggleMode}
             title={mode === 'editor' ? 'Lesemodus (Alt+R)' : 'Editor (Alt+R)'}
           >
             {mode === 'editor' ? <BookOpen size={14} /> : <Code size={14} />}
