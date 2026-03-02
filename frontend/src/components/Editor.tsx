@@ -28,7 +28,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const [mode, setMode] = useState<EditorMode>('editor');
-  const [showComments, setShowComments] = useState(true);
+  const [showComments, setShowComments] = useState(false);
   const [commentPositions, setCommentPositions] = useState<CommentPosition[]>([]);
   const [contentHeight, setContentHeight] = useState(0);
   onChangeRef.current = onChange;
