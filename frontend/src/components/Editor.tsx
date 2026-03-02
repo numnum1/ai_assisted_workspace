@@ -4,8 +4,11 @@ import { EditorState } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Save, BookOpen, Code } from 'lucide-react';
+import { Save, BookOpen, Code, MessageSquareText } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
+import { createCommentExtension } from './commentExtension';
+import { CommentSidebar } from './CommentSidebar';
+import type { CommentPosition } from './commentExtension';
 
 interface EditorProps {
   content: string;
@@ -19,10 +22,14 @@ type EditorMode = 'editor' | 'reading';
 
 export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const [mode, setMode] = useState<EditorMode>('editor');
+  const [showComments, setShowComments] = useState(true);
+  const [commentPositions, setCommentPositions] = useState<CommentPosition[]>([]);
+  const [contentHeight, setContentHeight] = useState(0);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
@@ -44,6 +51,11 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
         return true;
       },
     }]);
+  }, []);
+
+  const handleCommentPositions = useCallback((positions: CommentPosition[], height: number) => {
+    setCommentPositions(positions);
+    setContentHeight(height);
   }, []);
 
   useEffect(() => {
@@ -80,6 +92,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
 
     const readingExtensions = [
       createReadingTheme(),
+      createCommentExtension(handleCommentPositions),
     ];
 
     const extensions = [
@@ -100,12 +113,34 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
 
+    let scrollCleanup: (() => void) | undefined;
+    if (mode === 'reading') {
+      const scroller = editorRef.current.querySelector('.cm-scroller');
+      if (scroller) {
+        const scrollHandler = () => {
+          if (sidebarRef.current) {
+            sidebarRef.current.scrollTop = scroller.scrollTop;
+          }
+        };
+        scroller.addEventListener('scroll', scrollHandler);
+        scrollCleanup = () => scroller.removeEventListener('scroll', scrollHandler);
+      }
+    }
+
     return () => {
+      scrollCleanup?.();
       view.destroy();
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath, mode]);
+
+  useEffect(() => {
+    if (mode === 'editor') {
+      setCommentPositions([]);
+      setContentHeight(0);
+    }
+  }, [mode]);
 
   if (!filePath) {
     return (
@@ -116,16 +151,29 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     );
   }
 
+  const isReading = mode === 'reading';
+  const sidebarVisible = isReading && showComments && commentPositions.length > 0;
+
   return (
-    <div className={`editor-container ${mode === 'reading' ? 'editor-reading-mode' : ''}`}>
+    <div className={`editor-container ${isReading ? 'editor-reading-mode' : ''}`}>
       <div className="editor-header">
         <span className="editor-filename">
           {filePath}
           {isDirty && <span className="editor-dirty"> *</span>}
         </span>
         <div className="editor-header-actions">
+          {isReading && commentPositions.length > 0 && (
+            <button
+              className={`editor-mode-btn ${showComments ? 'active' : ''}`}
+              onClick={() => setShowComments(prev => !prev)}
+              title={showComments ? 'Kommentare ausblenden' : 'Kommentare einblenden'}
+            >
+              <MessageSquareText size={14} />
+              <span>{commentPositions.length}</span>
+            </button>
+          )}
           <button
-            className={`editor-mode-btn ${mode === 'reading' ? 'active' : ''}`}
+            className={`editor-mode-btn ${isReading ? 'active' : ''}`}
             onClick={() => setMode(prev => prev === 'editor' ? 'reading' : 'editor')}
             title={mode === 'editor' ? 'Lesemodus (Ctrl+Shift+R)' : 'Editor (Ctrl+Shift+R)'}
           >
@@ -142,7 +190,16 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
           </button>
         </div>
       </div>
-      <div className="editor-content" ref={editorRef} />
+      <div className={`editor-content ${sidebarVisible ? 'editor-content-with-sidebar' : ''}`}>
+        <div ref={editorRef} className="editor-cm-wrap" />
+        {sidebarVisible && (
+          <CommentSidebar
+            comments={commentPositions}
+            contentHeight={contentHeight}
+            sidebarRef={sidebarRef}
+          />
+        )}
+      </div>
     </div>
   );
 }
