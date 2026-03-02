@@ -6,9 +6,11 @@ import com.assistant.service.FileService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.swing.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 @RestController
 @RequestMapping("/api/project")
@@ -30,6 +32,44 @@ public class ProjectController {
                 "path", path != null ? path : "",
                 "hasProject", hasProject
         ));
+    }
+
+    @PostMapping("/browse")
+    public ResponseEntity<Map<String, Object>> browse() {
+        AtomicReference<String> selectedPath = new AtomicReference<>();
+
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                JFrame frame = new JFrame();
+                frame.setAlwaysOnTop(true);
+                frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+                JFileChooser chooser = new JFileChooser();
+                chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                chooser.setDialogTitle("Open Project Folder");
+
+                String currentPath = appConfig.getProject().getPath();
+                if (currentPath != null && !currentPath.isBlank()) {
+                    chooser.setCurrentDirectory(new java.io.File(currentPath));
+                }
+
+                int result = chooser.showOpenDialog(frame);
+                frame.dispose();
+
+                if (result == JFileChooser.APPROVE_OPTION) {
+                    selectedPath.set(chooser.getSelectedFile().getAbsolutePath());
+                }
+            });
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to open folder dialog: " + e.getMessage()));
+        }
+
+        if (selectedPath.get() == null) {
+            return ResponseEntity.ok(Map.of("cancelled", true));
+        }
+
+        return ResponseEntity.ok(Map.of("cancelled", false, "path", selectedPath.get()));
     }
 
     @PostMapping("/open")

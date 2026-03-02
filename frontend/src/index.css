@@ -626,6 +626,25 @@ body {
   font-size: 12px;
 }
 
+.command-palette-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.command-palette-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ==================== Scrollbar ==================== */
 
 ::-webkit-scrollbar {

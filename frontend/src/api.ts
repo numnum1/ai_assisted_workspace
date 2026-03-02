@@ -46,6 +46,12 @@ export const modesApi = {
 
 export const projectApi = {
   current: () => get<{ path: string; hasProject: boolean }>('/project/current'),
+  browse: async (): Promise<{ cancelled: boolean; path?: string }> => {
+    const res = await postRaw('/project/browse', {});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Browse failed: ${res.status}`);
+    return data;
+  },
   open: async (path: string): Promise<{ status: string; path: string; tree: FileNode }> => {
     const res = await postRaw('/project/open', { path });
     const data = await res.json();

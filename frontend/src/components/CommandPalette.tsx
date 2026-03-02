@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { FolderOpen, Search, ArrowLeft } from 'lucide-react';
+import { FolderOpen, Search, ArrowLeft, Loader } from 'lucide-react';
+import { projectApi } from '../api.ts';
 
 export interface CommandAction {
   id: string;
@@ -16,7 +17,7 @@ interface CommandPaletteProps {
   onOpenFolder: (path: string) => Promise<void>;
 }
 
-type PaletteView = 'search' | 'open-folder';
+type PaletteView = 'search' | 'open-folder-manual';
 
 export function CommandPalette({ open, onClose, actions, onOpenFolder }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
@@ -34,6 +35,7 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder }: Command
       setView('search');
       setFolderPath('');
       setError(null);
+      setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -48,6 +50,42 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder }: Command
     setSelectedIndex(0);
   }, [filtered.length]);
 
+  const handleBrowseAndOpen = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const result = await projectApi.browse();
+      if (result.cancelled || !result.path) {
+        setLoading(false);
+        return;
+      }
+      await onOpenFolder(result.path);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open folder');
+      setView('open-folder-manual');
+      setLoading(false);
+    }
+  };
+
+  const handleManualOpen = async () => {
+    if (!folderPath.trim()) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await onOpenFolder(folderPath.trim());
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open folder');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const triggerOpenFolder = () => {
+    handleBrowseAndOpen();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       if (view !== 'search') {
@@ -60,9 +98,9 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder }: Command
       return;
     }
 
-    if (view === 'open-folder') {
+    if (view === 'open-folder-manual') {
       if (e.key === 'Enter' && folderPath.trim()) {
-        handleOpenFolder();
+        handleManualOpen();
       }
       return;
     }
@@ -77,8 +115,7 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder }: Command
       e.preventDefault();
       const action = filtered[selectedIndex];
       if (action.id === 'open-folder') {
-        setView('open-folder');
-        setTimeout(() => inputRef.current?.focus(), 50);
+        triggerOpenFolder();
       } else {
         action.handler();
         onClose();
@@ -86,25 +123,17 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder }: Command
     }
   };
 
-  const handleOpenFolder = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      await onOpenFolder(folderPath.trim());
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to open folder');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (!open) return null;
 
   return (
-    <div className="command-palette-overlay" onClick={onClose}>
+    <div className="command-palette-overlay" onClick={loading ? undefined : onClose}>
       <div className="command-palette" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
-        {view === 'search' ? (
+        {loading && view === 'search' ? (
+          <div className="command-palette-loading">
+            <Loader size={18} className="command-palette-spinner" />
+            <span>Waiting for folder selection...</span>
+          </div>
+        ) : view === 'search' ? (
           <>
             <div className="command-palette-input-row">
               <Search size={16} className="command-palette-search-icon" />
@@ -127,8 +156,7 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder }: Command
                   className={`command-palette-item ${i === selectedIndex ? 'selected' : ''}`}
                   onClick={() => {
                     if (action.id === 'open-folder') {
-                      setView('open-folder');
-                      setTimeout(() => inputRef.current?.focus(), 50);
+                      triggerOpenFolder();
                     } else {
                       action.handler();
                       onClose();
