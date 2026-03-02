@@ -57,13 +57,25 @@ public class ReferenceResolver {
             cleanMessage.replace(ref.start, ref.end, "[" + label + "]");
         }
 
-        // Add explicitly referenced files
+        // Add explicitly referenced files, expanding directories to their contained files
         if (explicitFiles != null) {
-            allFiles.addAll(explicitFiles);
+            for (String path : explicitFiles) {
+                String cleanPath = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+                if (fileService.isDirectory(cleanPath)) {
+                    try {
+                        allFiles.addAll(fileService.listFiles(cleanPath));
+                    } catch (IOException e) {
+                        fileContents.put(path, "[Error listing directory: " + e.getMessage() + "]");
+                    }
+                } else {
+                    allFiles.add(path);
+                }
+            }
         }
 
         // Load content for all referenced files
         for (String filePath : allFiles) {
+            if (fileContents.containsKey(filePath)) continue;
             try {
                 InlineRef ref = inlineRefs.stream()
                         .filter(r -> r.filePath.equals(filePath) && r.startLine != null)

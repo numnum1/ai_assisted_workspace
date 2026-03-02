@@ -57,9 +57,10 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart }: Tre
   };
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('text/plain', node.path);
+    const dragPath = node.directory ? node.path + '/' : node.path;
+    e.dataTransfer.setData('text/plain', dragPath);
     e.dataTransfer.effectAllowed = 'copy';
-    onFileDragStart(node.path);
+    onFileDragStart(dragPath);
   };
 
   return (
@@ -68,7 +69,7 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart }: Tre
         className={`tree-node ${isActive ? 'active' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={handleClick}
-        draggable={!node.directory}
+        draggable
         onDragStart={handleDragStart}
         title={node.path}
       >

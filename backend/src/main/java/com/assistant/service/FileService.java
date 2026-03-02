@@ -7,7 +7,9 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Stream;
 
 @Service
@@ -104,6 +106,55 @@ public class FileService {
         Path file = resolveAndValidate(relativePath);
         try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
             return (int) lines.count();
+        }
+    }
+
+    public boolean isDirectory(String relativePath) {
+        try {
+            Path path = getProjectRoot().resolve(relativePath).normalize();
+            return Files.isDirectory(path) && path.startsWith(getProjectRoot());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Lists all files recursively within a directory, filtering hidden entries.
+     * Returns relative paths (forward-slash separated) under the project root.
+     */
+    public List<String> listFiles(String relativePath) throws IOException {
+        Path root = getProjectRoot();
+        Path dir = root.resolve(relativePath).normalize();
+        if (!dir.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (!Files.isDirectory(dir)) {
+            throw new IOException("Not a directory: " + relativePath);
+        }
+
+        List<String> result = new ArrayList<>();
+        collectFiles(dir, root, result);
+        return result;
+    }
+
+    private void collectFiles(Path current, Path root, List<String> result) throws IOException {
+        try (Stream<Path> entries = Files.list(current)) {
+            entries
+                .filter(p -> !isHidden(p))
+                .sorted(Comparator
+                    .comparing((Path p) -> !Files.isDirectory(p))
+                    .thenComparing(p -> p.getFileName().toString().toLowerCase()))
+                .forEach(p -> {
+                    if (Files.isDirectory(p)) {
+                        try {
+                            collectFiles(p, root, result);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        result.add(root.relativize(p).toString().replace('\\', '/'));
+                    }
+                });
         }
     }
 
