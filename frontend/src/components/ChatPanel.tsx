@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { Trash2, Search, Scissors } from 'lucide-react';
-import type { ChatMessage, Mode } from '../types.ts';
+import { useState, useEffect, useRef } from 'react';
+import { Trash2, Search, Scissors, History } from 'lucide-react';
+import type { ChatMessage, Mode, Conversation } from '../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
+import { ChatHistory } from './ChatHistory.tsx';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -12,6 +13,8 @@ interface ChatPanelProps {
   modes: Mode[];
   selectedMode: string;
   referencedFiles: string[];
+  conversations: Conversation[];
+  activeConversationId: string;
   onModeChange: (mode: string) => void;
   onSend: (message: string) => void;
   onStop: () => void;
@@ -19,6 +22,10 @@ interface ChatPanelProps {
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
   onForkFromMessage: (index: number) => void;
+  onNewChat: () => void;
+  onSwitchChat: (id: string) => void;
+  onDeleteChat: (id: string) => void;
+  onRenameChat: (id: string, title: string) => void;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -38,6 +45,8 @@ export function ChatPanel({
   modes,
   selectedMode,
   referencedFiles,
+  conversations,
+  activeConversationId,
   onModeChange,
   onSend,
   onStop,
@@ -45,8 +54,13 @@ export function ChatPanel({
   onAddFile,
   onRemoveFile,
   onForkFromMessage,
+  onNewChat,
+  onSwitchChat,
+  onDeleteChat,
+  onRenameChat,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -56,10 +70,31 @@ export function ChatPanel({
     <div className="chat-panel">
       <div className="chat-header">
         <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
-        <button className="chat-clear-btn" onClick={onClear} title="Clear chat">
-          <Trash2 size={14} />
-        </button>
+        <div className="chat-header-actions">
+          <button
+            className={`chat-history-btn ${historyOpen ? 'active' : ''}`}
+            onClick={() => setHistoryOpen((prev) => !prev)}
+            title="Chat-Historie"
+          >
+            <History size={14} />
+          </button>
+          <button className="chat-clear-btn" onClick={onClear} title="Clear chat">
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
+
+      {historyOpen && (
+        <ChatHistory
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={onSwitchChat}
+          onCreate={onNewChat}
+          onDelete={onDeleteChat}
+          onRename={onRenameChat}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
 
       <div className="chat-messages">
         {messages.length === 0 && (

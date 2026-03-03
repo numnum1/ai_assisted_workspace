@@ -240,8 +240,11 @@ public class AiApiClient {
             if (contentIdx == -1) return null;
             int colonIdx = data.indexOf(":", contentIdx);
             if (colonIdx == -1) return null;
-            int startQuote = data.indexOf("\"", colonIdx + 1);
-            if (startQuote == -1) return null;
+            // Skip whitespace after colon and verify the value is a string (starts with ")
+            int afterColon = colonIdx + 1;
+            while (afterColon < data.length() && data.charAt(afterColon) == ' ') afterColon++;
+            if (afterColon >= data.length() || data.charAt(afterColon) != '"') return null;
+            int startQuote = afterColon;
             int endQuote = findClosingQuote(data, startQuote + 1);
             if (endQuote == -1) return null;
             return unescapeJson(data.substring(startQuote + 1, endQuote));
@@ -256,7 +259,12 @@ public class AiApiClient {
             int contentIdx = json.indexOf("\"content\"");
             if (contentIdx == -1) return "";
             int colonIdx = json.indexOf(":", contentIdx);
-            int startQuote = json.indexOf("\"", colonIdx + 1);
+            if (colonIdx == -1) return "";
+            // Skip whitespace after colon and verify the value is a string (starts with ")
+            int afterColon = colonIdx + 1;
+            while (afterColon < json.length() && json.charAt(afterColon) == ' ') afterColon++;
+            if (afterColon >= json.length() || json.charAt(afterColon) != '"') return "";
+            int startQuote = afterColon;
             int endQuote = findClosingQuote(json, startQuote + 1);
             if (startQuote == -1 || endQuote == -1) return "";
             return unescapeJson(json.substring(startQuote + 1, endQuote));

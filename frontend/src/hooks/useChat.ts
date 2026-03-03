@@ -2,13 +2,32 @@ import { useState, useCallback, useRef } from 'react';
 import type { ChatMessage, ContextInfo } from '../types.ts';
 import { streamChat } from '../api.ts';
 
-export function useChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
+  const [messages, setMessagesState] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toolActivity, setToolActivity] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const onMessagesChangeRef = useRef(onMessagesChange);
+  onMessagesChangeRef.current = onMessagesChange;
+
+  // Notify parent when messages change
+  const setMessages = useCallback((msgs: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+    setMessagesState((prev) => {
+      const next = typeof msgs === 'function' ? msgs(prev) : msgs;
+      // Defer callback to avoid setState-during-render
+      setTimeout(() => onMessagesChangeRef.current?.(next), 0);
+      return next;
+    });
+  }, []);
+
+  const loadMessages = useCallback((msgs: ChatMessage[]) => {
+    setMessagesState(msgs);
+    setContextInfo(null);
+    setError(null);
+    setToolActivity(null);
+  }, []);
 
   const sendMessage = useCallback(
     (
@@ -63,7 +82,7 @@ export function useChat() {
 
       abortRef.current = controller;
     },
-    [messages],
+    [messages, setMessages],
   );
 
   const stopStreaming = useCallback(() => {
@@ -77,13 +96,13 @@ export function useChat() {
     setContextInfo(null);
     setError(null);
     setToolActivity(null);
-  }, []);
+  }, [setMessages]);
 
   const forkFromMessage = useCallback((upToIndex: number) => {
     setMessages(prev => prev.slice(0, upToIndex + 1));
     setContextInfo(null);
     setError(null);
-  }, []);
+  }, [setMessages]);
 
   return {
     messages,
@@ -95,5 +114,6 @@ export function useChat() {
     stopStreaming,
     clearChat,
     forkFromMessage,
+    loadMessages,
   };
 }

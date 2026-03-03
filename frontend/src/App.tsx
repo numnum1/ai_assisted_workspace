@@ -12,17 +12,30 @@ import { modesApi } from './api.ts';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
+import { useChatHistory } from './hooks/useChatHistory.ts';
 
 function App() {
   const project = useProject();
-  const chat = useChat();
   const refs = useReferencedFiles();
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
 
+  const history = useChatHistory(selectedMode);
+  const chat = useChat(history.updateMessages);
+
+  // Load messages when switching conversations
+  useEffect(() => {
+    if (history.activeConversation) {
+      chat.loadMessages(history.activeConversation.messages);
+    }
+    // Only react to activeId changes, not the conversation object itself
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history.activeId]);
+
   useEffect(() => {
     modesApi.getAll().then(setModes).catch(console.error);
   }, []);
+
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -57,6 +70,18 @@ function App() {
     },
     [chat, selectedMode, modes, refs.referencedFiles],
   );
+
+  const handleNewChat = useCallback(() => {
+    history.createConversation(selectedMode);
+  }, [history, selectedMode]);
+
+  const handleSwitchChat = useCallback((id: string) => {
+    history.switchConversation(id);
+  }, [history]);
+
+  const handleClearChat = useCallback(() => {
+    chat.clearChat();
+  }, [chat]);
 
   return (
     <div className="app">
@@ -100,13 +125,19 @@ function App() {
             modes={modes}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}
+            conversations={history.conversations}
+            activeConversationId={history.activeId}
             onModeChange={setSelectedMode}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}
-            onClear={chat.clearChat}
+            onClear={handleClearChat}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
+            onNewChat={handleNewChat}
+            onSwitchChat={handleSwitchChat}
+            onDeleteChat={history.deleteConversation}
+            onRenameChat={history.renameConversation}
           />
         </Panel>
       </Group>
