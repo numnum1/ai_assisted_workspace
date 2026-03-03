@@ -3,6 +3,7 @@ import type { Conversation, ChatMessage } from '../types.ts';
 
 const STORAGE_KEY = 'chat-history';
 const MAX_CONVERSATIONS = 50;
+const SAVE_DEBOUNCE_MS = 500;
 
 function loadConversations(): Conversation[] {
   try {
@@ -56,19 +57,31 @@ export function useChatHistory(currentMode: string) {
     return loaded.length > 0 ? loaded[0].id : conversations[0].id;
   });
 
-  // Persist whenever conversations change
-  const isInitialMount = useRef(true);
+  // Debounced persist whenever conversations change
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
+
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      // Still save on initial if we created a default conversation
-      if (conversations.length > 0) {
-        saveConversations(conversations);
-      }
-      return;
-    }
-    saveConversations(conversations);
+    // Debounce saves to avoid thrashing localStorage during streaming
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveConversations(conversationsRef.current);
+    }, SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, [conversations]);
+
+  // Save immediately when the page is about to unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveConversations(conversationsRef.current);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? conversations[0];
 
@@ -93,7 +106,6 @@ export function useChatHistory(currentMode: string) {
       const newConv = createEmptyConversation(mode ?? currentMode);
       setConversations((prev) => {
         const updated = [newConv, ...prev];
-        // Enforce limit
         if (updated.length > MAX_CONVERSATIONS) {
           return updated.slice(0, MAX_CONVERSATIONS);
         }

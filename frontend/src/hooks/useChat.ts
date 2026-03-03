@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ChatMessage, ContextInfo } from '../types.ts';
 import { streamChat } from '../api.ts';
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
-  const [messages, setMessagesState] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -12,21 +12,25 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
   const onMessagesChangeRef = useRef(onMessagesChange);
   onMessagesChangeRef.current = onMessagesChange;
 
-  // Notify parent when messages change
-  const setMessages = useCallback((msgs: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
-    setMessagesState((prev) => {
-      const next = typeof msgs === 'function' ? msgs(prev) : msgs;
-      // Defer callback to avoid setState-during-render
-      setTimeout(() => onMessagesChangeRef.current?.(next), 0);
-      return next;
-    });
-  }, []);
+  // Skip syncing on initial mount and after loadMessages
+  const syncEnabledRef = useRef(false);
+
+  // Sync messages to history whenever they change
+  useEffect(() => {
+    if (!syncEnabledRef.current) return;
+    onMessagesChangeRef.current?.(messages);
+  }, [messages]);
 
   const loadMessages = useCallback((msgs: ChatMessage[]) => {
-    setMessagesState(msgs);
+    syncEnabledRef.current = false;
+    setMessages(msgs);
     setContextInfo(null);
     setError(null);
     setToolActivity(null);
+    // Re-enable sync after React processes the state update
+    requestAnimationFrame(() => {
+      syncEnabledRef.current = true;
+    });
   }, []);
 
   const sendMessage = useCallback(
@@ -38,6 +42,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       modeName?: string,
       modeColor?: string,
     ) => {
+      syncEnabledRef.current = true;
       setError(null);
       setToolActivity(null);
       const userMsg: ChatMessage = { role: 'user', content: text, mode: modeName, modeColor };
@@ -82,7 +87,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
 
       abortRef.current = controller;
     },
-    [messages, setMessages],
+    [messages],
   );
 
   const stopStreaming = useCallback(() => {
@@ -92,17 +97,19 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
   }, []);
 
   const clearChat = useCallback(() => {
+    syncEnabledRef.current = true;
     setMessages([]);
     setContextInfo(null);
     setError(null);
     setToolActivity(null);
-  }, [setMessages]);
+  }, []);
 
   const forkFromMessage = useCallback((upToIndex: number) => {
+    syncEnabledRef.current = true;
     setMessages(prev => prev.slice(0, upToIndex + 1));
     setContextInfo(null);
     setError(null);
-  }, [setMessages]);
+  }, []);
 
   return {
     messages,

@@ -78,9 +78,9 @@ public class ChatController {
             ChatCompletionResult result = aiApiClient.chatWithTools(currentMessages, tools);
 
             if (!result.hasToolCalls()) {
-                if (result.content() != null && !result.content().isEmpty()) {
-                    currentMessages.add(new ChatMessage("assistant", result.content()));
-                }
+                // Don't add the content here — the streaming call that follows
+                // will generate the final response. Adding it would make the AI
+                // see its own answer and return an empty stream.
                 break;
             }
 
