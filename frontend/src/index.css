@@ -397,6 +397,7 @@ body {
 }
 
 .chat-message {
+  position: relative;
   padding: 8px 12px;
   border-radius: 8px;
   line-height: 1.5;
@@ -415,6 +416,31 @@ body {
 .chat-message.error {
   background: var(--red);
   color: var(--bg-tertiary);
+}
+
+.chat-tool-activity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border: 1px dashed var(--border);
+  animation: pulse-opacity 1.5s ease-in-out infinite;
+}
+
+.chat-tool-activity-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .chat-message-role {
@@ -443,6 +469,30 @@ body {
 .chat-message-content {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.chat-fork-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  align-items: center;
+  padding: 3px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chat-message:hover .chat-fork-btn {
+  display: flex;
+}
+
+.chat-fork-btn:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 
 /* ==================== Chat Input ==================== */

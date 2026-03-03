@@ -77,6 +77,17 @@ public class ContextService {
             }
         }
 
+        // Tool usage instructions
+        systemPrompt.append("=== Available Tools ===\n");
+        systemPrompt.append("You have access to tools that let you search and read project files:\n");
+        systemPrompt.append("- search_project(query): Search for files/folders by name or path. " +
+                "Use this when discussing characters, locations, plot elements, or any topic that " +
+                "might have corresponding files in the project.\n");
+        systemPrompt.append("- read_file(path): Read the full content of a project file. " +
+                "Use this after searching to inspect relevant files.\n");
+        systemPrompt.append("Proactively use these tools when the conversation involves elements " +
+                "that may have dedicated files in the project structure.\n\n");
+
         messages.add(new ChatMessage("system", systemPrompt.toString()));
 
         // 5. Add conversation history
@@ -122,8 +133,8 @@ public class ContextService {
 
     private int estimateTokens(List<ChatMessage> messages) {
         int totalChars = messages.stream()
-                .mapToInt(m -> m.getContent().length())
+                .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)
                 .sum();
-        return totalChars / 4; // rough approximation: ~4 chars per token
+        return totalChars / 4;
     }
 }

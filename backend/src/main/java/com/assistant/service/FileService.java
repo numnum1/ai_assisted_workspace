@@ -158,6 +158,40 @@ public class FileService {
         }
     }
 
+    /**
+     * Searches file and folder names/paths for a query string (case-insensitive).
+     * Returns relative paths of all matching entries.
+     */
+    public List<String> searchFiles(String query) throws IOException {
+        List<String> results = new ArrayList<>();
+        String lowerQuery = query.toLowerCase();
+        collectSearchResults(getProjectRoot(), getProjectRoot(), lowerQuery, results);
+        return results;
+    }
+
+    private void collectSearchResults(Path current, Path root, String lowerQuery, List<String> results) throws IOException {
+        try (Stream<Path> entries = Files.list(current)) {
+            entries
+                .filter(p -> !isHidden(p))
+                .sorted(Comparator
+                    .comparing((Path p) -> !Files.isDirectory(p))
+                    .thenComparing(p -> p.getFileName().toString().toLowerCase()))
+                .forEach(p -> {
+                    String relative = root.relativize(p).toString().replace('\\', '/');
+                    if (relative.toLowerCase().contains(lowerQuery)) {
+                        results.add(relative + (Files.isDirectory(p) ? "/" : ""));
+                    }
+                    if (Files.isDirectory(p)) {
+                        try {
+                            collectSearchResults(p, root, lowerQuery, results);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                });
+        }
+    }
+
     private Path resolveAndValidate(String relativePath) throws IOException {
         Path root = getProjectRoot();
         Path file = root.resolve(relativePath).normalize();

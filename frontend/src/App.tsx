@@ -96,6 +96,7 @@ function App() {
             messages={chat.messages}
             streaming={chat.streaming}
             error={chat.error}
+            toolActivity={chat.toolActivity}
             modes={modes}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}
@@ -105,6 +106,7 @@ function App() {
             onClear={chat.clearChat}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
+            onForkFromMessage={chat.forkFromMessage}
           />
         </Panel>
       </Group>

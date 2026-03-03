@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Search, Scissors } from 'lucide-react';
 import type { ChatMessage, Mode } from '../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -8,6 +8,7 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   streaming: boolean;
   error: string | null;
+  toolActivity: string | null;
   modes: Mode[];
   selectedMode: string;
   referencedFiles: string[];
@@ -17,6 +18,7 @@ interface ChatPanelProps {
   onClear: () => void;
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
+  onForkFromMessage: (index: number) => void;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -32,6 +34,7 @@ export function ChatPanel({
   messages,
   streaming,
   error,
+  toolActivity,
   modes,
   selectedMode,
   referencedFiles,
@@ -41,6 +44,7 @@ export function ChatPanel({
   onClear,
   onAddFile,
   onRemoveFile,
+  onForkFromMessage,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -97,8 +101,23 @@ export function ChatPanel({
             <div className="chat-message-content">
               {msg.content}
             </div>
+            {i > 0 && !streaming && (
+              <button
+                className="chat-fork-btn"
+                onClick={() => onForkFromMessage(i)}
+                title="Neuen Chat ab hier"
+              >
+                <Scissors size={12} />
+              </button>
+            )}
           </div>
         ))}
+        {toolActivity && streaming && (
+          <div className="chat-tool-activity">
+            <Search size={14} className="chat-tool-activity-icon" />
+            <span>{toolActivity}</span>
+          </div>
+        )}
         {error && (
           <div className="chat-message error">
             <div className="chat-message-content">Error: {error}</div>

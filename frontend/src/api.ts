@@ -74,6 +74,7 @@ export function streamChat(
   onContext: (info: { includedFiles: string[]; estimatedTokens: number }) => void,
   onDone: () => void,
   onError: (err: Error) => void,
+  onToolCall?: (description: string) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -123,6 +124,9 @@ export function streamChat(
             } else if (currentEvent === 'done') {
               onDone();
               doneHandled = true;
+            } else if (currentEvent === 'tool_call') {
+              const unescaped = data.replace(/\\n/g, '\n');
+              onToolCall?.(unescaped);
             } else if (currentEvent === 'token') {
               const unescaped = data.replace(/\\n/g, '\n');
               onToken(unescaped);
