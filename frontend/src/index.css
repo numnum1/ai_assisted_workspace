@@ -284,16 +284,16 @@ body {
 }
 
 .editor-reading-mode .editor-content {
-  background: #f5f0e8;
+  background: var(--rm-bg, #f5f0e8);
 }
 
 .editor-reading-mode .editor-header {
-  background: #ebe5db;
-  border-bottom-color: #d9d2c6;
+  background: var(--rm-header-bg, #ebe5db);
+  border-bottom-color: var(--rm-border, #d9d2c6);
 }
 
 .editor-reading-mode .editor-filename {
-  color: #6b6560;
+  color: var(--rm-text-muted, #6b6560);
 }
 
 .editor-reading-mode .editor-dirty {
@@ -301,23 +301,23 @@ body {
 }
 
 .editor-reading-mode .editor-save-btn {
-  color: #6b6560;
-  border-color: #ddd8cf;
+  color: var(--rm-text-muted, #6b6560);
+  border-color: var(--rm-border, #ddd8cf);
 }
 
 .editor-reading-mode .editor-save-btn:hover:not(:disabled) {
-  background: #e8e3da;
-  color: #3c3835;
+  background: var(--rm-hover, #e8e3da);
+  color: var(--rm-text, #3c3835);
 }
 
 .editor-reading-mode .editor-mode-btn {
-  color: #6b6560;
-  border-color: #ddd8cf;
+  color: var(--rm-text-muted, #6b6560);
+  border-color: var(--rm-border, #ddd8cf);
 }
 
 .editor-reading-mode .editor-mode-btn:hover {
-  background: #e8e3da;
-  color: #3c3835;
+  background: var(--rm-hover, #e8e3da);
+  color: var(--rm-text, #3c3835);
 }
 
 .editor-reading-mode .editor-mode-btn.active {
@@ -326,11 +326,23 @@ body {
   color: #8b7355;
 }
 
+/* Night mode: amber accent for active button */
+.editor-reading-night .editor-mode-btn.active {
+  background: rgba(200, 155, 70, 0.15);
+  border-color: #c89846;
+  color: #c89846;
+}
+
+.editor-reading-mode .comment-sidebar {
+  background: var(--rm-sidebar-bg, #ede8de);
+  border-left-color: var(--rm-border, #d9d2c6);
+}
+
 .reading-padding-control {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #8b7355;
+  color: var(--rm-text-muted, #8b7355);
   opacity: 0.75;
   transition: opacity 0.15s;
 }
@@ -344,7 +356,7 @@ body {
   appearance: none;
   width: 80px;
   height: 3px;
-  background: #c8bfb0;
+  background: var(--rm-border, #c8bfb0);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -356,13 +368,13 @@ body {
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: #8b7355;
+  background: var(--rm-text-muted, #8b7355);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .reading-padding-slider::-webkit-slider-thumb:hover {
-  background: #5c4a2e;
+  background: var(--rm-text, #3c3835);
 }
 
 .reading-padding-slider::-moz-range-thumb {
@@ -370,7 +382,7 @@ body {
   height: 11px;
   border: none;
   border-radius: 50%;
-  background: #8b7355;
+  background: var(--rm-text-muted, #8b7355);
   cursor: pointer;
 }
 

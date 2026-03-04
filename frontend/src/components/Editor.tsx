@@ -4,7 +4,7 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal } from 'lucide-react';
+import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
 import { createCommentExtension } from './commentExtension';
 import { hideMarksExtension } from './hideMarksExtension';
@@ -13,8 +13,34 @@ import type { CommentPosition } from './commentExtension';
 
 const FONT_SIZE_KEY = 'reading-font-size';
 const PADDING_KEY = 'reading-padding';
+const NIGHT_MODE_KEY = 'reading-night-mode';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 64;
+
+const DAY_COLORS = {
+  bg:             '#f5f0e8',
+  text:           '#2c2a25',
+  headerBg:       '#ebe5db',
+  sidebarBg:      '#ede8de',
+  hoverBg:        '#e8e3da',
+  mutedText:      '#6b6560',
+  caretColor:     '#555555',
+  border:         'rgba(44,42,37,0.18)',
+  selectionColor: '#c8d8ec',
+};
+
+// Warm amber palette — minimal blue channel = natural blue light filter
+const NIGHT_COLORS = {
+  bg:             '#1a0f07',
+  text:           '#dfc99c',
+  headerBg:       '#120a04',
+  sidebarBg:      '#160d05',
+  hoverBg:        '#231508',
+  mutedText:      '#9a7d50',
+  caretColor:     '#c8a870',
+  border:         'rgba(223,201,156,0.2)',
+  selectionColor: 'rgba(200,155,70,0.35)',
+};
 
 interface EditorProps {
   content: string;
@@ -45,6 +71,9 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     const stored = localStorage.getItem(PADDING_KEY);
     return stored ? Number(stored) : DEFAULT_PADDING;
   });
+  const [readingNightMode, setReadingNightMode] = useState<boolean>(() =>
+    localStorage.getItem(NIGHT_MODE_KEY) === 'true'
+  );
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onChangeRef.current = onChange;
@@ -97,15 +126,20 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
         oneDark,
       ];
     }
+    const colors = readingNightMode ? NIGHT_COLORS : DAY_COLORS;
     return [
       createReadingTheme({
         fontSize: `${readingFontSize}px`,
         padding: `48px ${readingPadding}px`,
+        backgroundColor:  colors.bg,
+        textColor:        colors.text,
+        caretColor:       colors.caretColor,
+        selectionColor:   colors.selectionColor,
       }),
       createCommentExtension(handleCommentPositions),
       hideMarksExtension(),
     ];
-  }, [handleCommentPositions, readingFontSize, readingPadding]);
+  }, [handleCommentPositions, readingFontSize, readingPadding, readingNightMode]);
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -185,6 +219,10 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   }, [readingPadding]);
 
   useEffect(() => {
+    localStorage.setItem(NIGHT_MODE_KEY, String(readingNightMode));
+  }, [readingNightMode]);
+
+  useEffect(() => {
     const el = editorRef.current;
     if (!el) return;
 
@@ -215,9 +253,22 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
 
   const isReading = mode === 'reading';
   const sidebarVisible = isReading && showComments && commentPositions.length > 0;
+  const colors = readingNightMode ? NIGHT_COLORS : DAY_COLORS;
+  const readingVars = isReading ? {
+    '--rm-bg':          colors.bg,
+    '--rm-header-bg':   colors.headerBg,
+    '--rm-sidebar-bg':  colors.sidebarBg,
+    '--rm-hover':       colors.hoverBg,
+    '--rm-text':        colors.text,
+    '--rm-text-muted':  colors.mutedText,
+    '--rm-border':      colors.border,
+  } as React.CSSProperties : {};
 
   return (
-    <div className={`editor-container ${isReading ? 'editor-reading-mode' : ''}`}>
+    <div
+      className={`editor-container ${isReading ? 'editor-reading-mode' : ''} ${isReading && readingNightMode ? 'editor-reading-night' : ''}`}
+      style={readingVars}
+    >
       <div className="editor-header">
         <span className="editor-filename">
           {filePath}
@@ -237,6 +288,15 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
                 onChange={e => setReadingPadding(Number(e.target.value))}
               />
             </div>
+          )}
+          {isReading && (
+            <button
+              className={`editor-mode-btn ${readingNightMode ? 'active' : ''}`}
+              onClick={() => setReadingNightMode(prev => !prev)}
+              title={readingNightMode ? 'Tagmodus' : 'Nachtmodus'}
+            >
+              {readingNightMode ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
           )}
           {isReading && commentPositions.length > 0 && (
             <button
