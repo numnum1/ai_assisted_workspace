@@ -70,10 +70,19 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
         e.preventDefault();
         toggleMode();
       }
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && mode === 'reading' &&
+          (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const scroller = editorRef.current?.querySelector('.cm-scroller');
+        if (scroller) {
+          const lineHeight = readingFontSize * 1.5;
+          scroller.scrollBy({ top: e.key === 'ArrowDown' ? lineHeight : -lineHeight, behavior: 'smooth' });
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleMode]);
+  }, [toggleMode, mode, readingFontSize]);
 
   const handleCommentPositions = useCallback((positions: CommentPosition[], height: number) => {
     setCommentPositions(positions);
