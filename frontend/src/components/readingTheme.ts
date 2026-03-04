@@ -57,11 +57,12 @@ export function createReadingTheme(overrides: Partial<ReadingThemeConfig> = {}):
     },
     '.cm-scroller': {
       overflow: 'auto',
+      display: 'flex',
+      justifyContent: 'center',
     },
     '.cm-content': {
       maxWidth: cfg.maxWidth,
       width: '100%',
-      boxSizing: 'border-box',
       padding: cfg.padding,
       fontFamily: cfg.fontFamily,
       fontSize: cfg.fontSize,
