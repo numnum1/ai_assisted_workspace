@@ -222,6 +222,7 @@ body {
   flex: 1;
   overflow: hidden;
   display: flex;
+  position: relative;
 }
 
 .editor-cm-wrap {
@@ -323,6 +324,75 @@ body {
   background: rgba(139, 115, 85, 0.15);
   border-color: #8b7355;
   color: #8b7355;
+}
+
+.reading-padding-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #8b7355;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+
+.reading-padding-control:hover {
+  opacity: 1;
+}
+
+.reading-padding-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 3px;
+  background: #c8bfb0;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.reading-padding-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #8b7355;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.reading-padding-slider::-webkit-slider-thumb:hover {
+  background: #5c4a2e;
+}
+
+.reading-padding-slider::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: none;
+  border-radius: 50%;
+  background: #8b7355;
+  cursor: pointer;
+}
+
+.reading-font-indicator {
+  position: absolute;
+  bottom: 16px;
+  right: 20px;
+  background: rgba(44, 42, 37, 0.75);
+  color: #f5f0e8;
+  font-size: 13px;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 4px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  animation: reading-indicator-fade 1s ease-out forwards;
+  z-index: 10;
+}
+
+@keyframes reading-indicator-fade {
+  0%   { opacity: 1; }
+  60%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .editor-empty {

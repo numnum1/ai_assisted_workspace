@@ -19,7 +19,7 @@ const defaultConfig: ReadingThemeConfig = {
   fontFamily: '"Georgia", "Palatino Linotype", "Book Antiqua", serif',
   fontSize: '15px',
   lineHeight: '1.5',
-  maxWidth: '720px',
+  maxWidth: '90%',
   padding: '48px 64px',
   backgroundColor: '#f5f0e8',
   textColor: '#2c2a25',
@@ -57,12 +57,11 @@ export function createReadingTheme(overrides: Partial<ReadingThemeConfig> = {}):
     },
     '.cm-scroller': {
       overflow: 'auto',
-      display: 'flex',
-      justifyContent: 'center',
     },
     '.cm-content': {
       maxWidth: cfg.maxWidth,
       width: '100%',
+      boxSizing: 'border-box',
       padding: cfg.padding,
       fontFamily: cfg.fontFamily,
       fontSize: cfg.fontSize,

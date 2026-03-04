@@ -4,12 +4,17 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Save, BookOpen, Code, MessageSquareText } from 'lucide-react';
+import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
 import { createCommentExtension } from './commentExtension';
 import { hideMarksExtension } from './hideMarksExtension';
 import { CommentSidebar } from './CommentSidebar';
 import type { CommentPosition } from './commentExtension';
+
+const FONT_SIZE_KEY = 'reading-font-size';
+const PADDING_KEY = 'reading-padding';
+const DEFAULT_FONT_SIZE = 15;
+const DEFAULT_PADDING = 64;
 
 interface EditorProps {
   content: string;
@@ -32,6 +37,16 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   const [showComments, setShowComments] = useState(false);
   const [commentPositions, setCommentPositions] = useState<CommentPosition[]>([]);
   const [contentHeight, setContentHeight] = useState(0);
+  const [readingFontSize, setReadingFontSize] = useState<number>(() => {
+    const stored = localStorage.getItem(FONT_SIZE_KEY);
+    return stored ? Number(stored) : DEFAULT_FONT_SIZE;
+  });
+  const [readingPadding, setReadingPadding] = useState<number>(() => {
+    const stored = localStorage.getItem(PADDING_KEY);
+    return stored ? Number(stored) : DEFAULT_PADDING;
+  });
+  const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
+  const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
@@ -74,11 +89,14 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
       ];
     }
     return [
-      createReadingTheme(),
+      createReadingTheme({
+        fontSize: `${readingFontSize}px`,
+        padding: `48px ${readingPadding}px`,
+      }),
       createCommentExtension(handleCommentPositions),
       hideMarksExtension(),
     ];
-  }, [handleCommentPositions]);
+  }, [handleCommentPositions, readingFontSize, readingPadding]);
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -149,6 +167,34 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     }
   }, [mode]);
 
+  useEffect(() => {
+    localStorage.setItem(FONT_SIZE_KEY, String(readingFontSize));
+  }, [readingFontSize]);
+
+  useEffect(() => {
+    localStorage.setItem(PADDING_KEY, String(readingPadding));
+  }, [readingPadding]);
+
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || mode !== 'reading') return;
+      e.preventDefault();
+      setReadingFontSize(prev => {
+        const next = e.deltaY < 0 ? Math.min(prev + 1, 30) : Math.max(prev - 1, 10);
+        if (fontSizeTimerRef.current) clearTimeout(fontSizeTimerRef.current);
+        setFontSizeIndicator(next);
+        fontSizeTimerRef.current = setTimeout(() => setFontSizeIndicator(null), 1000);
+        return next;
+      });
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [mode]);
+
   if (!filePath) {
     return (
       <div className="editor-empty">
@@ -169,6 +215,20 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
           {isDirty && <span className="editor-dirty"> *</span>}
         </span>
         <div className="editor-header-actions">
+          {isReading && (
+            <div className="reading-padding-control" title="Seitenabstand (links/rechts)">
+              <MoveHorizontal size={12} />
+              <input
+                type="range"
+                className="reading-padding-slider"
+                min={0}
+                max={200}
+                step={4}
+                value={readingPadding}
+                onChange={e => setReadingPadding(Number(e.target.value))}
+              />
+            </div>
+          )}
           {isReading && commentPositions.length > 0 && (
             <button
               className={`editor-mode-btn ${showComments ? 'active' : ''}`}
@@ -205,6 +265,11 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
             contentHeight={contentHeight}
             sidebarRef={sidebarRef}
           />
+        )}
+        {fontSizeIndicator !== null && (
+          <div className="reading-font-indicator">
+            {fontSizeIndicator}px
+          </div>
         )}
       </div>
     </div>
