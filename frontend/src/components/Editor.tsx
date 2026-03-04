@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -21,18 +21,13 @@ interface EditorProps {
 
 type EditorMode = 'editor' | 'reading';
 
-interface ScrollState {
-  cursorPos: number;
-  topLine: number;
-}
-
 export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
-  const scrollStateRef = useRef<ScrollState>({ cursorPos: 0, topLine: 1 });
+  const modeCompartmentRef = useRef(new Compartment());
   const [mode, setMode] = useState<EditorMode>('editor');
   const [showComments, setShowComments] = useState(false);
   const [commentPositions, setCommentPositions] = useState<CommentPosition[]>([]);
@@ -40,21 +35,9 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
-  const captureScrollState = useCallback(() => {
-    const view = viewRef.current;
-    if (!view) return;
-    scrollStateRef.current = {
-      cursorPos: view.state.selection.main.head,
-      topLine: view.state.doc.lineAt(
-        view.lineBlockAtHeight(view.scrollDOM.scrollTop).from
-      ).number,
-    };
-  }, []);
-
   const toggleMode = useCallback(() => {
-    captureScrollState();
     setMode(prev => prev === 'editor' ? 'reading' : 'editor');
-  }, [captureScrollState]);
+  }, []);
 
   const saveKeymap = useCallback(() => {
     return keymap.of([{
@@ -82,73 +65,71 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     setContentHeight(height);
   }, []);
 
-  useEffect(() => {
-    if (!editorRef.current) return;
-
-    const { cursorPos, topLine } = scrollStateRef.current;
-
-    const sharedExtensions = [
-      drawSelection(),
-      history(),
-      markdown(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
-      saveKeymap(),
-      EditorView.lineWrapping,
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          onChangeRef.current(update.state.doc.toString());
-        }
-      }),
-    ];
-
-    const editorExtensions = [
-      lineNumbers(),
-      highlightActiveLine(),
-      oneDark,
-      EditorView.theme({
-        '&': { height: '100%' },
-        '.cm-scroller': { overflow: 'auto' },
-      }),
-    ];
-
-    const readingExtensions = [
+  const getModeExtensions = useCallback((m: EditorMode) => {
+    if (m === 'editor') {
+      return [
+        lineNumbers(),
+        highlightActiveLine(),
+        oneDark,
+      ];
+    }
+    return [
       createReadingTheme(),
       createCommentExtension(handleCommentPositions),
       hideMarksExtension(),
     ];
+  }, [handleCommentPositions]);
 
-    const extensions = [
-      ...sharedExtensions,
-      ...(mode === 'editor' ? editorExtensions : readingExtensions),
-    ];
+  useEffect(() => {
+    if (!editorRef.current) return;
 
     const state = EditorState.create({
       doc: content,
-      extensions,
-      selection: { anchor: Math.min(cursorPos, content.length) },
+      extensions: [
+        drawSelection(),
+        history(),
+        markdown(),
+        keymap.of([...defaultKeymap, ...historyKeymap]),
+        saveKeymap(),
+        EditorView.lineWrapping,
+        EditorView.theme({
+          '&': { height: '100%' },
+          '.cm-scroller': { overflow: 'auto' },
+        }),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            onChangeRef.current(update.state.doc.toString());
+          }
+        }),
+        modeCompartmentRef.current.of(getModeExtensions(mode)),
+      ],
     });
 
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
 
-    if (topLine > 1) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const lineStart = view.state.doc.line(
-            Math.min(topLine, view.state.doc.lines)
-          ).from;
-          view.scrollDOM.scrollTop = view.lineBlockAt(lineStart).top;
-        });
-      });
-    }
-
     if (mode === 'reading') {
       view.contentDOM.blur();
     }
 
-    let scrollCleanup: (() => void) | undefined;
+    return () => {
+      view.destroy();
+      viewRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: modeCompartmentRef.current.reconfigure(getModeExtensions(mode)),
+    });
+
     if (mode === 'reading') {
-      const scroller = editorRef.current.querySelector('.cm-scroller');
+      view.contentDOM.blur();
+      const scroller = editorRef.current?.querySelector('.cm-scroller');
       if (scroller) {
         const scrollHandler = () => {
           if (sidebarRef.current) {
@@ -156,17 +137,10 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
           }
         };
         scroller.addEventListener('scroll', scrollHandler);
-        scrollCleanup = () => scroller.removeEventListener('scroll', scrollHandler);
+        return () => { scroller.removeEventListener('scroll', scrollHandler); };
       }
     }
-
-    return () => {
-      scrollCleanup?.();
-      view.destroy();
-      viewRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filePath, mode]);
+  }, [mode, getModeExtensions]);
 
   useEffect(() => {
     if (mode === 'editor') {
