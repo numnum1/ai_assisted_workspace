@@ -10,6 +10,8 @@ app:
     path: ${PROJECT_PATH:}
     always-include:
       - story.md
+  git:
+    token: ${GITHUB_TOKEN:}
 
 spring:
   profiles:

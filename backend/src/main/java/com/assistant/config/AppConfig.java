@@ -14,6 +14,7 @@ public class AppConfig {
 
     private final Ai ai = new Ai();
     private final Project project = new Project();
+    private final Git git = new Git();
 
     public Ai getAi() {
         return ai;
@@ -21,6 +22,10 @@ public class AppConfig {
 
     public Project getProject() {
         return project;
+    }
+
+    public Git getGit() {
+        return git;
     }
 
     @Bean
@@ -54,5 +59,12 @@ public class AppConfig {
         public void setPath(String path) { this.path = path; }
         public List<String> getAlwaysInclude() { return alwaysInclude; }
         public void setAlwaysInclude(List<String> alwaysInclude) { this.alwaysInclude = alwaysInclude; }
+    }
+
+    public static class Git {
+        private String token = "";
+
+        public String getToken() { return token; }
+        public void setToken(String token) { this.token = token; }
     }
 }

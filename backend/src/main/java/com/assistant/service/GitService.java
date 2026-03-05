@@ -6,10 +6,12 @@ import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.lib.BranchTrackingStatus;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
@@ -125,5 +127,59 @@ public class GitService {
     public boolean isRepo() {
         File gitDir = new File(getProjectPath().toFile(), ".git");
         return gitDir.exists() && gitDir.isDirectory();
+    }
+
+    public Map<String, Integer> aheadBehind() throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            String token = appConfig.getGit().getToken();
+            if (token != null && !token.isBlank()) {
+                git.fetch()
+                        .setCredentialsProvider(new UsernamePasswordCredentialsProvider("token", token))
+                        .call();
+            }
+
+            Repository repo = git.getRepository();
+            String branch = repo.getBranch();
+            BranchTrackingStatus trackingStatus = BranchTrackingStatus.of(repo, branch);
+
+            if (trackingStatus == null) {
+                return Map.of("ahead", 0, "behind", 0);
+            }
+            return Map.of("ahead", trackingStatus.getAheadCount(), "behind", trackingStatus.getBehindCount());
+        }
+    }
+
+    public Map<String, String> sync() throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            String token = appConfig.getGit().getToken();
+            UsernamePasswordCredentialsProvider creds = (token != null && !token.isBlank())
+                    ? new UsernamePasswordCredentialsProvider("token", token)
+                    : null;
+
+            Repository repo = git.getRepository();
+            String branch = repo.getBranch();
+            BranchTrackingStatus trackingStatus = BranchTrackingStatus.of(repo, branch);
+
+            if (trackingStatus == null) {
+                return Map.of("action", "no-remote", "details", "No tracking remote configured");
+            }
+
+            int behind = trackingStatus.getBehindCount();
+            int ahead = trackingStatus.getAheadCount();
+
+            if (behind > 0) {
+                var pullCmd = git.pull();
+                if (creds != null) pullCmd.setCredentialsProvider(creds);
+                pullCmd.call();
+                return Map.of("action", "pull", "details", "Pulled " + behind + " commit(s)");
+            } else if (ahead > 0) {
+                var pushCmd = git.push();
+                if (creds != null) pushCmd.setCredentialsProvider(creds);
+                pushCmd.call();
+                return Map.of("action", "push", "details", "Pushed " + ahead + " commit(s)");
+            } else {
+                return Map.of("action", "up-to-date", "details", "Already up to date");
+            }
+        }
     }
 }

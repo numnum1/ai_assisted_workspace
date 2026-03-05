@@ -50,6 +50,11 @@ export interface GitCommit {
   date: string;
 }
 
+export interface GitSyncStatus {
+  ahead: number;
+  behind: number;
+}
+
 export interface Conversation {
   id: string;
   title: string;

@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus } from './types.ts';
 
 const BASE = '/api';
 
@@ -66,6 +66,8 @@ export const gitApi = {
   diff: () => get<{ diff: string }>('/git/diff'),
   log: (limit = 20) => get<GitCommit[]>(`/git/log?limit=${limit}`),
   init: () => post<{ status: string }>('/git/init', {}),
+  aheadBehind: () => get<GitSyncStatus>('/git/ahead-behind'),
+  sync: () => post<{ action: string; details: string }>('/git/sync', {}),
 };
 
 export function streamChat(

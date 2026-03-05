@@ -55,4 +55,20 @@ public class GitController {
         gitService.init();
         return ResponseEntity.ok(Map.of("status", "initialized"));
     }
+
+    @GetMapping("/ahead-behind")
+    public ResponseEntity<Map<String, Integer>> aheadBehind() throws Exception {
+        if (!gitService.isRepo()) {
+            return ResponseEntity.ok(Map.of("ahead", 0, "behind", 0));
+        }
+        return ResponseEntity.ok(gitService.aheadBehind());
+    }
+
+    @PostMapping("/sync")
+    public ResponseEntity<Map<String, String>> sync() throws Exception {
+        if (!gitService.isRepo()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Not a git repository"));
+        }
+        return ResponseEntity.ok(gitService.sync());
+    }
 }
