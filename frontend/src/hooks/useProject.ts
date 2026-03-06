@@ -73,6 +73,34 @@ export function useProject() {
     }
   }, [openFilePath, fileContent, isDirty]);
 
+  const deleteFile = useCallback(async (path: string) => {
+    try {
+      await filesApi.deleteContent(path);
+      const shouldClose = openFilePath === path || (openFilePath != null && openFilePath.startsWith(path + '/'));
+      if (shouldClose) {
+        setOpenFilePath(null);
+        setFileContent('');
+        setFileLines(0);
+        setIsDirty(false);
+      }
+      await refreshTree();
+    } catch (err) {
+      console.error('Failed to delete file:', err);
+      throw err;
+    }
+  }, [openFilePath, refreshTree]);
+
+  const createFile = useCallback(async (parentPath: string, name: string) => {
+    const result = await filesApi.createFile(parentPath, name);
+    await refreshTree();
+    return result.path;
+  }, [refreshTree]);
+
+  const createFolder = useCallback(async (parentPath: string, name: string) => {
+    await filesApi.createFolder(parentPath, name);
+    await refreshTree();
+  }, [refreshTree]);
+
   return {
     projectPath,
     fileTree,
@@ -87,5 +115,8 @@ export function useProject() {
     openFile,
     updateContent,
     saveFile,
+    deleteFile,
+    createFile,
+    createFolder,
   };
 }

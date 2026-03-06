@@ -46,7 +46,7 @@ function App() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ path: string; x: number; y: number; isDirectory: boolean } | null>(null);
   const [historyFile, setHistoryFile] = useState<string | null>(null);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
@@ -167,8 +167,8 @@ function App() {
     // Visual feedback could be added here
   }, []);
 
-  const handleFileContextMenu = useCallback((path: string, x: number, y: number) => {
-    setContextMenu({ path, x, y });
+  const handleFileContextMenu = useCallback((path: string, x: number, y: number, isDirectory: boolean) => {
+    setContextMenu({ path, x, y, isDirectory });
   }, []);
 
   const handleSendMessage = useCallback(
@@ -267,15 +267,97 @@ function App() {
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="tree-context-menu-item"
-            onClick={() => {
-              setHistoryFile(contextMenu.path);
-              setContextMenu(null);
-            }}
-          >
-            Show History
-          </div>
+          {contextMenu.isDirectory ? (
+            <>
+              <div
+                className="tree-context-menu-item"
+                onClick={async () => {
+                  const parentPath = contextMenu.path;
+                  const name = window.prompt('Dateiname:');
+                  setContextMenu(null);
+                  if (name != null && name.trim() !== '') {
+                    try {
+                      const newPath = await project.createFile(parentPath, name.trim());
+                      project.openFile(newPath);
+                      fetchGitState();
+                    } catch (err) {
+                      console.error('Create file failed:', err);
+                      alert(err instanceof Error ? err.message : 'Datei konnte nicht erstellt werden.');
+                    }
+                  }
+                }}
+              >
+                Neue Datei
+              </div>
+              <div
+                className="tree-context-menu-item"
+                onClick={async () => {
+                  const parentPath = contextMenu.path;
+                  const name = window.prompt('Ordnername:');
+                  setContextMenu(null);
+                  if (name != null && name.trim() !== '') {
+                    try {
+                      await project.createFolder(parentPath, name.trim());
+                      fetchGitState();
+                    } catch (err) {
+                      console.error('Create folder failed:', err);
+                      alert(err instanceof Error ? err.message : 'Ordner konnte nicht erstellt werden.');
+                    }
+                  }
+                }}
+              >
+                Neuer Ordner
+              </div>
+              <div
+                className="tree-context-menu-item tree-context-menu-item-danger"
+                onClick={async () => {
+                  const path = contextMenu.path;
+                  setContextMenu(null);
+                  if (window.confirm(`Ordner "${path}" und alle Inhalte wirklich löschen?`)) {
+                    try {
+                      await project.deleteFile(path);
+                      fetchGitState();
+                    } catch (err) {
+                      console.error('Delete failed:', err);
+                      alert(err instanceof Error ? err.message : 'Ordner konnte nicht gelöscht werden.');
+                    }
+                  }
+                }}
+              >
+                Löschen
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                className="tree-context-menu-item"
+                onClick={() => {
+                  setHistoryFile(contextMenu.path);
+                  setContextMenu(null);
+                }}
+              >
+                Show History
+              </div>
+              <div
+                className="tree-context-menu-item tree-context-menu-item-danger"
+                onClick={async () => {
+                  const path = contextMenu.path;
+                  setContextMenu(null);
+                  if (window.confirm(`Datei "${path}" wirklich löschen?`)) {
+                    try {
+                      await project.deleteFile(path);
+                      fetchGitState();
+                    } catch (err) {
+                      console.error('Delete failed:', err);
+                      alert(err instanceof Error ? err.message : 'Datei konnte nicht gelöscht werden.');
+                    }
+                  }
+                }}
+              >
+                Löschen
+              </div>
+            </>
+          )}
         </div>
       )}
 

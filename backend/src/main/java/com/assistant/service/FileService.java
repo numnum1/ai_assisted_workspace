@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -84,6 +85,69 @@ public class FileService {
         Path file = resolveAndValidate(relativePath);
         Files.createDirectories(file.getParent());
         Files.writeString(file, content, StandardCharsets.UTF_8);
+    }
+
+    public void deleteFile(String relativePath) throws IOException {
+        Path file = resolveAndValidate(relativePath);
+        if (Files.isDirectory(file)) {
+            deleteRecursively(file);
+        } else {
+            Files.delete(file);
+        }
+    }
+
+    private void deleteRecursively(Path path) throws IOException {
+        Files.walkFileTree(path, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                if (exc != null) throw exc;
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    public String createFile(String parentPath, String name) throws IOException {
+        String relativePath = joinPath(parentPath, name);
+        Path file = resolveForCreate(relativePath);
+        if (Files.exists(file)) {
+            throw new IOException("File already exists: " + relativePath);
+        }
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "", StandardCharsets.UTF_8);
+        return relativePath;
+    }
+
+    public String createDirectory(String parentPath, String name) throws IOException {
+        String relativePath = joinPath(parentPath, name);
+        Path dir = resolveForCreate(relativePath);
+        if (Files.exists(dir)) {
+            throw new IOException("Directory already exists: " + relativePath);
+        }
+        Files.createDirectories(dir);
+        return relativePath;
+    }
+
+    private String joinPath(String parent, String name) {
+        if (parent == null || parent.isEmpty() || ".".equals(parent)) {
+            return name;
+        }
+        return parent + "/" + name;
+    }
+
+    private Path resolveForCreate(String relativePath) throws IOException {
+        Path root = getProjectRoot();
+        Path file = root.resolve(relativePath).normalize();
+        if (!file.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        return file;
     }
 
     public boolean fileExists(String relativePath) {

@@ -1299,6 +1299,10 @@ body {
   color: var(--text-primary);
 }
 
+.tree-context-menu-item-danger:hover {
+  color: #e06c75;
+}
+
 /* ==================== File history modal ==================== */
 
 .file-history-overlay {

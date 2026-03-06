@@ -46,12 +46,29 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE' });
+  if (res.status === 401) throw new AuthRequiredError();
+  if (!res.ok) {
+    let detail = '';
+    try { const d = await res.json(); detail = d.error ?? d.message ?? ''; } catch { /* ignore */ }
+    throw new Error(detail || `DELETE ${path}: ${res.status}`);
+  }
+  return res.json();
+}
+
 export const filesApi = {
   getTree: () => get<FileNode>('/files'),
   getContent: (path: string) =>
     get<{ path: string; content: string; lines: number }>(`/files/content/${path}`),
   saveContent: (path: string, content: string) =>
     put<{ status: string }>(`/files/content/${path}`, { content }),
+  deleteContent: (path: string) =>
+    del<{ status: string; path: string }>(`/files/content/${path}`),
+  createFile: (parentPath: string, name: string) =>
+    post<{ status: string; path: string }>('/files/create-file', { parentPath, name }),
+  createFolder: (parentPath: string, name: string) =>
+    post<{ status: string; path: string }>('/files/create-folder', { parentPath, name }),
 };
 
 export const modesApi = {

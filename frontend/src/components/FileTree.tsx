@@ -8,7 +8,7 @@ interface FileTreeProps {
   onFileClick: (path: string) => void;
   onFileDragStart: (path: string) => void;
   changedPaths?: Set<string>;
-  onFileContextMenu?: (path: string, x: number, y: number) => void;
+  onFileContextMenu?: (path: string, x: number, y: number, isDirectory: boolean) => void;
 }
 
 export function FileTree({ tree, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu }: FileTreeProps) {
@@ -18,7 +18,13 @@ export function FileTree({ tree, activeFile, onFileClick, onFileDragStart, chang
 
   return (
     <div className="file-tree">
-      <div className="file-tree-header">
+      <div
+        className="file-tree-header"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onFileContextMenu?.(tree.path, e.clientX, e.clientY, true);
+        }}
+      >
         <Folder size={14} />
         <span>{tree.name}</span>
       </div>
@@ -47,7 +53,7 @@ interface TreeNodeProps {
   onFileClick: (path: string) => void;
   onFileDragStart: (path: string) => void;
   changedPaths?: Set<string>;
-  onFileContextMenu?: (path: string, x: number, y: number) => void;
+  onFileContextMenu?: (path: string, x: number, y: number, isDirectory: boolean) => void;
 }
 
 function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu }: TreeNodeProps) {
@@ -78,10 +84,10 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, chang
         draggable
         onDragStart={handleDragStart}
         title={node.path}
-        onContextMenu={!node.directory ? (e) => {
+        onContextMenu={(e) => {
           e.preventDefault();
-          onFileContextMenu?.(node.path, e.clientX, e.clientY);
-        } : undefined}
+          onFileContextMenu?.(node.path, e.clientX, e.clientY, node.directory);
+        }}
       >
         <span className="tree-node-icon">
           {node.directory ? (
