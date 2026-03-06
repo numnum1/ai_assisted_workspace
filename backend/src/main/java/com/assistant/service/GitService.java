@@ -40,6 +40,32 @@ public class GitService {
         return Path.of(appConfig.getProject().getPath());
     }
 
+    /**
+     * Returns the path prefix from the git work tree root to the opened project folder,
+     * using forward slashes and a trailing slash (e.g. "docs/" or "").
+     * When the project IS the git root the prefix is an empty string.
+     */
+    private String computePrefix(Repository repo) {
+        Path workTree = repo.getWorkTree().toPath().toAbsolutePath().normalize();
+        Path project = getProjectPath().toAbsolutePath().normalize();
+        if (workTree.equals(project)) return "";
+        try {
+            String rel = workTree.relativize(project).toString().replace("\\", "/");
+            return rel.isEmpty() ? "" : rel + "/";
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
+    }
+
+    private List<String> filterAndStrip(Collection<String> paths, String prefix) {
+        if (prefix.isEmpty()) return new ArrayList<>(paths);
+        List<String> result = new ArrayList<>();
+        for (String p : paths) {
+            if (p.startsWith(prefix)) result.add(p.substring(prefix.length()));
+        }
+        return result;
+    }
+
     private Git openRepo() throws IOException {
         Repository repository = new FileRepositoryBuilder()
                 .readEnvironment()
@@ -52,25 +78,37 @@ public class GitService {
     public Map<String, Object> status() throws IOException, GitAPIException {
         try (Git git = openRepo()) {
             Status status = git.status().call();
+            String prefix = computePrefix(git.getRepository());
+
+            List<String> added    = filterAndStrip(status.getAdded(),     prefix);
+            List<String> modified = filterAndStrip(status.getModified(),  prefix);
+            List<String> removed  = filterAndStrip(status.getRemoved(),   prefix);
+            List<String> untracked= filterAndStrip(status.getUntracked(), prefix);
+            List<String> changed  = filterAndStrip(status.getChanged(),   prefix);
+
+            boolean isClean = added.isEmpty() && modified.isEmpty() && removed.isEmpty()
+                    && untracked.isEmpty() && changed.isEmpty();
 
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("added", new ArrayList<>(status.getAdded()));
-            result.put("modified", new ArrayList<>(status.getModified()));
-            result.put("removed", new ArrayList<>(status.getRemoved()));
-            result.put("untracked", new ArrayList<>(status.getUntracked()));
-            result.put("changed", new ArrayList<>(status.getChanged()));
-            result.put("isClean", status.isClean());
+            result.put("added",     added);
+            result.put("modified",  modified);
+            result.put("removed",   removed);
+            result.put("untracked", untracked);
+            result.put("changed",   changed);
+            result.put("isClean",   isClean);
             return result;
         }
     }
 
     public Map<String, String> commit(String message, List<String> files) throws IOException, GitAPIException {
         try (Git git = openRepo()) {
+            String prefix = computePrefix(git.getRepository());
             AddCommand add = git.add();
             if (files == null || files.isEmpty()) {
-                add.addFilepattern(".");
+                // stage everything within the project scope
+                add.addFilepattern(prefix.isEmpty() ? "." : prefix.substring(0, prefix.length() - 1));
             } else {
-                for (String f : files) add.addFilepattern(f);
+                for (String f : files) add.addFilepattern(prefix + f);
             }
             add.call();
             RevCommit commit = git.commit().setMessage(message).call();
@@ -83,10 +121,12 @@ public class GitService {
 
     public void revertFile(String path, boolean untracked) throws IOException, GitAPIException {
         try (Git git = openRepo()) {
+            String prefix = computePrefix(git.getRepository());
+            String fullPath = prefix + path;
             if (untracked) {
-                Files.deleteIfExists(git.getRepository().getWorkTree().toPath().resolve(path));
+                Files.deleteIfExists(git.getRepository().getWorkTree().toPath().resolve(fullPath));
             } else {
-                git.checkout().addPath(path).call();
+                git.checkout().addPath(fullPath).call();
             }
         }
     }
