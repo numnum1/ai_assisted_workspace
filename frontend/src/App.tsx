@@ -8,9 +8,11 @@ import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { FileHistoryModal } from './components/FileHistoryModal.tsx';
 import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
+import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi, AuthRequiredError } from './api.ts';
+import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
@@ -34,11 +36,16 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
 
-  useEffect(() => {
+  const loadModes = useCallback(() => {
     modesApi.getAll().then(setModes).catch(console.error);
   }, []);
 
+  useEffect(() => {
+    loadModes();
+  }, [loadModes]);
+
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ path: string; x: number; y: number } | null>(null);
   const [historyFile, setHistoryFile] = useState<string | null>(null);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
@@ -129,6 +136,12 @@ function App() {
       icon: <FolderOpen size={16} />,
       handler: () => {},
     },
+    {
+      id: 'project-settings',
+      label: 'Project Settings',
+      icon: <Settings size={16} />,
+      handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
+    },
     hasUncommitted
       ? {
           id: 'git-commit',
@@ -144,6 +157,11 @@ function App() {
           handler: () => {},
         },
   ], [hasUncommitted, syncBadge]);
+
+  const handleOpenProject = useCallback(async (path: string) => {
+    await project.openProject(path);
+    loadModes();
+  }, [project, loadModes]);
 
   const handleFileDragStart = useCallback((_path: string) => {
     // Visual feedback could be added here
@@ -179,7 +197,7 @@ function App() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         actions={commandActions}
-        onOpenFolder={project.openProject}
+        onOpenFolder={handleOpenProject}
         onGitRefresh={fetchGitState}
         gitStatus={gitStatus ?? undefined}
         onAuthRequired={showCredentialsDialog}
@@ -279,6 +297,13 @@ function App() {
             setCredDialogOpen(false);
             setPendingRetry(null);
           }}
+        />
+      )}
+
+      {settingsOpen && (
+        <ProjectSettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onModesChanged={loadModes}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig } from './types.ts';
 
 const BASE = '/api';
 
@@ -59,19 +59,33 @@ export const modesApi = {
 };
 
 export const projectApi = {
-  current: () => get<{ path: string; hasProject: boolean }>('/project/current'),
+  current: () => get<{ path: string; hasProject: boolean; initialized: boolean }>('/project/current'),
   browse: async (): Promise<{ cancelled: boolean; path?: string }> => {
     const res = await postRaw('/project/browse', {});
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Browse failed: ${res.status}`);
     return data;
   },
-  open: async (path: string): Promise<{ status: string; path: string; tree: FileNode }> => {
+  open: async (path: string): Promise<{ status: string; path: string; tree: FileNode; initialized: boolean }> => {
     const res = await postRaw('/project/open', { path });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Failed to open: ${res.status}`);
     return data;
   },
+};
+
+export const projectConfigApi = {
+  status: () => get<{ initialized: boolean }>('/project-config/status'),
+  get: () => get<ProjectConfig>('/project-config'),
+  init: () => post<ProjectConfig>('/project-config/init', {}),
+  update: (config: ProjectConfig) => put<ProjectConfig>('/project-config', config),
+  getModes: () => get<Mode[]>('/project-config/modes'),
+  saveMode: (id: string, mode: Mode) => put<Mode>(`/project-config/modes/${id}`, mode),
+  deleteMode: (id: string) => fetch(`/api/project-config/modes/${id}`, { method: 'DELETE' }).then(r => r.json()),
+  getRules: () => get<string[]>('/project-config/rules'),
+  getRuleContent: (name: string) => get<{ name: string; content: string }>(`/project-config/rules/${name}`),
+  saveRule: (name: string, content: string) => put<{ status: string; name: string }>(`/project-config/rules/${name}`, { content }),
+  deleteRule: (name: string) => fetch(`/api/project-config/rules/${name}`, { method: 'DELETE' }).then(r => r.json()),
 };
 
 export const gitApi = {

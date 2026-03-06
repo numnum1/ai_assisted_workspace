@@ -3,6 +3,8 @@ package com.assistant.controller;
 import com.assistant.config.AppConfig;
 import com.assistant.model.FileNode;
 import com.assistant.service.FileService;
+import com.assistant.service.ModeService;
+import com.assistant.service.ProjectConfigService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,19 +20,26 @@ public class ProjectController {
 
     private final AppConfig appConfig;
     private final FileService fileService;
+    private final ModeService modeService;
+    private final ProjectConfigService projectConfigService;
 
-    public ProjectController(AppConfig appConfig, FileService fileService) {
+    public ProjectController(AppConfig appConfig, FileService fileService,
+                             ModeService modeService, ProjectConfigService projectConfigService) {
         this.appConfig = appConfig;
         this.fileService = fileService;
+        this.modeService = modeService;
+        this.projectConfigService = projectConfigService;
     }
 
     @GetMapping("/current")
     public ResponseEntity<Map<String, Object>> current() {
         String path = appConfig.getProject().getPath();
         boolean hasProject = path != null && !path.isBlank() && Files.isDirectory(Path.of(path));
+        boolean initialized = hasProject && projectConfigService.hasProjectConfig();
         return ResponseEntity.ok(Map.of(
                 "path", path != null ? path : "",
-                "hasProject", hasProject
+                "hasProject", hasProject,
+                "initialized", initialized
         ));
     }
 
@@ -85,13 +94,16 @@ public class ProjectController {
         }
 
         appConfig.getProject().setPath(requestedPath);
+        modeService.reloadModes();
 
         try {
             FileNode tree = fileService.getFileTree();
+            boolean initialized = projectConfigService.hasProjectConfig();
             return ResponseEntity.ok(Map.of(
                     "status", "opened",
                     "path", requestedPath,
-                    "tree", tree
+                    "tree", tree,
+                    "initialized", initialized
             ));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to read directory: " + e.getMessage()));

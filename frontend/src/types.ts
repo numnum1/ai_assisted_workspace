@@ -64,3 +64,10 @@ export interface Conversation {
   updatedAt: number;
   mode: string;
 }
+
+export interface ProjectConfig {
+  name: string;
+  description: string;
+  alwaysInclude: string[];
+  globalRules: string[];
+}

@@ -9,6 +9,7 @@ public class Mode {
     private String name;
     private String systemPrompt;
     private List<String> autoIncludes = new ArrayList<>();
+    private List<String> rules = new ArrayList<>();
     private String color;
 
     public String getId() { return id; }
@@ -19,6 +20,8 @@ public class Mode {
     public void setSystemPrompt(String systemPrompt) { this.systemPrompt = systemPrompt; }
     public List<String> getAutoIncludes() { return autoIncludes; }
     public void setAutoIncludes(List<String> autoIncludes) { this.autoIncludes = autoIncludes; }
+    public List<String> getRules() { return rules; }
+    public void setRules(List<String> rules) { this.rules = rules; }
     public String getColor() { return color; }
     public void setColor(String color) { this.color = color; }
 }

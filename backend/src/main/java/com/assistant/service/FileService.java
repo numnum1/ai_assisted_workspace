@@ -71,6 +71,10 @@ public class FileService {
         return name.startsWith(".") || name.equals("node_modules") || name.equals("target");
     }
 
+    public boolean isAssistantPath(String relativePath) {
+        return relativePath != null && (relativePath.equals(".assistant") || relativePath.startsWith(".assistant/"));
+    }
+
     public String readFile(String relativePath) throws IOException {
         Path file = resolveAndValidate(relativePath);
         return Files.readString(file, StandardCharsets.UTF_8);

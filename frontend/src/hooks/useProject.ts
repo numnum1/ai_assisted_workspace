@@ -10,6 +10,7 @@ export function useProject() {
   const [fileLines, setFileLines] = useState<number>(0);
   const [isDirty, setIsDirty] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   const refreshTree = useCallback(async () => {
     try {
@@ -24,6 +25,7 @@ export function useProject() {
   useEffect(() => {
     projectApi.current().then((info) => {
       setProjectPath(info.path);
+      setInitialized(info.initialized ?? false);
       if (info.hasProject) {
         refreshTree();
       }
@@ -34,6 +36,7 @@ export function useProject() {
     const result = await projectApi.open(path);
     setProjectPath(result.path);
     setFileTree(result.tree);
+    setInitialized(result.initialized ?? false);
     setOpenFilePath(null);
     setFileContent('');
     setFileLines(0);
@@ -78,6 +81,7 @@ export function useProject() {
     fileLines,
     isDirty,
     loading,
+    initialized,
     refreshTree,
     openProject,
     openFile,

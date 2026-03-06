@@ -17,13 +17,16 @@ public class ContextService {
     private final ModeService modeService;
     private final ReferenceResolver referenceResolver;
     private final AppConfig appConfig;
+    private final ProjectConfigService projectConfigService;
 
     public ContextService(FileService fileService, ModeService modeService,
-                          ReferenceResolver referenceResolver, AppConfig appConfig) {
+                          ReferenceResolver referenceResolver, AppConfig appConfig,
+                          ProjectConfigService projectConfigService) {
         this.fileService = fileService;
         this.modeService = modeService;
         this.referenceResolver = referenceResolver;
         this.appConfig = appConfig;
+        this.projectConfigService = projectConfigService;
     }
 
     public AssembledContext assemble(ChatRequest request) {
@@ -42,10 +45,18 @@ public class ContextService {
         StringBuilder systemPrompt = new StringBuilder();
         systemPrompt.append(mode.getSystemPrompt()).append("\n\n");
 
-        // 2. Include "always include" files from config
-        List<String> alwaysInclude = new ArrayList<>(appConfig.getProject().getAlwaysInclude());
+        // 2. Inject rules (global + per-mode) right after the mode system prompt
+        appendRules(systemPrompt, mode);
 
-        // 3. Include mode's auto-includes
+        // 3. Determine "always include" files: prefer project config, fall back to application.yml
+        List<String> alwaysInclude;
+        if (projectConfigService.hasProjectConfig()) {
+            alwaysInclude = new ArrayList<>(projectConfigService.getConfig().getAlwaysInclude());
+        } else {
+            alwaysInclude = new ArrayList<>(appConfig.getProject().getAlwaysInclude());
+        }
+
+        // 4. Include mode's auto-includes
         if (mode.getAutoIncludes() != null) {
             alwaysInclude.addAll(mode.getAutoIncludes());
         }
@@ -118,6 +129,31 @@ public class ContextService {
         context.setEstimatedTokens(estimateTokens(messages));
 
         return context;
+    }
+
+    private void appendRules(StringBuilder systemPrompt, Mode mode) {
+        if (!projectConfigService.hasProjectConfig()) return;
+
+        // Collect global rules + per-mode rules, deduplicated
+        Set<String> rulePaths = new LinkedHashSet<>();
+        List<String> globalRules = projectConfigService.getConfig().getGlobalRules();
+        if (globalRules != null) rulePaths.addAll(globalRules);
+        if (mode.getRules() != null) rulePaths.addAll(mode.getRules());
+
+        if (rulePaths.isEmpty()) return;
+
+        Map<String, String> ruleContents = projectConfigService.getRuleContents(new ArrayList<>(rulePaths));
+        if (ruleContents.isEmpty()) return;
+
+        systemPrompt.append("=== Rules ===\n");
+        for (Map.Entry<String, String> entry : ruleContents.entrySet()) {
+            String fileName = entry.getKey().contains("/")
+                    ? entry.getKey().substring(entry.getKey().lastIndexOf('/') + 1)
+                    : entry.getKey();
+            String ruleName = fileName.endsWith(".md") ? fileName.substring(0, fileName.length() - 3) : fileName;
+            systemPrompt.append("--- ").append(ruleName).append(" ---\n");
+            systemPrompt.append(entry.getValue()).append("\n\n");
+        }
     }
 
     private void appendTreeListing(StringBuilder sb, com.assistant.model.FileNode node, String indent) {
