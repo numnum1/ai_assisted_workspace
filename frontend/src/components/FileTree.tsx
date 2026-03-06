@@ -51,7 +51,7 @@ interface TreeNodeProps {
 }
 
 function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu }: TreeNodeProps) {
-  const [expanded, setExpanded] = useState(depth < 1);
+  const [expanded, setExpanded] = useState(false);
   const isActive = node.path === activeFile;
 
   const handleClick = () => {
