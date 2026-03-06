@@ -308,24 +308,48 @@ function App() {
               >
                 Neuer Ordner
               </div>
-              <div
-                className="tree-context-menu-item tree-context-menu-item-danger"
-                onClick={async () => {
-                  const path = contextMenu.path;
-                  setContextMenu(null);
-                  if (window.confirm(`Ordner "${path}" und alle Inhalte wirklich löschen?`)) {
-                    try {
-                      await project.deleteFile(path);
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Delete failed:', err);
-                      alert(err instanceof Error ? err.message : 'Ordner konnte nicht gelöscht werden.');
+              {contextMenu.path !== '.' && (
+                <div
+                  className="tree-context-menu-item"
+                  onClick={async () => {
+                    const path = contextMenu.path;
+                    const currentName = path.split('/').pop() ?? path;
+                    const newName = window.prompt('Neuer Ordnername:', currentName);
+                    setContextMenu(null);
+                    if (newName != null && newName.trim() !== '' && newName !== currentName) {
+                      try {
+                        await project.renamePath(path, newName.trim());
+                        fetchGitState();
+                      } catch (err) {
+                        console.error('Rename failed:', err);
+                        alert(err instanceof Error ? err.message : 'Ordner konnte nicht umbenannt werden.');
+                      }
                     }
-                  }
-                }}
-              >
-                Löschen
-              </div>
+                  }}
+                >
+                  Umbenennen
+                </div>
+              )}
+              {contextMenu.path !== '.' && (
+                <div
+                  className="tree-context-menu-item tree-context-menu-item-danger"
+                  onClick={async () => {
+                    const path = contextMenu.path;
+                    setContextMenu(null);
+                    if (window.confirm(`Ordner "${path}" und alle Inhalte wirklich löschen?`)) {
+                      try {
+                        await project.deleteFile(path);
+                        fetchGitState();
+                      } catch (err) {
+                        console.error('Delete failed:', err);
+                        alert(err instanceof Error ? err.message : 'Ordner konnte nicht gelöscht werden.');
+                      }
+                    }
+                  }}
+                >
+                  Löschen
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -337,6 +361,26 @@ function App() {
                 }}
               >
                 Show History
+              </div>
+              <div
+                className="tree-context-menu-item"
+                onClick={async () => {
+                  const path = contextMenu.path;
+                  const currentName = path.split('/').pop() ?? path;
+                  const newName = window.prompt('Neuer Dateiname:', currentName);
+                  setContextMenu(null);
+                  if (newName != null && newName.trim() !== '' && newName !== currentName) {
+                    try {
+                      await project.renamePath(path, newName.trim());
+                      fetchGitState();
+                    } catch (err) {
+                      console.error('Rename failed:', err);
+                      alert(err instanceof Error ? err.message : 'Datei konnte nicht umbenannt werden.');
+                    }
+                  }
+                }}
+              >
+                Umbenennen
               </div>
               <div
                 className="tree-context-menu-item tree-context-menu-item-danger"

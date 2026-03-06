@@ -101,6 +101,17 @@ export function useProject() {
     await refreshTree();
   }, [refreshTree]);
 
+  const renamePath = useCallback(async (path: string, newName: string) => {
+    const result = await filesApi.rename(path, newName);
+    if (openFilePath === path) {
+      setOpenFilePath(result.path);
+    } else if (openFilePath != null && openFilePath.startsWith(path + '/')) {
+      setOpenFilePath(result.path + openFilePath.substring(path.length));
+    }
+    await refreshTree();
+    return result.path;
+  }, [openFilePath, refreshTree]);
+
   return {
     projectPath,
     fileTree,
@@ -118,5 +129,6 @@ export function useProject() {
     deleteFile,
     createFile,
     createFolder,
+    renamePath,
   };
 }

@@ -69,6 +69,8 @@ export const filesApi = {
     post<{ status: string; path: string }>('/files/create-file', { parentPath, name }),
   createFolder: (parentPath: string, name: string) =>
     post<{ status: string; path: string }>('/files/create-folder', { parentPath, name }),
+  rename: (path: string, newName: string) =>
+    post<{ status: string; path: string }>('/files/rename', { path, newName }),
 };
 
 export const modesApi = {

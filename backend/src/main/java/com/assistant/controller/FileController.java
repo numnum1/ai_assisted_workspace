@@ -80,6 +80,17 @@ public class FileController {
         return ResponseEntity.ok(Map.of("status", "created", "path", path));
     }
 
+    @PostMapping("/rename")
+    public ResponseEntity<Map<String, String>> rename(@RequestBody Map<String, String> body) throws IOException {
+        String path = body.get("path");
+        String newName = body.get("newName");
+        if (path == null || newName == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "path and newName are required"));
+        }
+        String newPath = fileService.rename(path, newName);
+        return ResponseEntity.ok(Map.of("status", "renamed", "path", newPath));
+    }
+
     private String extractPath(HttpServletRequest request, String prefix) {
         String uri = request.getRequestURI();
         String rawPath = uri.substring(uri.indexOf(prefix) + prefix.length());

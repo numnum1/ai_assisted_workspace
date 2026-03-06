@@ -134,6 +134,33 @@ public class FileService {
         return relativePath;
     }
 
+    public String rename(String relativePath, String newName) throws IOException {
+        if (relativePath == null || ".".equals(relativePath) || relativePath.isBlank()) {
+            throw new IOException("Cannot rename project root");
+        }
+        if (newName == null || newName.isBlank()) {
+            throw new IOException("New name is required");
+        }
+        if (newName.contains("/") || newName.contains("\\")) {
+            throw new IOException("Name cannot contain path separators");
+        }
+        Path root = getProjectRoot();
+        Path source = resolveAndValidate(relativePath);
+        Path parent = source.getParent();
+        if (parent == null || !parent.startsWith(root)) {
+            throw new IOException("Cannot rename project root");
+        }
+        Path target = parent.resolve(newName).normalize();
+        if (!target.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (Files.exists(target)) {
+            throw new IOException("Target already exists: " + newName);
+        }
+        Files.move(source, target);
+        return root.relativize(target).toString().replace('\\', '/');
+    }
+
     private String joinPath(String parent, String name) {
         if (parent == null || parent.isEmpty() || ".".equals(parent)) {
             return name;
