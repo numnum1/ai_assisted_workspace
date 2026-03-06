@@ -62,7 +62,10 @@ export const projectApi = {
 
 export const gitApi = {
   status: () => get<GitStatus>('/git/status'),
-  commit: (message: string) => post<{ hash: string; message: string }>('/git/commit', { message }),
+  commit: (message: string, files?: string[]) =>
+    post<{ hash: string; message: string }>('/git/commit', { message, files }),
+  revertFile: (path: string, untracked: boolean) =>
+    post<{ status: string }>('/git/revert-file', { path, untracked }),
   diff: () => get<{ diff: string }>('/git/diff'),
   log: (limit = 20) => get<GitCommit[]>(`/git/log?limit=${limit}`),
   init: () => post<{ status: string }>('/git/init', {}),

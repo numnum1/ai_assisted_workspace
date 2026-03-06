@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { FolderOpen, Search, ArrowLeft, Loader, GitCommitHorizontal } from 'lucide-react';
+import { FolderOpen, Search, ArrowLeft, Loader, GitCommitHorizontal, RotateCcw } from 'lucide-react';
 import { projectApi, gitApi } from '../api.ts';
+import type { GitStatus } from '../types.ts';
 
 export interface CommandAction {
   id: string;
@@ -17,11 +18,19 @@ interface CommandPaletteProps {
   actions: CommandAction[];
   onOpenFolder: (path: string) => Promise<void>;
   onGitRefresh?: () => void;
+  gitStatus?: GitStatus;
+}
+
+type FileChangeType = 'M' | 'A' | 'D' | '?';
+
+interface ChangedFile {
+  path: string;
+  type: FileChangeType;
 }
 
 type PaletteView = 'search' | 'open-folder-manual' | 'commit';
 
-export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefresh }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefresh, gitStatus }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [view, setView] = useState<PaletteView>('search');
@@ -32,6 +41,9 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
   const [commitMessage, setCommitMessage] = useState('');
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
+  const [localChangedFiles, setLocalChangedFiles] = useState<ChangedFile[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const commitRef = useRef<HTMLTextAreaElement>(null);
@@ -54,9 +66,22 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
     if (view === 'commit') {
       setCommitMessage('');
       setCommitError(null);
+      const files: ChangedFile[] = [
+        ...(gitStatus?.modified ?? []).map((p) => ({ path: p, type: 'M' as FileChangeType })),
+        ...(gitStatus?.changed ?? []).map((p) => ({ path: p, type: 'M' as FileChangeType })),
+        ...(gitStatus?.added ?? []).map((p) => ({ path: p, type: 'A' as FileChangeType })),
+        ...(gitStatus?.removed ?? []).map((p) => ({ path: p, type: 'D' as FileChangeType })),
+        ...(gitStatus?.untracked ?? []).map((p) => ({ path: p, type: '?' as FileChangeType })),
+      ];
+      // deduplicate by path
+      const seen = new Set<string>();
+      const unique = files.filter((f) => { if (seen.has(f.path)) return false; seen.add(f.path); return true; });
+      setLocalChangedFiles(unique);
+      setSelectedFiles(new Set(unique.map((f) => f.path)));
+      setRevertingFiles(new Set());
       setTimeout(() => commitRef.current?.focus(), 50);
     }
-  }, [view]);
+  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
     if (!query) return actions;
@@ -118,7 +143,9 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
     setCommitting(true);
     setCommitError(null);
     try {
-      await gitApi.commit(commitMessage.trim());
+      const allSelected = localChangedFiles.every((f) => selectedFiles.has(f.path));
+      const filesToCommit = allSelected ? undefined : Array.from(selectedFiles);
+      await gitApi.commit(commitMessage.trim(), filesToCommit);
       onGitRefresh?.();
       onClose();
     } catch (err) {
@@ -126,6 +153,29 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
     } finally {
       setCommitting(false);
     }
+  };
+
+  const handleRevertFile = async (file: ChangedFile) => {
+    setRevertingFiles((prev) => new Set(prev).add(file.path));
+    try {
+      await gitApi.revertFile(file.path, file.type === '?');
+      setLocalChangedFiles((prev) => prev.filter((f) => f.path !== file.path));
+      setSelectedFiles((prev) => { const next = new Set(prev); next.delete(file.path); return next; });
+      onGitRefresh?.();
+    } catch {
+      // revert failed — leave file in list
+    } finally {
+      setRevertingFiles((prev) => { const next = new Set(prev); next.delete(file.path); return next; });
+    }
+  };
+
+  const toggleFile = (path: string) => {
+    setSelectedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
   };
 
   const activateAction = (action: CommandAction) => {
@@ -286,6 +336,36 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
               rows={3}
               disabled={committing}
             />
+            {localChangedFiles.length > 0 && (
+              <div className="palette-file-list">
+                {localChangedFiles.map((file) => (
+                  <div key={file.path} className="palette-file-row">
+                    <input
+                      type="checkbox"
+                      className="palette-file-checkbox"
+                      checked={selectedFiles.has(file.path)}
+                      onChange={() => toggleFile(file.path)}
+                      disabled={committing}
+                    />
+                    <span className={`palette-file-badge badge-${file.type === '?' ? 'u' : file.type.toLowerCase()}`}>
+                      {file.type}
+                    </span>
+                    <span className="palette-file-path" title={file.path}>{file.path}</span>
+                    <button
+                      className="palette-file-revert-btn"
+                      title="Discard changes"
+                      disabled={committing || revertingFiles.has(file.path)}
+                      onClick={() => handleRevertFile(file)}
+                    >
+                      {revertingFiles.has(file.path)
+                        ? <Loader size={11} className="command-palette-spinner" />
+                        : <RotateCcw size={11} />
+                      }
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {commitError && <div className="command-palette-error">{commitError}</div>}
             <div className="command-palette-hint">
               Ctrl+Enter to commit · Escape to go back
@@ -294,13 +374,13 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
               <button
                 className="command-palette-commit-submit"
                 onClick={handleCommitSubmit}
-                disabled={!commitMessage.trim() || committing}
+                disabled={!commitMessage.trim() || committing || selectedFiles.size === 0}
               >
                 {committing
                   ? <Loader size={12} className="command-palette-spinner" />
                   : <GitCommitHorizontal size={12} />
                 }
-                Commit
+                Commit{selectedFiles.size > 0 && selectedFiles.size < localChangedFiles.length ? ` (${selectedFiles.size})` : ''}
               </button>
             </div>
           </>

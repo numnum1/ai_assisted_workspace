@@ -7,9 +7,10 @@ interface FileTreeProps {
   activeFile: string | null;
   onFileClick: (path: string) => void;
   onFileDragStart: (path: string) => void;
+  changedPaths?: Set<string>;
 }
 
-export function FileTree({ tree, activeFile, onFileClick, onFileDragStart }: FileTreeProps) {
+export function FileTree({ tree, activeFile, onFileClick, onFileDragStart, changedPaths }: FileTreeProps) {
   if (!tree) {
     return <div className="file-tree-empty">Shift + Ctrl + A to open a project...</div>;
   }
@@ -29,6 +30,7 @@ export function FileTree({ tree, activeFile, onFileClick, onFileDragStart }: Fil
             activeFile={activeFile}
             onFileClick={onFileClick}
             onFileDragStart={onFileDragStart}
+            changedPaths={changedPaths}
           />
         ))}
       </div>
@@ -42,9 +44,10 @@ interface TreeNodeProps {
   activeFile: string | null;
   onFileClick: (path: string) => void;
   onFileDragStart: (path: string) => void;
+  changedPaths?: Set<string>;
 }
 
-function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart }: TreeNodeProps) {
+function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, changedPaths }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(depth < 1);
   const isActive = node.path === activeFile;
 
@@ -88,6 +91,9 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart }: Tre
           )}
         </span>
         <span className="tree-node-name">{node.name}</span>
+        {!node.directory && changedPaths?.has(node.path) && (
+          <span className="tree-node-git-dot" />
+        )}
       </div>
       {node.directory && expanded && node.children?.map((child) => (
         <TreeNode
@@ -97,6 +103,7 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart }: Tre
           activeFile={activeFile}
           onFileClick={onFileClick}
           onFileDragStart={onFileDragStart}
+          changedPaths={changedPaths}
         />
       ))}
     </div>

@@ -7,7 +7,7 @@ import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
-import type { Mode, GitSyncStatus } from './types.ts';
+import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi } from './api.ts';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
@@ -38,7 +38,9 @@ function App() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
-  const [hasUncommitted, setHasUncommitted] = useState(false);
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
+
+  const hasUncommitted = !gitStatus?.isClean;
 
   const fetchGitState = useCallback(async () => {
     try {
@@ -47,7 +49,7 @@ function App() {
         gitApi.status(),
       ]);
       setSyncStatus(ahead);
-      setHasUncommitted(!status.isClean);
+      setGitStatus(status);
     } catch {
       // silently ignore if no repo or no remote
     }
@@ -69,6 +71,14 @@ function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  const changedPaths = useMemo(() => new Set([
+    ...(gitStatus?.modified ?? []),
+    ...(gitStatus?.added ?? []),
+    ...(gitStatus?.removed ?? []),
+    ...(gitStatus?.untracked ?? []),
+    ...(gitStatus?.changed ?? []),
+  ]), [gitStatus]);
 
   const syncBadge = useMemo(() => {
     if (!syncStatus) return null;
@@ -149,6 +159,7 @@ function App() {
         actions={commandActions}
         onOpenFolder={project.openProject}
         onGitRefresh={fetchGitState}
+        gitStatus={gitStatus ?? undefined}
       />
 
       <Group direction="horizontal" className="app-panels">
@@ -158,6 +169,7 @@ function App() {
             activeFile={project.openFilePath}
             onFileClick={project.openFile}
             onFileDragStart={handleFileDragStart}
+            changedPaths={changedPaths}
           />
         </Panel>
 

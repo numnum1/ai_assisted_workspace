@@ -28,12 +28,25 @@ public class GitController {
     }
 
     @PostMapping("/commit")
-    public ResponseEntity<Map<String, String>> commit(@RequestBody Map<String, String> body) throws Exception {
-        String message = body.get("message");
+    public ResponseEntity<Map<String, String>> commit(@RequestBody Map<String, Object> body) throws Exception {
+        String message = (String) body.get("message");
         if (message == null || message.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Commit message required"));
         }
-        return ResponseEntity.ok(gitService.commit(message));
+        @SuppressWarnings("unchecked")
+        List<String> files = (List<String>) body.get("files");
+        return ResponseEntity.ok(gitService.commit(message, files));
+    }
+
+    @PostMapping("/revert-file")
+    public ResponseEntity<?> revertFile(@RequestBody Map<String, Object> body) throws Exception {
+        String path = (String) body.get("path");
+        if (path == null || path.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "File path required"));
+        }
+        boolean untracked = Boolean.TRUE.equals(body.get("untracked"));
+        gitService.revertFile(path, untracked);
+        return ResponseEntity.ok(Map.of("status", "reverted"));
     }
 
     @GetMapping("/diff")

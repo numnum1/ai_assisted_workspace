@@ -1,6 +1,7 @@
 package com.assistant.service;
 
 import com.assistant.config.AppConfig;
+import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -18,8 +19,8 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -40,12 +41,10 @@ public class GitService {
     }
 
     private Git openRepo() throws IOException {
-        File gitDir = new File(getProjectPath().toFile(), ".git");
-        if (!gitDir.exists()) {
-            throw new IOException("Not a git repository: " + getProjectPath());
-        }
         Repository repository = new FileRepositoryBuilder()
-                .setGitDir(gitDir)
+                .readEnvironment()
+                .findGitDir(getProjectPath().toFile())
+                .setMustExist(true)
                 .build();
         return new Git(repository);
     }
@@ -65,14 +64,30 @@ public class GitService {
         }
     }
 
-    public Map<String, String> commit(String message) throws IOException, GitAPIException {
+    public Map<String, String> commit(String message, List<String> files) throws IOException, GitAPIException {
         try (Git git = openRepo()) {
-            git.add().addFilepattern(".").call();
+            AddCommand add = git.add();
+            if (files == null || files.isEmpty()) {
+                add.addFilepattern(".");
+            } else {
+                for (String f : files) add.addFilepattern(f);
+            }
+            add.call();
             RevCommit commit = git.commit().setMessage(message).call();
             return Map.of(
                     "hash", commit.getName(),
                     "message", commit.getFullMessage()
             );
+        }
+    }
+
+    public void revertFile(String path, boolean untracked) throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            if (untracked) {
+                Files.deleteIfExists(git.getRepository().getWorkTree().toPath().resolve(path));
+            } else {
+                git.checkout().addPath(path).call();
+            }
         }
     }
 
@@ -125,8 +140,16 @@ public class GitService {
     }
 
     public boolean isRepo() {
-        File gitDir = new File(getProjectPath().toFile(), ".git");
-        return gitDir.exists() && gitDir.isDirectory();
+        try {
+            new FileRepositoryBuilder()
+                    .findGitDir(getProjectPath().toFile())
+                    .setMustExist(true)
+                    .build()
+                    .close();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public Map<String, Integer> aheadBehind() throws IOException, GitAPIException {
