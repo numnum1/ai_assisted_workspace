@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FolderOpen, Search, ArrowLeft, Loader, GitCommitHorizontal, RotateCcw } from 'lucide-react';
-import { projectApi, gitApi } from '../api.ts';
+import { projectApi, gitApi, AuthRequiredError } from '../api.ts';
 import type { GitStatus } from '../types.ts';
 
 export interface CommandAction {
@@ -19,6 +19,7 @@ interface CommandPaletteProps {
   onOpenFolder: (path: string) => Promise<void>;
   onGitRefresh?: () => void;
   gitStatus?: GitStatus;
+  onAuthRequired?: (retry: () => void) => void;
 }
 
 type FileChangeType = 'M' | 'A' | 'D' | '?';
@@ -30,7 +31,7 @@ interface ChangedFile {
 
 type PaletteView = 'search' | 'open-folder-manual' | 'commit';
 
-export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefresh, gitStatus }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefresh, gitStatus, onAuthRequired }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [view, setView] = useState<PaletteView>('search');
@@ -71,6 +72,7 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
         ...(gitStatus?.changed ?? []).map((p) => ({ path: p, type: 'M' as FileChangeType })),
         ...(gitStatus?.added ?? []).map((p) => ({ path: p, type: 'A' as FileChangeType })),
         ...(gitStatus?.removed ?? []).map((p) => ({ path: p, type: 'D' as FileChangeType })),
+        ...(gitStatus?.missing ?? []).map((p) => ({ path: p, type: 'D' as FileChangeType })),
         ...(gitStatus?.untracked ?? []).map((p) => ({ path: p, type: '?' as FileChangeType })),
       ];
       // deduplicate by path
@@ -133,6 +135,12 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
       onGitRefresh?.();
       onClose();
     } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        setLoading(false);
+        onClose();
+        onAuthRequired?.(() => handleSync());
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Sync failed');
       setLoading(false);
     }

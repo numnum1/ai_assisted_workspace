@@ -40,6 +40,7 @@ export interface GitStatus {
   removed?: string[];
   untracked?: string[];
   changed?: string[];
+  missing?: string[];
   isClean?: boolean;
 }
 

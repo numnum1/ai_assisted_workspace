@@ -1597,6 +1597,172 @@ body {
   tab-size: 4;
 }
 
+/* ==================== Git credentials dialog ==================== */
+
+.git-creds-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.git-creds-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  width: 420px;
+  max-width: 95vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.git-creds-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.git-creds-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.git-creds-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.git-creds-close {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.git-creds-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.git-creds-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.git-creds-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 4px;
+}
+
+.git-creds-hint strong {
+  color: var(--text-secondary);
+}
+
+.git-creds-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 4px;
+}
+
+.git-creds-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 7px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.git-creds-input:focus {
+  border-color: var(--accent);
+}
+
+.git-creds-input:disabled {
+  opacity: 0.6;
+}
+
+.git-creds-error {
+  font-size: 12px;
+  color: #e06c75;
+  padding: 4px 0;
+}
+
+.git-creds-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.git-creds-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.git-creds-cancel:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.git-creds-submit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #1e1e2e;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+
+.git-creds-submit:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.git-creds-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.git-creds-spinner {
+  animation: spin 1s linear infinite;
+}
+
 .command-palette-error {
   padding: 8px 16px;
   color: var(--red);

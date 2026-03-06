@@ -2,9 +2,18 @@ import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus }
 
 const BASE = '/api';
 
+export class AuthRequiredError extends Error {
+  constructor() { super('auth_required'); this.name = 'AuthRequiredError'; }
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`GET ${path}: ${res.status}`);
+  if (res.status === 401) throw new AuthRequiredError();
+  if (!res.ok) {
+    let detail = '';
+    try { const d = await res.json(); detail = d.error ?? d.message ?? ''; } catch { /* ignore */ }
+    throw new Error(detail || `GET ${path}: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -18,7 +27,12 @@ async function postRaw(path: string, body: unknown): Promise<Response> {
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await postRaw(path, body);
-  if (!res.ok) throw new Error(`POST ${path}: ${res.status}`);
+  if (res.status === 401) throw new AuthRequiredError();
+  if (!res.ok) {
+    let detail = '';
+    try { const d = await res.json(); detail = d.error ?? d.message ?? ''; } catch { /* ignore */ }
+    throw new Error(detail || `POST ${path}: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -71,6 +85,8 @@ export const gitApi = {
   init: () => post<{ status: string }>('/git/init', {}),
   aheadBehind: () => get<GitSyncStatus>('/git/ahead-behind'),
   sync: () => post<{ action: string; details: string }>('/git/sync', {}),
+  setCredentials: (username: string, token: string) =>
+    post<{ status: string }>('/git/credentials', { username, token }),
   fileHistory: (path: string) =>
     get<GitCommit[]>(`/git/file-history?path=${encodeURIComponent(path)}`),
   fileAtCommit: (path: string, hash: string) =>

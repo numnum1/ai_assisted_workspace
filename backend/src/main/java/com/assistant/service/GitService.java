@@ -16,6 +16,8 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.transport.PushResult;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
@@ -91,9 +93,10 @@ public class GitService {
             List<String> removed  = filterAndStrip(status.getRemoved(),   prefix);
             List<String> untracked= filterAndStrip(status.getUntracked(), prefix);
             List<String> changed  = filterAndStrip(status.getChanged(),   prefix);
+            List<String> missing  = filterAndStrip(status.getMissing(),   prefix);
 
             boolean isClean = added.isEmpty() && modified.isEmpty() && removed.isEmpty()
-                    && untracked.isEmpty() && changed.isEmpty();
+                    && untracked.isEmpty() && changed.isEmpty() && missing.isEmpty();
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("added",     added);
@@ -101,6 +104,7 @@ public class GitService {
             result.put("removed",   removed);
             result.put("untracked", untracked);
             result.put("changed",   changed);
+            result.put("missing",   missing);
             result.put("isClean",   isClean);
             return result;
         }
@@ -235,12 +239,20 @@ public class GitService {
         }
     }
 
+    private UsernamePasswordCredentialsProvider buildCreds() {
+        String token = appConfig.getGit().getToken();
+        if (token == null || token.isBlank()) return null;
+        String username = appConfig.getGit().getUsername();
+        String effectiveUser = (username != null && !username.isBlank()) ? username : "token";
+        return new UsernamePasswordCredentialsProvider(effectiveUser, token);
+    }
+
     public Map<String, Integer> aheadBehind() throws IOException, GitAPIException {
         try (Git git = openRepo()) {
-            String token = appConfig.getGit().getToken();
-            if (token != null && !token.isBlank()) {
+            UsernamePasswordCredentialsProvider creds = buildCreds();
+            if (creds != null) {
                 git.fetch()
-                        .setCredentialsProvider(new UsernamePasswordCredentialsProvider("token", token))
+                        .setCredentialsProvider(creds)
                         .call();
             }
 
@@ -257,10 +269,7 @@ public class GitService {
 
     public Map<String, String> sync() throws IOException, GitAPIException {
         try (Git git = openRepo()) {
-            String token = appConfig.getGit().getToken();
-            UsernamePasswordCredentialsProvider creds = (token != null && !token.isBlank())
-                    ? new UsernamePasswordCredentialsProvider("token", token)
-                    : null;
+            UsernamePasswordCredentialsProvider creds = buildCreds();
 
             Repository repo = git.getRepository();
             String branch = repo.getBranch();
@@ -281,7 +290,16 @@ public class GitService {
             } else if (ahead > 0) {
                 var pushCmd = git.push();
                 if (creds != null) pushCmd.setCredentialsProvider(creds);
-                pushCmd.call();
+                Iterable<PushResult> pushResults = pushCmd.call();
+                for (PushResult pr : pushResults) {
+                    for (RemoteRefUpdate rru : pr.getRemoteUpdates()) {
+                        if (rru.getStatus() != RemoteRefUpdate.Status.OK
+                                && rru.getStatus() != RemoteRefUpdate.Status.UP_TO_DATE) {
+                            throw new IOException("Push rejected: " + rru.getStatus()
+                                    + (rru.getMessage() != null ? " — " + rru.getMessage() : ""));
+                        }
+                    }
+                }
                 return Map.of("action", "push", "details", "Pushed " + ahead + " commit(s)");
             } else {
                 return Map.of("action", "up-to-date", "details", "Already up to date");

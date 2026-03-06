@@ -7,9 +7,10 @@ import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { FileHistoryModal } from './components/FileHistoryModal.tsx';
+import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
-import { modesApi, gitApi } from './api.ts';
+import { modesApi, gitApi, AuthRequiredError } from './api.ts';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
@@ -40,10 +41,17 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ path: string; x: number; y: number } | null>(null);
   const [historyFile, setHistoryFile] = useState<string | null>(null);
+  const [credDialogOpen, setCredDialogOpen] = useState(false);
+  const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
 
   const hasUncommitted = !gitStatus?.isClean;
+
+  const showCredentialsDialog = useCallback((retry: () => void) => {
+    setPendingRetry(() => retry);
+    setCredDialogOpen(true);
+  }, []);
 
   const fetchGitState = useCallback(async () => {
     try {
@@ -53,10 +61,13 @@ function App() {
       ]);
       setSyncStatus(ahead);
       setGitStatus(status);
-    } catch {
-      // silently ignore if no repo or no remote
+    } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        showCredentialsDialog(fetchGitState);
+      }
+      // silently ignore other errors (no repo, no remote)
     }
-  }, []);
+  }, [showCredentialsDialog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchGitState();
@@ -84,6 +95,7 @@ function App() {
     ...(gitStatus?.removed ?? []),
     ...(gitStatus?.untracked ?? []),
     ...(gitStatus?.changed ?? []),
+    ...(gitStatus?.missing ?? []),
   ]), [gitStatus]);
 
   const syncBadge = useMemo(() => {
@@ -170,6 +182,7 @@ function App() {
         onOpenFolder={project.openProject}
         onGitRefresh={fetchGitState}
         gitStatus={gitStatus ?? undefined}
+        onAuthRequired={showCredentialsDialog}
       />
 
       <Group direction="horizontal" className="app-panels">
@@ -192,7 +205,7 @@ function App() {
             filePath={project.openFilePath}
             isDirty={project.isDirty}
             onChange={project.updateContent}
-            onSave={project.saveFile}
+            onSave={async () => { await project.saveFile(); fetchGitState(); }}
           />
         </Panel>
 
@@ -252,6 +265,20 @@ function App() {
         <FileHistoryModal
           filePath={historyFile}
           onClose={() => setHistoryFile(null)}
+        />
+      )}
+
+      {credDialogOpen && (
+        <GitCredentialsDialog
+          onSuccess={() => {
+            setCredDialogOpen(false);
+            pendingRetry?.();
+            setPendingRetry(null);
+          }}
+          onCancel={() => {
+            setCredDialogOpen(false);
+            setPendingRetry(null);
+          }}
         />
       )}
     </div>

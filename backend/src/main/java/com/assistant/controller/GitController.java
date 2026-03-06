@@ -1,6 +1,8 @@
 package com.assistant.controller;
 
+import com.assistant.config.AppConfig;
 import com.assistant.service.GitService;
+import org.eclipse.jgit.api.errors.TransportException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +14,11 @@ import java.util.Map;
 public class GitController {
 
     private final GitService gitService;
+    private final AppConfig appConfig;
 
-    public GitController(GitService gitService) {
+    public GitController(GitService gitService, AppConfig appConfig) {
         this.gitService = gitService;
+        this.appConfig = appConfig;
     }
 
     @GetMapping("/status")
@@ -70,11 +74,42 @@ public class GitController {
     }
 
     @GetMapping("/ahead-behind")
-    public ResponseEntity<Map<String, Integer>> aheadBehind() throws Exception {
+    public ResponseEntity<?> aheadBehind() {
         if (!gitService.isRepo()) {
             return ResponseEntity.ok(Map.of("ahead", 0, "behind", 0));
         }
-        return ResponseEntity.ok(gitService.aheadBehind());
+        try {
+            return ResponseEntity.ok(gitService.aheadBehind());
+        } catch (TransportException e) {
+            if (isAuthError(e)) return ResponseEntity.status(401).body(Map.of("error", "auth_required"));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/credentials")
+    public ResponseEntity<?> setCredentials(@RequestBody Map<String, String> body) {
+        String username = body.getOrDefault("username", "");
+        String token = body.getOrDefault("token", "");
+        appConfig.getGit().setUsername(username);
+        appConfig.getGit().setToken(token);
+        return ResponseEntity.ok(Map.of("status", "ok"));
+    }
+
+    private static boolean isAuthError(TransportException e) {
+        Throwable t = e;
+        while (t != null) {
+            String msg = t.getMessage() != null ? t.getMessage().toLowerCase() : "";
+            if (msg.contains("authentication is required")
+                    || msg.contains("not authorized")
+                    || msg.contains("credentials")
+                    || msg.contains("401")) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     @GetMapping("/file-history")
@@ -88,10 +123,17 @@ public class GitController {
     }
 
     @PostMapping("/sync")
-    public ResponseEntity<Map<String, String>> sync() throws Exception {
+    public ResponseEntity<?> sync() {
         if (!gitService.isRepo()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Not a git repository"));
         }
-        return ResponseEntity.ok(gitService.sync());
+        try {
+            return ResponseEntity.ok(gitService.sync());
+        } catch (TransportException e) {
+            if (isAuthError(e)) return ResponseEntity.status(401).body(Map.of("error", "auth_required"));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
 }
