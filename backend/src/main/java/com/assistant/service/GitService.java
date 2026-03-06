@@ -8,18 +8,24 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.lib.BranchTrackingStatus;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevTree;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -154,6 +160,43 @@ public class GitService {
                 }
             }
             return out.toString();
+        }
+    }
+
+    public List<Map<String, String>> getFileHistory(String path) throws IOException, GitAPIException {
+        try (Git git = openRepo()) {
+            String fullPath = computePrefix(git.getRepository()) + path.replace("\\", "/");
+            List<Map<String, String>> commits = new ArrayList<>();
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    .withZone(ZoneId.systemDefault());
+            ObjectId head = git.getRepository().resolve(Constants.HEAD);
+            for (RevCommit c : git.log().add(head).addPath(fullPath).call()) {
+                Map<String, String> entry = new LinkedHashMap<>();
+                entry.put("hash",    c.getName());
+                entry.put("message", c.getShortMessage());
+                entry.put("author",  c.getAuthorIdent().getName());
+                entry.put("date",    dtf.format(Instant.ofEpochSecond(c.getCommitTime())));
+                commits.add(entry);
+            }
+            return commits;
+        }
+    }
+
+    public Map<String, Object> getFileAtCommit(String path, String hash) throws IOException {
+        try (Git git = openRepo()) {
+            Repository repo = git.getRepository();
+            String fullPath = computePrefix(repo) + path.replace("\\", "/");
+            ObjectId commitId = repo.resolve(hash);
+            try (ObjectReader reader = repo.newObjectReader(); RevWalk rw = new RevWalk(reader)) {
+                RevTree tree = rw.parseCommit(commitId).getTree();
+                TreeWalk tw = TreeWalk.forPath(reader, fullPath, tree);
+                if (tw == null) {
+                    return Map.of("path", path, "hash", hash, "content", "", "exists", false);
+                }
+                String content = new String(reader.open(tw.getObjectId(0)).getBytes(), StandardCharsets.UTF_8);
+                tw.close();
+                return Map.of("path", path, "hash", hash, "content", content, "exists", true);
+            }
         }
     }
 

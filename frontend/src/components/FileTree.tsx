@@ -8,9 +8,10 @@ interface FileTreeProps {
   onFileClick: (path: string) => void;
   onFileDragStart: (path: string) => void;
   changedPaths?: Set<string>;
+  onFileContextMenu?: (path: string, x: number, y: number) => void;
 }
 
-export function FileTree({ tree, activeFile, onFileClick, onFileDragStart, changedPaths }: FileTreeProps) {
+export function FileTree({ tree, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu }: FileTreeProps) {
   if (!tree) {
     return <div className="file-tree-empty">Shift + Ctrl + A to open a project...</div>;
   }
@@ -31,6 +32,7 @@ export function FileTree({ tree, activeFile, onFileClick, onFileDragStart, chang
             onFileClick={onFileClick}
             onFileDragStart={onFileDragStart}
             changedPaths={changedPaths}
+            onFileContextMenu={onFileContextMenu}
           />
         ))}
       </div>
@@ -45,9 +47,10 @@ interface TreeNodeProps {
   onFileClick: (path: string) => void;
   onFileDragStart: (path: string) => void;
   changedPaths?: Set<string>;
+  onFileContextMenu?: (path: string, x: number, y: number) => void;
 }
 
-function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, changedPaths }: TreeNodeProps) {
+function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(depth < 1);
   const isActive = node.path === activeFile;
 
@@ -75,6 +78,10 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, chang
         draggable
         onDragStart={handleDragStart}
         title={node.path}
+        onContextMenu={!node.directory ? (e) => {
+          e.preventDefault();
+          onFileContextMenu?.(node.path, e.clientX, e.clientY);
+        } : undefined}
       >
         <span className="tree-node-icon">
           {node.directory ? (
@@ -104,6 +111,7 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, chang
           onFileClick={onFileClick}
           onFileDragStart={onFileDragStart}
           changedPaths={changedPaths}
+          onFileContextMenu={onFileContextMenu}
         />
       ))}
     </div>

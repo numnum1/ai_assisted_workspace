@@ -6,6 +6,7 @@ import { Editor } from './components/Editor.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
+import { FileHistoryModal } from './components/FileHistoryModal.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi } from './api.ts';
@@ -37,6 +38,8 @@ function App() {
   }, []);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  const [historyFile, setHistoryFile] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
 
@@ -66,6 +69,9 @@ function App() {
       if (e.ctrlKey && e.shiftKey && e.key === 'A') {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
+      }
+      if (e.key === 'Escape') {
+        setContextMenu(null);
       }
     };
     window.addEventListener('keydown', handler);
@@ -131,6 +137,10 @@ function App() {
     // Visual feedback could be added here
   }, []);
 
+  const handleFileContextMenu = useCallback((path: string, x: number, y: number) => {
+    setContextMenu({ path, x, y });
+  }, []);
+
   const handleSendMessage = useCallback(
     (message: string) => {
       const mode = modes.find((m) => m.id === selectedMode);
@@ -152,7 +162,7 @@ function App() {
   }, [chat]);
 
   return (
-    <div className="app">
+    <div className="app" onClick={() => setContextMenu(null)}>
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -170,6 +180,7 @@ function App() {
             onFileClick={project.openFile}
             onFileDragStart={handleFileDragStart}
             changedPaths={changedPaths}
+            onFileContextMenu={handleFileContextMenu}
           />
         </Panel>
 
@@ -218,6 +229,31 @@ function App() {
         activeFile={project.openFilePath}
         isDirty={project.isDirty}
       />
+
+      {contextMenu && (
+        <div
+          className="tree-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="tree-context-menu-item"
+            onClick={() => {
+              setHistoryFile(contextMenu.path);
+              setContextMenu(null);
+            }}
+          >
+            Show History
+          </div>
+        </div>
+      )}
+
+      {historyFile && (
+        <FileHistoryModal
+          filePath={historyFile}
+          onClose={() => setHistoryFile(null)}
+        />
+      )}
     </div>
   );
 }

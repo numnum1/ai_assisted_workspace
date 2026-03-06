@@ -71,6 +71,12 @@ export const gitApi = {
   init: () => post<{ status: string }>('/git/init', {}),
   aheadBehind: () => get<GitSyncStatus>('/git/ahead-behind'),
   sync: () => post<{ action: string; details: string }>('/git/sync', {}),
+  fileHistory: (path: string) =>
+    get<GitCommit[]>(`/git/file-history?path=${encodeURIComponent(path)}`),
+  fileAtCommit: (path: string, hash: string) =>
+    get<{ path: string; hash: string; content: string; exists: boolean }>(
+      `/git/file-at-commit?path=${encodeURIComponent(path)}&hash=${encodeURIComponent(hash)}`
+    ),
 };
 
 export function streamChat(

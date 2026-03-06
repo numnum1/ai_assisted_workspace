@@ -77,6 +77,16 @@ public class GitController {
         return ResponseEntity.ok(gitService.aheadBehind());
     }
 
+    @GetMapping("/file-history")
+    public ResponseEntity<?> fileHistory(@RequestParam String path) throws Exception {
+        return ResponseEntity.ok(gitService.getFileHistory(path));
+    }
+
+    @GetMapping("/file-at-commit")
+    public ResponseEntity<?> fileAtCommit(@RequestParam String path, @RequestParam String hash) throws Exception {
+        return ResponseEntity.ok(gitService.getFileAtCommit(path, hash));
+    }
+
     @PostMapping("/sync")
     public ResponseEntity<Map<String, String>> sync() throws Exception {
         if (!gitService.isRepo()) {
