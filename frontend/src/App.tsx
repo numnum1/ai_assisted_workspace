@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw } from 'lucide-react';
 import { FileTree } from './components/FileTree.tsx';
 import { Editor } from './components/Editor.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
-import type { Mode } from './types.ts';
-import { modesApi } from './api.ts';
+import type { Mode, GitSyncStatus } from './types.ts';
+import { modesApi, gitApi } from './api.ts';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
@@ -37,6 +37,27 @@ function App() {
   }, []);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
+  const [hasUncommitted, setHasUncommitted] = useState(false);
+
+  const fetchGitState = useCallback(async () => {
+    try {
+      const [ahead, status] = await Promise.all([
+        gitApi.aheadBehind(),
+        gitApi.status(),
+      ]);
+      setSyncStatus(ahead);
+      setHasUncommitted(!status.isClean);
+    } catch {
+      // silently ignore if no repo or no remote
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGitState();
+    const interval = setInterval(fetchGitState, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchGitState]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -49,6 +70,29 @@ function App() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  const syncBadge = useMemo(() => {
+    if (!syncStatus) return null;
+    if (syncStatus.behind > 0)
+      return (
+        <span className="palette-git-badge behind">
+          <ArrowDown size={11} />
+          {syncStatus.behind}
+        </span>
+      );
+    if (syncStatus.ahead > 0)
+      return (
+        <span className="palette-git-badge ahead">
+          <ArrowUp size={11} />
+          {syncStatus.ahead}
+        </span>
+      );
+    return (
+      <span className="palette-git-badge synced">
+        <Check size={11} />
+      </span>
+    );
+  }, [syncStatus]);
+
   const commandActions: CommandAction[] = useMemo(() => [
     {
       id: 'open-folder',
@@ -57,7 +101,21 @@ function App() {
       icon: <FolderOpen size={16} />,
       handler: () => {},
     },
-  ], []);
+    hasUncommitted
+      ? {
+          id: 'git-commit',
+          label: 'Commit',
+          icon: <GitCommitHorizontal size={16} />,
+          handler: () => {},
+        }
+      : {
+          id: 'git-sync',
+          label: 'Sync',
+          icon: <RefreshCw size={16} />,
+          badge: syncBadge,
+          handler: () => {},
+        },
+  ], [hasUncommitted, syncBadge]);
 
   const handleFileDragStart = useCallback((_path: string) => {
     // Visual feedback could be added here
@@ -90,6 +148,7 @@ function App() {
         onClose={() => setPaletteOpen(false)}
         actions={commandActions}
         onOpenFolder={project.openProject}
+        onGitRefresh={fetchGitState}
       />
 
       <Group direction="horizontal" className="app-panels">

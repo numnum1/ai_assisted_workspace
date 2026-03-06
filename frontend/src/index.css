@@ -947,190 +947,6 @@ body {
   color: var(--yellow);
 }
 
-.context-bar-git {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 4px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
-}
-
-.context-bar-git-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-family: inherit;
-  transition: background 0.1s, color 0.1s;
-  white-space: nowrap;
-}
-
-.context-bar-git-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.context-bar-git-btn:disabled {
-  cursor: default;
-  opacity: 0.7;
-}
-
-.context-bar-git-arrow.behind {
-  color: var(--accent);
-}
-
-.context-bar-git-arrow.ahead {
-  color: var(--green);
-}
-
-.context-bar-git-check {
-  color: var(--green);
-}
-
-.context-bar-git-count {
-  font-weight: 600;
-}
-
-.context-bar-git-count.behind {
-  color: var(--accent);
-}
-
-.context-bar-git-count.ahead {
-  color: var(--green);
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.context-bar-git-spinner {
-  animation: spin 1s linear infinite;
-  flex-shrink: 0;
-}
-
-/* ==================== Commit Modal ==================== */
-
-.commit-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  padding-bottom: 36px;
-}
-
-.commit-modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px 16px;
-  width: 400px;
-  max-width: calc(100vw - 32px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.commit-modal-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.commit-modal-input {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 12px;
-  padding: 8px 10px;
-  resize: vertical;
-  outline: none;
-  width: 100%;
-  transition: border-color 0.15s;
-}
-
-.commit-modal-input:focus {
-  border-color: var(--accent);
-}
-
-.commit-modal-input:disabled {
-  opacity: 0.7;
-}
-
-.commit-modal-error {
-  font-size: 11px;
-  color: var(--red);
-}
-
-.commit-modal-hint {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.commit-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.commit-modal-cancel {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 5px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-family: inherit;
-  transition: background 0.1s, color 0.1s;
-}
-
-.commit-modal-cancel:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.commit-modal-submit {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent);
-  border: none;
-  color: var(--bg-primary);
-  cursor: pointer;
-  padding: 5px 14px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 600;
-  transition: opacity 0.1s;
-}
-
-.commit-modal-submit:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.commit-modal-submit:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 /* ==================== Command Palette ==================== */
 
 .command-palette-overlay {
@@ -1254,6 +1070,96 @@ body {
   padding: 2px 6px;
   border-radius: 3px;
   border: 1px solid var(--border);
+}
+
+.command-palette-item-badge {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  margin-right: 4px;
+}
+
+.palette-git-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+}
+
+.palette-git-badge.behind {
+  color: var(--accent);
+}
+
+.palette-git-badge.ahead {
+  color: var(--green);
+}
+
+.palette-git-badge.synced {
+  color: var(--green);
+}
+
+.command-palette-view-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.command-palette-commit-input {
+  margin: 0 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: vertical;
+  outline: none;
+  width: calc(100% - 32px);
+  transition: border-color 0.15s;
+}
+
+.command-palette-commit-input:focus {
+  border-color: var(--accent);
+}
+
+.command-palette-commit-input:disabled {
+  opacity: 0.6;
+}
+
+.command-palette-commit-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 16px 12px;
+}
+
+.command-palette-commit-submit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  border: none;
+  color: var(--bg-primary);
+  cursor: pointer;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  transition: opacity 0.1s;
+}
+
+.command-palette-commit-submit:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.command-palette-commit-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .command-palette-error {
