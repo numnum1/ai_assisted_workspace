@@ -17,6 +17,7 @@ import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
 import { useChatHistory } from './hooks/useChatHistory.ts';
+import { getBookmark } from './components/bookmarkExtension';
 
 function App() {
   const project = useProject();
@@ -52,8 +53,26 @@ function App() {
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
+  const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
+  const [bookmarkJumpTarget, setBookmarkJumpTarget] = useState<{ filePath: string; line: number } | null>(null);
 
   const hasUncommitted = !gitStatus?.isClean;
+
+  const bookmark = project.projectPath ? getBookmark(project.projectPath) : null;
+
+  const handleJumpToBookmark = useCallback(() => {
+    if (!bookmark) return;
+    project.openFile(bookmark.filePath);
+    setBookmarkJumpTarget(bookmark);
+  }, [bookmark, project]);
+
+  const handleBookmarkJumpDone = useCallback(() => {
+    setBookmarkJumpTarget(null);
+  }, []);
+
+  const handleBookmarkChange = useCallback(() => {
+    setBookmarkRefresh((r) => r + 1);
+  }, []);
 
   const showCredentialsDialog = useCallback((retry: () => void) => {
     setPendingRetry(() => retry);
@@ -208,8 +227,10 @@ function App() {
           <FileTree
             tree={project.fileTree}
             activeFile={project.openFilePath}
+            bookmark={bookmark}
             onFileClick={project.openFile}
             onFileDragStart={handleFileDragStart}
+            onJumpToBookmark={handleJumpToBookmark}
             changedPaths={changedPaths}
             onFileContextMenu={handleFileContextMenu}
           />
@@ -221,6 +242,10 @@ function App() {
           <Editor
             content={project.fileContent}
             filePath={project.openFilePath}
+            projectPath={project.projectPath}
+            bookmarkJumpTarget={bookmarkJumpTarget}
+            onBookmarkJumpDone={handleBookmarkJumpDone}
+            onBookmarkChange={handleBookmarkChange}
             isDirty={project.isDirty}
             onChange={project.updateContent}
             onSave={async () => { await project.saveFile(); fetchGitState(); }}

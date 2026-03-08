@@ -84,6 +84,26 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.file-tree-header .file-tree-bookmark-link {
+  margin-left: auto;
+  padding: 2px 6px;
+  font-weight: 400;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.file-tree-header .file-tree-bookmark-link:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
 .file-tree-content {
   flex: 1;
   overflow-y: auto;
@@ -336,6 +356,17 @@ body {
 .editor-reading-mode .comment-sidebar {
   background: var(--rm-sidebar-bg, #ede8de);
   border-left-color: var(--rm-border, #d9d2c6);
+}
+
+/* Reading bookmark indicator (line where user stopped) */
+.editor-reading-mode .cm-reading-bookmark {
+  border-left: 3px solid rgba(139, 115, 85, 0.7);
+  margin-left: 4px;
+  padding-left: 8px;
+}
+
+.editor-reading-night .cm-reading-bookmark {
+  border-left-color: rgba(200, 155, 70, 0.6);
 }
 
 .reading-padding-control {

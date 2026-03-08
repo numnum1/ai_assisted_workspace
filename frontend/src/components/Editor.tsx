@@ -4,10 +4,11 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun } from 'lucide-react';
+import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun, Bookmark } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
 import { createCommentExtension } from './commentExtension';
 import { hideMarksExtension } from './hideMarksExtension';
+import { createBookmarkExtension, getBookmark, getBookmarkLine, setBookmark, removeBookmark } from './bookmarkExtension';
 import { CommentSidebar } from './CommentSidebar';
 import type { CommentPosition } from './commentExtension';
 
@@ -45,6 +46,10 @@ const NIGHT_COLORS = {
 interface EditorProps {
   content: string;
   filePath: string | null;
+  projectPath: string;
+  bookmarkJumpTarget: { filePath: string; line: number } | null;
+  onBookmarkJumpDone: () => void;
+  onBookmarkChange?: () => void;
   isDirty: boolean;
   onChange: (content: string) => void;
   onSave: () => void;
@@ -52,7 +57,7 @@ interface EditorProps {
 
 type EditorMode = 'editor' | 'reading';
 
-export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorProps) {
+export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onBookmarkJumpDone, onBookmarkChange, isDirty, onChange, onSave }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -76,6 +81,10 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   );
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [bookmarkLine, setBookmarkLine] = useState<number | null>(() =>
+    filePath && projectPath ? getBookmarkLine(projectPath, filePath) : null
+  );
+  const [bookmarkMenu, setBookmarkMenu] = useState<{ x: number; y: number; line: number } | null>(null);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
@@ -118,7 +127,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     setContentHeight(height);
   }, []);
 
-  const getModeExtensions = useCallback((m: EditorMode) => {
+  const getModeExtensions = useCallback((m: EditorMode, bookmark: number | null) => {
     if (m === 'editor') {
       return [
         lineNumbers(),
@@ -138,6 +147,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
       }),
       createCommentExtension(handleCommentPositions),
       hideMarksExtension(),
+      createBookmarkExtension(bookmark),
     ];
   }, [handleCommentPositions, readingFontSize, readingPadding, readingNightMode]);
 
@@ -162,7 +172,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
             onChangeRef.current(update.state.doc.toString());
           }
         }),
-        modeCompartmentRef.current.of(getModeExtensions(mode)),
+        modeCompartmentRef.current.of(getModeExtensions(mode, mode === 'reading' && filePath && projectPath ? getBookmarkLine(projectPath, filePath) : null)),
       ],
     });
 
@@ -185,7 +195,7 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
     if (!view) return;
 
     view.dispatch({
-      effects: modeCompartmentRef.current.reconfigure(getModeExtensions(mode)),
+      effects: modeCompartmentRef.current.reconfigure(getModeExtensions(mode, mode === 'reading' ? bookmarkLine : null)),
     });
 
     if (mode === 'reading') {
@@ -198,10 +208,35 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
           }
         };
         scroller.addEventListener('scroll', scrollHandler);
+        const lineToScroll = (bookmarkJumpTarget && filePath === bookmarkJumpTarget.filePath)
+          ? bookmarkJumpTarget.line
+          : bookmarkLine;
+        if (lineToScroll != null) {
+          const doScroll = () => {
+            try {
+              const pos = view.state.doc.line(lineToScroll).from;
+              view.dispatch({
+                effects: EditorView.scrollIntoView(pos, { y: 'center' }),
+              });
+              if (bookmarkJumpTarget && filePath === bookmarkJumpTarget.filePath) {
+                onBookmarkJumpDone();
+              }
+            } catch {
+              if (bookmarkJumpTarget && filePath === bookmarkJumpTarget.filePath) {
+                onBookmarkJumpDone();
+              }
+            }
+          };
+          if (bookmarkJumpTarget && filePath === bookmarkJumpTarget.filePath) {
+            requestAnimationFrame(() => requestAnimationFrame(doScroll));
+          } else {
+            doScroll();
+          }
+        }
         return () => { scroller.removeEventListener('scroll', scrollHandler); };
       }
     }
-  }, [mode, getModeExtensions]);
+  }, [mode, bookmarkLine, getModeExtensions, bookmarkJumpTarget, filePath, onBookmarkJumpDone]);
 
   useEffect(() => {
     if (mode === 'editor') {
@@ -221,6 +256,59 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
   useEffect(() => {
     localStorage.setItem(NIGHT_MODE_KEY, String(readingNightMode));
   }, [readingNightMode]);
+
+  useEffect(() => {
+    setBookmarkLine(filePath && projectPath ? getBookmarkLine(projectPath, filePath) : null);
+  }, [filePath, projectPath]);
+
+  useEffect(() => {
+    if (bookmarkJumpTarget && filePath === bookmarkJumpTarget.filePath) {
+      setMode('reading');
+    }
+  }, [bookmarkJumpTarget, filePath]);
+
+  useEffect(() => {
+    if (!bookmarkMenu) return;
+    const close = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (target && !(target as Element).closest?.('.reading-bookmark-menu')) {
+        setBookmarkMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [bookmarkMenu]);
+
+  const handleReadingContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (mode !== 'reading' || !filePath || !projectPath) return;
+      const view = viewRef.current;
+      if (!view) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+      if (pos == null) return;
+      const line = view.state.doc.lineAt(pos);
+      setBookmarkMenu({ x: e.clientX, y: e.clientY, line: line.number });
+    },
+    [mode, filePath, projectPath]
+  );
+
+  const handleSetBookmark = useCallback(() => {
+    if (!bookmarkMenu || !filePath || !projectPath) return;
+    setBookmark(projectPath, filePath, bookmarkMenu.line);
+    setBookmarkLine(bookmarkMenu.line);
+    setBookmarkMenu(null);
+    onBookmarkChange?.();
+  }, [bookmarkMenu, filePath, projectPath, onBookmarkChange]);
+
+  const handleRemoveBookmark = useCallback(() => {
+    if (!projectPath) return;
+    removeBookmark(projectPath);
+    setBookmarkLine(null);
+    setBookmarkMenu(null);
+    onBookmarkChange?.();
+  }, [projectPath, onBookmarkChange]);
 
   useEffect(() => {
     const el = editorRef.current;
@@ -327,7 +415,11 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
         </div>
       </div>
       <div className={`editor-content ${sidebarVisible ? 'editor-content-with-sidebar' : ''}`}>
-        <div ref={editorRef} className="editor-cm-wrap" />
+        <div
+          ref={editorRef}
+          className="editor-cm-wrap"
+          onContextMenu={isReading ? handleReadingContextMenu : undefined}
+        />
         {sidebarVisible && (
           <CommentSidebar
             comments={commentPositions}
@@ -338,6 +430,29 @@ export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorP
         {fontSizeIndicator !== null && (
           <div className="reading-font-indicator">
             {fontSizeIndicator}px
+          </div>
+        )}
+        {bookmarkMenu && (
+          <div
+            className="reading-bookmark-menu tree-context-menu"
+            style={{ left: bookmarkMenu.x, top: bookmarkMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="tree-context-menu-item"
+              onClick={handleSetBookmark}
+            >
+              <Bookmark size={14} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+              Lesezeichen in Zeile {bookmarkMenu.line} setzen
+            </div>
+            {projectPath && getBookmark(projectPath) != null && (
+              <div
+                className="tree-context-menu-item tree-context-menu-item-danger"
+                onClick={handleRemoveBookmark}
+              >
+                Lesezeichen entfernen
+              </div>
+            )}
           </div>
         )}
       </div>
