@@ -44,18 +44,18 @@ function createEmptyConversation(mode: string): Conversation {
 }
 
 export function useChatHistory(currentMode: string) {
+  let init: { conversations: Conversation[]; activeId: string } | undefined;
   const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const loaded = loadConversations();
-    if (loaded.length === 0) {
-      return [createEmptyConversation(currentMode)];
-    }
-    return loaded;
+    init = (() => {
+      const loaded = loadConversations();
+      const newConv = createEmptyConversation(currentMode);
+      const convs = [newConv, ...loaded].slice(0, MAX_CONVERSATIONS);
+      return { conversations: convs, activeId: newConv.id };
+    })();
+    return init.conversations;
   });
 
-  const [activeId, setActiveId] = useState<string>(() => {
-    const loaded = loadConversations();
-    return loaded.length > 0 ? loaded[0].id : conversations[0].id;
-  });
+  const [activeId, setActiveId] = useState<string>(() => init!.activeId);
 
   // Debounced persist whenever conversations change
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
