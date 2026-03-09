@@ -193,3 +193,68 @@ Liest eine einzelne Wiki-Datei vollständig. Akzeptiert nur Pfade unter `wiki/`.
 2. Nur bei Bedarf `wiki_read` für einzelne Treffer nachlagern.
 3. Möglichst wenige Dateien pro Runde lesen — Kontext ist begrenzt.
 4. Bei keinen Treffern: Query verfeinern (z.B. Alias oder Tag statt vollständigen Namen).
+
+---
+
+## Scene-Tools
+
+Das Projekt kann unter `chapters/` strukturierte Szenen-Metadaten ablegen (`.scene.json` und `.chapter.json`). Die KI bekommt zwei Tools dafür.
+
+### Verzeichnisstruktur
+
+```
+chapters/
+  kapitel-07/
+    kapitel-07.chapter.json   ← Kapitel-Metadaten
+    szene-01.md               ← Volltext
+    szene-01.scene.json       ← Szenen-Metadaten
+    szene-02.md
+    szene-02.scene.json
+```
+
+### `.scene.json`-Felder
+
+| Feld | Beschreibung |
+|------|-------------|
+| `summary` | Ein-Satz-Beschreibung — erscheint in Suchergebnissen |
+| `plotstraenge` | Kommagetrennte Plotstrang-IDs |
+| `voraussetzungen` | Was vor der Szene wahr sein muss |
+| `endzustand` | Was nach der Szene wahr ist |
+| `offene_fragen` | Offene Kausalfragen / potenzielle Plot Holes |
+| `handlungseinheiten` | Array von Handlungseinheiten (Ort, Zeit, Charaktere, Beats, Intent, Informationsänderungen, Constraints) |
+
+> **Wichtig:** `summary` ist das wichtigste Feld — es bestimmt, was das Modell in Suchergebnissen sieht, ohne die ganze Datei laden zu müssen.
+
+### Automatischer Kontext
+
+Wenn die aktive Datei in `chapters/` liegt, werden automatisch injiziert (ohne Tool-Runde):
+- `.scene.json` der aktuellen Szene
+- `.scene.json` der Vorgänger- und Nachfolger-Szene
+- `.chapter.json` des aktuellen Kapitels
+
+### `scene_search`
+
+Durchsucht `chapters/` nach `.scene.json`-Dateien nach Name, `summary`, `plotstraenge` und Charakteren.
+
+| Parameter | Typ    | Pflicht | Beschreibung |
+|-----------|--------|---------|--------------|
+| `query`   | string | ja      | Suchbegriff (case-insensitive) |
+| `chapter` | string | nein    | Filterung auf ein bestimmtes Kapitel |
+| `limit`   | string | nein    | Max. Treffer (Standard 10, max 20) |
+
+Rückgabe: kompakte Trefferliste mit Pfad, `summary` und `plotstraenge`.
+
+### `scene_read`
+
+Liest eine einzelne `.scene.json`-Datei vollständig. Akzeptiert nur Pfade unter `chapters/`.
+
+| Parameter | Typ    | Pflicht | Beschreibung |
+|-----------|--------|---------|--------------|
+| `path`    | string | ja      | Relativer Pfad, z.B. `chapters/kapitel-07/szene-03.scene.json` |
+
+### Empfohlenes Nutzungsmuster für das Modell
+
+1. Beim Arbeiten an einer Szene sind benachbarte Scene-Metadaten bereits im Kontext.
+2. Bei Fragen zu weiter entfernten Szenen: erst `scene_search` aufrufen.
+3. Nur bei Bedarf `scene_read` für volle Metadaten nachlagern.
+4. Für Wiki-Entities weiterhin `wiki_search` → `wiki_read` verwenden.

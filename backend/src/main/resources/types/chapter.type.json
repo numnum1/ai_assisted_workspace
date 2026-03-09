@@ -1,0 +1,44 @@
+{
+  "id": "chapter",
+  "name": "Kapitel",
+  "fileExtension": ".chapter.json",
+  "fields": [
+    {
+      "key": "summary",
+      "label": "Zusammenfassung",
+      "type": "text",
+      "hint": "Ein Satz, der das Kapitel beschreibt – erscheint in Suchergebnissen"
+    },
+    {
+      "key": "plotstraenge",
+      "label": "Plotstränge",
+      "type": "text",
+      "hint": "Kommagetrennte Plotstrang-IDs die in diesem Kapitel laufen"
+    },
+    {
+      "key": "dramaturgischer_bogen",
+      "label": "Dramaturgischer Bogen",
+      "type": "longtext",
+      "hint": "Was ist die Entwicklung dieses Kapitels? Wie verändert es die Geschichte?"
+    },
+    {
+      "key": "voraussetzungen",
+      "label": "Voraussetzungen",
+      "type": "longtext",
+      "hint": "Was muss vor dem Kapitel wahr sein?"
+    },
+    {
+      "key": "endzustand",
+      "label": "Endzustand",
+      "type": "longtext",
+      "hint": "Was ist nach dem Kapitel wahr? Welche Fäden sind offen?"
+    },
+    {
+      "key": "offene_versprechen",
+      "label": "Offene Versprechen",
+      "type": "longtext",
+      "hint": "Was hat dieses Kapitel dem Leser versprochen, das noch eingelöst werden muss?"
+    }
+  ],
+  "sections": []
+}

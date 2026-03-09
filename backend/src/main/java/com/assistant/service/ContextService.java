@@ -88,6 +88,11 @@ public class ContextService {
             }
         }
 
+        // Auto-inject scene/chapter context when active file is inside chapters/
+        if (request.getActiveFile() != null) {
+            injectSceneContext(systemPrompt, request.getActiveFile(), includedFiles);
+        }
+
         // Tool usage instructions
         systemPrompt.append("=== Available Tools ===\n");
         systemPrompt.append("You have access to tools that let you search and read project files:\n");
@@ -96,6 +101,12 @@ public class ContextService {
                 "might have corresponding files in the project.\n");
         systemPrompt.append("- read_file(path): Read the full content of a project file. " +
                 "Use this after searching to inspect relevant files.\n");
+        systemPrompt.append("- scene_search(query, chapter?): Search scene metadata (.scene.json files) " +
+                "under chapters/. Returns summaries without loading full content.\n");
+        systemPrompt.append("- scene_read(path): Read full metadata of a specific .scene.json file.\n");
+        systemPrompt.append("- wiki_search(query, type?): Search the project wiki for characters, " +
+                "locations, organizations.\n");
+        systemPrompt.append("- wiki_read(path): Read a full wiki entry.\n");
         systemPrompt.append("Proactively use these tools when the conversation involves elements " +
                 "that may have dedicated files in the project structure.\n\n");
 
@@ -129,6 +140,82 @@ public class ContextService {
         context.setEstimatedTokens(estimateTokens(messages));
 
         return context;
+    }
+
+    /**
+     * When the active file is inside chapters/, auto-injects:
+     * - The current scene's .scene.json (if it exists)
+     * - The neighboring scenes' .scene.json (previous and next)
+     * - The chapter's .chapter.json (if it exists)
+     * This saves tool-call rounds for the most common co-author scenario.
+     */
+    private void injectSceneContext(StringBuilder systemPrompt, String activeFile, Set<String> includedFiles) {
+        // activeFile must be like "chapters/<chapter>/<scene>.md" or "chapters/<chapter>/<scene>.scene.json"
+        String normalized = activeFile.replace('\\', '/');
+        if (!normalized.startsWith("chapters/")) return;
+
+        String[] parts = normalized.split("/");
+        if (parts.length < 3) return; // need at least chapters/<chapter>/<file>
+
+        String chapterPath = parts[0] + "/" + parts[1];
+        String chapterName = parts[1];
+        String fileName = parts[2];
+
+        // Derive scene base name
+        String sceneName;
+        if (fileName.endsWith(".scene.json")) {
+            sceneName = fileName.substring(0, fileName.length() - ".scene.json".length());
+        } else if (fileName.endsWith(".md")) {
+            sceneName = fileName.substring(0, fileName.length() - ".md".length());
+        } else {
+            return;
+        }
+
+        // Inject chapter metadata
+        String chapterMetaPath = chapterPath + "/" + chapterName + ".chapter.json";
+        injectJsonFileIfExists(systemPrompt, chapterMetaPath, includedFiles);
+
+        // Inject current scene metadata
+        String currentSceneMeta = chapterPath + "/" + sceneName + ".scene.json";
+        injectJsonFileIfExists(systemPrompt, currentSceneMeta, includedFiles);
+
+        // Find neighbor scenes by listing the chapter directory
+        try {
+            java.util.List<String> chapterFiles = fileService.listFiles(chapterPath);
+            java.util.List<String> sceneNames = chapterFiles.stream()
+                    .filter(p -> p.endsWith(".md"))
+                    .map(p -> {
+                        String fn = p.contains("/") ? p.substring(p.lastIndexOf('/') + 1) : p;
+                        return fn.substring(0, fn.length() - 3);
+                    })
+                    .sorted()
+                    .toList();
+
+            int idx = sceneNames.indexOf(sceneName);
+            if (idx > 0) {
+                String prevMeta = chapterPath + "/" + sceneNames.get(idx - 1) + ".scene.json";
+                injectJsonFileIfExists(systemPrompt, prevMeta, includedFiles);
+            }
+            if (idx >= 0 && idx < sceneNames.size() - 1) {
+                String nextMeta = chapterPath + "/" + sceneNames.get(idx + 1) + ".scene.json";
+                injectJsonFileIfExists(systemPrompt, nextMeta, includedFiles);
+            }
+        } catch (java.io.IOException e) {
+            // Not critical – silently skip
+        }
+    }
+
+    private void injectJsonFileIfExists(StringBuilder sb, String path, Set<String> includedFiles) {
+        if (includedFiles.contains(path)) return;
+        if (!fileService.fileExists(path)) return;
+        try {
+            String content = fileService.readFile(path);
+            sb.append("=== ").append(path).append(" ===\n");
+            sb.append(content).append("\n\n");
+            includedFiles.add(path);
+        } catch (java.io.IOException e) {
+            // Skip on error
+        }
     }
 
     private void appendRules(StringBuilder systemPrompt, Mode mode) {

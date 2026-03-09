@@ -26,6 +26,7 @@ public class ProjectConfigService {
     private static final String PROJECT_YAML = "project.yaml";
     private static final String MODES_DIR = "modes";
     private static final String RULES_DIR = "rules";
+    private static final String TYPES_DIR = "types";
 
     private final AppConfig appConfig;
 
@@ -198,13 +199,15 @@ public class ProjectConfigService {
 
         Files.createDirectories(assistantDir.resolve(MODES_DIR));
         Files.createDirectories(assistantDir.resolve(RULES_DIR));
+        Files.createDirectories(assistantDir.resolve(TYPES_DIR));
 
         ProjectConfig config = new ProjectConfig();
         String projectPath = appConfig.getProject().getPath();
         config.setName(Path.of(projectPath).getFileName().toString());
 
-        // Copy built-in modes as a starting point
+        // Copy built-in modes and types as a starting point
         copyBuiltinModesToProject(assistantDir.resolve(MODES_DIR));
+        copyBuiltinResourcesToProject(assistantDir.resolve(TYPES_DIR), "classpath:types/*.type.json");
 
         saveConfig(config);
         log.info("Initialized .assistant/ in {}", projectPath);
@@ -212,23 +215,26 @@ public class ProjectConfigService {
     }
 
     private void copyBuiltinModesToProject(Path targetModesDir) {
+        copyBuiltinResourcesToProject(targetModesDir, "classpath:modes/*.yaml");
+    }
+
+    private void copyBuiltinResourcesToProject(Path targetDir, String pattern) {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        Yaml yaml = new Yaml();
         try {
-            Resource[] resources = resolver.getResources("classpath:modes/*.yaml");
+            Resource[] resources = resolver.getResources(pattern);
             for (Resource resource : resources) {
                 String filename = resource.getFilename();
                 if (filename == null) continue;
-                Path target = targetModesDir.resolve(filename);
+                Path target = targetDir.resolve(filename);
                 if (Files.exists(target)) continue;
                 try (InputStream is = resource.getInputStream()) {
                     Files.copy(is, target);
                 } catch (IOException e) {
-                    log.warn("Could not copy built-in mode {}: {}", filename, e.getMessage());
+                    log.warn("Could not copy built-in resource {}: {}", filename, e.getMessage());
                 }
             }
         } catch (IOException e) {
-            log.warn("Could not load built-in modes for copy: {}", e.getMessage());
+            log.warn("Could not load built-in resources for copy (pattern: {}): {}", pattern, e.getMessage());
         }
     }
 

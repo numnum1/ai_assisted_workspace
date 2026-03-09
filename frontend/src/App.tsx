@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, FolderTree, LayoutList, Settings } from 'lucide-react';
 import { FileTree } from './components/FileTree.tsx';
+import { OutlinerPanel } from './components/OutlinerPanel.tsx';
 import { Editor } from './components/Editor.tsx';
+import { FormRenderer } from './components/FormRenderer.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
@@ -12,18 +14,25 @@ import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi, AuthRequiredError } from './api.ts';
-import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
 import { useChatHistory } from './hooks/useChatHistory.ts';
+import { useOutliner } from './hooks/useOutliner.ts';
+import { useTypedFile } from './hooks/useTypedFile.ts';
 import { getBookmark } from './components/bookmarkExtension';
 
 function App() {
   const project = useProject();
   const refs = useReferencedFiles();
+  const outliner = useOutliner();
+  const typedFile = useTypedFile(project.openFilePath);
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
+  const [sidebarTab, setSidebarTab] = useState<'files' | 'structure'>('files');
+
+  // True when the currently open file is a known typed file
+  const isTypedFile = typedFile.typeDef !== null;
 
   const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages);
@@ -224,32 +233,79 @@ function App() {
 
       <Group direction="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="50%">
-          <FileTree
-            tree={project.fileTree}
-            activeFile={project.openFilePath}
-            bookmark={bookmark}
-            onFileClick={project.openFile}
-            onFileDragStart={handleFileDragStart}
-            onJumpToBookmark={handleJumpToBookmark}
-            changedPaths={changedPaths}
-            onFileContextMenu={handleFileContextMenu}
-          />
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)' }}>
+            <div className="sidebar-tabs">
+              <button
+                className={`sidebar-tab ${sidebarTab === 'files' ? 'active' : ''}`}
+                onClick={() => setSidebarTab('files')}
+                title="Dateibaum"
+              >
+                <FolderTree size={12} />
+                Dateien
+              </button>
+              <button
+                className={`sidebar-tab ${sidebarTab === 'structure' ? 'active' : ''}`}
+                onClick={() => { setSidebarTab('structure'); outliner.refresh(); }}
+                title="Buchstruktur"
+              >
+                <LayoutList size={12} />
+                Struktur
+              </button>
+            </div>
+            {sidebarTab === 'files' ? (
+              <FileTree
+                tree={project.fileTree}
+                activeFile={project.openFilePath}
+                bookmark={bookmark}
+                onFileClick={project.openFile}
+                onFileDragStart={handleFileDragStart}
+                onJumpToBookmark={handleJumpToBookmark}
+                changedPaths={changedPaths}
+                onFileContextMenu={handleFileContextMenu}
+              />
+            ) : (
+              <OutlinerPanel
+                tree={outliner.tree}
+                loading={outliner.loading}
+                error={outliner.error}
+                activeFile={project.openFilePath}
+                onOpenText={project.openFile}
+                onOpenMeta={project.openFile}
+                onCreateChapter={outliner.createChapter}
+                onCreateScene={outliner.createScene}
+                onRefresh={outliner.refresh}
+              />
+            )}
+          </div>
         </Panel>
 
         <Separator className="resize-handle" />
 
         <Panel defaultSize="45%" minSize="15%">
-          <Editor
-            content={project.fileContent}
-            filePath={project.openFilePath}
-            projectPath={project.projectPath}
-            bookmarkJumpTarget={bookmarkJumpTarget}
-            onBookmarkJumpDone={handleBookmarkJumpDone}
-            onBookmarkChange={handleBookmarkChange}
-            isDirty={project.isDirty}
-            onChange={project.updateContent}
-            onSave={async () => { await project.saveFile(); fetchGitState(); }}
-          />
+          {isTypedFile && project.openFilePath ? (
+            <FormRenderer
+              filePath={project.openFilePath}
+              typeDef={typedFile.typeDef!}
+              data={typedFile.data}
+              isDirty={typedFile.isDirty}
+              loading={typedFile.loading}
+              error={typedFile.error}
+              onChange={typedFile.updateData}
+              onSave={async () => { await typedFile.save(); fetchGitState(); }}
+            />
+          ) : (
+            <Editor
+              content={project.fileContent}
+              filePath={project.openFilePath}
+              projectPath={project.projectPath}
+              bookmarkJumpTarget={bookmarkJumpTarget}
+              onBookmarkJumpDone={handleBookmarkJumpDone}
+              onBookmarkChange={handleBookmarkChange}
+              isDirty={project.isDirty}
+              onChange={project.updateContent}
+              onSave={async () => { await project.saveFile(); fetchGitState(); }}
+            />
+          )}
         </Panel>
 
         <Separator className="resize-handle" />
@@ -283,7 +339,7 @@ function App() {
       <ContextBar
         contextInfo={chat.contextInfo}
         activeFile={project.openFilePath}
-        isDirty={project.isDirty}
+        isDirty={isTypedFile ? typedFile.isDirty : project.isDirty}
       />
 
       {contextMenu && (

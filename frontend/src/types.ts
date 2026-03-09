@@ -71,3 +71,52 @@ export interface ProjectConfig {
   alwaysInclude: string[];
   globalRules: string[];
 }
+
+// ─── Type Definition System ────────────────────────────────────────────────
+
+export interface TypeField {
+  key: string;
+  label: string;
+  type: 'text' | 'longtext';
+  hint?: string;
+}
+
+export interface TypeSection {
+  key: string;
+  label: string;
+  repeatable: boolean;
+  fields: TypeField[];
+}
+
+export interface TypeDefinition {
+  id: string;
+  name: string;
+  fileExtension: string;
+  fields: TypeField[];
+  sections: TypeSection[];
+}
+
+// ─── Outliner ─────────────────────────────────────────────────────────────
+
+export interface OutlinerScene {
+  path: string;
+  name: string;
+  hasText: boolean;
+  hasMetadata: boolean;
+  textPath: string;
+  metaPath: string;
+  summary?: string;
+}
+
+export interface OutlinerChapter {
+  path: string;
+  name: string;
+  hasMetadata: boolean;
+  metaPath: string;
+  summary?: string;
+  scenes: OutlinerScene[];
+}
+
+export interface OutlinerTree {
+  chapters: OutlinerChapter[];
+}

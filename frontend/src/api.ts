@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, TypeDefinition, OutlinerTree } from './types.ts';
 
 const BASE = '/api';
 
@@ -125,6 +125,31 @@ export const gitApi = {
   fileAtCommit: (path: string, hash: string) =>
     get<{ path: string; hash: string; content: string; exists: boolean }>(
       `/git/file-at-commit?path=${encodeURIComponent(path)}&hash=${encodeURIComponent(hash)}`
+    ),
+};
+
+export const typesApi = {
+  getAll: () => get<TypeDefinition[]>('/types'),
+  getById: (id: string) => get<TypeDefinition>(`/types/${id}`),
+};
+
+export const typedFilesApi = {
+  getContent: (path: string) =>
+    get<{ path: string; data: Record<string, unknown>; exists: boolean; typeId: string }>(
+      `/typed-files/content/${path}`
+    ),
+  saveContent: (path: string, data: Record<string, unknown>) =>
+    put<{ status: string; path: string }>(`/typed-files/content/${path}`, { data }),
+};
+
+export const outlinerApi = {
+  getTree: () => get<OutlinerTree>('/outliner'),
+  createChapter: (name: string) =>
+    post<{ status: string; path: string }>('/outliner/create-chapter', { name }),
+  createScene: (chapterPath: string, name: string, withMetadata: boolean) =>
+    post<{ status: string; textPath: string; metaPath: string }>(
+      '/outliner/create-scene',
+      { chapterPath, name, withMetadata }
     ),
 };
 
