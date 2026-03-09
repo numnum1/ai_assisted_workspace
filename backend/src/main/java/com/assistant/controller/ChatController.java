@@ -41,7 +41,7 @@ public class ChatController {
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request) {
         AssembledContext context = contextService.assemble(request);
-        List<Map<String, Object>> tools = ToolExecutor.getToolDefinitions();
+        List<Map<String, Object>> tools = toolExecutor.getToolDefinitions();
 
         return Flux.concat(
                 Flux.just(ServerSentEvent.<String>builder()
