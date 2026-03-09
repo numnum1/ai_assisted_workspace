@@ -133,3 +133,63 @@ Das Ergebnis von `execute()` wird als Tool-Nachricht direkt in den Kontext des M
 ## Tool-Loop
 
 Der `ChatController` führt Tools in bis zu `MAX_TOOL_ROUNDS = 3` Runden aus. Das Modell kann also mehrere Tools hintereinander aufrufen (z.B. erst `search_project`, dann `read_file`). Nach 3 Runden wird der Stream direkt gestartet, auch wenn das Modell weitere Tool-Calls angefordert hätte.
+
+---
+
+## Wiki-Tools
+
+Das Projekt kann unter `wiki/` (Projektroot) strukturierte Wissensdateien für Weltenbau-Entities ablegen (Charaktere, Orte, Organisationen, …). Die KI bekommt zwei read-only Tools dafür.
+
+### Verzeichnisstruktur
+
+```
+wiki/
+  characters/    ← eine .md-Datei pro Charakter
+  locations/     ← eine .md-Datei pro Ort/Schauplatz
+  organizations/ ← eine .md-Datei pro Fraktion/Gruppe
+  ...            ← weitere Kategorien als Ordner
+```
+
+### Frontmatter-Schema (jede Entry-Datei)
+
+```yaml
+---
+id: kebab-case-id         # eindeutige Kennung
+type: character           # character | location | organization | ...
+aliases: [Name1, Name2]   # alternative Namen (für Suche)
+tags: [tag1, tag2]        # Schlagwörter (für Suche)
+summary: >
+  Ein-Satz-Beschreibung – dieser Text erscheint direkt in Suchergebnissen.
+---
+
+Volltext/Notizen ab hier …
+```
+
+> **Wichtig:** `summary` ist das wichtigste Feld — es bestimmt, was das Modell in Suchergebnissen sieht, ohne die ganze Datei laden zu müssen. Kurz und präzise halten.
+
+### `wiki_search`
+
+Durchsucht `wiki/` nach Dateinamen, `id`, `aliases`, `tags` und `summary`.
+
+| Parameter | Typ    | Pflicht | Beschreibung |
+|-----------|--------|---------|--------------|
+| `query`   | string | ja      | Suchbegriff (case-insensitive) |
+| `type`    | string | nein    | Filterung nach `type`-Frontmatter-Wert |
+| `limit`   | string | nein    | Max. Treffer (Standard 10, max 20) |
+
+Rückgabe: kompakte Trefferliste mit Pfad und `summary`.
+
+### `wiki_read`
+
+Liest eine einzelne Wiki-Datei vollständig. Akzeptiert nur Pfade unter `wiki/`.
+
+| Parameter | Typ    | Pflicht | Beschreibung |
+|-----------|--------|---------|--------------|
+| `path`    | string | ja      | Relativer Pfad, z.B. `wiki/characters/mara-voss.md` |
+
+### Empfohlenes Nutzungsmuster für das Modell
+
+1. Erst `wiki_search` mit dem relevanten Namen/Schlagwort aufrufen.
+2. Nur bei Bedarf `wiki_read` für einzelne Treffer nachlagern.
+3. Möglichst wenige Dateien pro Runde lesen — Kontext ist begrenzt.
+4. Bei keinen Treffern: Query verfeinern (z.B. Alias oder Tag statt vollständigen Namen).
