@@ -11,6 +11,9 @@ import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import { ContentBrowser } from './components/ContentBrowser.tsx';
 import { MetafileEditor } from './components/MetafileEditor.tsx';
+import { MetafileTypeDialog } from './components/MetafileTypeDialog.tsx';
+import { PlanningPanel } from './components/PlanningPanel.tsx';
+import type { MetafileType } from './components/MetafileTypeDialog.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi, projectConfigApi, filesApi, AuthRequiredError } from './api.ts';
@@ -64,6 +67,9 @@ function App() {
   const [bookmarkJumpTarget, setBookmarkJumpTarget] = useState<{ filePath: string; line: number } | null>(null);
   const [wikiOpen, setWikiOpen] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
+  const [pendingMetafilePath, setPendingMetafilePath] = useState<string | null>(null);
+  const [leftTab, setLeftTab] = useState<'files' | 'planning'>('files');
+  const [planningRefresh, setPlanningRefresh] = useState(0);
 
   const hasUncommitted = !gitStatus?.isClean;
 
@@ -200,32 +206,73 @@ function App() {
     loadFeatures();
   }, [project, loadModes, loadFeatures]);
 
-  const makeMetafileTemplate = (sourcePath: string) =>
-`---
-type: scene
-id: ${sourcePath.replace(/^.*\//, '').replace(/\.md$/, '')}
-title: ""
-status: draft
-summary: >
-  Short description of this scene.
-beats: []
----
-`;
+  const makeMetafileTemplate = (sourcePath: string, type: MetafileType): string => {
+    const id = sourcePath.replace(/^.*\//, '').replace(/\.md$/, '');
+    const base = `id: ${id}\ntitle: ""\n`;
+    const bodies: Record<MetafileType, string> = {
+      book:    `${base}author: ""\nsummary: ""\n`,
+      chapter: `${base}status: draft\nsummary: ""\n`,
+      scene:   `${base}status: draft\nsummary: ""\nbeats: []\n`,
+      action:  `${base}character: ""\nsummary: ""\n`,
+      arc:     `${base}thema: ""\nsummary: ""\n`,
+    };
+    return `---\ntype: ${type}\n${bodies[type]}---\n`;
+  };
 
   const openOrCreateMetafile = useCallback(async (filePath: string) => {
     const metaPath = `.planning/${filePath}`;
     try {
       await filesApi.getContent(metaPath);
+      project.openFile(metaPath);
     } catch {
-      try {
-        await filesApi.saveContent(metaPath, makeMetafileTemplate(filePath));
-      } catch (createErr) {
-        console.error('Failed to create metafile:', createErr);
-        return;
-      }
+      setPendingMetafilePath(filePath);
     }
-    project.openFile(metaPath);
   }, [project]);
+
+  // pendingMetafilePath can be:
+  //   (a) a source file path like "chapter-01/scene-01.md"  → creates .planning/<sourcePath>
+  //   (b) a full .planning/... path (for standalone metafiles) → creates exactly that path
+  const handleMetafileTypeSelected = useCallback(async (type: MetafileType) => {
+    if (!pendingMetafilePath) return;
+    const isStandalone = pendingMetafilePath.startsWith('.planning/');
+    const metaPath = isStandalone ? pendingMetafilePath : `.planning/${pendingMetafilePath}`;
+    const idSource = isStandalone ? pendingMetafilePath.split('/').pop()?.replace(/\.md$/, '') ?? '' : pendingMetafilePath;
+    setPendingMetafilePath(null);
+    try {
+      await filesApi.saveContent(metaPath, makeMetafileTemplate(idSource, type));
+      project.openFile(metaPath);
+      setPlanningRefresh(r => r + 1);
+    } catch (err) {
+      console.error('Failed to create metafile:', err);
+    }
+  }, [pendingMetafilePath, project]);
+
+  const CHILD_TYPE_MAP: Record<string, MetafileType> = {
+    book: 'chapter', chapter: 'scene', scene: 'action',
+  };
+
+  // Called from PlanningPanel: creates a standalone metafile in the given folder.
+  // suggestedType is provided when the hierarchy is known (e.g. child of a chapter → scene).
+  const handleCreateStandaloneMetafile = useCallback((folder: string, suggestedType?: string) => {
+    const name = window.prompt('Name des Metafiles (ohne .md):');
+    if (!name || !name.trim()) return;
+    const safeName = name.trim().replace(/\.md$/, '') + '.md';
+    const targetPath = `${folder}/${safeName}`;
+
+    const inferredType = suggestedType ? CHILD_TYPE_MAP[suggestedType.toLowerCase()] : undefined;
+    if (inferredType) {
+      // Skip the type dialog — hierarchy is fixed
+      const idSource = safeName.replace(/\.md$/, '');
+      filesApi.saveContent(targetPath, makeMetafileTemplate(idSource, inferredType))
+        .then(() => {
+          project.openFile(targetPath);
+          setPlanningRefresh(r => r + 1);
+        })
+        .catch(err => console.error('Failed to create metafile:', err));
+    } else {
+      setPendingMetafilePath(targetPath);
+    }
+  }, [project]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOpenMetafile = useCallback(async () => {
     const filePath = project.openFilePath;
@@ -283,18 +330,43 @@ beats: []
 
       <Group direction="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="50%">
-          <FileTree
-            tree={project.fileTree}
-            activeFile={project.openFilePath}
-            bookmark={bookmark}
-            onFileClick={project.openFile}
-            onFileDragStart={handleFileDragStart}
-            onJumpToBookmark={handleJumpToBookmark}
-            changedPaths={changedPaths}
-            onFileContextMenu={handleFileContextMenu}
-            hasPlanning={hasPlanning}
-            onOpenMetafile={(path) => openOrCreateMetafile(path)}
-          />
+          <div className="left-panel-container">
+            {hasPlanning && (
+              <div className="left-panel-tabs">
+                <button
+                  className={`left-panel-tab${leftTab === 'files' ? ' left-panel-tab-active' : ''}`}
+                  onClick={() => setLeftTab('files')}
+                >Dateien</button>
+                <button
+                  className={`left-panel-tab${leftTab === 'planning' ? ' left-panel-tab-active' : ''}`}
+                  onClick={() => setLeftTab('planning')}
+                >Planung</button>
+              </div>
+            )}
+            <div className="left-panel-body">
+              {leftTab === 'files' || !hasPlanning ? (
+                <FileTree
+                  tree={project.fileTree}
+                  activeFile={project.openFilePath}
+                  bookmark={bookmark}
+                  onFileClick={project.openFile}
+                  onFileDragStart={handleFileDragStart}
+                  onJumpToBookmark={handleJumpToBookmark}
+                  changedPaths={changedPaths}
+                  onFileContextMenu={handleFileContextMenu}
+                  hasPlanning={hasPlanning}
+                  onOpenMetafile={(path) => openOrCreateMetafile(path)}
+                />
+              ) : (
+                <PlanningPanel
+                  activeFile={project.openFilePath}
+                  onOpenMetafile={project.openFile}
+                  onCreateMetafile={handleCreateStandaloneMetafile}
+                  refreshTrigger={planningRefresh}
+                />
+              )}
+            </div>
+          </div>
         </Panel>
 
         <Separator className="resize-handle" />
@@ -306,7 +378,7 @@ beats: []
               filePath={project.openFilePath}
               isDirty={project.isDirty}
               onChange={project.updateContent}
-              onSave={async () => { await project.saveFile(); fetchGitState(); }}
+              onSave={async () => { await project.saveFile(); fetchGitState(); setPlanningRefresh(r => r + 1); }}
               onOpenSourceFile={handleOpenMetafile}
             />
           ) : (
@@ -578,6 +650,13 @@ beats: []
         <ProjectSettingsModal
           onClose={() => { setSettingsOpen(false); loadFeatures(); }}
           onModesChanged={loadModes}
+        />
+      )}
+
+      {pendingMetafilePath && (
+        <MetafileTypeDialog
+          onSelect={handleMetafileTypeSelected}
+          onCancel={() => setPendingMetafilePath(null)}
         />
       )}
     </div>

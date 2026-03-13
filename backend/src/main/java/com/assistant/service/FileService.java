@@ -2,6 +2,7 @@ package com.assistant.service;
 
 import com.assistant.config.AppConfig;
 import com.assistant.model.FileNode;
+import com.assistant.model.PlanningNode;
 import org.springframework.stereotype.Service;
 
 import java.awt.Desktop;
@@ -9,9 +10,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Service
@@ -309,6 +310,72 @@ public class FileService {
         } else {
             throw new IOException("Desktop operations not supported on this system");
         }
+    }
+
+    // ── Planning outline ──────────────────────────────────────────────────────
+
+    private static final String PLANNING_DIR = ".planning";
+    private static final Pattern FM_KEY = Pattern.compile("^(\\w+):\\s*\"?([^\"\n]*)\"?\\s*$", Pattern.MULTILINE);
+
+    public List<PlanningNode> getPlanningOutline() throws IOException {
+        Path root = getProjectRoot();
+        Path planningDir = root.resolve(PLANNING_DIR);
+        if (!Files.isDirectory(planningDir)) {
+            return Collections.emptyList();
+        }
+        return buildPlanningChildren(planningDir, root);
+    }
+
+    private List<PlanningNode> buildPlanningChildren(Path dir, Path root) throws IOException {
+        List<PlanningNode> nodes = new ArrayList<>();
+        try (Stream<Path> entries = Files.list(dir)) {
+            List<Path> mdFiles = entries
+                .filter(p -> !Files.isDirectory(p) && p.getFileName().toString().endsWith(".md"))
+                .sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase()))
+                .toList();
+            for (Path mdFile : mdFiles) {
+                PlanningNode node = readPlanningNode(mdFile, root);
+                // Check for same-name subdirectory → children
+                String baseName = mdFile.getFileName().toString().replaceAll("\\.md$", "");
+                Path subDir = dir.resolve(baseName);
+                if (Files.isDirectory(subDir)) {
+                    node.getChildren().addAll(buildPlanningChildren(subDir, root));
+                }
+                nodes.add(node);
+            }
+        }
+        return nodes;
+    }
+
+    private PlanningNode readPlanningNode(Path mdFile, Path root) throws IOException {
+        String relativePath = root.relativize(mdFile).toString().replace('\\', '/');
+        Map<String, String> fm = Collections.emptyMap();
+        if (Files.exists(mdFile)) {
+            try {
+                String content = Files.readString(mdFile, StandardCharsets.UTF_8);
+                fm = parseFrontmatter(content);
+            } catch (IOException ignored) {}
+        }
+        return new PlanningNode(
+            relativePath,
+            fm.getOrDefault("type", null),
+            fm.getOrDefault("title", null),
+            fm.getOrDefault("status", null),
+            fm.getOrDefault("source", null)
+        );
+    }
+
+    private Map<String, String> parseFrontmatter(String content) {
+        if (!content.startsWith("---")) return Collections.emptyMap();
+        int end = content.indexOf("\n---", 3);
+        if (end == -1) return Collections.emptyMap();
+        String fmBlock = content.substring(4, end);
+        Map<String, String> result = new LinkedHashMap<>();
+        Matcher m = FM_KEY.matcher(fmBlock);
+        while (m.find()) {
+            result.put(m.group(1).trim(), m.group(2).trim());
+        }
+        return result;
     }
 
     private Path resolveAndValidate(String relativePath) throws IOException {

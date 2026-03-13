@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, WikiEntry } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, WikiEntry, PlanningNode } from './types.ts';
 
 const BASE = '/api';
 
@@ -113,6 +113,10 @@ export const projectConfigApi = {
 
 export const wikiApi = {
   getEntries: () => get<WikiEntry[]>('/wiki/entries'),
+};
+
+export const planningApi = {
+  getOutline: () => get<PlanningNode[]>('/planning/outline'),
 };
 
 export const gitApi = {

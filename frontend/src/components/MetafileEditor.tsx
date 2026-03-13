@@ -240,6 +240,47 @@ function ArcForm({
   );
 }
 
+function ActionForm({
+  fm,
+  onFmChange,
+}: {
+  fm: Record<string, unknown>;
+  onFmChange: (key: string, value: unknown) => void;
+}) {
+  return (
+    <>
+      <div className="mfe-field">
+        <label className="mfe-label">Titel</label>
+        <input
+          className="mfe-input"
+          value={asString(fm.title)}
+          onChange={e => onFmChange('title', e.target.value)}
+          placeholder="Bezeichnung der Handlungseinheit"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Charakter</label>
+        <input
+          className="mfe-input"
+          value={asString(fm.character)}
+          onChange={e => onFmChange('character', e.target.value)}
+          placeholder="Wer handelt?"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Beschreibung</label>
+        <textarea
+          className="mfe-textarea"
+          value={asString(fm.summary)}
+          onChange={e => onFmChange('summary', e.target.value)}
+          rows={3}
+          placeholder="Was passiert in dieser Handlungseinheit?"
+        />
+      </div>
+    </>
+  );
+}
+
 function FallbackForm({
   fm,
   onFmChange,
@@ -328,6 +369,8 @@ export function MetafileEditor({
   const type = asString(fm.type).toLowerCase();
   const displayName = filePath.replace(/^\.planning\//, '');
 
+  const TYPE_OPTIONS = ['book', 'chapter', 'scene', 'action', 'arc'];
+
   return (
     <div className="mfe-container">
       <div className="mfe-header">
@@ -336,9 +379,17 @@ export function MetafileEditor({
           {isDirty && <span className="mfe-dirty"> *</span>}
         </span>
         <div className="mfe-header-actions">
-          {type && (
-            <span className="mfe-type-badge">{type}</span>
-          )}
+          <select
+            className="mfe-type-badge mfe-type-select"
+            value={type || ''}
+            onChange={e => handleFmChange('type', e.target.value)}
+            title="Typ ändern"
+          >
+            {!type && <option value="">—</option>}
+            {TYPE_OPTIONS.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
           <button
             className="editor-mode-btn"
             onClick={onOpenSourceFile}
@@ -360,16 +411,22 @@ export function MetafileEditor({
 
       <div className="mfe-body">
         <div className="mfe-form">
-          {type === 'scene' && (
-            <SceneForm fm={fm} onFmChange={handleFmChange} />
+          {type === 'book' && (
+            <FallbackForm fm={fm} onFmChange={handleFmChange} />
           )}
           {type === 'chapter' && (
             <ChapterForm fm={fm} onFmChange={handleFmChange} />
           )}
+          {type === 'scene' && (
+            <SceneForm fm={fm} onFmChange={handleFmChange} />
+          )}
+          {type === 'action' && (
+            <ActionForm fm={fm} onFmChange={handleFmChange} />
+          )}
           {type === 'arc' && (
             <ArcForm fm={fm} onFmChange={handleFmChange} />
           )}
-          {type !== 'scene' && type !== 'chapter' && type !== 'arc' && (
+          {type !== 'book' && type !== 'chapter' && type !== 'scene' && type !== 'action' && type !== 'arc' && (
             <FallbackForm fm={fm} onFmChange={handleFmChange} />
           )}
 

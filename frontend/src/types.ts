@@ -81,3 +81,12 @@ export interface WikiEntry {
   aliases: string | null;
   tags: string | null;
 }
+
+export interface PlanningNode {
+  path: string;
+  type: string | null;
+  title: string | null;
+  status: string | null;
+  source: string | null;
+  children: PlanningNode[];
+}
