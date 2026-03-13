@@ -10,6 +10,7 @@ import { FileHistoryModal } from './components/FileHistoryModal.tsx';
 import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import { ContentBrowser } from './components/ContentBrowser.tsx';
+import { MetafileEditor } from './components/MetafileEditor.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi, projectConfigApi, filesApi, AuthRequiredError } from './api.ts';
@@ -266,6 +267,7 @@ beats: []
 
   const hasWiki = features.includes('wiki');
   const hasPlanning = features.includes('planning');
+  const isMetafile = (project.openFilePath?.startsWith('.planning/') ?? false) && hasPlanning;
 
   return (
     <div className="app" onClick={() => setContextMenu(null)}>
@@ -291,33 +293,37 @@ beats: []
             changedPaths={changedPaths}
             onFileContextMenu={handleFileContextMenu}
             hasPlanning={hasPlanning}
-            onOpenMetafile={(path) => {
-              project.openFile(`.planning/${path}`).catch(async () => {
-                try {
-                  await filesApi.saveContent(`.planning/${path}`, makeMetafileTemplate(path));
-                  project.openFile(`.planning/${path}`);
-                } catch (err) { console.error('Failed to create metafile:', err); }
-              });
-            }}
+            onOpenMetafile={(path) => openOrCreateMetafile(path)}
           />
         </Panel>
 
         <Separator className="resize-handle" />
 
         <Panel defaultSize="45%" minSize="15%">
-          <Editor
-            content={project.fileContent}
-            filePath={project.openFilePath}
-            projectPath={project.projectPath}
-            bookmarkJumpTarget={bookmarkJumpTarget}
-            onBookmarkJumpDone={handleBookmarkJumpDone}
-            onBookmarkChange={handleBookmarkChange}
-            isDirty={project.isDirty}
-            onChange={project.updateContent}
-            onSave={async () => { await project.saveFile(); fetchGitState(); }}
-            hasPlanning={hasPlanning}
-            onOpenMetafile={handleOpenMetafile}
-          />
+          {isMetafile && project.openFilePath ? (
+            <MetafileEditor
+              content={project.fileContent}
+              filePath={project.openFilePath}
+              isDirty={project.isDirty}
+              onChange={project.updateContent}
+              onSave={async () => { await project.saveFile(); fetchGitState(); }}
+              onOpenSourceFile={handleOpenMetafile}
+            />
+          ) : (
+            <Editor
+              content={project.fileContent}
+              filePath={project.openFilePath}
+              projectPath={project.projectPath}
+              bookmarkJumpTarget={bookmarkJumpTarget}
+              onBookmarkJumpDone={handleBookmarkJumpDone}
+              onBookmarkChange={handleBookmarkChange}
+              isDirty={project.isDirty}
+              onChange={project.updateContent}
+              onSave={async () => { await project.saveFile(); fetchGitState(); }}
+              hasPlanning={hasPlanning}
+              onOpenMetafile={handleOpenMetafile}
+            />
+          )}
         </Panel>
 
         <Separator className="resize-handle" />
