@@ -10,25 +10,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reads a single wiki entry by its path. Only paths under wiki/ are allowed.
- * Use wiki_search first to find the correct path, then wiki_read to get the full content.
+ * Reads a single planning metafile by its path. Only paths under .planning/ are allowed.
+ * Use plan_search first to find the correct path, then plan_read to get the full content.
  */
 @Component
-public class WikiReadTool extends AbstractTool {
+public class PlanReadTool extends AbstractTool {
 
-    private static final Logger log = LoggerFactory.getLogger(WikiReadTool.class);
+    private static final Logger log = LoggerFactory.getLogger(PlanReadTool.class);
 
-    private static final String WIKI_PREFIX = ".wiki/";
+    private static final String PLANNING_PREFIX = ".planning/";
 
     private final FileService fileService;
 
-    public WikiReadTool(FileService fileService) {
+    public PlanReadTool(FileService fileService) {
         this.fileService = fileService;
     }
 
     @Override
     public String getName() {
-        return "wiki_read";
+        return "plan_read";
     }
 
     @Override
@@ -37,15 +37,15 @@ public class WikiReadTool extends AbstractTool {
             "type", "function",
             "function", Map.of(
                 "name", getName(),
-                "description", "Read the full content of a single wiki entry by its path. " +
-                        "Only files under wiki/ are accessible. " +
-                        "Use wiki_search first to discover the correct path.",
+                "description", "Read the full content of a single planning metafile by its path. " +
+                        "Only files under .planning/ are accessible. " +
+                        "Use plan_search first to discover the correct path.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(
                         "path", Map.of(
                             "type", "string",
-                            "description", "Relative path of the wiki entry to read (e.g. '.wiki/characters/mara-voss.md')"
+                            "description", "Relative path of the planning metafile to read (e.g. '.planning/chapters/kapitel-03.md')"
                         )
                     ),
                     "required", List.of("path")
@@ -61,10 +61,9 @@ public class WikiReadTool extends AbstractTool {
             return "Error: missing 'path' parameter";
         }
 
-        // Normalize separators and guard against path traversal
         String normalizedPath = path.replace('\\', '/');
-        if (!normalizedPath.startsWith(WIKI_PREFIX)) {
-            return "Error: path must be inside wiki/ (got '" + path + "')";
+        if (!normalizedPath.startsWith(PLANNING_PREFIX)) {
+            return "Error: path must be inside .planning/ (got '" + path + "')";
         }
         if (normalizedPath.contains("..")) {
             return "Error: path traversal not allowed";
@@ -80,13 +79,13 @@ public class WikiReadTool extends AbstractTool {
         try {
             return fileService.readFile(normalizedPath);
         } catch (IOException e) {
-            log.error("Error reading wiki entry: {}", normalizedPath, e);
-            return "Error reading wiki entry: " + e.getMessage();
+            log.error("Error reading planning entry: {}", normalizedPath, e);
+            return "Error reading planning entry: " + e.getMessage();
         }
     }
 
     @Override
     public String describe(String argsJson) {
-        return "Reading wiki entry: " + extractArg(argsJson, "path");
+        return "Reading planning entry: " + extractArg(argsJson, "path");
     }
 }

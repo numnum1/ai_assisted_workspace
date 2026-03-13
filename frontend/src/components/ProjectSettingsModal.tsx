@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft } from 'lucide-react';
+import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft, BookOpen, Map } from 'lucide-react';
 import { projectConfigApi } from '../api.ts';
 import type { ProjectConfig, Mode } from '../types.ts';
 
@@ -8,7 +8,7 @@ interface ProjectSettingsModalProps {
   onModesChanged: () => void;
 }
 
-type Tab = 'general' | 'modes' | 'rules';
+type Tab = 'general' | 'modes' | 'rules' | 'features';
 
 interface ModeForm {
   id: string;
@@ -84,7 +84,8 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
   const [error, setError] = useState<string | null>(null);
 
   // General
-  const [config, setConfig] = useState<ProjectConfig>({ name: '', description: '', alwaysInclude: [], globalRules: [] });
+  const [config, setConfig] = useState<ProjectConfig>({ name: '', description: '', alwaysInclude: [], globalRules: [], features: [] });
+  const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
 
@@ -168,6 +169,26 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSavingConfig(false);
+    }
+  };
+
+  // ── Features ─────────────────────────────────────────────────────────────────
+
+  const handleToggleFeature = async (feature: string, enable: boolean) => {
+    setTogglingFeature(feature);
+    setError(null);
+    try {
+      if (enable) {
+        await projectConfigApi.enableFeature(feature);
+        setConfig(p => ({ ...p, features: [...(p.features ?? []).filter(f => f !== feature), feature] }));
+      } else {
+        await projectConfigApi.disableFeature(feature);
+        setConfig(p => ({ ...p, features: (p.features ?? []).filter(f => f !== feature) }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle feature');
+    } finally {
+      setTogglingFeature(null);
     }
   };
 
@@ -323,13 +344,13 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
           <>
             {/* Tabs */}
             <div className="ps-tabs">
-              {(['general', 'modes', 'rules'] as Tab[]).map(t => (
+              {(['general', 'modes', 'rules', 'features'] as Tab[]).map(t => (
                 <button
                   key={t}
                   className={`ps-tab ${tab === t ? 'active' : ''}`}
                   onClick={() => { setTab(t); setError(null); }}
                 >
-                  {t === 'general' ? 'General' : t === 'modes' ? `Modes (${modes.length})` : `Rules (${rules.length})`}
+                  {t === 'general' ? 'General' : t === 'modes' ? `Modes (${modes.length})` : t === 'rules' ? `Rules (${rules.length})` : 'Features'}
                 </button>
               ))}
             </div>
@@ -599,6 +620,53 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
                     </div>
                   </>
                 )}
+              </div>
+            )}
+            {/* Features tab */}
+            {tab === 'features' && (
+              <div className="ps-tab-content">
+                <p className="ps-hint">Optional features create dedicated directories in your project and unlock additional tools for the AI.</p>
+
+                <div className="ps-feature-item">
+                  <div className="ps-feature-info">
+                    <div className="ps-feature-header">
+                      <BookOpen size={15} className="ps-feature-icon" />
+                      <span className="ps-feature-name">Wiki</span>
+                    </div>
+                    <p className="ps-hint">World-building entries for characters, locations, organizations, and more. Stored in <code>.wiki/</code>. Accessible via <kbd>Shift+Space</kbd>.</p>
+                  </div>
+                  <button
+                    className={`ps-feature-btn ${(config.features ?? []).includes('wiki') ? 'ps-feature-btn-disable' : 'ps-feature-btn-enable'}`}
+                    onClick={() => handleToggleFeature('wiki', !(config.features ?? []).includes('wiki'))}
+                    disabled={togglingFeature === 'wiki'}
+                  >
+                    {togglingFeature === 'wiki'
+                      ? <Loader size={13} className="ps-spinner" />
+                      : (config.features ?? []).includes('wiki') ? 'Disable' : 'Enable'
+                    }
+                  </button>
+                </div>
+
+                <div className="ps-feature-item">
+                  <div className="ps-feature-info">
+                    <div className="ps-feature-header">
+                      <Map size={15} className="ps-feature-icon" />
+                      <span className="ps-feature-name">Planning</span>
+                      <span className="ps-feature-badge">Book projects</span>
+                    </div>
+                    <p className="ps-hint">Metafiles for scenes, arcs, and chapters — primarily for AI context. Stored in <code>.planning/</code>. Open via right-click or <kbd>Alt+E</kbd>.</p>
+                  </div>
+                  <button
+                    className={`ps-feature-btn ${(config.features ?? []).includes('planning') ? 'ps-feature-btn-disable' : 'ps-feature-btn-enable'}`}
+                    onClick={() => handleToggleFeature('planning', !(config.features ?? []).includes('planning'))}
+                    disabled={togglingFeature === 'planning'}
+                  >
+                    {togglingFeature === 'planning'
+                      ? <Loader size={13} className="ps-spinner" />
+                      : (config.features ?? []).includes('planning') ? 'Disable' : 'Enable'
+                    }
+                  </button>
+                </div>
               </div>
             )}
           </>

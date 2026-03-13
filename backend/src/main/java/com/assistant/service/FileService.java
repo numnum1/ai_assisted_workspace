@@ -4,6 +4,7 @@ import com.assistant.config.AppConfig;
 import com.assistant.model.FileNode;
 import org.springframework.stereotype.Service;
 
+import java.awt.Desktop;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -82,7 +83,7 @@ public class FileService {
     }
 
     public void writeFile(String relativePath, String content) throws IOException {
-        Path file = resolveAndValidate(relativePath);
+        Path file = resolveForCreate(relativePath);
         Files.createDirectories(file.getParent());
         Files.writeString(file, content, StandardCharsets.UTF_8);
     }
@@ -284,6 +285,29 @@ public class FileService {
                         }
                     }
                 });
+        }
+    }
+
+    /**
+     * Opens the folder (or parent folder for files) in the system file explorer.
+     */
+    public void openInExplorer(String relativePath) throws IOException {
+        Path root = getProjectRoot();
+        Path file = root.resolve(relativePath).normalize();
+        if (!file.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (!Files.exists(file)) {
+            throw new NoSuchFileException(relativePath);
+        }
+        Path folderToOpen = Files.isDirectory(file) ? file : file.getParent();
+        if (folderToOpen == null) {
+            throw new IOException("Cannot determine folder to open");
+        }
+        if (Desktop.isDesktopSupported()) {
+            Desktop.getDesktop().open(folderToOpen.toFile());
+        } else {
+            throw new IOException("Desktop operations not supported on this system");
         }
     }
 

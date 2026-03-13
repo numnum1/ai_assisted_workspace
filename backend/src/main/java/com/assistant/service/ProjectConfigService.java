@@ -256,6 +256,37 @@ public class ProjectConfigService {
         }
     }
 
+    // ─── Features ────────────────────────────────────────────────────────────────
+
+    private static final Map<String, String> FEATURE_DIRS = Map.of(
+        "wiki", ".wiki",
+        "planning", ".planning"
+    );
+
+    public void enableFeature(String feature) throws IOException {
+        if (!FEATURE_DIRS.containsKey(feature)) {
+            throw new IllegalArgumentException("Unknown feature: " + feature);
+        }
+        ProjectConfig config = getConfig();
+        List<String> features = new ArrayList<>(config.getFeatures());
+        if (!features.contains(feature)) {
+            features.add(feature);
+        }
+        config.setFeatures(features);
+        Path featureDir = getAssistantDir().getParent().resolve(FEATURE_DIRS.get(feature));
+        Files.createDirectories(featureDir);
+        saveConfig(config);
+    }
+
+    public void disableFeature(String feature) throws IOException {
+        ProjectConfig config = getConfig();
+        config.setFeatures(new ArrayList<>(config.getFeatures().stream()
+            .filter(f -> !f.equals(feature)).toList()));
+        saveConfig(config);
+    }
+
+    // ─── Parsing / Serialization ─────────────────────────────────────────────────
+
     @SuppressWarnings("unchecked")
     private ProjectConfig parseProjectConfig(String yamlStr) {
         Yaml yaml = new Yaml();
@@ -274,6 +305,10 @@ public class ProjectConfigService {
         if (globalRules instanceof List<?> list) {
             config.setGlobalRules(list.stream().map(Object::toString).toList());
         }
+        Object features = data.get("features");
+        if (features instanceof List<?> list) {
+            config.setFeatures(new ArrayList<>(list.stream().map(Object::toString).toList()));
+        }
         return config;
     }
 
@@ -283,6 +318,7 @@ public class ProjectConfigService {
         data.put("description", config.getDescription() != null ? config.getDescription() : "");
         data.put("alwaysInclude", config.getAlwaysInclude() != null ? config.getAlwaysInclude() : List.of());
         data.put("globalRules", config.getGlobalRules() != null ? config.getGlobalRules() : List.of());
+        data.put("features", config.getFeatures() != null ? config.getFeatures() : List.of());
         return buildYaml().dump(data);
     }
 

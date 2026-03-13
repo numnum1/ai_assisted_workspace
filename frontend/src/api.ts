@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, WikiEntry } from './types.ts';
 
 const BASE = '/api';
 
@@ -71,6 +71,8 @@ export const filesApi = {
     post<{ status: string; path: string }>('/files/create-folder', { parentPath, name }),
   rename: (path: string, newName: string) =>
     post<{ status: string; path: string }>('/files/rename', { path, newName }),
+  openInExplorer: (path: string) =>
+    post<{ status: string }>('/files/open-in-explorer', { path }),
 };
 
 export const modesApi = {
@@ -105,6 +107,12 @@ export const projectConfigApi = {
   getRuleContent: (name: string) => get<{ name: string; content: string }>(`/project-config/rules/${name}`),
   saveRule: (name: string, content: string) => put<{ status: string; name: string }>(`/project-config/rules/${name}`, { content }),
   deleteRule: (name: string) => fetch(`/api/project-config/rules/${name}`, { method: 'DELETE' }).then(r => r.json()),
+  enableFeature: (feature: string) => post<{ status: string; feature: string }>(`/project-config/features/${feature}`, {}),
+  disableFeature: (feature: string) => fetch(`/api/project-config/features/${feature}`, { method: 'DELETE' }).then(r => r.json()),
+};
+
+export const wikiApi = {
+  getEntries: () => get<WikiEntry[]>('/wiki/entries'),
 };
 
 export const gitApi = {

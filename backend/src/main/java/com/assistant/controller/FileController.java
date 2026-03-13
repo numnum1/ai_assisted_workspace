@@ -80,6 +80,16 @@ public class FileController {
         return ResponseEntity.ok(Map.of("status", "created", "path", path));
     }
 
+    @PostMapping("/open-in-explorer")
+    public ResponseEntity<Map<String, String>> openInExplorer(@RequestBody Map<String, String> body) throws IOException {
+        String path = body.get("path");
+        if (path == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "path is required"));
+        }
+        fileService.openInExplorer(path);
+        return ResponseEntity.ok(Map.of("status", "opened"));
+    }
+
     @PostMapping("/rename")
     public ResponseEntity<Map<String, String>> rename(@RequestBody Map<String, String> body) throws IOException {
         String path = body.get("path");

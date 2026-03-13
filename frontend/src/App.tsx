@@ -9,9 +9,10 @@ import { CommandPalette } from './components/CommandPalette.tsx';
 import { FileHistoryModal } from './components/FileHistoryModal.tsx';
 import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
+import { ContentBrowser } from './components/ContentBrowser.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
-import { modesApi, gitApi, AuthRequiredError } from './api.ts';
+import { modesApi, gitApi, projectConfigApi, filesApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
@@ -41,9 +42,14 @@ function App() {
     modesApi.getAll().then(setModes).catch(console.error);
   }, []);
 
+  const loadFeatures = useCallback(() => {
+    projectConfigApi.get().then(cfg => setFeatures(cfg.features ?? [])).catch(() => setFeatures([]));
+  }, []);
+
   useEffect(() => {
     loadModes();
-  }, [loadModes]);
+    loadFeatures();
+  }, [loadModes, loadFeatures]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -55,6 +61,8 @@ function App() {
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
   const [bookmarkJumpTarget, setBookmarkJumpTarget] = useState<{ filePath: string; line: number } | null>(null);
+  const [wikiOpen, setWikiOpen] = useState(false);
+  const [features, setFeatures] = useState<string[]>([]);
 
   const hasUncommitted = !gitStatus?.isClean;
 
@@ -109,11 +117,19 @@ function App() {
       }
       if (e.key === 'Escape') {
         setContextMenu(null);
+        setWikiOpen(false);
+      }
+      if (e.shiftKey && e.key === ' ' && !e.ctrlKey && !e.altKey) {
+        if (features.includes('wiki')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setWikiOpen(prev => !prev);
+        }
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [features]);
 
   const changedPaths = useMemo(() => new Set([
     ...(gitStatus?.modified ?? []),
@@ -180,7 +196,45 @@ function App() {
   const handleOpenProject = useCallback(async (path: string) => {
     await project.openProject(path);
     loadModes();
-  }, [project, loadModes]);
+    loadFeatures();
+  }, [project, loadModes, loadFeatures]);
+
+  const makeMetafileTemplate = (sourcePath: string) =>
+`---
+type: scene
+id: ${sourcePath.replace(/^.*\//, '').replace(/\.md$/, '')}
+title: ""
+status: draft
+summary: >
+  Short description of this scene.
+beats: []
+---
+`;
+
+  const openOrCreateMetafile = useCallback(async (filePath: string) => {
+    const metaPath = `.planning/${filePath}`;
+    try {
+      await filesApi.getContent(metaPath);
+    } catch {
+      try {
+        await filesApi.saveContent(metaPath, makeMetafileTemplate(filePath));
+      } catch (createErr) {
+        console.error('Failed to create metafile:', createErr);
+        return;
+      }
+    }
+    project.openFile(metaPath);
+  }, [project]);
+
+  const handleOpenMetafile = useCallback(async () => {
+    const filePath = project.openFilePath;
+    if (!filePath || !features.includes('planning')) return;
+    if (filePath.startsWith('.planning/')) {
+      project.openFile(filePath.slice('.planning/'.length));
+    } else {
+      openOrCreateMetafile(filePath);
+    }
+  }, [project, features, openOrCreateMetafile]);
 
   const handleFileDragStart = useCallback((_path: string) => {
     // Visual feedback could be added here
@@ -210,6 +264,9 @@ function App() {
     chat.clearChat();
   }, [chat]);
 
+  const hasWiki = features.includes('wiki');
+  const hasPlanning = features.includes('planning');
+
   return (
     <div className="app" onClick={() => setContextMenu(null)}>
       <CommandPalette
@@ -233,6 +290,15 @@ function App() {
             onJumpToBookmark={handleJumpToBookmark}
             changedPaths={changedPaths}
             onFileContextMenu={handleFileContextMenu}
+            hasPlanning={hasPlanning}
+            onOpenMetafile={(path) => {
+              project.openFile(`.planning/${path}`).catch(async () => {
+                try {
+                  await filesApi.saveContent(`.planning/${path}`, makeMetafileTemplate(path));
+                  project.openFile(`.planning/${path}`);
+                } catch (err) { console.error('Failed to create metafile:', err); }
+              });
+            }}
           />
         </Panel>
 
@@ -249,6 +315,8 @@ function App() {
             isDirty={project.isDirty}
             onChange={project.updateContent}
             onSave={async () => { await project.saveFile(); fetchGitState(); }}
+            hasPlanning={hasPlanning}
+            onOpenMetafile={handleOpenMetafile}
           />
         </Panel>
 
@@ -280,6 +348,13 @@ function App() {
         </Panel>
       </Group>
 
+      {wikiOpen && hasWiki && (
+        <ContentBrowser
+          onOpenFile={(path) => { project.openFile(path); setWikiOpen(false); }}
+          onClose={() => setWikiOpen(false)}
+        />
+      )}
+
       <ContextBar
         contextInfo={chat.contextInfo}
         activeFile={project.openFilePath}
@@ -294,6 +369,21 @@ function App() {
         >
           {contextMenu.isDirectory ? (
             <>
+              <div
+                className="tree-context-menu-item"
+                onClick={async () => {
+                  const path = contextMenu.path;
+                  setContextMenu(null);
+                  try {
+                    await filesApi.openInExplorer(path);
+                  } catch (err) {
+                    console.error('Open in explorer failed:', err);
+                    alert(err instanceof Error ? err.message : 'Ordner konnte nicht geöffnet werden.');
+                  }
+                }}
+              >
+                Im Explorer öffnen
+              </div>
               <div
                 className="tree-context-menu-item"
                 onClick={async () => {
@@ -380,6 +470,33 @@ function App() {
             <>
               <div
                 className="tree-context-menu-item"
+                onClick={async () => {
+                  const path = contextMenu.path;
+                  setContextMenu(null);
+                  try {
+                    await filesApi.openInExplorer(path);
+                  } catch (err) {
+                    console.error('Open in explorer failed:', err);
+                    alert(err instanceof Error ? err.message : 'Ordner konnte nicht im Explorer geöffnet werden.');
+                  }
+                }}
+              >
+                Im Explorer öffnen
+              </div>
+              {hasPlanning && (
+                <div
+                  className="tree-context-menu-item"
+                  onClick={() => {
+                    const path = contextMenu.path;
+                    setContextMenu(null);
+                    openOrCreateMetafile(path);
+                  }}
+                >
+                  Metafile öffnen
+                </div>
+              )}
+              <div
+                className="tree-context-menu-item"
                 onClick={() => {
                   setHistoryFile(contextMenu.path);
                   setContextMenu(null);
@@ -453,7 +570,7 @@ function App() {
 
       {settingsOpen && (
         <ProjectSettingsModal
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => { setSettingsOpen(false); loadFeatures(); }}
           onModesChanged={loadModes}
         />
       )}

@@ -4,7 +4,7 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun, Bookmark } from 'lucide-react';
+import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun, Bookmark, FileCode } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
 import { createCommentExtension } from './commentExtension';
 import { hideMarksExtension } from './hideMarksExtension';
@@ -53,11 +53,13 @@ interface EditorProps {
   isDirty: boolean;
   onChange: (content: string) => void;
   onSave: () => void;
+  hasPlanning?: boolean;
+  onOpenMetafile?: () => void;
 }
 
 type EditorMode = 'editor' | 'reading';
 
-export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onBookmarkJumpDone, onBookmarkChange, isDirty, onChange, onSave }: EditorProps) {
+export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onBookmarkJumpDone, onBookmarkChange, isDirty, onChange, onSave, hasPlanning, onOpenMetafile }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -108,6 +110,12 @@ export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onB
         e.preventDefault();
         toggleMode();
       }
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'e') {
+        if (hasPlanning && filePath && onOpenMetafile) {
+          e.preventDefault();
+          onOpenMetafile();
+        }
+      }
       if (e.ctrlKey && !e.altKey && !e.shiftKey && mode === 'reading' &&
           (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
@@ -120,7 +128,7 @@ export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onB
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleMode, mode, readingFontSize]);
+  }, [toggleMode, mode, readingFontSize, hasPlanning, filePath, onOpenMetafile]);
 
   const handleCommentPositions = useCallback((positions: CommentPosition[], height: number) => {
     setCommentPositions(positions);
@@ -404,6 +412,16 @@ export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onB
             {mode === 'editor' ? <BookOpen size={14} /> : <Code size={14} />}
             <span>{mode === 'editor' ? 'Lesen' : 'Editor'}</span>
           </button>
+          {hasPlanning && filePath && (
+            <button
+              className="editor-mode-btn"
+              onClick={onOpenMetafile}
+              title="Metafile öffnen (Alt+E)"
+            >
+              <FileCode size={14} />
+              <span>Metafile</span>
+            </button>
+          )}
           <button
             className="editor-save-btn"
             onClick={onSave}

@@ -11,28 +11,27 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Searches the project wiki (wiki/) for characters, locations, organizations, etc.
- * Returns a compact hit list to keep the model context small. Use wiki_read to
- * retrieve full entry content.
+ * Searches the project planning directory (.planning/) for scenes, arcs, chapters, and other
+ * story-structure metafiles. Returns a compact hit list. Use plan_read to retrieve full content.
  */
 @Component
-public class WikiSearchTool extends AbstractTool {
+public class PlanSearchTool extends AbstractTool {
 
-    private static final Logger log = LoggerFactory.getLogger(WikiSearchTool.class);
+    private static final Logger log = LoggerFactory.getLogger(PlanSearchTool.class);
 
-    private static final String WIKI_DIR = ".wiki";
+    private static final String PLANNING_DIR = ".planning";
     private static final int DEFAULT_LIMIT = 10;
     private static final int MAX_LIMIT = 20;
 
     private final FileService fileService;
 
-    public WikiSearchTool(FileService fileService) {
+    public PlanSearchTool(FileService fileService) {
         this.fileService = fileService;
     }
 
     @Override
     public String getName() {
-        return "wiki_search";
+        return "plan_search";
     }
 
     @Override
@@ -41,10 +40,10 @@ public class WikiSearchTool extends AbstractTool {
             "type", "function",
             "function", Map.of(
                 "name", getName(),
-                "description", "Search the project wiki for characters, locations, organizations, and other world-building entries. " +
-                        "Returns a compact list of matching entries with their paths and summaries. " +
-                        "Use wiki_read afterwards to get the full content of a specific entry. " +
-                        "The wiki lives under .wiki/ in the project root.",
+                "description", "Search the project planning directory for scenes, arcs, chapters, and other " +
+                        "story-structure metafiles. Returns a compact list of matching entries with their paths and summaries. " +
+                        "Use plan_read afterwards to get the full content of a specific entry. " +
+                        "The planning metafiles live under .planning/ in the project root.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(
@@ -54,7 +53,7 @@ public class WikiSearchTool extends AbstractTool {
                         ),
                         "type", Map.of(
                             "type", "string",
-                            "description", "Optional filter by entry type (e.g. 'character', 'location', 'organization')"
+                            "description", "Optional filter by entry type (e.g. 'scene', 'chapter', 'arc')"
                         ),
                         "limit", Map.of(
                             "type", "string",
@@ -79,50 +78,49 @@ public class WikiSearchTool extends AbstractTool {
         String lowerQuery = query.toLowerCase();
         String lowerType = typeFilter != null ? typeFilter.toLowerCase() : null;
 
-        if (!fileService.isDirectory(WIKI_DIR)) {
-            return "Wiki directory not found. Enable the wiki feature in Project Settings to create .wiki/ in the project root.";
+        if (!fileService.isDirectory(PLANNING_DIR)) {
+            return "Planning directory not found. Enable the planning feature in Project Settings to create .planning/ in the project root.";
         }
 
         List<String> allFiles;
         try {
-            allFiles = fileService.listFiles(WIKI_DIR);
+            allFiles = fileService.listFiles(PLANNING_DIR);
         } catch (IOException e) {
-            log.error("Error listing wiki files", e);
-            return "Error reading wiki directory: " + e.getMessage();
+            log.error("Error listing planning files", e);
+            return "Error reading planning directory: " + e.getMessage();
         }
 
-        List<WikiHit> hits = new ArrayList<>();
+        List<PlanHit> hits = new ArrayList<>();
 
         for (String path : allFiles) {
             if (!path.endsWith(".md")) continue;
-            if (path.endsWith("/README.md") || path.endsWith("\\README.md")) continue;
 
             try {
                 String content = fileService.readFile(path);
-                WikiHit hit = matchEntry(path, content, lowerQuery, lowerType);
+                PlanHit hit = matchEntry(path, content, lowerQuery, lowerType);
                 if (hit != null) {
                     hits.add(hit);
                     if (hits.size() >= limit) break;
                 }
             } catch (IOException e) {
-                log.warn("Could not read wiki entry: {}", path);
+                log.warn("Could not read planning entry: {}", path);
             }
         }
 
         if (hits.isEmpty()) {
-            return "No wiki entries found matching '" + query + "'" +
+            return "No planning entries found matching '" + query + "'" +
                     (lowerType != null ? " with type='" + typeFilter + "'" : "") + ".";
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Found ").append(hits.size()).append(" wiki entry/entries matching '").append(query).append("':\n\n");
-        for (WikiHit hit : hits) {
+        sb.append("Found ").append(hits.size()).append(" planning entry/entries matching '").append(query).append("':\n\n");
+        for (PlanHit hit : hits) {
             sb.append("- **").append(hit.path()).append("**");
             if (hit.entryType() != null) sb.append(" [").append(hit.entryType()).append("]");
             if (hit.summary() != null) sb.append("\n  ").append(hit.summary());
             sb.append("\n");
         }
-        sb.append("\nUse wiki_read with the path to get the full entry.");
+        sb.append("\nUse plan_read with the path to get the full entry.");
         return sb.toString();
     }
 
@@ -131,12 +129,12 @@ public class WikiSearchTool extends AbstractTool {
         String query = extractArg(argsJson, "query");
         String type = extractArg(argsJson, "type");
         if (type != null && !type.isBlank()) {
-            return "Searching wiki for " + type + ": '" + query + "'";
+            return "Searching plans for " + type + ": '" + query + "'";
         }
-        return "Searching wiki for '" + query + "'";
+        return "Searching plans for '" + query + "'";
     }
 
-    private WikiHit matchEntry(String path, String content, String lowerQuery, String lowerType) {
+    private PlanHit matchEntry(String path, String content, String lowerQuery, String lowerType) {
         String fileName = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
         String baseName = fileName.endsWith(".md") ? fileName.substring(0, fileName.length() - 3) : fileName;
 
@@ -146,12 +144,10 @@ public class WikiSearchTool extends AbstractTool {
         String tags = extractFrontmatterValue(content, "tags");
         String summary = extractFrontmatterValue(content, "summary");
 
-        // Type filter: skip if type doesn't match
         if (lowerType != null && entryType != null && !entryType.toLowerCase().contains(lowerType)) {
             return null;
         }
 
-        // Match against id, filename, aliases, tags, summary
         boolean matches =
                 baseName.toLowerCase().contains(lowerQuery) ||
                 (id != null && id.toLowerCase().contains(lowerQuery)) ||
@@ -160,14 +156,9 @@ public class WikiSearchTool extends AbstractTool {
                 (summary != null && summary.toLowerCase().contains(lowerQuery));
 
         if (!matches) return null;
-        return new WikiHit(path, entryType, summary);
+        return new PlanHit(path, entryType, summary);
     }
 
-    /**
-     * Extracts a single-line or folded-block value from YAML frontmatter.
-     * Handles: key: value and key: > (folded scalar, next indented line).
-     * Simple regex-free approach to avoid adding a YAML parser dependency.
-     */
     private String extractFrontmatterValue(String content, String key) {
         if (content == null || !content.startsWith("---")) return null;
 
@@ -184,7 +175,6 @@ public class WikiSearchTool extends AbstractTool {
                 ? frontmatter.substring(lineStart, lineEnd).trim()
                 : frontmatter.substring(lineStart).trim();
 
-        // Folded/literal block scalar: collect next indented line(s)
         if (valuePart.equals(">") || valuePart.equals("|")) {
             if (lineEnd == -1) return null;
             int nextLineStart = lineEnd + 1;
@@ -208,5 +198,5 @@ public class WikiSearchTool extends AbstractTool {
         }
     }
 
-    private record WikiHit(String path, String entryType, String summary) {}
+    private record PlanHit(String path, String entryType, String summary) {}
 }

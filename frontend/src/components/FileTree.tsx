@@ -12,9 +12,11 @@ interface FileTreeProps {
   onJumpToBookmark?: () => void;
   changedPaths?: Set<string>;
   onFileContextMenu?: (path: string, x: number, y: number, isDirectory: boolean) => void;
+  hasPlanning?: boolean;
+  onOpenMetafile?: (path: string) => void;
 }
 
-export function FileTree({ tree, activeFile, bookmark, onFileClick, onFileDragStart, onJumpToBookmark, changedPaths, onFileContextMenu }: FileTreeProps) {
+export function FileTree({ tree, activeFile, bookmark, onFileClick, onFileDragStart, onJumpToBookmark, changedPaths, onFileContextMenu, hasPlanning, onOpenMetafile }: FileTreeProps) {
   if (!tree) {
     return <div className="file-tree-empty">Shift + Ctrl + A to open a project...</div>;
   }
@@ -52,6 +54,8 @@ export function FileTree({ tree, activeFile, bookmark, onFileClick, onFileDragSt
             onFileDragStart={onFileDragStart}
             changedPaths={changedPaths}
             onFileContextMenu={onFileContextMenu}
+            hasPlanning={hasPlanning}
+            onOpenMetafile={onOpenMetafile}
           />
         ))}
       </div>
@@ -67,9 +71,11 @@ interface TreeNodeProps {
   onFileDragStart: (path: string) => void;
   changedPaths?: Set<string>;
   onFileContextMenu?: (path: string, x: number, y: number, isDirectory: boolean) => void;
+  hasPlanning?: boolean;
+  onOpenMetafile?: (path: string) => void;
 }
 
-function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu }: TreeNodeProps) {
+function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu, hasPlanning, onOpenMetafile }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(false);
   const isActive = node.path === activeFile;
 
@@ -131,6 +137,8 @@ function TreeNode({ node, depth, activeFile, onFileClick, onFileDragStart, chang
           onFileDragStart={onFileDragStart}
           changedPaths={changedPaths}
           onFileContextMenu={onFileContextMenu}
+          hasPlanning={hasPlanning}
+          onOpenMetafile={onOpenMetafile}
         />
       ))}
     </div>

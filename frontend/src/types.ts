@@ -70,4 +70,14 @@ export interface ProjectConfig {
   description: string;
   alwaysInclude: string[];
   globalRules: string[];
+  features: string[];
+}
+
+export interface WikiEntry {
+  path: string;
+  name: string;
+  type: string | null;
+  summary: string | null;
+  aliases: string | null;
+  tags: string | null;
 }

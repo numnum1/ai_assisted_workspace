@@ -102,6 +102,36 @@ public class ProjectConfigController {
         }
     }
 
+    // ─── Features ────────────────────────────────────────────────────────────────
+
+    @PostMapping("/features/{feature}")
+    public ResponseEntity<?> enableFeature(@PathVariable String feature) {
+        if (!projectConfigService.hasProjectConfig()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized. Call /init first."));
+        }
+        try {
+            projectConfigService.enableFeature(feature);
+            return ResponseEntity.ok(Map.of("status", "enabled", "feature", feature));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to enable feature: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/features/{feature}")
+    public ResponseEntity<?> disableFeature(@PathVariable String feature) {
+        if (!projectConfigService.hasProjectConfig()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized."));
+        }
+        try {
+            projectConfigService.disableFeature(feature);
+            return ResponseEntity.ok(Map.of("status", "disabled", "feature", feature));
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to disable feature: " + e.getMessage()));
+        }
+    }
+
     // ─── Rules ───────────────────────────────────────────────────────────────────
 
     @GetMapping("/rules")
