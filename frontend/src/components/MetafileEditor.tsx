@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { Save, FileCode } from 'lucide-react';
+import { METAFORM_CONFIG, HIDDEN_FIELDS, type FieldConfig } from './metaformConfig.ts';
 
 interface MetafileEditorProps {
   content: string;
@@ -10,8 +11,6 @@ interface MetafileEditorProps {
   onSave: () => void;
   onOpenSourceFile: () => void;
 }
-
-const STATUS_OPTIONS = ['draft', 'written', 'revised', 'final'];
 
 function splitFrontmatter(raw: string): { fm: Record<string, unknown>; body: string } {
   if (!raw.startsWith('---')) return { fm: {}, body: raw };
@@ -36,283 +35,67 @@ function asString(v: unknown): string {
   return typeof v === 'string' ? v : v != null ? String(v) : '';
 }
 
-// ── Type-specific form sections ───────────────────────────────────────────────
-
-const HIDDEN_FIELDS = new Set(['type', 'id', 'child_order']);
-
-function BookForm({
-  fm,
-  onFmChange,
-}: {
-  fm: Record<string, unknown>;
-  onFmChange: (key: string, value: unknown) => void;
-}) {
-  return (
-    <>
-      <div className="mfe-field">
-        <label className="mfe-label">Name</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.name)}
-          onChange={e => onFmChange('name', e.target.value)}
-          placeholder="Titel des Buches"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Universum</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.universum)}
-          onChange={e => onFmChange('universum', e.target.value)}
-          placeholder="z.B. Overlord, eigenes Universum..."
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Zeitliche Einordnung</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.zeitliche_einordnung)}
-          onChange={e => onFmChange('zeitliche_einordnung', e.target.value)}
-          placeholder="z.B. Nach Light Novel 3"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Beschreibung</label>
-        <textarea
-          className="mfe-textarea"
-          value={asString(fm.beschreibung)}
-          onChange={e => onFmChange('beschreibung', e.target.value)}
-          rows={4}
-          placeholder="Worum geht es in diesem Buch?"
-        />
-      </div>
-    </>
-  );
+function fallbackFields(fm: Record<string, unknown>): FieldConfig[] {
+  return Object.keys(fm)
+    .filter(key => !HIDDEN_FIELDS.has(key))
+    .map(key => ({ key, label: key, type: 'text' as const }));
 }
 
-function ChapterForm({
+// ── Generic field renderer ────────────────────────────────────────────────────
+
+function MetaFormField({
+  field,
   fm,
-  onFmChange,
+  onChange,
 }: {
+  field: FieldConfig;
   fm: Record<string, unknown>;
-  onFmChange: (key: string, value: unknown) => void;
+  onChange: (key: string, value: unknown) => void;
 }) {
-  return (
-    <>
+  const value = asString(fm[field.key]);
+
+  if (field.type === 'select') {
+    return (
       <div className="mfe-field">
-        <label className="mfe-label">Titel</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.title)}
-          onChange={e => onFmChange('title', e.target.value)}
-          placeholder="Kapitelname"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Status</label>
+        <label className="mfe-label">{field.label}</label>
         <select
           className="mfe-select"
-          value={asString(fm.status) || 'draft'}
-          onChange={e => onFmChange('status', e.target.value)}
+          value={value || (field.options?.[0] ?? '')}
+          onChange={e => onChange(field.key, e.target.value)}
         >
-          {STATUS_OPTIONS.map(s => (
-            <option key={s} value={s}>{s}</option>
+          {field.options?.map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
       </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Zusammenfassung</label>
-        <textarea
-          className="mfe-textarea"
-          value={asString(fm.zusammenfassung)}
-          onChange={e => onFmChange('zusammenfassung', e.target.value)}
-          rows={4}
-          placeholder="Was passiert in diesem Kapitel?"
-        />
-      </div>
-    </>
-  );
-}
+    );
+  }
 
-function SceneForm({
-  fm,
-  onFmChange,
-}: {
-  fm: Record<string, unknown>;
-  onFmChange: (key: string, value: unknown) => void;
-}) {
-  return (
-    <>
+  if (field.type === 'textarea') {
+    return (
       <div className="mfe-field">
-        <label className="mfe-label">Titel</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.title)}
-          onChange={e => onFmChange('title', e.target.value)}
-          placeholder="Szenenname"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Status</label>
-        <select
-          className="mfe-select"
-          value={asString(fm.status) || 'draft'}
-          onChange={e => onFmChange('status', e.target.value)}
-        >
-          {STATUS_OPTIONS.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Zusammenfassung</label>
+        <label className="mfe-label">{field.label}</label>
         <textarea
           className="mfe-textarea"
-          value={asString(fm.zusammenfassung)}
-          onChange={e => onFmChange('zusammenfassung', e.target.value)}
-          rows={4}
-          placeholder="Was passiert in dieser Szene?"
+          value={value}
+          onChange={e => onChange(field.key, e.target.value)}
+          rows={field.rows ?? 3}
+          placeholder={field.placeholder}
         />
       </div>
-    </>
-  );
-}
+    );
+  }
 
-function ActionForm({
-  fm,
-  onFmChange,
-}: {
-  fm: Record<string, unknown>;
-  onFmChange: (key: string, value: unknown) => void;
-}) {
   return (
-    <>
-      <div className="mfe-field">
-        <label className="mfe-label">Titel</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.title)}
-          onChange={e => onFmChange('title', e.target.value)}
-          placeholder="Bezeichnung der Aktion"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Status</label>
-        <select
-          className="mfe-select"
-          value={asString(fm.status) || 'draft'}
-          onChange={e => onFmChange('status', e.target.value)}
-        >
-          {STATUS_OPTIONS.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Ort</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.ort)}
-          onChange={e => onFmChange('ort', e.target.value)}
-          placeholder="Wo findet die Aktion statt?"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Charakter</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.character)}
-          onChange={e => onFmChange('character', e.target.value)}
-          placeholder="Wer handelt?"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Was passiert</label>
-        <textarea
-          className="mfe-textarea"
-          value={asString(fm.was_passiert)}
-          onChange={e => onFmChange('was_passiert', e.target.value)}
-          rows={3}
-          placeholder="Was geschieht in dieser Aktion?"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Ziel</label>
-        <textarea
-          className="mfe-textarea"
-          value={asString(fm.ziel)}
-          onChange={e => onFmChange('ziel', e.target.value)}
-          rows={2}
-          placeholder="Was soll diese Aktion narrativ erreichen?"
-        />
-      </div>
-    </>
-  );
-}
-
-function ArcForm({
-  fm,
-  onFmChange,
-}: {
-  fm: Record<string, unknown>;
-  onFmChange: (key: string, value: unknown) => void;
-}) {
-  return (
-    <>
-      <div className="mfe-field">
-        <label className="mfe-label">Titel</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.title)}
-          onChange={e => onFmChange('title', e.target.value)}
-          placeholder="Arcname"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Thema</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.thema)}
-          onChange={e => onFmChange('thema', e.target.value)}
-          placeholder="Zentrales Thema des Arcs..."
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Zusammenfassung</label>
-        <textarea
-          className="mfe-textarea"
-          value={asString(fm.zusammenfassung)}
-          onChange={e => onFmChange('zusammenfassung', e.target.value)}
-          rows={4}
-          placeholder="Kurze Beschreibung des Arcs..."
-        />
-      </div>
-    </>
-  );
-}
-
-function FallbackForm({
-  fm,
-  onFmChange,
-}: {
-  fm: Record<string, unknown>;
-  onFmChange: (key: string, value: unknown) => void;
-}) {
-  return (
-    <>
-      {Object.entries(fm)
-        .filter(([key]) => !HIDDEN_FIELDS.has(key))
-        .map(([key, val]) => (
-          <div key={key} className="mfe-field">
-            <label className="mfe-label">{key}</label>
-            <input
-              className="mfe-input"
-              value={asString(val)}
-              onChange={e => onFmChange(key, e.target.value)}
-            />
-          </div>
-        ))}
-    </>
+    <div className="mfe-field">
+      <label className="mfe-label">{field.label}</label>
+      <input
+        className="mfe-input"
+        value={value}
+        onChange={e => onChange(field.key, e.target.value)}
+        placeholder={field.placeholder}
+      />
+    </div>
   );
 }
 
@@ -380,8 +163,8 @@ export function MetafileEditor({
 
   const type = asString(fm.type).toLowerCase();
   const displayName = filePath.replace(/^\.planning\//, '');
-
-  const TYPE_OPTIONS = ['book', 'chapter', 'scene', 'action', 'arc'];
+  const typeOptions = Object.keys(METAFORM_CONFIG);
+  const fields = METAFORM_CONFIG[type]?.fields ?? fallbackFields(fm);
 
   return (
     <div className="mfe-container">
@@ -398,7 +181,7 @@ export function MetafileEditor({
             title="Typ ändern"
           >
             {!type && <option value="">—</option>}
-            {TYPE_OPTIONS.map(t => (
+            {typeOptions.map(t => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
@@ -423,14 +206,9 @@ export function MetafileEditor({
 
       <div className="mfe-body">
         <div className="mfe-form">
-          {type === 'book'    && <BookForm    fm={fm} onFmChange={handleFmChange} />}
-          {type === 'chapter' && <ChapterForm fm={fm} onFmChange={handleFmChange} />}
-          {type === 'scene'   && <SceneForm   fm={fm} onFmChange={handleFmChange} />}
-          {type === 'action'  && <ActionForm  fm={fm} onFmChange={handleFmChange} />}
-          {type === 'arc'     && <ArcForm     fm={fm} onFmChange={handleFmChange} />}
-          {!['book', 'chapter', 'scene', 'action', 'arc'].includes(type) && (
-            <FallbackForm fm={fm} onFmChange={handleFmChange} />
-          )}
+          {fields.map(field => (
+            <MetaFormField key={field.key} field={field} fm={fm} onChange={handleFmChange} />
+          ))}
 
           <div className="mfe-field mfe-field-notes">
             <label className="mfe-label">Notizen</label>
