@@ -1,3 +1,8 @@
+import type { ReactNode } from 'react';
+import { renderTextField }     from './fields/textField.tsx';
+import { renderTextareaField } from './fields/textareaField.tsx';
+import { renderSelectField }   from './fields/selectField.tsx';
+
 export type FieldType = 'text' | 'textarea' | 'select';
 
 export interface FieldConfig {
@@ -9,6 +14,14 @@ export interface FieldConfig {
   options?: string[];
 }
 
+export interface FieldRendererProps {
+  field: FieldConfig;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export type FieldRenderer = (props: FieldRendererProps) => ReactNode;
+
 export interface TypeConfig {
   fields: FieldConfig[];
 }
@@ -16,6 +29,12 @@ export interface TypeConfig {
 export const STATUS_OPTIONS = ['draft', 'written', 'revised', 'final'];
 
 export const HIDDEN_FIELDS = new Set(['type', 'id', 'child_order']);
+
+export const FIELD_RENDERERS: Record<FieldType, FieldRenderer> = {
+  text:     renderTextField,
+  textarea: renderTextareaField,
+  select:   renderSelectField,
+};
 
 export const METAFORM_CONFIG: Record<string, TypeConfig> = {
   book: {

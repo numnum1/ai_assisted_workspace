@@ -403,8 +403,6 @@ function App() {
                   onJumpToBookmark={handleJumpToBookmark}
                   changedPaths={changedPaths}
                   onFileContextMenu={handleFileContextMenu}
-                  hasPlanning={hasPlanning}
-                  onOpenMetafile={(path) => openOrCreateMetafile(path)}
                 />
               ) : (
                 <PlanningPanel
@@ -611,18 +609,6 @@ function App() {
               >
                 Im Explorer öffnen
               </div>
-              {hasPlanning && (
-                <div
-                  className="tree-context-menu-item"
-                  onClick={() => {
-                    const path = contextMenu.path;
-                    setContextMenu(null);
-                    openOrCreateMetafile(path);
-                  }}
-                >
-                  Metafile öffnen
-                </div>
-              )}
               <div
                 className="tree-context-menu-item"
                 onClick={() => {

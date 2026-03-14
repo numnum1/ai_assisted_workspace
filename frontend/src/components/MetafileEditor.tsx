@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { Save, FileCode } from 'lucide-react';
-import { METAFORM_CONFIG, HIDDEN_FIELDS, type FieldConfig } from './metaformConfig.ts';
+import { METAFORM_CONFIG, FIELD_RENDERERS, HIDDEN_FIELDS, type FieldConfig } from './metaformConfig.tsx';
 
 interface MetafileEditorProps {
   content: string;
@@ -53,50 +53,7 @@ function MetaFormField({
   onChange: (key: string, value: unknown) => void;
 }) {
   const value = asString(fm[field.key]);
-
-  if (field.type === 'select') {
-    return (
-      <div className="mfe-field">
-        <label className="mfe-label">{field.label}</label>
-        <select
-          className="mfe-select"
-          value={value || (field.options?.[0] ?? '')}
-          onChange={e => onChange(field.key, e.target.value)}
-        >
-          {field.options?.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      </div>
-    );
-  }
-
-  if (field.type === 'textarea') {
-    return (
-      <div className="mfe-field">
-        <label className="mfe-label">{field.label}</label>
-        <textarea
-          className="mfe-textarea"
-          value={value}
-          onChange={e => onChange(field.key, e.target.value)}
-          rows={field.rows ?? 3}
-          placeholder={field.placeholder}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mfe-field">
-      <label className="mfe-label">{field.label}</label>
-      <input
-        className="mfe-input"
-        value={value}
-        onChange={e => onChange(field.key, e.target.value)}
-        placeholder={field.placeholder}
-      />
-    </div>
-  );
+  return FIELD_RENDERERS[field.type]({ field, value, onChange: v => onChange(field.key, v) });
 }
 
 // ── Main MetafileEditor ───────────────────────────────────────────────────────
