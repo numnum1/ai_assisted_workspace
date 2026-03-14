@@ -82,6 +82,15 @@ export interface WikiEntry {
   tags: string | null;
 }
 
+export interface GlossaryEntry {
+  path: string;
+  name: string;
+  type: string | null;
+  summary: string | null;
+  aliases: string | null;
+  tags: string | null;
+}
+
 export interface PlanningNode {
   path: string;
   type: string | null;

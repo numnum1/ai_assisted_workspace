@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, WikiEntry, PlanningNode } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, WikiEntry, GlossaryEntry, PlanningNode } from './types.ts';
 
 const BASE = '/api';
 
@@ -119,6 +119,10 @@ export const planningApi = {
   getOutline: () => get<PlanningNode[]>('/planning/outline'),
   move: (from: string, toParent: string) =>
     post<{ path: string }>('/planning/move', { from, toParent }),
+};
+
+export const glossaryApi = {
+  getEntries: () => get<GlossaryEntry[]>('/glossary/entries'),
 };
 
 export const gitApi = {

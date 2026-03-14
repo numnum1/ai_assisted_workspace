@@ -260,7 +260,8 @@ public class ProjectConfigService {
 
     private static final Map<String, String> FEATURE_DIRS = Map.of(
         "wiki", ".wiki",
-        "planning", ".planning"
+        "planning", ".planning",
+        "glossary", ".glossary"
     );
 
     public void enableFeature(String feature) throws IOException {

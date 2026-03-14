@@ -13,10 +13,12 @@ import { ContentBrowser } from './components/ContentBrowser.tsx';
 import { MetafileEditor } from './components/MetafileEditor.tsx';
 import { MetafileTypeDialog } from './components/MetafileTypeDialog.tsx';
 import { PlanningPanel } from './components/PlanningPanel.tsx';
+import { GlossaryPanel } from './components/GlossaryPanel.tsx';
 import type { MetafileType } from './components/MetafileTypeDialog.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi, projectConfigApi, filesApi, AuthRequiredError } from './api.ts';
+import { BookOpen } from 'lucide-react';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChat } from './hooks/useChat.ts';
@@ -66,6 +68,7 @@ function App() {
   const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
   const [bookmarkJumpTarget, setBookmarkJumpTarget] = useState<{ filePath: string; line: number } | null>(null);
   const [wikiOpen, setWikiOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
   const [pendingMetafilePath, setPendingMetafilePath] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState<'files' | 'planning'>('files');
@@ -125,6 +128,7 @@ function App() {
       if (e.key === 'Escape') {
         setContextMenu(null);
         setWikiOpen(false);
+        setGlossaryOpen(false);
       }
       if (e.shiftKey && e.key === ' ' && !e.ctrlKey && !e.altKey) {
         if (features.includes('wiki')) {
@@ -170,35 +174,46 @@ function App() {
     );
   }, [syncStatus]);
 
-  const commandActions: CommandAction[] = useMemo(() => [
-    {
-      id: 'open-folder',
-      label: 'Open Folder',
-      shortcut: 'Ctrl+Shift+A',
-      icon: <FolderOpen size={16} />,
-      handler: () => {},
-    },
-    {
-      id: 'project-settings',
-      label: 'Project Settings',
-      icon: <Settings size={16} />,
-      handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
-    },
-    hasUncommitted
-      ? {
-          id: 'git-commit',
-          label: 'Commit',
-          icon: <GitCommitHorizontal size={16} />,
-          handler: () => {},
-        }
-      : {
-          id: 'git-sync',
-          label: 'Sync',
-          icon: <RefreshCw size={16} />,
-          badge: syncBadge,
-          handler: () => {},
-        },
-  ], [hasUncommitted, syncBadge]);
+  const commandActions: CommandAction[] = useMemo(() => {
+    const actions: CommandAction[] = [
+      {
+        id: 'open-folder',
+        label: 'Open Folder',
+        shortcut: 'Ctrl+Shift+A',
+        icon: <FolderOpen size={16} />,
+        handler: () => {},
+      },
+      {
+        id: 'project-settings',
+        label: 'Project Settings',
+        icon: <Settings size={16} />,
+        handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
+      },
+      hasUncommitted
+        ? {
+            id: 'git-commit',
+            label: 'Commit',
+            icon: <GitCommitHorizontal size={16} />,
+            handler: () => {},
+          }
+        : {
+            id: 'git-sync',
+            label: 'Sync',
+            icon: <RefreshCw size={16} />,
+            badge: syncBadge,
+            handler: () => {},
+          },
+    ];
+    if (features.includes('glossary')) {
+      actions.push({
+        id: 'open-glossary',
+        label: 'Open Glossar',
+        icon: <BookOpen size={16} />,
+        handler: () => { setPaletteOpen(false); setGlossaryOpen(true); },
+      });
+    }
+    return actions;
+  }, [hasUncommitted, syncBadge, features]);
 
   const handleOpenProject = useCallback(async (path: string) => {
     await project.openProject(path);
@@ -363,6 +378,7 @@ function App() {
 
   const hasWiki = features.includes('wiki');
   const hasPlanning = features.includes('planning');
+  const hasGlossary = features.includes('glossary');
   const isMetafile = (project.openFilePath?.startsWith('.planning/') ?? false) && hasPlanning;
 
   return (
@@ -478,6 +494,13 @@ function App() {
         <ContentBrowser
           onOpenFile={(path) => { project.openFile(path); setWikiOpen(false); }}
           onClose={() => setWikiOpen(false)}
+        />
+      )}
+
+      {glossaryOpen && hasGlossary && (
+        <GlossaryPanel
+          onOpenFile={(path) => { project.openFile(path); setGlossaryOpen(false); }}
+          onClose={() => setGlossaryOpen(false)}
         />
       )}
 

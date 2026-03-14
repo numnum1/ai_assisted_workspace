@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft, BookOpen, Map } from 'lucide-react';
+import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft, BookOpen, Map, Library } from 'lucide-react';
 import { projectConfigApi } from '../api.ts';
 import type { ProjectConfig, Mode } from '../types.ts';
 
@@ -664,6 +664,26 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
                     {togglingFeature === 'planning'
                       ? <Loader size={13} className="ps-spinner" />
                       : (config.features ?? []).includes('planning') ? 'Disable' : 'Enable'
+                    }
+                  </button>
+                </div>
+
+                <div className="ps-feature-item">
+                  <div className="ps-feature-info">
+                    <div className="ps-feature-header">
+                      <Library size={15} className="ps-feature-icon" />
+                      <span className="ps-feature-name">Glossar</span>
+                    </div>
+                    <p className="ps-hint">Begriffsdefinitionen und Konzepte für den KI-Kontext. Gespeichert in <code>.glossary/</code>. Öffnen über die Command Palette.</p>
+                  </div>
+                  <button
+                    className={`ps-feature-btn ${(config.features ?? []).includes('glossary') ? 'ps-feature-btn-disable' : 'ps-feature-btn-enable'}`}
+                    onClick={() => handleToggleFeature('glossary', !(config.features ?? []).includes('glossary'))}
+                    disabled={togglingFeature === 'glossary'}
+                  >
+                    {togglingFeature === 'glossary'
+                      ? <Loader size={13} className="ps-spinner" />
+                      : (config.features ?? []).includes('glossary') ? 'Disable' : 'Enable'
                     }
                   </button>
                 </div>

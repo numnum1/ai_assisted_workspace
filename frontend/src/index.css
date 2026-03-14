@@ -3335,3 +3335,245 @@ body {
 .pp-spin {
   animation: pp-spin 0.8s linear infinite;
 }
+
+/* ==================== Glossary Panel ==================== */
+
+.glp-panel {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  z-index: 200;
+  overflow: hidden;
+  /* size is set inline via style prop */
+}
+
+.glp-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  height: 36px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  border-radius: 7px 7px 0 0;
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.glp-header:active {
+  cursor: grabbing;
+}
+
+.glp-drag-icon {
+  color: var(--text-secondary);
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.glp-header-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.glp-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  flex: 1;
+}
+
+.glp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.glp-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.glp-icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.glp-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.glp-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.glp-search-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.glp-search {
+  width: 100%;
+  padding: 4px 24px 4px 22px;
+  background: var(--bg-input, var(--bg-secondary));
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.glp-search:focus {
+  border-color: var(--accent);
+}
+
+.glp-search-clear {
+  position: absolute;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.glp-search-clear:hover {
+  color: var(--text-primary);
+}
+
+.glp-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.glp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.glp-error {
+  padding: 12px;
+  color: var(--error, #e06c75);
+  font-size: 12px;
+}
+
+.glp-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.glp-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.glp-entry:hover {
+  background: var(--bg-hover);
+}
+
+.glp-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.glp-entry-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glp-entry-type {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.glp-entry-summary {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.glp-entry-aliases {
+  font-size: 10px;
+  color: var(--text-muted, var(--text-secondary));
+  margin: 0;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+
+@keyframes glp-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.glp-spin {
+  animation: glp-spin 0.8s linear infinite;
+}
