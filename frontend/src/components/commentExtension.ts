@@ -27,8 +27,11 @@ function parseComments(doc: string): CommentData[] {
   const regex = /<!--([\s\S]*?)-->/g;
   let match;
   while ((match = regex.exec(doc)) !== null) {
+    const text = match[1].trim();
+    // Scene markers are handled exclusively by sceneMarkerExtension
+    if (text.startsWith('@scene:')) continue;
     comments.push({
-      text: match[1].trim(),
+      text,
       from: match.index,
       to: match.index + match[0].length,
     });

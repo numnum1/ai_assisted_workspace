@@ -557,6 +557,149 @@ public class FileService {
         return fmSection + rest;
     }
 
+    // ── Scene marker operations ───────────────────────────────────────────────
+
+    private static final Pattern SCENE_MARKER_RE =
+        Pattern.compile("<!--\\s*@scene:([^\\s>]+)\\s*-->", Pattern.DOTALL);
+
+    /**
+     * Appends a scene marker to the end of the chapter text file and
+     * creates a corresponding scene metafile in the planning directory.
+     *
+     * @param chapterTextPath relative path of the chapter text file (e.g. "buch/kapitel-01.md")
+     * @param sceneId         identifier for the scene (e.g. "szene-03")
+     * @return relative path of the created scene metafile
+     */
+    public String createScene(String chapterTextPath, String sceneId) throws IOException {
+        if (chapterTextPath == null || sceneId == null || sceneId.isBlank()) {
+            throw new IOException("chapterTextPath and sceneId are required");
+        }
+        if (sceneId.contains("/") || sceneId.contains("\\") || sceneId.contains(".")) {
+            throw new IOException("sceneId must not contain path separators or dots");
+        }
+
+        // 1. Append the scene marker to the chapter text file
+        String chapterContent = readFile(chapterTextPath);
+        String marker = "\n\n<!-- @scene:" + sceneId + " -->\n\n";
+        writeFile(chapterTextPath, chapterContent + marker);
+
+        // 2. Derive the scene metafile path
+        String withoutExt = chapterTextPath.endsWith(".md")
+            ? chapterTextPath.substring(0, chapterTextPath.length() - 3)
+            : chapterTextPath;
+        String sceneMetaPath = PLANNING_DIR + "/" + withoutExt + "/" + sceneId + ".md";
+
+        // 3. Create the scene metafile if it does not exist yet
+        if (!fileExists(sceneMetaPath)) {
+            String template = "---\ntype: scene\nid: " + sceneId + "\ntitle: \"\"\nstatus: draft\nzusammenfassung: \"\"\n---\n";
+            writeFile(sceneMetaPath, template);
+
+            // 4. Append to child_order in the chapter metafile
+            String chapterMetaPath = PLANNING_DIR + "/" + chapterTextPath;
+            Path chapterMeta = getProjectRoot().resolve(chapterMetaPath).normalize();
+            if (Files.exists(chapterMeta)) {
+                appendToChildOrder(chapterMeta, sceneId + ".md");
+            }
+        }
+
+        return sceneMetaPath;
+    }
+
+    /**
+     * Removes the scene marker from the chapter text file and deletes the
+     * corresponding scene metafile (and its child folder if present).
+     * The prose text between markers is preserved and attributed to the
+     * preceding section.
+     *
+     * @param chapterTextPath relative path of the chapter text file
+     * @param sceneId         identifier of the scene to remove
+     */
+    public void deleteScene(String chapterTextPath, String sceneId) throws IOException {
+        if (chapterTextPath == null || sceneId == null || sceneId.isBlank()) {
+            throw new IOException("chapterTextPath and sceneId are required");
+        }
+
+        // 1. Remove the marker from the chapter text file
+        String content = readFile(chapterTextPath);
+        String patternStr = "\\n?[ \\t]*<!--\\s*@scene:" + Pattern.quote(sceneId) + "\\s*-->[ \\t]*\\n?";
+        String updated = content.replaceFirst(patternStr, "\n\n");
+        // Collapse triple+ blank lines that may result
+        updated = updated.replaceAll("(\n\\s*){3,}", "\n\n");
+        writeFile(chapterTextPath, updated);
+
+        // 2. Remove the scene metafile
+        String withoutExt = chapterTextPath.endsWith(".md")
+            ? chapterTextPath.substring(0, chapterTextPath.length() - 3)
+            : chapterTextPath;
+        String sceneMetaPath = PLANNING_DIR + "/" + withoutExt + "/" + sceneId + ".md";
+        if (fileExists(sceneMetaPath)) {
+            deleteFile(sceneMetaPath);
+        }
+
+        // 3. Also remove child folder if present
+        String sceneFolderPath = PLANNING_DIR + "/" + withoutExt + "/" + sceneId;
+        if (isDirectory(sceneFolderPath)) {
+            deleteFile(sceneFolderPath);
+        }
+
+        // 4. Remove from child_order in chapter metafile
+        String chapterMetaPath = PLANNING_DIR + "/" + chapterTextPath;
+        Path chapterMeta = getProjectRoot().resolve(chapterMetaPath).normalize();
+        if (Files.exists(chapterMeta)) {
+            removeFromChildOrder(chapterMeta, sceneId + ".md");
+        }
+    }
+
+    /**
+     * Reorders scene blocks within a chapter text file according to the
+     * supplied scene order. Each block consists of the scene marker line
+     * plus the prose that follows it up to the next marker (or end of file).
+     * An optional intro block (prose before the first marker) is preserved at
+     * the top.
+     *
+     * @param chapterTextPath relative path of the chapter text file
+     * @param sceneOrder      ordered list of scene IDs (e.g. ["szene-02", "szene-01"])
+     */
+    public void reorderScenes(String chapterTextPath, List<String> sceneOrder) throws IOException {
+        if (chapterTextPath == null || sceneOrder == null) {
+            throw new IOException("chapterTextPath and sceneOrder are required");
+        }
+
+        String content = readFile(chapterTextPath);
+        Matcher m = SCENE_MARKER_RE.matcher(content);
+
+        List<Integer> markerStarts = new ArrayList<>();
+        List<String> markerIds = new ArrayList<>();
+
+        while (m.find()) {
+            markerStarts.add(m.start());
+            markerIds.add(m.group(1));
+        }
+
+        if (markerStarts.isEmpty()) return;
+
+        // Build map: sceneId -> text block (marker + following prose)
+        String intro = content.substring(0, markerStarts.get(0));
+        Map<String, String> blocks = new LinkedHashMap<>();
+        for (int i = 0; i < markerStarts.size(); i++) {
+            int from = markerStarts.get(i);
+            int to = (i + 1 < markerStarts.size()) ? markerStarts.get(i + 1) : content.length();
+            blocks.put(markerIds.get(i), content.substring(from, to));
+        }
+
+        StringBuilder sb = new StringBuilder(intro);
+        for (String sceneId : sceneOrder) {
+            String block = blocks.remove(sceneId);
+            if (block != null) sb.append(block);
+        }
+        // Append any blocks not listed in sceneOrder to avoid data loss
+        for (String remaining : blocks.values()) {
+            sb.append(remaining);
+        }
+
+        writeFile(chapterTextPath, sb.toString());
+    }
+
     private static String coalesce(String... values) {
         for (String v : values) { if (v != null && !v.isBlank()) return v; }
         return null;

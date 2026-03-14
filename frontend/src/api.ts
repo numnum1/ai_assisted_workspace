@@ -119,6 +119,12 @@ export const planningApi = {
   getOutline: () => get<PlanningNode[]>('/planning/outline'),
   move: (from: string, toParent: string) =>
     post<{ path: string }>('/planning/move', { from, toParent }),
+  createScene: (chapterPath: string, sceneId: string) =>
+    post<{ metaPath: string }>('/planning/scene/create', { chapterPath, sceneId }),
+  deleteScene: (chapterPath: string, sceneId: string) =>
+    post<{ status: string }>('/planning/scene/delete', { chapterPath, sceneId }),
+  reorderScenes: (chapterPath: string, sceneOrder: string[]) =>
+    post<{ status: string }>('/planning/scene/reorder', { chapterPath, sceneOrder }),
 };
 
 export const glossaryApi = {

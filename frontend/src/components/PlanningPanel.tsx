@@ -5,10 +5,16 @@ import type { PlanningNode } from '../types.ts';
 import { planningApi, filesApi } from '../api.ts';
 
 interface PlanningPanelProps {
-  activeFile: string | null;
-  onOpenMetafile: (path: string) => void;
+  /** Currently open chapter text file path (e.g. "buch/kapitel-01.md") */
+  activeChapterPath: string | null;
+  /** Currently active scene ID within the chapter */
+  activeSceneId?: string | null;
+  /** Opens the chapter text file, optionally scrolling to a specific scene */
+  onOpenChapter: (textFilePath: string, sceneId?: string) => void;
   onCreateMetafile: (parentFolder: string, suggestedType?: string) => void;
   onDeleteMetafile?: (path: string, hasChildren: boolean) => void | Promise<void>;
+  /** Called when a node is clicked — passes the .planning/… path of the metafile */
+  onSelectMetafile?: (path: string) => void;
   refreshTrigger?: number;
 }
 
@@ -78,11 +84,37 @@ interface DragState {
 
 // ── PlanningNodeRow ───────────────────────────────────────────────────────────
 
+/**
+ * Derives the text file path for a chapter planning node.
+ * ".planning/buch/kapitel-01.md" → "buch/kapitel-01.md"
+ */
+function deriveTextFilePath(planningPath: string): string {
+  return planningPath.replace(/^\.planning\//, '');
+}
+
+/**
+ * Derives the parent chapter text path for a scene/action node.
+ * ".planning/buch/kapitel-01/szene-01.md" → "buch/kapitel-01.md"
+ */
+function deriveChapterTextPath(scenePlanningPath: string): string {
+  const parts = scenePlanningPath.split('/');
+  parts.pop(); // remove scene filename
+  const chapterPlanningPath = parts.join('/') + '.md';
+  return chapterPlanningPath.replace(/^\.planning\//, '');
+}
+
+/** Extracts the scene ID (filename without .md) from a scene planning path. */
+function deriveSceneId(scenePlanningPath: string): string {
+  return (scenePlanningPath.split('/').pop() ?? '').replace(/\.md$/, '');
+}
+
 function PlanningNodeRow({
   node,
   depth,
-  activeFile,
-  onOpenMetafile,
+  activeChapterPath,
+  activeSceneId,
+  onOpenChapter,
+  onSelectMetafile,
   onCreateChild,
   onDeleteMetafile,
   dragState,
@@ -92,8 +124,10 @@ function PlanningNodeRow({
 }: {
   node: PlanningNode;
   depth: number;
-  activeFile: string | null;
-  onOpenMetafile: (path: string) => void;
+  activeChapterPath: string | null;
+  activeSceneId?: string | null;
+  onOpenChapter: (textFilePath: string, sceneId?: string) => void;
+  onSelectMetafile?: (path: string) => void;
   onCreateChild: (parentFolder: string, suggestedType?: string) => void;
   onDeleteMetafile?: (path: string, hasChildren: boolean) => Promise<void>;
   dragState: React.MutableRefObject<DragState | null>;
@@ -103,10 +137,23 @@ function PlanningNodeRow({
 }) {
   const hasChildren = node.children.length > 0;
   const [expanded, setExpanded] = useState(true);
-  const isActive = activeFile === node.path;
+
+  const nodeType = node.type?.toLowerCase() ?? '';
+
+  // Determine active state based on type
+  const isActive = (() => {
+    if (nodeType === 'chapter') {
+      return activeChapterPath === deriveTextFilePath(node.path);
+    }
+    if (nodeType === 'scene') {
+      const chapterPath = deriveChapterTextPath(node.path);
+      const sceneId = deriveSceneId(node.path);
+      return activeChapterPath === chapterPath && activeSceneId === sceneId;
+    }
+    return false;
+  })();
 
   const folderPath = node.path.replace(/\.md$/, '');
-  const nodeType = node.type?.toLowerCase() ?? '';
   const childType = CHILD_TYPE[nodeType];
   const canHaveChildren = nodeType !== 'action';
 
@@ -179,7 +226,22 @@ function PlanningNodeRow({
         draggable
         onDragStart={e => { e.stopPropagation(); onDragStart(node); }}
         onDragEnd={() => { dragState.current = null; }}
-        onClick={() => onOpenMetafile(node.path)}
+        onClick={() => {
+          onSelectMetafile?.(node.path);
+          if (nodeType === 'chapter') {
+            onOpenChapter(deriveTextFilePath(node.path));
+          } else if (nodeType === 'scene') {
+            onOpenChapter(deriveChapterTextPath(node.path), deriveSceneId(node.path));
+          } else if (nodeType === 'action') {
+            // Actions live inside a scene folder; go up two levels to find the chapter
+            const parts = node.path.split('/');
+            parts.pop(); // remove action filename
+            parts.pop(); // remove scene folder
+            const chapterPlanningPath = parts.join('/') + '.md';
+            onOpenChapter(chapterPlanningPath.replace(/^\.planning\//, ''));
+          }
+          // book/arc nodes have no text file to open — metafile editor still opens
+        }}
         title={node.path}
       >
         <span
@@ -236,8 +298,10 @@ function PlanningNodeRow({
               <PlanningNodeRow
                 node={child}
                 depth={depth + 1}
-                activeFile={activeFile}
-                onOpenMetafile={onOpenMetafile}
+                activeChapterPath={activeChapterPath}
+                activeSceneId={activeSceneId}
+                onOpenChapter={onOpenChapter}
+                onSelectMetafile={onSelectMetafile}
                 onCreateChild={onCreateChild}
                 onDeleteMetafile={onDeleteMetafile}
                 dragState={dragState}
@@ -272,7 +336,7 @@ function PlanningNodeRow({
 
 // ── PlanningPanel ─────────────────────────────────────────────────────────────
 
-export function PlanningPanel({ activeFile, onOpenMetafile, onCreateMetafile, onDeleteMetafile, refreshTrigger }: PlanningPanelProps) {
+export function PlanningPanel({ activeChapterPath, activeSceneId, onOpenChapter, onCreateMetafile, onDeleteMetafile, onSelectMetafile, refreshTrigger }: PlanningPanelProps) {
   const [nodes, setNodes] = useState<PlanningNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -389,8 +453,10 @@ export function PlanningPanel({ activeFile, onOpenMetafile, onCreateMetafile, on
             key={node.path}
             node={node}
             depth={0}
-            activeFile={activeFile}
-            onOpenMetafile={onOpenMetafile}
+            activeChapterPath={activeChapterPath}
+            activeSceneId={activeSceneId}
+            onOpenChapter={onOpenChapter}
+            onSelectMetafile={onSelectMetafile}
             onCreateChild={onCreateMetafile}
             onDeleteMetafile={onDeleteMetafile}
             dragState={dragState}
