@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { Save, FileCode, Plus, X } from 'lucide-react';
+import { Save, FileCode } from 'lucide-react';
 
 interface MetafileEditorProps {
   content: string;
@@ -36,78 +36,9 @@ function asString(v: unknown): string {
   return typeof v === 'string' ? v : v != null ? String(v) : '';
 }
 
-function asStringArray(v: unknown): string[] {
-  if (Array.isArray(v)) return v.map(asString);
-  return [];
-}
-
-// ── Ordered string list editor (reusable) ─────────────────────────────────────
-
-function StringListEditor({
-  items,
-  placeholder,
-  onChange,
-}: {
-  items: string[];
-  placeholder: string;
-  onChange: (items: string[]) => void;
-}) {
-  const [input, setInput] = useState('');
-
-  const add = () => {
-    const v = input.trim();
-    if (!v) return;
-    onChange([...items, v]);
-    setInput('');
-  };
-
-  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
-
-  const update = (i: number, val: string) => {
-    const next = [...items];
-    next[i] = val;
-    onChange(next);
-  };
-
-  return (
-    <div className="mfe-beat-list">
-      {items.map((item, i) => (
-        <div key={i} className="mfe-beat-row">
-          <span className="mfe-list-index">{i + 1}.</span>
-          <input
-            className="mfe-input mfe-beat-input"
-            value={item}
-            onChange={e => update(i, e.target.value)}
-          />
-          <button className="mfe-beat-remove" onClick={() => remove(i)} title="Entfernen">
-            <X size={11} />
-          </button>
-        </div>
-      ))}
-      <div className="mfe-beat-add-row">
-        <input
-          className="mfe-input mfe-beat-input"
-          placeholder={placeholder}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
-        />
-        <button
-          className="mfe-beat-add-btn"
-          onClick={add}
-          disabled={!input.trim()}
-          title="Hinzufügen"
-        >
-          <Plus size={11} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Type-specific form sections ───────────────────────────────────────────────
 
-const HIDDEN_FIELDS = new Set(['type', 'id']);
+const HIDDEN_FIELDS = new Set(['type', 'id', 'child_order']);
 
 function BookForm({
   fm,
@@ -155,14 +86,6 @@ function BookForm({
           placeholder="Worum geht es in diesem Buch?"
         />
       </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Kapitelreihenfolge</label>
-        <StringListEditor
-          items={asStringArray(fm.kapitel_ordnung)}
-          placeholder="Kapitelname hinzufügen..."
-          onChange={items => onFmChange('kapitel_ordnung', items)}
-        />
-      </div>
     </>
   );
 }
@@ -205,14 +128,6 @@ function ChapterForm({
           onChange={e => onFmChange('zusammenfassung', e.target.value)}
           rows={4}
           placeholder="Was passiert in diesem Kapitel?"
-        />
-      </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Szenenreihenfolge</label>
-        <StringListEditor
-          items={asStringArray(fm.szenen_ordnung)}
-          placeholder="Szenenname hinzufügen..."
-          onChange={items => onFmChange('szenen_ordnung', items)}
         />
       </div>
     </>
@@ -259,14 +174,6 @@ function SceneForm({
           placeholder="Was passiert in dieser Szene?"
         />
       </div>
-      <div className="mfe-field">
-        <label className="mfe-label">Aktionsreihenfolge</label>
-        <StringListEditor
-          items={asStringArray(fm.aktionen_ordnung)}
-          placeholder="Aktionsname hinzufügen..."
-          onChange={items => onFmChange('aktionen_ordnung', items)}
-        />
-      </div>
     </>
   );
 }
@@ -288,6 +195,18 @@ function ActionForm({
           onChange={e => onFmChange('title', e.target.value)}
           placeholder="Bezeichnung der Aktion"
         />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Status</label>
+        <select
+          className="mfe-select"
+          value={asString(fm.status) || 'draft'}
+          onChange={e => onFmChange('status', e.target.value)}
+        >
+          {STATUS_OPTIONS.map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </div>
       <div className="mfe-field">
         <label className="mfe-label">Ort</label>

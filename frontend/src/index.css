@@ -3278,6 +3278,55 @@ body {
   background: var(--bg-hover);
 }
 
+/* ── Drag handle ── */
+.pp-drag-handle {
+  opacity: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+  cursor: grab;
+  padding: 0 2px;
+  transition: opacity 0.1s;
+  user-select: none;
+}
+
+.pp-row:hover .pp-drag-handle {
+  opacity: 1;
+}
+
+.pp-row-dragging {
+  opacity: 0.4;
+}
+
+/* ── Drop zones ── */
+.pp-drop-zone {
+  height: 2px;
+  margin: 0 4px;
+  border-radius: 1px;
+  transition: background 0.1s, height 0.1s;
+}
+
+.pp-drop-zone-active {
+  height: 3px;
+  background: var(--accent);
+  margin: 1px 4px;
+}
+
+.pp-drop-zone-empty {
+  height: 14px;
+  background: transparent;
+}
+
+.pp-drop-zone-empty.pp-drop-zone-active {
+  height: 14px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 3px;
+}
+
+.pp-drop-active {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
 @keyframes pp-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }

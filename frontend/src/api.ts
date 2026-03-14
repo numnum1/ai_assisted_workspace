@@ -117,6 +117,8 @@ export const wikiApi = {
 
 export const planningApi = {
   getOutline: () => get<PlanningNode[]>('/planning/outline'),
+  move: (from: string, toParent: string) =>
+    post<{ path: string }>('/planning/move', { from, toParent }),
 };
 
 export const gitApi = {
