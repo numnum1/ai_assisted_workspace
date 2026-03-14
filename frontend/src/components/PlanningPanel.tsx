@@ -261,7 +261,7 @@ function PlanningNodeRow({
         {['chapter', 'scene', 'action'].includes(nodeType) && (
           <span className={`pp-status pp-status-${node.status || 'draft'}`}>{node.status || 'draft'}</span>
         )}
-        {canHaveChildren && (
+        {canHaveChildren ? (
           <button
             className="pp-add-btn"
             title={childType ? `${childType} hinzufügen` : 'Untergeordnetes Metafile erstellen'}
@@ -269,6 +269,8 @@ function PlanningNodeRow({
           >
             <Plus size={10} />
           </button>
+        ) : (
+          <span className="pp-add-btn-placeholder" />
         )}
         {onDeleteMetafile && (
           <button

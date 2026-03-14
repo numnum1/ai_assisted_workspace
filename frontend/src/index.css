@@ -3289,6 +3289,11 @@ body {
   background: var(--bg-hover);
 }
 
+.pp-add-btn-placeholder {
+  width: 14px;
+  flex-shrink: 0;
+}
+
 .pp-delete-btn {
   opacity: 0;
   background: none;
