@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Plus, ChevronRight, ChevronDown, FileText } from 'lucide-react';
+import { RefreshCw, Plus, ChevronRight, ChevronDown, FileText, Trash2 } from 'lucide-react';
 import type { PlanningNode } from '../types.ts';
 import { planningApi } from '../api.ts';
 
@@ -7,6 +7,7 @@ interface PlanningPanelProps {
   activeFile: string | null;
   onOpenMetafile: (path: string) => void;
   onCreateMetafile: (parentFolder: string, suggestedType?: string) => void;
+  onDeleteMetafile?: (path: string, hasChildren: boolean) => void | Promise<void>;
   refreshTrigger?: number;
 }
 
@@ -45,12 +46,14 @@ function PlanningNodeRow({
   activeFile,
   onOpenMetafile,
   onCreateChild,
+  onDeleteMetafile,
 }: {
   node: PlanningNode;
   depth: number;
   activeFile: string | null;
   onOpenMetafile: (path: string) => void;
   onCreateChild: (parentFolder: string, suggestedType?: string) => void;
+  onDeleteMetafile?: (path: string, hasChildren: boolean) => Promise<void>;
 }) {
   const hasChildren = node.children.length > 0;
   const [expanded, setExpanded] = useState(true);
@@ -91,6 +94,15 @@ function PlanningNodeRow({
             <Plus size={10} />
           </button>
         )}
+        {onDeleteMetafile && (
+          <button
+            className="pp-delete-btn"
+            title="Löschen"
+            onClick={(e) => { e.stopPropagation(); onDeleteMetafile(node.path, hasChildren); }}
+          >
+            <Trash2 size={10} />
+          </button>
+        )}
       </div>
       {expanded && hasChildren && (
         <div className="pp-children">
@@ -109,6 +121,7 @@ function PlanningNodeRow({
                 activeFile={activeFile}
                 onOpenMetafile={onOpenMetafile}
                 onCreateChild={onCreateChild}
+                onDeleteMetafile={onDeleteMetafile}
               />
             ))}
 
@@ -118,7 +131,7 @@ function PlanningNodeRow({
   );
 }
 
-export function PlanningPanel({ activeFile, onOpenMetafile, onCreateMetafile, refreshTrigger }: PlanningPanelProps) {
+export function PlanningPanel({ activeFile, onOpenMetafile, onCreateMetafile, onDeleteMetafile, refreshTrigger }: PlanningPanelProps) {
   const [nodes, setNodes] = useState<PlanningNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +188,7 @@ export function PlanningPanel({ activeFile, onOpenMetafile, onCreateMetafile, re
             activeFile={activeFile}
             onOpenMetafile={onOpenMetafile}
             onCreateChild={onCreateMetafile}
+            onDeleteMetafile={onDeleteMetafile}
           />
         ))}
       </div>

@@ -6,6 +6,8 @@ export type MetafileType = 'book' | 'chapter' | 'scene' | 'action' | 'arc';
 interface MetafileTypeDialogProps {
   onSelect: (type: MetafileType) => void;
   onCancel: () => void;
+  /** If set, only these types are shown. E.g. ['book', 'arc'] at planning root. */
+  allowedTypes?: MetafileType[];
 }
 
 const TYPES: { id: MetafileType; label: string; description: string; icon: string }[] = [
@@ -16,7 +18,7 @@ const TYPES: { id: MetafileType; label: string; description: string; icon: strin
   { id: 'arc',     label: 'Arc',     description: 'Handlungsbogen über mehrere Kapitel', icon: '🌊' },
 ];
 
-export function MetafileTypeDialog({ onSelect, onCancel }: MetafileTypeDialogProps) {
+export function MetafileTypeDialog({ onSelect, onCancel, allowedTypes }: MetafileTypeDialogProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel();
@@ -24,6 +26,10 @@ export function MetafileTypeDialog({ onSelect, onCancel }: MetafileTypeDialogPro
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onCancel]);
+
+  const typesToShow = allowedTypes
+    ? TYPES.filter(t => allowedTypes.includes(t.id))
+    : TYPES;
 
   return (
     <div className="mftd-overlay" onClick={onCancel}>
@@ -35,7 +41,7 @@ export function MetafileTypeDialog({ onSelect, onCancel }: MetafileTypeDialogPro
           </button>
         </div>
         <div className="mftd-grid">
-          {TYPES.map(t => (
+          {typesToShow.map(t => (
             <button
               key={t.id}
               className="mftd-card"

@@ -208,13 +208,43 @@ function App() {
 
   const makeMetafileTemplate = (sourcePath: string, type: MetafileType): string => {
     const id = sourcePath.replace(/^.*\//, '').replace(/\.md$/, '');
-    const base = `id: ${id}\ntitle: ""\n`;
     const bodies: Record<MetafileType, string> = {
-      book:    `${base}author: ""\nsummary: ""\n`,
-      chapter: `${base}status: draft\nsummary: ""\n`,
-      scene:   `${base}status: draft\nsummary: ""\nbeats: []\n`,
-      action:  `${base}character: ""\nsummary: ""\n`,
-      arc:     `${base}thema: ""\nsummary: ""\n`,
+      book: [
+        `id: ${id}`,
+        `name: ""`,
+        `universum: ""`,
+        `zeitliche_einordnung: ""`,
+        `beschreibung: ""`,
+        `kapitel_ordnung: []`,
+      ].join('\n') + '\n',
+      chapter: [
+        `id: ${id}`,
+        `title: ""`,
+        `status: draft`,
+        `zusammenfassung: ""`,
+        `szenen_ordnung: []`,
+      ].join('\n') + '\n',
+      scene: [
+        `id: ${id}`,
+        `title: ""`,
+        `status: draft`,
+        `zusammenfassung: ""`,
+        `aktionen_ordnung: []`,
+      ].join('\n') + '\n',
+      action: [
+        `id: ${id}`,
+        `title: ""`,
+        `ort: ""`,
+        `character: ""`,
+        `was_passiert: ""`,
+        `ziel: ""`,
+      ].join('\n') + '\n',
+      arc: [
+        `id: ${id}`,
+        `title: ""`,
+        `thema: ""`,
+        `zusammenfassung: ""`,
+      ].join('\n') + '\n',
     };
     return `---\ntype: ${type}\n${bodies[type]}---\n`;
   };
@@ -247,19 +277,20 @@ function App() {
     }
   }, [pendingMetafilePath, project]);
 
-  const CHILD_TYPE_MAP: Record<string, MetafileType> = {
-    book: 'chapter', chapter: 'scene', scene: 'action',
-  };
+  const VALID_CHILD_TYPES: MetafileType[] = ['chapter', 'scene', 'action'];
 
   // Called from PlanningPanel: creates a standalone metafile in the given folder.
-  // suggestedType is provided when the hierarchy is known (e.g. child of a chapter → scene).
+  // suggestedType is provided when the hierarchy is known (e.g. child of a book → chapter).
   const handleCreateStandaloneMetafile = useCallback((folder: string, suggestedType?: string) => {
     const name = window.prompt('Name des Metafiles (ohne .md):');
     if (!name || !name.trim()) return;
     const safeName = name.trim().replace(/\.md$/, '') + '.md';
     const targetPath = `${folder}/${safeName}`;
 
-    const inferredType = suggestedType ? CHILD_TYPE_MAP[suggestedType.toLowerCase()] : undefined;
+    const lower = suggestedType?.toLowerCase();
+    const inferredType = lower && VALID_CHILD_TYPES.includes(lower as MetafileType)
+      ? (lower as MetafileType)
+      : undefined;
     if (inferredType) {
       // Skip the type dialog — hierarchy is fixed
       const idSource = safeName.replace(/\.md$/, '');
@@ -283,6 +314,26 @@ function App() {
       openOrCreateMetafile(filePath);
     }
   }, [project, features, openOrCreateMetafile]);
+
+  const handleDeleteMetafile = useCallback(async (path: string, hasChildren: boolean) => {
+    const name = path.split('/').pop()?.replace(/\.md$/, '') ?? path;
+    const msg = hasChildren
+      ? `"${name}" und alle Untereinträge wirklich löschen?`
+      : `"${name}" wirklich löschen?`;
+    if (!window.confirm(msg)) return;
+    try {
+      if (hasChildren) {
+        const folderPath = path.replace(/\.md$/, '');
+        await project.deleteFile(folderPath);
+      }
+      await project.deleteFile(path);
+      setPlanningRefresh(r => r + 1);
+      fetchGitState();
+    } catch (err) {
+      console.error('Delete metafile failed:', err);
+      alert(err instanceof Error ? err.message : 'Löschen fehlgeschlagen.');
+    }
+  }, [project]);
 
   const handleFileDragStart = useCallback((_path: string) => {
     // Visual feedback could be added here
@@ -362,6 +413,7 @@ function App() {
                   activeFile={project.openFilePath}
                   onOpenMetafile={project.openFile}
                   onCreateMetafile={handleCreateStandaloneMetafile}
+                  onDeleteMetafile={handleDeleteMetafile}
                   refreshTrigger={planningRefresh}
                 />
               )}
@@ -657,6 +709,12 @@ function App() {
         <MetafileTypeDialog
           onSelect={handleMetafileTypeSelected}
           onCancel={() => setPendingMetafilePath(null)}
+          allowedTypes={
+            pendingMetafilePath.startsWith('.planning/') &&
+            !pendingMetafilePath.replace(/^\.planning\//, '').includes('/')
+              ? ['book', 'arc']
+              : undefined
+          }
         />
       )}
     </div>

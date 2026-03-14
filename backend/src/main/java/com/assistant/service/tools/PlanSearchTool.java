@@ -139,10 +139,15 @@ public class PlanSearchTool extends AbstractTool {
         String baseName = fileName.endsWith(".md") ? fileName.substring(0, fileName.length() - 3) : fileName;
 
         String entryType = extractFrontmatterValue(content, "type");
-        String id = extractFrontmatterValue(content, "id");
-        String aliases = extractFrontmatterValue(content, "aliases");
-        String tags = extractFrontmatterValue(content, "tags");
-        String summary = extractFrontmatterValue(content, "summary");
+        String id        = extractFrontmatterValue(content, "id");
+        String title     = extractFrontmatterValue(content, "title");
+        String name      = extractFrontmatterValue(content, "name");
+        // Support both legacy "summary" and new German field names
+        String summary   = firstNonNull(
+                extractFrontmatterValue(content, "zusammenfassung"),
+                extractFrontmatterValue(content, "beschreibung"),
+                extractFrontmatterValue(content, "summary")
+        );
 
         if (lowerType != null && entryType != null && !entryType.toLowerCase().contains(lowerType)) {
             return null;
@@ -150,13 +155,21 @@ public class PlanSearchTool extends AbstractTool {
 
         boolean matches =
                 baseName.toLowerCase().contains(lowerQuery) ||
-                (id != null && id.toLowerCase().contains(lowerQuery)) ||
-                (aliases != null && aliases.toLowerCase().contains(lowerQuery)) ||
-                (tags != null && tags.toLowerCase().contains(lowerQuery)) ||
+                (id      != null && id.toLowerCase().contains(lowerQuery)) ||
+                (title   != null && title.toLowerCase().contains(lowerQuery)) ||
+                (name    != null && name.toLowerCase().contains(lowerQuery)) ||
                 (summary != null && summary.toLowerCase().contains(lowerQuery));
 
         if (!matches) return null;
-        return new PlanHit(path, entryType, summary);
+        String displaySummary = summary != null ? summary : (name != null ? name : title);
+        return new PlanHit(path, entryType, displaySummary);
+    }
+
+    private static String firstNonNull(String... values) {
+        for (String v : values) {
+            if (v != null) return v;
+        }
+        return null;
     }
 
     private String extractFrontmatterValue(String content, String key) {

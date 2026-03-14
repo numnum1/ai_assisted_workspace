@@ -2886,6 +2886,15 @@ body {
   cursor: default;
 }
 
+.mfe-list-index {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 16px;
+  text-align: right;
+  margin-right: 4px;
+}
+
 /* Type select in header */
 
 .mfe-type-select {
@@ -3173,7 +3182,8 @@ body {
   background: var(--bg-hover);
 }
 
-.pp-row:hover .pp-add-btn {
+.pp-row:hover .pp-add-btn,
+.pp-row:hover .pp-delete-btn {
   opacity: 1;
 }
 
@@ -3245,6 +3255,26 @@ body {
 
 .pp-add-btn:hover {
   color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.pp-delete-btn {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+  margin-left: 2px;
+}
+
+.pp-delete-btn:hover {
+  color: var(--red, #e06c75);
   background: var(--bg-hover);
 }
 

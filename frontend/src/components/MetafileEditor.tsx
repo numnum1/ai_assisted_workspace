@@ -41,39 +41,42 @@ function asStringArray(v: unknown): string[] {
   return [];
 }
 
-// ── Beat list editor ──────────────────────────────────────────────────────────
+// ── Ordered string list editor (reusable) ─────────────────────────────────────
 
-function BeatListEditor({
-  beats,
+function StringListEditor({
+  items,
+  placeholder,
   onChange,
 }: {
-  beats: string[];
-  onChange: (beats: string[]) => void;
+  items: string[];
+  placeholder: string;
+  onChange: (items: string[]) => void;
 }) {
   const [input, setInput] = useState('');
 
   const add = () => {
     const v = input.trim();
     if (!v) return;
-    onChange([...beats, v]);
+    onChange([...items, v]);
     setInput('');
   };
 
-  const remove = (i: number) => onChange(beats.filter((_, idx) => idx !== i));
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
 
   const update = (i: number, val: string) => {
-    const next = [...beats];
+    const next = [...items];
     next[i] = val;
     onChange(next);
   };
 
   return (
     <div className="mfe-beat-list">
-      {beats.map((beat, i) => (
+      {items.map((item, i) => (
         <div key={i} className="mfe-beat-row">
+          <span className="mfe-list-index">{i + 1}.</span>
           <input
             className="mfe-input mfe-beat-input"
-            value={beat}
+            value={item}
             onChange={e => update(i, e.target.value)}
           />
           <button className="mfe-beat-remove" onClick={() => remove(i)} title="Entfernen">
@@ -84,7 +87,7 @@ function BeatListEditor({
       <div className="mfe-beat-add-row">
         <input
           className="mfe-input mfe-beat-input"
-          placeholder="Neue Handlungseinheit..."
+          placeholder={placeholder}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
@@ -104,7 +107,9 @@ function BeatListEditor({
 
 // ── Type-specific form sections ───────────────────────────────────────────────
 
-function SceneForm({
+const HIDDEN_FIELDS = new Set(['type', 'id']);
+
+function BookForm({
   fm,
   onFmChange,
 }: {
@@ -114,41 +119,48 @@ function SceneForm({
   return (
     <>
       <div className="mfe-field">
-        <label className="mfe-label">Titel</label>
+        <label className="mfe-label">Name</label>
         <input
           className="mfe-input"
-          value={asString(fm.title)}
-          onChange={e => onFmChange('title', e.target.value)}
-          placeholder="Szenenname"
+          value={asString(fm.name)}
+          onChange={e => onFmChange('name', e.target.value)}
+          placeholder="Titel des Buches"
         />
       </div>
       <div className="mfe-field">
-        <label className="mfe-label">Status</label>
-        <select
-          className="mfe-select"
-          value={asString(fm.status) || 'draft'}
-          onChange={e => onFmChange('status', e.target.value)}
-        >
-          {STATUS_OPTIONS.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <label className="mfe-label">Universum</label>
+        <input
+          className="mfe-input"
+          value={asString(fm.universum)}
+          onChange={e => onFmChange('universum', e.target.value)}
+          placeholder="z.B. Overlord, eigenes Universum..."
+        />
       </div>
       <div className="mfe-field">
-        <label className="mfe-label">Zusammenfassung</label>
+        <label className="mfe-label">Zeitliche Einordnung</label>
+        <input
+          className="mfe-input"
+          value={asString(fm.zeitliche_einordnung)}
+          onChange={e => onFmChange('zeitliche_einordnung', e.target.value)}
+          placeholder="z.B. Nach Light Novel 3"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Beschreibung</label>
         <textarea
           className="mfe-textarea"
-          value={asString(fm.summary)}
-          onChange={e => onFmChange('summary', e.target.value)}
-          rows={3}
-          placeholder="Kurze Beschreibung der Szene..."
+          value={asString(fm.beschreibung)}
+          onChange={e => onFmChange('beschreibung', e.target.value)}
+          rows={4}
+          placeholder="Worum geht es in diesem Buch?"
         />
       </div>
       <div className="mfe-field">
-        <label className="mfe-label">Handlungseinheiten</label>
-        <BeatListEditor
-          beats={asStringArray(fm.beats)}
-          onChange={beats => onFmChange('beats', beats)}
+        <label className="mfe-label">Kapitelreihenfolge</label>
+        <StringListEditor
+          items={asStringArray(fm.kapitel_ordnung)}
+          placeholder="Kapitelname hinzufügen..."
+          onChange={items => onFmChange('kapitel_ordnung', items)}
         />
       </div>
     </>
@@ -189,17 +201,25 @@ function ChapterForm({
         <label className="mfe-label">Zusammenfassung</label>
         <textarea
           className="mfe-textarea"
-          value={asString(fm.summary)}
-          onChange={e => onFmChange('summary', e.target.value)}
-          rows={3}
-          placeholder="Kurze Beschreibung des Kapitels..."
+          value={asString(fm.zusammenfassung)}
+          onChange={e => onFmChange('zusammenfassung', e.target.value)}
+          rows={4}
+          placeholder="Was passiert in diesem Kapitel?"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Szenenreihenfolge</label>
+        <StringListEditor
+          items={asStringArray(fm.szenen_ordnung)}
+          placeholder="Szenenname hinzufügen..."
+          onChange={items => onFmChange('szenen_ordnung', items)}
         />
       </div>
     </>
   );
 }
 
-function ArcForm({
+function SceneForm({
   fm,
   onFmChange,
 }: {
@@ -214,26 +234,37 @@ function ArcForm({
           className="mfe-input"
           value={asString(fm.title)}
           onChange={e => onFmChange('title', e.target.value)}
-          placeholder="Arkname"
+          placeholder="Szenenname"
         />
       </div>
       <div className="mfe-field">
-        <label className="mfe-label">Thema</label>
-        <input
-          className="mfe-input"
-          value={asString(fm.thema)}
-          onChange={e => onFmChange('thema', e.target.value)}
-          placeholder="Zentrales Thema des Arks..."
-        />
+        <label className="mfe-label">Status</label>
+        <select
+          className="mfe-select"
+          value={asString(fm.status) || 'draft'}
+          onChange={e => onFmChange('status', e.target.value)}
+        >
+          {STATUS_OPTIONS.map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </div>
       <div className="mfe-field">
         <label className="mfe-label">Zusammenfassung</label>
         <textarea
           className="mfe-textarea"
-          value={asString(fm.summary)}
-          onChange={e => onFmChange('summary', e.target.value)}
-          rows={3}
-          placeholder="Kurze Beschreibung des Arks..."
+          value={asString(fm.zusammenfassung)}
+          onChange={e => onFmChange('zusammenfassung', e.target.value)}
+          rows={4}
+          placeholder="Was passiert in dieser Szene?"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Aktionsreihenfolge</label>
+        <StringListEditor
+          items={asStringArray(fm.aktionen_ordnung)}
+          placeholder="Aktionsname hinzufügen..."
+          onChange={items => onFmChange('aktionen_ordnung', items)}
         />
       </div>
     </>
@@ -255,7 +286,16 @@ function ActionForm({
           className="mfe-input"
           value={asString(fm.title)}
           onChange={e => onFmChange('title', e.target.value)}
-          placeholder="Bezeichnung der Handlungseinheit"
+          placeholder="Bezeichnung der Aktion"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Ort</label>
+        <input
+          className="mfe-input"
+          value={asString(fm.ort)}
+          onChange={e => onFmChange('ort', e.target.value)}
+          placeholder="Wo findet die Aktion statt?"
         />
       </div>
       <div className="mfe-field">
@@ -268,13 +308,64 @@ function ActionForm({
         />
       </div>
       <div className="mfe-field">
-        <label className="mfe-label">Beschreibung</label>
+        <label className="mfe-label">Was passiert</label>
         <textarea
           className="mfe-textarea"
-          value={asString(fm.summary)}
-          onChange={e => onFmChange('summary', e.target.value)}
+          value={asString(fm.was_passiert)}
+          onChange={e => onFmChange('was_passiert', e.target.value)}
           rows={3}
-          placeholder="Was passiert in dieser Handlungseinheit?"
+          placeholder="Was geschieht in dieser Aktion?"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Ziel</label>
+        <textarea
+          className="mfe-textarea"
+          value={asString(fm.ziel)}
+          onChange={e => onFmChange('ziel', e.target.value)}
+          rows={2}
+          placeholder="Was soll diese Aktion narrativ erreichen?"
+        />
+      </div>
+    </>
+  );
+}
+
+function ArcForm({
+  fm,
+  onFmChange,
+}: {
+  fm: Record<string, unknown>;
+  onFmChange: (key: string, value: unknown) => void;
+}) {
+  return (
+    <>
+      <div className="mfe-field">
+        <label className="mfe-label">Titel</label>
+        <input
+          className="mfe-input"
+          value={asString(fm.title)}
+          onChange={e => onFmChange('title', e.target.value)}
+          placeholder="Arcname"
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Thema</label>
+        <input
+          className="mfe-input"
+          value={asString(fm.thema)}
+          onChange={e => onFmChange('thema', e.target.value)}
+          placeholder="Zentrales Thema des Arcs..."
+        />
+      </div>
+      <div className="mfe-field">
+        <label className="mfe-label">Zusammenfassung</label>
+        <textarea
+          className="mfe-textarea"
+          value={asString(fm.zusammenfassung)}
+          onChange={e => onFmChange('zusammenfassung', e.target.value)}
+          rows={4}
+          placeholder="Kurze Beschreibung des Arcs..."
         />
       </div>
     </>
@@ -290,16 +381,18 @@ function FallbackForm({
 }) {
   return (
     <>
-      {Object.entries(fm).map(([key, val]) => (
-        <div key={key} className="mfe-field">
-          <label className="mfe-label">{key}</label>
-          <input
-            className="mfe-input"
-            value={asString(val)}
-            onChange={e => onFmChange(key, e.target.value)}
-          />
-        </div>
-      ))}
+      {Object.entries(fm)
+        .filter(([key]) => !HIDDEN_FIELDS.has(key))
+        .map(([key, val]) => (
+          <div key={key} className="mfe-field">
+            <label className="mfe-label">{key}</label>
+            <input
+              className="mfe-input"
+              value={asString(val)}
+              onChange={e => onFmChange(key, e.target.value)}
+            />
+          </div>
+        ))}
     </>
   );
 }
@@ -411,22 +504,12 @@ export function MetafileEditor({
 
       <div className="mfe-body">
         <div className="mfe-form">
-          {type === 'book' && (
-            <FallbackForm fm={fm} onFmChange={handleFmChange} />
-          )}
-          {type === 'chapter' && (
-            <ChapterForm fm={fm} onFmChange={handleFmChange} />
-          )}
-          {type === 'scene' && (
-            <SceneForm fm={fm} onFmChange={handleFmChange} />
-          )}
-          {type === 'action' && (
-            <ActionForm fm={fm} onFmChange={handleFmChange} />
-          )}
-          {type === 'arc' && (
-            <ArcForm fm={fm} onFmChange={handleFmChange} />
-          )}
-          {type !== 'book' && type !== 'chapter' && type !== 'scene' && type !== 'action' && type !== 'arc' && (
+          {type === 'book'    && <BookForm    fm={fm} onFmChange={handleFmChange} />}
+          {type === 'chapter' && <ChapterForm fm={fm} onFmChange={handleFmChange} />}
+          {type === 'scene'   && <SceneForm   fm={fm} onFmChange={handleFmChange} />}
+          {type === 'action'  && <ActionForm  fm={fm} onFmChange={handleFmChange} />}
+          {type === 'arc'     && <ArcForm     fm={fm} onFmChange={handleFmChange} />}
+          {!['book', 'chapter', 'scene', 'action', 'arc'].includes(type) && (
             <FallbackForm fm={fm} onFmChange={handleFmChange} />
           )}
 
