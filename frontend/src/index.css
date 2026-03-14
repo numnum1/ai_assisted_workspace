@@ -3503,21 +3503,83 @@ body {
 }
 
 .glp-entry {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 3px;
   width: 100%;
   padding: 7px 12px;
+  padding-right: 56px; /* reserve space so text doesn't overlap action buttons */
   background: none;
   border: none;
   border-bottom: 1px solid var(--border);
   text-align: left;
   cursor: pointer;
   transition: background 0.12s;
+  outline: none;
 }
 
-.glp-entry:hover {
+.glp-entry:hover,
+.glp-entry:focus-visible {
   background: var(--bg-hover);
+}
+
+.glp-entry-actions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.glp-entry:hover .glp-entry-actions,
+.glp-entry:focus-visible .glp-entry-actions {
+  display: flex;
+}
+
+.glp-entry-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.glp-entry-action-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.glp-entry-action-btn-danger:hover {
+  background: color-mix(in srgb, var(--error, #e06c75) 15%, transparent);
+  color: var(--error, #e06c75);
+}
+
+.glp-create-row {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.glp-create-input {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
 }
 
 .glp-entry-header {

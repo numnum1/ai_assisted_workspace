@@ -499,7 +499,7 @@ function App() {
 
       {glossaryOpen && hasGlossary && (
         <GlossaryPanel
-          onOpenFile={(path) => { project.openFile(path); setGlossaryOpen(false); }}
+          onOpenFile={(path) => { project.openFile(path); }}
           onClose={() => setGlossaryOpen(false)}
         />
       )}
