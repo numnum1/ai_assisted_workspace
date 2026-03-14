@@ -58,6 +58,13 @@ export function useProject() {
     }
   }, []);
 
+  const closeFile = useCallback(() => {
+    setOpenFilePath(null);
+    setFileContent('');
+    setFileLines(0);
+    setIsDirty(false);
+  }, []);
+
   const updateContent = useCallback((content: string) => {
     setFileContent(content);
     setIsDirty(true);
@@ -124,6 +131,7 @@ export function useProject() {
     refreshTree,
     openProject,
     openFile,
+    closeFile,
     updateContent,
     saveFile,
     deleteFile,

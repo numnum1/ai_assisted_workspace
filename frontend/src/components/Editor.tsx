@@ -4,7 +4,7 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun, Bookmark, FileCode } from 'lucide-react';
+import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun, Bookmark, FileCode, X } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
 import { createCommentExtension } from './commentExtension';
 import { hideMarksExtension } from './hideMarksExtension';
@@ -53,13 +53,14 @@ interface EditorProps {
   isDirty: boolean;
   onChange: (content: string) => void;
   onSave: () => void;
+  onClose?: () => void;
   hasPlanning?: boolean;
   onOpenMetafile?: () => void;
 }
 
 type EditorMode = 'editor' | 'reading';
 
-export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onBookmarkJumpDone, onBookmarkChange, isDirty, onChange, onSave, hasPlanning, onOpenMetafile }: EditorProps) {
+export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onBookmarkJumpDone, onBookmarkChange, isDirty, onChange, onSave, onClose, hasPlanning, onOpenMetafile }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -430,6 +431,16 @@ export function Editor({ content, filePath, projectPath, bookmarkJumpTarget, onB
           >
             <Save size={14} />
           </button>
+          {onClose && (
+            <button
+              className="editor-close-btn"
+              onClick={onClose}
+              title="Schließen"
+              aria-label="Schließen"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
       <div className={`editor-content ${sidebarVisible ? 'editor-content-with-sidebar' : ''}`}>

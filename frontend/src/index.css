@@ -238,6 +238,25 @@ body {
   cursor: default;
 }
 
+.editor-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.editor-close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .editor-content {
   flex: 1;
   overflow: hidden;

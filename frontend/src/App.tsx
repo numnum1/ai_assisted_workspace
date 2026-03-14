@@ -456,6 +456,7 @@ function App() {
               isDirty={project.isDirty}
               onChange={project.updateContent}
               onSave={async () => { await project.saveFile(); fetchGitState(); }}
+              onClose={project.closeFile}
               hasPlanning={hasPlanning}
               onOpenMetafile={handleOpenMetafile}
             />
