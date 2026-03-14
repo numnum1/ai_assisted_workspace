@@ -379,7 +379,7 @@ function App() {
       <Group orientation="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="40%">
           <Group orientation="vertical" style={{ height: '100%' }}>
-            <Panel minSize={20}>
+            <Panel defaultSize={50} minSize={20}>
               <PlanningPanel
                 activeChapterPath={project.openFilePath}
                 activeSceneId={activeSceneId}
@@ -390,21 +390,23 @@ function App() {
                 refreshTrigger={planningRefresh}
               />
             </Panel>
-            {selectedMetafilePath && (
-              <>
-                <Separator className="resize-handle-h" />
-                <Panel defaultSize={40} minSize={15}>
-                  <MetafileEditor
-                    content={metaContent}
-                    filePath={selectedMetafilePath}
-                    isDirty={metaDirty}
-                    onChange={handleMetaChange}
-                    onSave={handleMetaSave}
-                    onOpenSourceFile={handleMetaOpenSource}
-                  />
-                </Panel>
-              </>
-            )}
+            <Separator className="resize-handle-h" />
+            <Panel defaultSize={50} minSize={15}>
+              {selectedMetafilePath ? (
+                <MetafileEditor
+                  content={metaContent}
+                  filePath={selectedMetafilePath}
+                  isDirty={metaDirty}
+                  onChange={handleMetaChange}
+                  onSave={handleMetaSave}
+                  onOpenSourceFile={handleMetaOpenSource}
+                />
+              ) : (
+                <div className="metafile-placeholder">
+                  <span>Metafile auswählen</span>
+                </div>
+              )}
+            </Panel>
           </Group>
         </Panel>
 
