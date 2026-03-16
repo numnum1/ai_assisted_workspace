@@ -180,6 +180,12 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
               }}>
                 Öffnen
               </div>
+              <div className="tree-context-menu-item" onClick={() => {
+                setContextMenu(null);
+                wiki.openTypeEditor(contextMenu.typeId);
+              }}>
+                Typ bearbeiten
+              </div>
               <div
                 className="tree-context-menu-item tree-context-menu-item-danger"
                 onClick={() => handleDeleteType(contextMenu.typeId)}

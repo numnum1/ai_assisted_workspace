@@ -2760,6 +2760,167 @@ body {
   border-radius: 0 0 8px 8px;
 }
 
+/* ==================== Wiki Type Editor ==================== */
+
+.wiki-type-editor-popup {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 460px;
+  max-width: 92vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: popup-appear 0.15s ease-out;
+}
+
+.wiki-type-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.wiki-type-editor-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wiki-type-editor-body {
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wiki-type-editor-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 4px;
+}
+
+.wiki-type-editor-name-input {
+  width: 100%;
+}
+
+.wiki-type-editor-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wiki-type-editor-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wiki-type-editor-field-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.wiki-type-editor-field-type {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.wiki-type-editor-field-type:focus {
+  outline: 1px solid var(--accent);
+}
+
+.wiki-type-editor-field-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.wiki-type-editor-field-delete:hover {
+  color: var(--red);
+  background: var(--bg-hover);
+}
+
+.wiki-type-editor-add-field {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  width: 100%;
+  justify-content: center;
+}
+
+.wiki-type-editor-add-field:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.wiki-type-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.wiki-type-editor-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 5px 14px;
+  font-size: 12px;
+}
+
+.wiki-type-editor-cancel:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.wiki-type-editor-save {
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  color: var(--bg-primary);
+  cursor: pointer;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wiki-type-editor-save:hover {
+  opacity: 0.85;
+}
+
 /* ==================== Scrollbar ==================== */
 
 ::-webkit-scrollbar {

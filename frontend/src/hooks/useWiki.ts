@@ -12,11 +12,15 @@ export interface WikiState {
   currentType: WikiType | null;
   entries: WikiEntry[];
   editingEntry: EditingWikiEntry | null;
+  editingType: WikiType | null;
   loadTypes: () => Promise<void>;
   enterType: (typeId: string) => Promise<void>;
   goBack: () => void;
   createType: (name: string) => Promise<void>;
   deleteType: (typeId: string) => Promise<void>;
+  openTypeEditor: (typeId: string) => void;
+  saveType: (updated: WikiType) => Promise<void>;
+  closeTypeEditor: () => void;
   createEntry: (name: string) => Promise<void>;
   deleteEntry: (entryId: string) => Promise<void>;
   openEntry: (entry: WikiEntry) => void;
@@ -29,6 +33,7 @@ export function useWiki(): WikiState {
   const [currentType, setCurrentType] = useState<WikiType | null>(null);
   const [entries, setEntries] = useState<WikiEntry[]>([]);
   const [editingEntry, setEditingEntry] = useState<EditingWikiEntry | null>(null);
+  const [editingType, setEditingType] = useState<WikiType | null>(null);
 
   const loadTypes = useCallback(async () => {
     const data = await wikiApi.listTypes();
@@ -67,6 +72,26 @@ export function useWiki(): WikiState {
     }
   }, [currentType]);
 
+  const openTypeEditor = useCallback((typeId: string) => {
+    const type = types.find(t => t.id === typeId);
+    if (type) setEditingType(type);
+  }, [types]);
+
+  const saveType = useCallback(async (updated: WikiType) => {
+    await wikiApi.updateType(updated.id, updated);
+    const data = await wikiApi.listTypes();
+    setTypes(data);
+    // If we're currently inside this type, refresh currentType too
+    if (currentType?.id === updated.id) {
+      setCurrentType(updated);
+    }
+    setEditingType(null);
+  }, [currentType]);
+
+  const closeTypeEditor = useCallback(() => {
+    setEditingType(null);
+  }, []);
+
   const createEntry = useCallback(async (name: string) => {
     if (!currentType) return;
     await wikiApi.createEntry(currentType.id, name);
@@ -102,11 +127,15 @@ export function useWiki(): WikiState {
     currentType,
     entries,
     editingEntry,
+    editingType,
     loadTypes,
     enterType,
     goBack,
     createType,
     deleteType,
+    openTypeEditor,
+    saveType,
+    closeTypeEditor,
     createEntry,
     deleteEntry,
     openEntry,

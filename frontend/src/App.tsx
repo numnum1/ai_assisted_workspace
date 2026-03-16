@@ -11,6 +11,7 @@ import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import { WikiBrowser } from './components/WikiBrowser.tsx';
 import { WikiEntryPopup } from './components/WikiEntryPopup.tsx';
+import { WikiTypeEditor } from './components/WikiTypeEditor.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta } from './types.ts';
 import { modesApi, gitApi, projectApi, AuthRequiredError } from './api.ts';
@@ -371,6 +372,14 @@ function App() {
           editing={wiki.editingEntry}
           onSave={wiki.saveEntry}
           onClose={wiki.closeEntry}
+        />
+      )}
+
+      {wiki.editingType && (
+        <WikiTypeEditor
+          type={wiki.editingType}
+          onSave={wiki.saveType}
+          onClose={wiki.closeTypeEditor}
         />
       )}
     </div>
