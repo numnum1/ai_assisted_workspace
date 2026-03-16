@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';
+import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { Save, BookOpen, Code, MessageSquareText, MoveHorizontal, Moon, Sun } from 'lucide-react';
+import { Save, MessageSquareText, MoveHorizontal, Moon, Sun } from 'lucide-react';
 import { createReadingTheme } from './readingTheme';
 import { createCommentExtension } from './commentExtension';
 import { hideMarksExtension } from './hideMarksExtension';
@@ -51,16 +50,13 @@ interface EditorProps {
   onSave: () => void;
 }
 
-type EditorMode = 'editor' | 'reading';
-
-export function Editor({ content, filePath, projectPath, isDirty, onChange, onSave }: EditorProps) {
+export function Editor({ content, filePath, isDirty, onChange, onSave }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const modeCompartmentRef = useRef(new Compartment());
-  const [mode, setMode] = useState<EditorMode>('editor');
   const [showComments, setShowComments] = useState(false);
   const [commentPositions, setCommentPositions] = useState<CommentPosition[]>([]);
   const [contentHeight, setContentHeight] = useState(0);
@@ -80,10 +76,6 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
-  const toggleMode = useCallback(() => {
-    setMode(prev => prev === 'editor' ? 'reading' : 'editor');
-  }, []);
-
   const saveKeymap = useCallback(() => {
     return keymap.of([{
       key: 'Mod-s',
@@ -96,11 +88,7 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'r') {
-        e.preventDefault();
-        toggleMode();
-      }
-      if (e.ctrlKey && !e.altKey && !e.shiftKey && mode === 'reading' &&
+      if (e.ctrlKey && !e.altKey && !e.shiftKey &&
           (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
         const scroller = editorRef.current?.querySelector('.cm-scroller');
@@ -112,21 +100,14 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleMode, mode, readingFontSize]);
+  }, [readingFontSize]);
 
   const handleCommentPositions = useCallback((positions: CommentPosition[], height: number) => {
     setCommentPositions(positions);
     setContentHeight(height);
   }, []);
 
-  const getModeExtensions = useCallback((m: EditorMode) => {
-    if (m === 'editor') {
-      return [
-        lineNumbers(),
-        highlightActiveLine(),
-        oneDark,
-      ];
-    }
+  const getExtensions = useCallback(() => {
     const colors = readingNightMode ? NIGHT_COLORS : DAY_COLORS;
     return [
       createReadingTheme({
@@ -163,16 +144,13 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
             onChangeRef.current(update.state.doc.toString());
           }
         }),
-        modeCompartmentRef.current.of(getModeExtensions(mode)),
+        modeCompartmentRef.current.of(getExtensions()),
       ],
     });
 
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
-
-    if (mode === 'reading') {
-      view.contentDOM.blur();
-    }
+    view.contentDOM.blur();
 
     return () => {
       view.destroy();
@@ -186,30 +164,21 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
     if (!view) return;
 
     view.dispatch({
-      effects: modeCompartmentRef.current.reconfigure(getModeExtensions(mode)),
+      effects: modeCompartmentRef.current.reconfigure(getExtensions()),
     });
 
-    if (mode === 'reading') {
-      view.contentDOM.blur();
-      const scroller = editorRef.current?.querySelector('.cm-scroller');
-      if (scroller) {
-        const scrollHandler = () => {
-          if (sidebarRef.current) {
-            sidebarRef.current.scrollTop = scroller.scrollTop;
-          }
-        };
-        scroller.addEventListener('scroll', scrollHandler);
-        return () => { scroller.removeEventListener('scroll', scrollHandler); };
-      }
+    view.contentDOM.blur();
+    const scroller = editorRef.current?.querySelector('.cm-scroller');
+    if (scroller) {
+      const scrollHandler = () => {
+        if (sidebarRef.current) {
+          sidebarRef.current.scrollTop = scroller.scrollTop;
+        }
+      };
+      scroller.addEventListener('scroll', scrollHandler);
+      return () => { scroller.removeEventListener('scroll', scrollHandler); };
     }
-  }, [mode, getModeExtensions]);
-
-  useEffect(() => {
-    if (mode === 'editor') {
-      setCommentPositions([]);
-      setContentHeight(0);
-    }
-  }, [mode]);
+  }, [getExtensions]);
 
   useEffect(() => {
     localStorage.setItem(FONT_SIZE_KEY, String(readingFontSize));
@@ -228,7 +197,7 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey || mode !== 'reading') return;
+      if (!e.ctrlKey) return;
       e.preventDefault();
       setReadingFontSize(prev => {
         const next = e.deltaY < 0 ? Math.min(prev + 1, 30) : Math.max(prev - 1, 10);
@@ -241,7 +210,7 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
 
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
-  }, [mode]);
+  }, []);
 
   if (!filePath) {
     return (
@@ -252,10 +221,9 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
     );
   }
 
-  const isReading = mode === 'reading';
-  const sidebarVisible = isReading && showComments && commentPositions.length > 0;
   const colors = readingNightMode ? NIGHT_COLORS : DAY_COLORS;
-  const readingVars = isReading ? {
+  const sidebarVisible = showComments && commentPositions.length > 0;
+  const readingVars = {
     '--rm-bg':          colors.bg,
     '--rm-header-bg':   colors.headerBg,
     '--rm-sidebar-bg':  colors.sidebarBg,
@@ -263,11 +231,11 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
     '--rm-text':        colors.text,
     '--rm-text-muted':  colors.mutedText,
     '--rm-border':      colors.border,
-  } as React.CSSProperties : {};
+  } as React.CSSProperties;
 
   return (
     <div
-      className={`editor-container ${isReading ? 'editor-reading-mode' : ''} ${isReading && readingNightMode ? 'editor-reading-night' : ''}`}
+      className={`editor-container editor-reading-mode${readingNightMode ? ' editor-reading-night' : ''}`}
       style={readingVars}
     >
       <div className="editor-header">
@@ -276,30 +244,26 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
           {isDirty && <span className="editor-dirty"> *</span>}
         </span>
         <div className="editor-header-actions">
-          {isReading && (
-            <div className="reading-padding-control" title="Seitenabstand (links/rechts)">
-              <MoveHorizontal size={12} />
-              <input
-                type="range"
-                className="reading-padding-slider"
-                min={0}
-                max={200}
-                step={4}
-                value={readingPadding}
-                onChange={e => setReadingPadding(Number(e.target.value))}
-              />
-            </div>
-          )}
-          {isReading && (
-            <button
-              className={`editor-mode-btn ${readingNightMode ? 'active' : ''}`}
-              onClick={() => setReadingNightMode(prev => !prev)}
-              title={readingNightMode ? 'Tagmodus' : 'Nachtmodus'}
-            >
-              {readingNightMode ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-          )}
-          {isReading && commentPositions.length > 0 && (
+          <div className="reading-padding-control" title="Seitenabstand (links/rechts)">
+            <MoveHorizontal size={12} />
+            <input
+              type="range"
+              className="reading-padding-slider"
+              min={0}
+              max={200}
+              step={4}
+              value={readingPadding}
+              onChange={e => setReadingPadding(Number(e.target.value))}
+            />
+          </div>
+          <button
+            className={`editor-mode-btn ${readingNightMode ? 'active' : ''}`}
+            onClick={() => setReadingNightMode(prev => !prev)}
+            title={readingNightMode ? 'Tagmodus' : 'Nachtmodus'}
+          >
+            {readingNightMode ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+          {commentPositions.length > 0 && (
             <button
               className={`editor-mode-btn ${showComments ? 'active' : ''}`}
               onClick={() => setShowComments(prev => !prev)}
@@ -309,14 +273,6 @@ export function Editor({ content, filePath, projectPath, isDirty, onChange, onSa
               <span>{commentPositions.length}</span>
             </button>
           )}
-          <button
-            className={`editor-mode-btn ${isReading ? 'active' : ''}`}
-            onClick={toggleMode}
-            title={mode === 'editor' ? 'Lesemodus (Alt+R)' : 'Editor (Alt+R)'}
-          >
-            {mode === 'editor' ? <BookOpen size={14} /> : <Code size={14} />}
-            <span>{mode === 'editor' ? 'Lesen' : 'Editor'}</span>
-          </button>
           <button
             className="editor-save-btn"
             onClick={onSave}
