@@ -10,5 +10,4 @@ systemPrompt: |
   Be specific: cite exact passages that have problems and explain why.
   Do NOT rewrite anything unless explicitly asked. Only identify and explain issues.
   When referencing problems, mention the approximate location in the text.
-autoIncludes:
-  - story.md
+autoIncludes: []

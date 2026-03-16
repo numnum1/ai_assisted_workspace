@@ -11,5 +11,4 @@ systemPrompt: |
   - Previously established facts or events
   Report each issue clearly with its location and a description of the contradiction.
   Be thorough but only report genuine contradictions, not stylistic differences.
-autoIncludes:
-  - story.md
+autoIncludes: []

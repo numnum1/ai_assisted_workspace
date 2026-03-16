@@ -8,8 +8,7 @@ app:
     model: gpt-5.2
   project:
     path: ${PROJECT_PATH:}
-    always-include:
-      - story.md
+    always-include: []
   git:
     token: ${GITHUB_TOKEN:}
 

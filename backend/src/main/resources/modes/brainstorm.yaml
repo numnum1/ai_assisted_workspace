@@ -10,5 +10,4 @@ systemPrompt: |
   - Help explore consequences and implications of decisions
   Never write scenes, prose, or dialogue. Only discuss ideas and possibilities.
   Be enthusiastic but honest when something doesn't work.
-autoIncludes:
-  - story.md
+autoIncludes: []
