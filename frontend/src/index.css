@@ -75,8 +75,8 @@ body {
 .outliner-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
+  justify-content: space-between;
+  padding: 6px 8px 6px 12px;
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
@@ -84,6 +84,29 @@ body {
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.outliner-header-title {
+  flex: 1;
+}
+
+.outliner-reveal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.outliner-reveal-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
 }
 
 .outliner-content {

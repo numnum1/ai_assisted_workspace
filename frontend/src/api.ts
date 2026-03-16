@@ -79,6 +79,7 @@ export const modesApi = {
 
 export const projectApi = {
   current: () => get<{ path: string; hasProject: boolean; initialized: boolean }>('/project/current'),
+  reveal: () => post<{ status: string }>('/project/reveal', {}),
   browse: async (): Promise<{ cancelled: boolean; path?: string }> => {
     const res = await postRaw('/project/browse', {});
     const data = await res.json();

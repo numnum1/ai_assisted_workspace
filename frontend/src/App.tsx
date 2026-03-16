@@ -10,7 +10,7 @@ import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
-import { modesApi, gitApi, AuthRequiredError } from './api.ts';
+import { modesApi, gitApi, projectApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -200,6 +200,7 @@ function App() {
             scrollTarget={chapter.scrollTarget}
             onOpenChapter={chapter.openChapter}
             onScrollTo={chapter.scrollTo}
+            onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
             onCreateChapter={chapter.createChapter}
             onDeleteChapter={chapter.deleteChapter}
             onRenameChapter={(id, title) => {

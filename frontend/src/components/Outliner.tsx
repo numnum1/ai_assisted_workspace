@@ -8,6 +8,7 @@ interface OutlinerProps {
   scrollTarget: ScrollTarget | null;
   onOpenChapter: (id: string) => void;
   onScrollTo: (target: ScrollTarget) => void;
+  onRevealInExplorer: () => void;
   onCreateChapter: (title: string) => void;
   onDeleteChapter: (id: string) => void;
   onRenameChapter: (id: string, title: string) => void;
@@ -54,6 +55,7 @@ export function Outliner({
   onDeleteAction,
   onRenameAction,
   onReorderScenes,
+  onRevealInExplorer,
   onReorderActions,
 }: OutlinerProps) {
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
@@ -192,8 +194,14 @@ export function Outliner({
       onContextMenu={e => openContextMenu(e, { type: 'root' })}
     >
       <div className="outliner-header">
-        <FolderOpen size={14} />
-        <span>Projekt</span>
+        <span className="outliner-header-title">Projekt</span>
+        <button
+          className="outliner-reveal-btn"
+          onClick={onRevealInExplorer}
+          title="Im Explorer öffnen"
+        >
+          <FolderOpen size={13} />
+        </button>
       </div>
 
       <div className="outliner-content">
