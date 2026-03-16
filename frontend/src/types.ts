@@ -76,6 +76,7 @@ export interface NodeMeta {
   title: string;
   description: string;
   sortOrder: number;
+  extras?: Record<string, string>;
 }
 
 export interface ChapterSummary {

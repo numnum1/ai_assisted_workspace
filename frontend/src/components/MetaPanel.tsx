@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, X } from 'lucide-react';
 import type { MetaSelection, NodeMeta, MetaNodeType } from '../types.ts';
+import { metaSchemas } from '../meta/index.ts';
 
 interface MetaPanelProps {
   selection: MetaSelection;
@@ -8,39 +9,57 @@ interface MetaPanelProps {
   onClose: () => void;
 }
 
-const TYPE_LABELS: Record<MetaNodeType, string> = {
-  chapter: 'kapitel.json',
-  scene: 'szene.json',
-  action: 'akt.json',
-};
+function buildInitialValues(selection: MetaSelection): Record<string, string> {
+  const schema = metaSchemas[selection.type];
+  const values: Record<string, string> = {};
+  for (const field of schema.fields) {
+    if (field.key === 'title') {
+      values[field.key] = selection.meta.title ?? field.defaultValue;
+    } else if (field.key === 'description') {
+      values[field.key] = selection.meta.description ?? field.defaultValue;
+    } else {
+      values[field.key] = selection.meta.extras?.[field.key] ?? field.defaultValue;
+    }
+  }
+  return values;
+}
 
 export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
-  const [title, setTitle] = useState(selection.meta.title);
-  const [description, setDescription] = useState(selection.meta.description ?? '');
+  const schema = metaSchemas[selection.type];
+  const [values, setValues] = useState<Record<string, string>>(() => buildInitialValues(selection));
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    setTitle(selection.meta.title);
-    setDescription(selection.meta.description ?? '');
+    setValues(buildInitialValues(selection));
     setDirty(false);
   }, [selection]);
 
+  const handleChange = (key: string, value: string) => {
+    setValues(prev => ({ ...prev, [key]: value }));
+    setDirty(true);
+  };
+
   const handleSave = () => {
+    const extras: Record<string, string> = {};
+    for (const key of Object.keys(values)) {
+      if (key !== 'title' && key !== 'description') {
+        extras[key] = values[key];
+      }
+    }
     const meta: NodeMeta = {
-      title: title.trim(),
-      description: description.trim(),
+      title: (values['title'] ?? '').trim(),
+      description: (values['description'] ?? '').trim(),
       sortOrder: selection.meta.sortOrder,
+      extras: Object.keys(extras).length > 0 ? extras : undefined,
     };
     onSave(selection.type, meta, selection.chapterId, selection.sceneId, selection.actionId);
     setDirty(false);
   };
 
-  const markDirty = () => setDirty(true);
-
   return (
     <div className="meta-panel">
       <div className="meta-panel-header">
-        <span className="meta-panel-filename">{TYPE_LABELS[selection.type]}</span>
+        <span className="meta-panel-filename">{schema.filename}</span>
         <div className="meta-panel-header-actions">
           {dirty && (
             <button className="meta-panel-save-btn" onClick={handleSave} title="Speichern">
@@ -54,27 +73,28 @@ export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
       </div>
 
       <div className="meta-panel-body">
-        <div className="meta-field">
-          <label className="meta-field-label">Titel</label>
-          <input
-            className="meta-field-input"
-            value={title}
-            onChange={e => { setTitle(e.target.value); markDirty(); }}
-            onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
-            placeholder="Titel..."
-          />
-        </div>
-
-        <div className="meta-field">
-          <label className="meta-field-label">Beschreibung</label>
-          <textarea
-            className="meta-field-textarea"
-            value={description}
-            onChange={e => { setDescription(e.target.value); markDirty(); }}
-            placeholder="Beschreibung..."
-            rows={4}
-          />
-        </div>
+        {schema.fields.map(field => (
+          <div key={field.key} className="meta-field">
+            <label className="meta-field-label">{field.label}</label>
+            {field.type === 'textarea' ? (
+              <textarea
+                className="meta-field-textarea"
+                value={values[field.key] ?? ''}
+                onChange={e => handleChange(field.key, e.target.value)}
+                placeholder={field.placeholder}
+                rows={4}
+              />
+            ) : (
+              <input
+                className="meta-field-input"
+                value={values[field.key] ?? ''}
+                onChange={e => handleChange(field.key, e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+                placeholder={field.placeholder}
+              />
+            )}
+          </div>
+        ))}
 
         {dirty && (
           <button className="meta-panel-save-full-btn" onClick={handleSave}>
