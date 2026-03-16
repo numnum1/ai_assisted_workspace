@@ -33,10 +33,8 @@ export function useChapter() {
   const openChapter = useCallback(async (id: string) => {
     try {
       const chapter = await chapterApi.getStructure(id);
-      setActiveChapter(chapter);
-      setActionContents(new Map());
 
-      // Load all action contents in parallel
+      // Load all action contents before mounting editors so they initialize with correct content
       const entries: Array<[string, ActionContentEntry]> = [];
       await Promise.all(
         chapter.scenes.flatMap(scene =>
@@ -51,6 +49,8 @@ export function useChapter() {
         )
       );
 
+      // Set both atomically in one render — editors mount with correct content from the start
+      setActiveChapter(chapter);
       setActionContents(new Map(entries));
     } catch (err) {
       console.error('Failed to open chapter:', err);
