@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { createReadingTheme } from './readingTheme';
@@ -26,13 +26,14 @@ interface ActionEditorProps {
 export function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave }: ActionEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const themeCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
-  const buildExtensions = useCallback(() => {
+  const buildThemeExtensions = useCallback(() => {
     return [
       createReadingTheme({
         fontSize: `${fontSize}px`,
@@ -46,6 +47,7 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
     ];
   }, [fontSize, padding, colors]);
 
+  // Create editor once per actionId — destroyed and recreated only when a different action is loaded
   useEffect(() => {
     if (!editorRef.current) return;
 
@@ -76,7 +78,7 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
             onChangeRef.current(update.state.doc.toString());
           }
         }),
-        ...buildExtensions(),
+        themeCompartment.current.of(buildThemeExtensions()),
       ],
     });
 
@@ -87,55 +89,17 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
       view.destroy();
       viewRef.current = null;
     };
-    // Re-create editor only when actionId changes (different action loaded)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionId]);
 
-  // Update theme without recreating editor when visual settings change
+  // Reconfigure theme in-place — no editor recreation, no double-mount risk
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    // Re-create when theme settings change by destroying and recreating
-    // This is acceptable since theme changes are infrequent user actions
-    if (!editorRef.current) return;
-    const currentDoc = view.state.doc.toString();
-    view.destroy();
-
-    const state = EditorState.create({
-      doc: currentDoc,
-      extensions: [
-        drawSelection(),
-        history(),
-        markdown(),
-        keymap.of([
-          ...defaultKeymap,
-          ...historyKeymap,
-          {
-            key: 'Mod-s',
-            run: () => {
-              onSaveRef.current();
-              return true;
-            },
-          },
-        ]),
-        EditorView.lineWrapping,
-        EditorView.theme({
-          '&': { height: 'auto' },
-          '.cm-scroller': { overflow: 'visible' },
-        }),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            onChangeRef.current(update.state.doc.toString());
-          }
-        }),
-        ...buildExtensions(),
-      ],
+    view.dispatch({
+      effects: themeCompartment.current.reconfigure(buildThemeExtensions()),
     });
-
-    const newView = new EditorView({ state, parent: editorRef.current });
-    viewRef.current = newView;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildExtensions]);
+  }, [buildThemeExtensions]);
 
   return (
     <div
