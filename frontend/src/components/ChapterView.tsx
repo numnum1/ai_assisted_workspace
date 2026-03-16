@@ -272,6 +272,7 @@ export function ChapterView({
             </div>
           );
         })}
+        <div className="chapter-view-scroll-end" aria-hidden="true" />
       </div>
 
       {fontSizeIndicator !== null && (
