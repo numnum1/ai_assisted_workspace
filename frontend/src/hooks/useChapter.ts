@@ -1,6 +1,15 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { ChapterSummary, ChapterNode, NodeMeta, ScrollTarget } from '../types.ts';
 import { chapterApi } from '../api.ts';
+
+const LAST_POSITION_KEY = 'editor-last-position';
+
+interface StoredPosition {
+  projectPath: string;
+  chapterId: string;
+  sceneId?: string;
+  actionId?: string;
+}
 
 interface ActionContentEntry {
   content: string;
@@ -17,6 +26,36 @@ export function useChapter() {
   const [actionContents, setActionContents] = useState<Map<string, ActionContentEntry>>(new Map());
   const [scrollTarget, setScrollTarget] = useState<ScrollTarget | null>(null);
 
+  const projectPathRef = useRef('');
+  const lastPositionRef = useRef<{ chapterId: string; sceneId?: string; actionId?: string } | null>(null);
+
+  const setProjectPath = useCallback((path: string) => {
+    projectPathRef.current = path;
+  }, []);
+
+  const persistPosition = useCallback(() => {
+    if (!lastPositionRef.current || !projectPathRef.current) return;
+    try {
+      const pos: StoredPosition = { projectPath: projectPathRef.current, ...lastPositionRef.current };
+      localStorage.setItem(LAST_POSITION_KEY, JSON.stringify(pos));
+    } catch { /* ignore */ }
+  }, []);
+
+  const restoreLastPosition = useCallback((projectPath: string): { chapterId: string; scrollTarget: ScrollTarget | null } | null => {
+    try {
+      const raw = localStorage.getItem(LAST_POSITION_KEY);
+      if (!raw) return null;
+      const pos = JSON.parse(raw) as StoredPosition;
+      if (pos.projectPath !== projectPath) return null;
+      const target = (pos.sceneId || pos.actionId)
+        ? { sceneId: pos.sceneId, actionId: pos.actionId }
+        : null;
+      return { chapterId: pos.chapterId, scrollTarget: target };
+    } catch {
+      return null;
+    }
+  }, []);
+
   // ─── Chapter list ──────────────────────────────────────────────────────────
 
   const refreshChapters = useCallback(async () => {
@@ -30,7 +69,7 @@ export function useChapter() {
 
   // ─── Open chapter ──────────────────────────────────────────────────────────
 
-  const openChapter = useCallback(async (id: string) => {
+  const openChapter = useCallback(async (id: string, initialScrollTarget?: ScrollTarget | null) => {
     try {
       const chapter = await chapterApi.getStructure(id);
 
@@ -49,13 +88,21 @@ export function useChapter() {
         )
       );
 
+      lastPositionRef.current = {
+        chapterId: id,
+        sceneId: initialScrollTarget?.sceneId,
+        actionId: initialScrollTarget?.actionId,
+      };
+      persistPosition();
+
       // Set both atomically in one render — editors mount with correct content from the start
       setActiveChapter(chapter);
       setActionContents(new Map(entries));
+      if (initialScrollTarget) setScrollTarget(initialScrollTarget);
     } catch (err) {
       console.error('Failed to open chapter:', err);
     }
-  }, []);
+  }, [persistPosition]);
 
   // ─── Action content management ─────────────────────────────────────────────
 
@@ -115,7 +162,11 @@ export function useChapter() {
 
   const scrollTo = useCallback((target: ScrollTarget) => {
     setScrollTarget(target);
-  }, []);
+    if (lastPositionRef.current) {
+      lastPositionRef.current = { chapterId: lastPositionRef.current.chapterId, ...target };
+      persistPosition();
+    }
+  }, [persistPosition]);
 
   const clearScrollTarget = useCallback(() => {
     setScrollTarget(null);
@@ -284,6 +335,8 @@ export function useChapter() {
     activeChapter,
     openChapter,
     closeChapter,
+    setProjectPath,
+    restoreLastPosition,
     actionContents,
     updateActionContent,
     saveAction,

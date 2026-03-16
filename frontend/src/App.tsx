@@ -29,11 +29,16 @@ function App() {
   const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages);
 
-  // Load chapter list when project opens
+  // Load chapter list when project opens, then restore last position
   useEffect(() => {
-    if (project.projectPath) {
-      chapter.refreshChapters();
-    }
+    if (!project.projectPath) return;
+    chapter.setProjectPath(project.projectPath);
+    chapter.refreshChapters().then(() => {
+      const stored = chapter.restoreLastPosition(project.projectPath);
+      if (stored) {
+        chapter.openChapter(stored.chapterId, stored.scrollTarget ?? undefined);
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
 
