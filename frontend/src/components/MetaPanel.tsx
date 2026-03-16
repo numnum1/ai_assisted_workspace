@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Save, X } from 'lucide-react';
 import type { MetaSelection, NodeMeta, MetaNodeType } from '../types.ts';
 import { metaSchemas } from '../meta/index.ts';
-import { fieldTypeRegistry } from '../meta/fieldTypes/index.ts';
+import { SchemaFormPanel } from './SchemaFormPanel.tsx';
 
 interface MetaPanelProps {
   selection: MetaSelection;
@@ -27,20 +25,9 @@ function buildInitialValues(selection: MetaSelection): Record<string, string> {
 
 export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
   const schema = metaSchemas[selection.type];
-  const [values, setValues] = useState<Record<string, string>>(() => buildInitialValues(selection));
-  const [dirty, setDirty] = useState(false);
+  const initialValues = buildInitialValues(selection);
 
-  useEffect(() => {
-    setValues(buildInitialValues(selection));
-    setDirty(false);
-  }, [selection]);
-
-  const handleChange = (key: string, value: string) => {
-    setValues(prev => ({ ...prev, [key]: value }));
-    setDirty(true);
-  };
-
-  const handleSave = () => {
+  const handleSave = (values: Record<string, string>) => {
     const extras: Record<string, string> = {};
     for (const key of Object.keys(values)) {
       if (key !== 'title' && key !== 'description') {
@@ -54,48 +41,15 @@ export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
       extras: Object.keys(extras).length > 0 ? extras : undefined,
     };
     onSave(selection.type, meta, selection.chapterId, selection.sceneId, selection.actionId);
-    setDirty(false);
   };
 
   return (
-    <div className="meta-panel">
-      <div className="meta-panel-header">
-        <span className="meta-panel-filename">{schema.filename}</span>
-        <div className="meta-panel-header-actions">
-          {dirty && (
-            <button className="meta-panel-save-btn" onClick={handleSave} title="Speichern">
-              <Save size={13} />
-            </button>
-          )}
-          <button className="meta-panel-close-btn" onClick={onClose} title="Schließen">
-            <X size={13} />
-          </button>
-        </div>
-      </div>
-
-      <div className="meta-panel-body">
-        {schema.fields.map(field => {
-          const Renderer = fieldTypeRegistry[field.type] ?? fieldTypeRegistry['input'];
-          return (
-            <div key={field.key} className="meta-field">
-              <label className="meta-field-label">{field.label}</label>
-              <Renderer
-                field={field}
-                value={values[field.key] ?? ''}
-                onChange={v => handleChange(field.key, v)}
-                onCommit={handleSave}
-              />
-            </div>
-          );
-        })}
-
-        {dirty && (
-          <button className="meta-panel-save-full-btn" onClick={handleSave}>
-            <Save size={13} />
-            Speichern
-          </button>
-        )}
-      </div>
-    </div>
+    <SchemaFormPanel
+      schema={schema}
+      values={initialValues}
+      title={schema.filename}
+      onSave={handleSave}
+      onClose={onClose}
+    />
   );
 }
