@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronDown, BookOpen, Layers, AlignLeft, FolderOpen } from 'lucide-react';
-import type { ChapterSummary, ChapterNode, ScrollTarget } from '../types.ts';
+import type { ChapterSummary, ChapterNode, ScrollTarget, MetaSelection } from '../types.ts';
 
 interface OutlinerProps {
   chapters: ChapterSummary[];
@@ -20,6 +20,7 @@ interface OutlinerProps {
   onRenameAction: (chapterId: string, sceneId: string, actionId: string, title: string) => void;
   onReorderScenes: (chapterId: string, orderedIds: string[]) => void;
   onReorderActions: (chapterId: string, sceneId: string, orderedIds: string[]) => void;
+  onSelectMeta: (selection: MetaSelection) => void;
 }
 
 type ContextMenuState = {
@@ -57,6 +58,7 @@ export function Outliner({
   onReorderScenes,
   onRevealInExplorer,
   onReorderActions,
+  onSelectMeta,
 }: OutlinerProps) {
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
   const [expandedScenes, setExpandedScenes] = useState<Set<string>>(new Set());
@@ -101,23 +103,26 @@ export function Outliner({
     });
   }, []);
 
-  const handleChapterLabelClick = useCallback((id: string) => {
+  const handleChapterLabelClick = useCallback((id: string, meta: MetaSelection['meta']) => {
     onOpenChapter(id);
-  }, [onOpenChapter]);
+    onSelectMeta({ type: 'chapter', chapterId: id, meta });
+  }, [onOpenChapter, onSelectMeta]);
 
-  const handleSceneLabelClick = useCallback((chapterId: string, sceneId: string) => {
+  const handleSceneLabelClick = useCallback((chapterId: string, sceneId: string, meta: MetaSelection['meta']) => {
     if (activeChapter?.id !== chapterId) {
       onOpenChapter(chapterId);
     }
     onScrollTo({ sceneId });
-  }, [activeChapter, onOpenChapter, onScrollTo]);
+    onSelectMeta({ type: 'scene', chapterId, sceneId, meta });
+  }, [activeChapter, onOpenChapter, onScrollTo, onSelectMeta]);
 
-  const handleActionClick = useCallback((chapterId: string, sceneId: string, actionId: string) => {
+  const handleActionClick = useCallback((chapterId: string, sceneId: string, actionId: string, meta: MetaSelection['meta']) => {
     if (activeChapter?.id !== chapterId) {
       onOpenChapter(chapterId);
     }
     onScrollTo({ sceneId, actionId });
-  }, [activeChapter, onOpenChapter, onScrollTo]);
+    onSelectMeta({ type: 'action', chapterId, sceneId, actionId, meta });
+  }, [activeChapter, onOpenChapter, onScrollTo, onSelectMeta]);
 
   const openContextMenu = useCallback((e: React.MouseEvent, state: Omit<NonNullable<ContextMenuState>, 'x' | 'y'>) => {
     e.preventDefault();
@@ -226,7 +231,7 @@ export function Outliner({
                 <BookOpen
                   size={13}
                   className="outliner-type-icon outliner-clickable"
-                  onClick={() => handleChapterLabelClick(chapter.id)}
+                  onClick={() => handleChapterLabelClick(chapter.id, chapter.meta)}
                 />
                 {renameState?.type === 'chapter' && renameState.chapterId === chapter.id ? (
                   <input
@@ -244,7 +249,7 @@ export function Outliner({
                 ) : (
                   <span
                     className="outliner-label outliner-clickable"
-                    onClick={() => handleChapterLabelClick(chapter.id)}
+                    onClick={() => handleChapterLabelClick(chapter.id, chapter.meta)}
                   >{chapter.meta.title || chapter.id}</span>
                 )}
               </div>
@@ -271,7 +276,7 @@ export function Outliner({
                       <Layers
                         size={12}
                         className="outliner-type-icon outliner-clickable"
-                        onClick={() => handleSceneLabelClick(chapter.id, scene.id)}
+                        onClick={() => handleSceneLabelClick(chapter.id, scene.id, scene.meta)}
                       />
                       {renameState?.type === 'scene' && renameState.sceneId === scene.id ? (
                         <input
@@ -289,7 +294,7 @@ export function Outliner({
                       ) : (
                         <span
                           className="outliner-label outliner-clickable"
-                          onClick={() => handleSceneLabelClick(chapter.id, scene.id)}
+                          onClick={() => handleSceneLabelClick(chapter.id, scene.id, scene.meta)}
                         >{scene.meta.title || scene.id}</span>
                       )}
                     </div>
@@ -301,7 +306,7 @@ export function Outliner({
                           key={action.id}
                           className={`outliner-node outliner-action${isActiveAction ? ' active' : ''}`}
                           style={{ paddingLeft: '36px' }}
-                          onClick={() => handleActionClick(chapter.id, scene.id, action.id)}
+                          onClick={() => handleActionClick(chapter.id, scene.id, action.id, action.meta)}
                           onContextMenu={e => openContextMenu(e, { type: 'action', chapterId: chapter.id, sceneId: scene.id, actionId: action.id })}
                           title={action.meta.title || action.id}
                         >

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
 import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw } from 'lucide-react';
 import { Outliner } from './components/Outliner.tsx';
+import { MetaPanel } from './components/MetaPanel.tsx';
 import { ChapterView } from './components/ChapterView.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
@@ -9,7 +10,7 @@ import { CommandPalette } from './components/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta } from './types.ts';
 import { modesApi, gitApi, projectApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
@@ -51,6 +52,31 @@ function App() {
   useEffect(() => {
     loadModes();
   }, [loadModes]);
+
+  const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
+
+  const handleSelectMeta = useCallback((selection: MetaSelection) => {
+    setSelectedMeta(selection);
+  }, []);
+
+  const handleSaveMeta = useCallback(async (
+    type: MetaNodeType,
+    meta: NodeMeta,
+    chapterId: string,
+    sceneId?: string,
+    actionId?: string,
+  ) => {
+    if (type === 'chapter') {
+      await chapter.updateChapterMeta(chapterId, meta);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    } else if (type === 'scene' && sceneId) {
+      await chapter.updateSceneMeta(chapterId, sceneId, meta);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    } else if (type === 'action' && sceneId && actionId) {
+      await chapter.updateActionMeta(chapterId, sceneId, actionId, meta);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    }
+  }, [chapter]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -194,35 +220,50 @@ function App() {
 
       <Group direction="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="50%">
-          <Outliner
-            chapters={chapter.chapters}
-            activeChapter={chapter.activeChapter}
-            scrollTarget={chapter.scrollTarget}
-            onOpenChapter={chapter.openChapter}
-            onScrollTo={chapter.scrollTo}
-            onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
-            onCreateChapter={chapter.createChapter}
-            onDeleteChapter={chapter.deleteChapter}
-            onRenameChapter={(id, title) => {
-              const current = chapter.chapters.find(c => c.id === id)?.meta;
-              if (current) chapter.updateChapterMeta(id, { ...current, title });
-            }}
-            onCreateScene={chapter.createScene}
-            onDeleteScene={chapter.deleteScene}
-            onRenameScene={(chapterId, sceneId, title) => {
-              const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
-              if (scene) chapter.updateSceneMeta(chapterId, sceneId, { ...scene.meta, title });
-            }}
-            onCreateAction={chapter.createAction}
-            onDeleteAction={chapter.deleteAction}
-            onRenameAction={(chapterId, sceneId, actionId, title) => {
-              const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
-              const action = scene?.actions.find(a => a.id === actionId);
-              if (action) chapter.updateActionMeta(chapterId, sceneId, actionId, { ...action.meta, title });
-            }}
-            onReorderScenes={chapter.reorderScenes}
-            onReorderActions={chapter.reorderActions}
-          />
+          <div className="left-column">
+            <div className={`outliner-slot${selectedMeta ? ' split' : ''}`}>
+              <Outliner
+                chapters={chapter.chapters}
+                activeChapter={chapter.activeChapter}
+                scrollTarget={chapter.scrollTarget}
+                onOpenChapter={chapter.openChapter}
+                onScrollTo={chapter.scrollTo}
+                onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
+                onCreateChapter={chapter.createChapter}
+                onDeleteChapter={chapter.deleteChapter}
+                onRenameChapter={(id, title) => {
+                  const current = chapter.chapters.find(c => c.id === id)?.meta;
+                  if (current) chapter.updateChapterMeta(id, { ...current, title });
+                }}
+                onCreateScene={chapter.createScene}
+                onDeleteScene={chapter.deleteScene}
+                onRenameScene={(chapterId, sceneId, title) => {
+                  const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
+                  if (scene) chapter.updateSceneMeta(chapterId, sceneId, { ...scene.meta, title });
+                }}
+                onCreateAction={chapter.createAction}
+                onDeleteAction={chapter.deleteAction}
+                onRenameAction={(chapterId, sceneId, actionId, title) => {
+                  const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
+                  const action = scene?.actions.find(a => a.id === actionId);
+                  if (action) chapter.updateActionMeta(chapterId, sceneId, actionId, { ...action.meta, title });
+                }}
+                onReorderScenes={chapter.reorderScenes}
+                onReorderActions={chapter.reorderActions}
+                onSelectMeta={handleSelectMeta}
+              />
+            </div>
+
+            {selectedMeta && (
+              <div className="meta-panel-slot">
+                <MetaPanel
+                  selection={selectedMeta}
+                  onSave={handleSaveMeta}
+                  onClose={() => setSelectedMeta(null)}
+                />
+              </div>
+            )}
+          </div>
         </Panel>
 
         <Separator className="resize-handle" />

@@ -104,3 +104,13 @@ export interface ScrollTarget {
   sceneId?: string;
   actionId?: string;
 }
+
+export type MetaNodeType = 'chapter' | 'scene' | 'action';
+
+export interface MetaSelection {
+  type: MetaNodeType;
+  chapterId: string;
+  sceneId?: string;
+  actionId?: string;
+  meta: NodeMeta;
+}
