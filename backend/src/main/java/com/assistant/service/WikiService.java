@@ -118,13 +118,19 @@ public class WikiService {
     }
 
     public WikiType createType(String name) throws IOException {
+        return createType(name, null);
+    }
+
+    public WikiType createType(String name, List<WikiFieldDef> fields) throws IOException {
         ensureTypesDir();
         String id = uniqueTypeId(slugify(name.isBlank() ? "type" : name));
-        List<WikiFieldDef> defaultFields = List.of(
-                new WikiFieldDef("name", "Name", "input", "Name...", ""),
-                new WikiFieldDef("description", "Beschreibung", "textarea", "Beschreibung...", "")
-        );
-        WikiType type = new WikiType(id, name, new ArrayList<>(defaultFields));
+        List<WikiFieldDef> resolvedFields = (fields != null && !fields.isEmpty())
+                ? new ArrayList<>(fields)
+                : List.of(
+                    new WikiFieldDef("name", "Name", "input", "Name...", ""),
+                    new WikiFieldDef("description", "Beschreibung", "textarea", "Beschreibung...", "")
+                  );
+        WikiType type = new WikiType(id, name, resolvedFields);
         Files.writeString(typeFile(id), objectMapper.writeValueAsString(type));
         return type;
     }

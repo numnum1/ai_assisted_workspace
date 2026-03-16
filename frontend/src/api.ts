@@ -166,8 +166,8 @@ export const chapterApi = {
 export const wikiApi = {
   listTypes: () =>
     get<WikiType[]>('/wiki/types'),
-  createType: (name: string) =>
-    post<WikiType>('/wiki/types', { name }),
+  createType: (name: string, fields?: WikiType['fields']) =>
+    post<WikiType>('/wiki/types', fields ? { name, fields } : { name }),
   getType: (typeId: string) =>
     get<WikiType>(`/wiki/types/${typeId}`),
   updateType: (typeId: string, type: WikiType) =>

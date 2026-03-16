@@ -28,11 +28,9 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
     return () => document.removeEventListener('mousedown', close);
   }, [contextMenu]);
 
-  const handleCreateType = useCallback(async () => {
+  const handleCreateType = useCallback(() => {
     setContextMenu(null);
-    const name = window.prompt('Name des neuen Wiki-Typs:');
-    if (!name?.trim()) return;
-    await wiki.createType(name.trim());
+    wiki.openTypePicker();
   }, [wiki]);
 
   const handleDeleteType = useCallback(async (typeId: string) => {

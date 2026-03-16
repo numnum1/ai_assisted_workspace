@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { WikiType, WikiEntry } from '../types.ts';
+import type { WikiType, WikiEntry, WikiFieldDef } from '../types.ts';
 import { wikiApi } from '../api.ts';
 
 export interface EditingWikiEntry {
@@ -13,10 +13,13 @@ export interface WikiState {
   entries: WikiEntry[];
   editingEntry: EditingWikiEntry | null;
   editingType: WikiType | null;
+  typePickerOpen: boolean;
   loadTypes: () => Promise<void>;
   enterType: (typeId: string) => Promise<void>;
   goBack: () => void;
-  createType: (name: string) => Promise<void>;
+  openTypePicker: () => void;
+  closeTypePicker: () => void;
+  createType: (name: string, fields?: WikiFieldDef[]) => Promise<void>;
   deleteType: (typeId: string) => Promise<void>;
   openTypeEditor: (typeId: string) => void;
   saveType: (updated: WikiType) => Promise<void>;
@@ -34,6 +37,7 @@ export function useWiki(): WikiState {
   const [entries, setEntries] = useState<WikiEntry[]>([]);
   const [editingEntry, setEditingEntry] = useState<EditingWikiEntry | null>(null);
   const [editingType, setEditingType] = useState<WikiType | null>(null);
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
 
   const loadTypes = useCallback(async () => {
     const data = await wikiApi.listTypes();
@@ -56,10 +60,14 @@ export function useWiki(): WikiState {
     setEntries([]);
   }, []);
 
-  const createType = useCallback(async (name: string) => {
-    await wikiApi.createType(name);
+  const openTypePicker = useCallback(() => setTypePickerOpen(true), []);
+  const closeTypePicker = useCallback(() => setTypePickerOpen(false), []);
+
+  const createType = useCallback(async (name: string, fields?: WikiFieldDef[]) => {
+    await wikiApi.createType(name, fields);
     const data = await wikiApi.listTypes();
     setTypes(data);
+    setTypePickerOpen(false);
   }, []);
 
   const deleteType = useCallback(async (typeId: string) => {
@@ -128,9 +136,12 @@ export function useWiki(): WikiState {
     entries,
     editingEntry,
     editingType,
+    typePickerOpen,
     loadTypes,
     enterType,
     goBack,
+    openTypePicker,
+    closeTypePicker,
     createType,
     deleteType,
     openTypeEditor,

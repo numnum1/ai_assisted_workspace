@@ -12,6 +12,7 @@ import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import { WikiBrowser } from './components/WikiBrowser.tsx';
 import { WikiEntryPopup } from './components/WikiEntryPopup.tsx';
 import { WikiTypeEditor } from './components/WikiTypeEditor.tsx';
+import { WikiTypePickerDialog } from './components/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta } from './types.ts';
 import { modesApi, gitApi, projectApi, AuthRequiredError } from './api.ts';
@@ -380,6 +381,13 @@ function App() {
           type={wiki.editingType}
           onSave={wiki.saveType}
           onClose={wiki.closeTypeEditor}
+        />
+      )}
+
+      {wiki.typePickerOpen && (
+        <WikiTypePickerDialog
+          onConfirm={wiki.createType}
+          onClose={wiki.closeTypePicker}
         />
       )}
     </div>

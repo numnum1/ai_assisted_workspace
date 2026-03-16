@@ -1,8 +1,10 @@
 package com.assistant.controller;
 
 import com.assistant.model.WikiEntry;
+import com.assistant.model.WikiFieldDef;
 import com.assistant.model.WikiType;
 import com.assistant.service.WikiService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,9 +18,11 @@ import java.util.NoSuchElementException;
 public class WikiController {
 
     private final WikiService wikiService;
+    private final ObjectMapper objectMapper;
 
-    public WikiController(WikiService wikiService) {
+    public WikiController(WikiService wikiService, ObjectMapper objectMapper) {
         this.wikiService = wikiService;
+        this.objectMapper = objectMapper;
     }
 
     // ─── Types ────────────────────────────────────────────────────────────────
@@ -29,12 +33,19 @@ public class WikiController {
     }
 
     @PostMapping("/types")
-    public ResponseEntity<?> createType(@RequestBody Map<String, String> body) throws IOException {
-        String name = body.get("name");
-        if (name == null || name.isBlank()) {
+    public ResponseEntity<?> createType(@RequestBody Map<String, Object> body) throws IOException {
+        Object nameObj = body.get("name");
+        if (nameObj == null || nameObj.toString().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "name is required"));
         }
-        return ResponseEntity.ok(wikiService.createType(name));
+        String name = nameObj.toString();
+        Object fieldsObj = body.get("fields");
+        List<WikiFieldDef> fields = null;
+        if (fieldsObj != null) {
+            fields = objectMapper.convertValue(fieldsObj,
+                objectMapper.getTypeFactory().constructCollectionType(List.class, WikiFieldDef.class));
+        }
+        return ResponseEntity.ok(wikiService.createType(name, fields));
     }
 
     @GetMapping("/types/{typeId}")
