@@ -67,6 +67,33 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
               return true;
             },
           },
+          {
+            key: 'Alt-s',
+            preventDefault: true,
+            run: (view) => {
+              const { from, to } = view.state.selection.main;
+              const selected = view.state.sliceDoc(from, to);
+              const insert = '„' + selected + '“';
+              view.dispatch({
+                changes: { from, to, insert },
+                selection: { anchor: from + 1 + selected.length },
+              });
+              return true;
+            },
+          },
+          {
+            key: 'Mod-Alt-s',
+            run: (view) => {
+              const { from, to } = view.state.selection.main;
+              const selected = view.state.sliceDoc(from, to);
+              const insert = '„' + selected + '“';
+              view.dispatch({
+                changes: { from, to, insert },
+                selection: { anchor: from + 1 + selected.length },
+              });
+              return true;
+            },
+          },
         ]),
         EditorView.lineWrapping,
         EditorView.theme({
@@ -82,10 +109,27 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
       ],
     });
 
-    const view = new EditorView({ state, parent: editorRef.current });
+    const el = editorRef.current;
+    const view = new EditorView({ state, parent: el });
     viewRef.current = view;
 
+    const handleAltS = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === 's' || e.key === 'S') && el.contains(document.activeElement)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const { from, to } = view.state.selection.main;
+        const selected = view.state.sliceDoc(from, to);
+        const insert = '„' + selected + '“';
+        view.dispatch({
+          changes: { from, to, insert },
+          selection: { anchor: from + 1 + selected.length },
+        });
+      }
+    };
+    document.addEventListener('keydown', handleAltS, { capture: true });
+
     return () => {
+      document.removeEventListener('keydown', handleAltS, { capture: true });
       view.destroy();
       viewRef.current = null;
     };
