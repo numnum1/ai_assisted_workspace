@@ -1,6 +1,8 @@
 package com.assistant.service.tools;
 
-import com.assistant.service.FileService;
+import com.assistant.model.WikiEntry;
+import com.assistant.model.WikiType;
+import com.assistant.service.WikiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -11,23 +13,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Searches the project wiki (wiki/) for characters, locations, organizations, etc.
- * Returns a compact hit list to keep the model context small. Use wiki_read to
- * retrieve full entry content.
+ * Searches the project wiki (.wiki/entries/) for entries across all types.
+ * Returns a compact hit list. Use wiki_read to retrieve the full entry content.
  */
 @Component
 public class WikiSearchTool extends AbstractTool {
 
     private static final Logger log = LoggerFactory.getLogger(WikiSearchTool.class);
 
-    private static final String WIKI_DIR = "wiki";
     private static final int DEFAULT_LIMIT = 10;
     private static final int MAX_LIMIT = 20;
 
-    private final FileService fileService;
+    private final WikiService wikiService;
 
-    public WikiSearchTool(FileService fileService) {
-        this.fileService = fileService;
+    public WikiSearchTool(WikiService wikiService) {
+        this.wikiService = wikiService;
     }
 
     @Override
@@ -42,19 +42,18 @@ public class WikiSearchTool extends AbstractTool {
             "function", Map.of(
                 "name", getName(),
                 "description", "Search the project wiki for characters, locations, organizations, and other world-building entries. " +
-                        "Returns a compact list of matching entries with their paths and summaries. " +
-                        "Use wiki_read afterwards to get the full content of a specific entry. " +
-                        "The wiki lives under wiki/ in the project root.",
+                        "Returns a compact list of matching entries with their IDs. " +
+                        "Use wiki_read afterwards to get the full content of a specific entry.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(
                         "query", Map.of(
                             "type", "string",
-                            "description", "Search term matched against entry names, aliases, tags, and summaries (case-insensitive)"
+                            "description", "Search term matched against all field values of each entry (case-insensitive)"
                         ),
                         "type", Map.of(
                             "type", "string",
-                            "description", "Optional filter by entry type (e.g. 'character', 'location', 'organization')"
+                            "description", "Optional filter by wiki type ID (e.g. 'character', 'location', 'organization')"
                         ),
                         "limit", Map.of(
                             "type", "string",
@@ -77,52 +76,62 @@ public class WikiSearchTool extends AbstractTool {
         String typeFilter = extractArg(argsJson, "type");
         int limit = parseLimit(extractArg(argsJson, "limit"));
         String lowerQuery = query.toLowerCase();
-        String lowerType = typeFilter != null ? typeFilter.toLowerCase() : null;
 
-        if (!fileService.isDirectory(WIKI_DIR)) {
-            return "Wiki directory not found. Create wiki/ in the project root and add entries there.";
+        List<WikiType> types;
+        try {
+            types = wikiService.listTypes();
+        } catch (IOException e) {
+            log.error("Error listing wiki types", e);
+            return "Error reading wiki types: " + e.getMessage();
         }
 
-        List<String> allFiles;
-        try {
-            allFiles = fileService.listFiles(WIKI_DIR);
-        } catch (IOException e) {
-            log.error("Error listing wiki files", e);
-            return "Error reading wiki directory: " + e.getMessage();
+        if (types.isEmpty()) {
+            return "No wiki types found. Create wiki types and entries in the Wiki browser first.";
         }
 
         List<WikiHit> hits = new ArrayList<>();
 
-        for (String path : allFiles) {
-            if (!path.endsWith(".md")) continue;
-            if (path.endsWith("/README.md") || path.endsWith("\\README.md")) continue;
+        for (WikiType type : types) {
+            if (typeFilter != null && !typeFilter.isBlank()
+                    && !type.getId().toLowerCase().contains(typeFilter.toLowerCase())
+                    && !type.getName().toLowerCase().contains(typeFilter.toLowerCase())) {
+                continue;
+            }
 
+            List<WikiEntry> entries;
             try {
-                String content = fileService.readFile(path);
-                WikiHit hit = matchEntry(path, content, lowerQuery, lowerType);
-                if (hit != null) {
-                    hits.add(hit);
+                entries = wikiService.listEntries(type.getId());
+            } catch (IOException e) {
+                log.warn("Could not read entries for type: {}", type.getId());
+                continue;
+            }
+
+            for (WikiEntry entry : entries) {
+                if (matchesQuery(entry, lowerQuery)) {
+                    String displayName = entry.getValues() != null ? entry.getValues().get("name") : null;
+                    if (displayName == null || displayName.isBlank()) {
+                        displayName = entry.getId();
+                    }
+                    hits.add(new WikiHit(type.getId() + "/" + entry.getId(), type.getName(), displayName));
                     if (hits.size() >= limit) break;
                 }
-            } catch (IOException e) {
-                log.warn("Could not read wiki entry: {}", path);
             }
+
+            if (hits.size() >= limit) break;
         }
 
         if (hits.isEmpty()) {
             return "No wiki entries found matching '" + query + "'" +
-                    (lowerType != null ? " with type='" + typeFilter + "'" : "") + ".";
+                    (typeFilter != null && !typeFilter.isBlank() ? " with type='" + typeFilter + "'" : "") + ".";
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Found ").append(hits.size()).append(" wiki entry/entries matching '").append(query).append("':\n\n");
         for (WikiHit hit : hits) {
-            sb.append("- **").append(hit.path()).append("**");
-            if (hit.entryType() != null) sb.append(" [").append(hit.entryType()).append("]");
-            if (hit.summary() != null) sb.append("\n  ").append(hit.summary());
-            sb.append("\n");
+            sb.append("- **").append(hit.id()).append("** [").append(hit.typeName()).append("]\n");
+            sb.append("  ").append(hit.displayName()).append("\n");
         }
-        sb.append("\nUse wiki_read with the path to get the full entry.");
+        sb.append("\nUse wiki_read with the id to get the full entry.");
         return sb.toString();
     }
 
@@ -136,66 +145,13 @@ public class WikiSearchTool extends AbstractTool {
         return "Searching wiki for '" + query + "'";
     }
 
-    private WikiHit matchEntry(String path, String content, String lowerQuery, String lowerType) {
-        String fileName = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
-        String baseName = fileName.endsWith(".md") ? fileName.substring(0, fileName.length() - 3) : fileName;
-
-        String entryType = extractFrontmatterValue(content, "type");
-        String id = extractFrontmatterValue(content, "id");
-        String aliases = extractFrontmatterValue(content, "aliases");
-        String tags = extractFrontmatterValue(content, "tags");
-        String summary = extractFrontmatterValue(content, "summary");
-
-        // Type filter: skip if type doesn't match
-        if (lowerType != null && entryType != null && !entryType.toLowerCase().contains(lowerType)) {
-            return null;
+    private boolean matchesQuery(WikiEntry entry, String lowerQuery) {
+        if (entry.getId().toLowerCase().contains(lowerQuery)) return true;
+        if (entry.getValues() == null) return false;
+        for (String value : entry.getValues().values()) {
+            if (value != null && value.toLowerCase().contains(lowerQuery)) return true;
         }
-
-        // Match against id, filename, aliases, tags, summary
-        boolean matches =
-                baseName.toLowerCase().contains(lowerQuery) ||
-                (id != null && id.toLowerCase().contains(lowerQuery)) ||
-                (aliases != null && aliases.toLowerCase().contains(lowerQuery)) ||
-                (tags != null && tags.toLowerCase().contains(lowerQuery)) ||
-                (summary != null && summary.toLowerCase().contains(lowerQuery));
-
-        if (!matches) return null;
-        return new WikiHit(path, entryType, summary);
-    }
-
-    /**
-     * Extracts a single-line or folded-block value from YAML frontmatter.
-     * Handles: key: value and key: > (folded scalar, next indented line).
-     * Simple regex-free approach to avoid adding a YAML parser dependency.
-     */
-    private String extractFrontmatterValue(String content, String key) {
-        if (content == null || !content.startsWith("---")) return null;
-
-        int fmEnd = content.indexOf("\n---", 3);
-        String frontmatter = fmEnd > 0 ? content.substring(0, fmEnd) : content;
-
-        String search = "\n" + key + ":";
-        int idx = frontmatter.indexOf(search);
-        if (idx == -1) return null;
-
-        int lineStart = idx + search.length();
-        int lineEnd = frontmatter.indexOf('\n', lineStart);
-        String valuePart = lineEnd > 0
-                ? frontmatter.substring(lineStart, lineEnd).trim()
-                : frontmatter.substring(lineStart).trim();
-
-        // Folded/literal block scalar: collect next indented line(s)
-        if (valuePart.equals(">") || valuePart.equals("|")) {
-            if (lineEnd == -1) return null;
-            int nextLineStart = lineEnd + 1;
-            int nextLineEnd = frontmatter.indexOf('\n', nextLineStart);
-            String nextLine = nextLineEnd > 0
-                    ? frontmatter.substring(nextLineStart, nextLineEnd).trim()
-                    : frontmatter.substring(nextLineStart).trim();
-            return nextLine.isBlank() ? null : nextLine;
-        }
-
-        return valuePart.isBlank() ? null : valuePart;
+        return false;
     }
 
     private int parseLimit(String raw) {
@@ -208,5 +164,5 @@ public class WikiSearchTool extends AbstractTool {
         }
     }
 
-    private record WikiHit(String path, String entryType, String summary) {}
+    private record WikiHit(String id, String typeName, String displayName) {}
 }
