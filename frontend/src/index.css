@@ -382,6 +382,47 @@ body {
   color: var(--rm-text, #3c3835);
 }
 
+.editor-close-btn {
+  display: flex;
+  align-items: center;
+  padding: 3px 6px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.editor-close-btn:hover {
+  background: rgba(180, 50, 50, 0.1);
+  border-color: rgba(180, 50, 50, 0.4);
+  color: #b44;
+}
+
+.chapter-view .editor-close-btn {
+  color: var(--rm-text-muted, #6b6560);
+  border-color: var(--rm-border, #ddd8cf);
+}
+
+.chapter-view .editor-close-btn:hover {
+  background: rgba(160, 50, 50, 0.1);
+  border-color: rgba(160, 50, 50, 0.4);
+  color: #a03333;
+}
+
+.chapter-view-night .editor-close-btn {
+  color: #9a7d50;
+  border-color: rgba(223, 201, 156, 0.2);
+}
+
+.chapter-view-night .editor-close-btn:hover {
+  background: rgba(200, 80, 80, 0.15);
+  border-color: rgba(200, 80, 80, 0.4);
+  color: #c86060;
+}
+
 
 .reading-padding-control {
   display: flex;

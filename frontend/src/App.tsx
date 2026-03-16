@@ -237,6 +237,7 @@ function App() {
               onActionChange={chapter.updateActionContent}
               onActionSave={chapter.saveAction}
               onSaveAll={() => { chapter.saveAllDirty(); fetchGitState(); }}
+              onClose={chapter.closeChapter}
               onScrollTargetConsumed={chapter.clearScrollTarget}
             />
           ) : (

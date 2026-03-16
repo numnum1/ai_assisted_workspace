@@ -273,11 +273,17 @@ export function useChapter() {
     }
   }, [activeChapter, openChapter]);
 
+  const closeChapter = useCallback(() => {
+    setActiveChapter(null);
+    setActionContents(new Map());
+  }, []);
+
   return {
     chapters,
     refreshChapters,
     activeChapter,
     openChapter,
+    closeChapter,
     actionContents,
     updateActionContent,
     saveAction,

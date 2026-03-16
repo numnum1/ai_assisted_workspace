@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, MoveHorizontal } from 'lucide-react';
+import { Save, Moon, Sun, MoveHorizontal, X } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
 import type { ChapterNode, ScrollTarget } from '../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
@@ -32,6 +32,7 @@ interface ChapterViewProps {
   onActionChange: (chapterId: string, sceneId: string, actionId: string, content: string) => void;
   onActionSave: (chapterId: string, sceneId: string, actionId: string) => void;
   onSaveAll: () => void;
+  onClose: () => void;
   onScrollTargetConsumed: () => void;
 }
 
@@ -47,6 +48,7 @@ export function ChapterView({
   onActionChange,
   onActionSave,
   onSaveAll,
+  onClose,
   onScrollTargetConsumed,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
@@ -170,6 +172,13 @@ export function ChapterView({
             title="Alles speichern (Ctrl+S)"
           >
             <Save size={14} />
+          </button>
+          <button
+            className="editor-close-btn"
+            onClick={onClose}
+            title="Datei schließen"
+          >
+            <X size={14} />
           </button>
         </div>
       </div>
