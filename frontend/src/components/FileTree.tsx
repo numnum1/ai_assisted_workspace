@@ -1,20 +1,16 @@
 import { useState } from 'react';
 import { ChevronRight, ChevronDown, FileText, Folder, FolderOpen } from 'lucide-react';
 import type { FileNode } from '../types.ts';
-import type { Bookmark } from './bookmarkExtension';
-
 interface FileTreeProps {
   tree: FileNode | null;
   activeFile: string | null;
-  bookmark: Bookmark | null;
   onFileClick: (path: string) => void;
   onFileDragStart: (path: string) => void;
-  onJumpToBookmark?: () => void;
   changedPaths?: Set<string>;
   onFileContextMenu?: (path: string, x: number, y: number, isDirectory: boolean) => void;
 }
 
-export function FileTree({ tree, activeFile, bookmark, onFileClick, onFileDragStart, onJumpToBookmark, changedPaths, onFileContextMenu }: FileTreeProps) {
+export function FileTree({ tree, activeFile, onFileClick, onFileDragStart, changedPaths, onFileContextMenu }: FileTreeProps) {
   if (!tree) {
     return <div className="file-tree-empty">Shift + Ctrl + A to open a project...</div>;
   }
@@ -30,16 +26,6 @@ export function FileTree({ tree, activeFile, bookmark, onFileClick, onFileDragSt
       >
         <Folder size={14} />
         <span>{tree.name}</span>
-        {bookmark && onJumpToBookmark && (
-          <button
-            type="button"
-            className="file-tree-bookmark-link"
-            onClick={(e) => { e.stopPropagation(); onJumpToBookmark(); }}
-            title={`Zum Lesezeichen springen (${bookmark.filePath}:${bookmark.line})`}
-          >
-            Zum Lesezeichen springen
-          </button>
-        )}
       </div>
       <div className="file-tree-content">
         {tree.children?.map((child) => (
