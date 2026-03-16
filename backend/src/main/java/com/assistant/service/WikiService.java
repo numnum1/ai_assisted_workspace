@@ -163,14 +163,20 @@ public class WikiService {
             return Collections.emptyList();
         }
         List<WikiEntry> result = new ArrayList<>();
-        try (Stream<Path> files = Files.list(dir)) {
-            List<Path> sorted = files
+        try (Stream<Path> paths = Files.walk(dir)) {
+            List<Path> sorted = paths
+                    .filter(Files::isRegularFile)
                     .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+                    .sorted(Comparator.comparing(p -> dir.relativize(p).toString()))
                     .toList();
             for (Path p : sorted) {
                 String content = Files.readString(p);
-                result.add(objectMapper.readValue(content, WikiEntry.class));
+                WikiEntry entry = objectMapper.readValue(content, WikiEntry.class);
+                // Use path-based id so getEntry/updateEntry/deleteEntry can find files in subfolders
+                String relativePath = dir.relativize(p).toString().replace('\\', '/');
+                String pathBasedId = relativePath.substring(0, relativePath.length() - 5); // strip ".json"
+                entry.setId(pathBasedId);
+                result.add(entry);
             }
         }
         return result;
