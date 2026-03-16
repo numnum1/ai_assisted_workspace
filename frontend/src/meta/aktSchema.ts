@@ -5,5 +5,6 @@ export const aktSchema: MetaTypeSchema = {
   fields: [
     { key: 'title', label: 'Titel', type: 'input', placeholder: 'Titel...', defaultValue: '' },
     { key: 'description', label: 'Beschreibung', type: 'textarea', placeholder: 'Beschreibung...', defaultValue: '' },
+    { key: 'location', label: 'Lokation', type: 'input', placeholder: 'Lokation...', defaultValue: '' },
   ],
 };
