@@ -52,11 +52,11 @@ export function createReadingTheme(overrides: Partial<ReadingThemeConfig> = {}):
 
   const theme = EditorView.theme({
     '&': {
-      height: '100%',
+      height: 'auto',
       backgroundColor: cfg.backgroundColor,
     },
     '.cm-scroller': {
-      overflow: 'auto',
+      overflow: 'visible',
       display: 'flex',
       justifyContent: 'center',
     },

@@ -71,3 +71,36 @@ export interface ProjectConfig {
   alwaysInclude: string[];
   globalRules: string[];
 }
+
+export interface NodeMeta {
+  title: string;
+  description: string;
+  sortOrder: number;
+}
+
+export interface ChapterSummary {
+  id: string;
+  meta: NodeMeta;
+}
+
+export interface ActionNode {
+  id: string;
+  meta: NodeMeta;
+}
+
+export interface SceneNode {
+  id: string;
+  meta: NodeMeta;
+  actions: ActionNode[];
+}
+
+export interface ChapterNode {
+  id: string;
+  meta: NodeMeta;
+  scenes: SceneNode[];
+}
+
+export interface ScrollTarget {
+  sceneId?: string;
+  actionId?: string;
+}

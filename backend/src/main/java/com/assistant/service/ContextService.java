@@ -64,6 +64,11 @@ public class ContextService {
         // Deduplicate
         Set<String> seen = new LinkedHashSet<>(alwaysInclude);
 
+        // TODO: inject chapter metadata as AI context
+        // Replace the project file listing below with a structured summary of chapters/scenes/actions
+        // using ChapterService.listChapters() and ChapterService.getChapter() so the AI understands
+        // the narrative structure without reading full .md content.
+
         // Build project file listing
         systemPrompt.append("=== Project Files ===\n");
         try {

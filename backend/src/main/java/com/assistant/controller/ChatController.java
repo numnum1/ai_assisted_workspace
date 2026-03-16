@@ -38,6 +38,10 @@ public class ChatController {
         this.toolExecutor = toolExecutor;
     }
 
+    // TODO: reconnect to chapter structure
+    // The ChatRequest currently receives activeFile: null from the frontend.
+    // When ContextService is updated to inject chapter metadata, wire the active chapter ID
+    // through ChatRequest so ContextService can load the correct chapter context.
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request) {
         AssembledContext context = contextService.assemble(request);

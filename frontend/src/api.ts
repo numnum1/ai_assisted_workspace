@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta } from './types.ts';
 
 const BASE = '/api';
 
@@ -126,6 +126,40 @@ export const gitApi = {
     get<{ path: string; hash: string; content: string; exists: boolean }>(
       `/git/file-at-commit?path=${encodeURIComponent(path)}&hash=${encodeURIComponent(hash)}`
     ),
+};
+
+export const chapterApi = {
+  list: () => get<ChapterSummary[]>('/chapters'),
+  getStructure: (id: string) => get<ChapterNode>(`/chapters/${id}`),
+  create: (title: string) => post<ChapterSummary>('/chapters', { title }),
+  updateMeta: (chapterId: string, meta: NodeMeta) =>
+    put<{ status: string }>(`/chapters/${chapterId}/meta`, meta),
+  delete: (chapterId: string) =>
+    del<{ status: string }>(`/chapters/${chapterId}`),
+
+  createScene: (chapterId: string, title: string) =>
+    post<SceneNode>(`/chapters/${chapterId}/scenes`, { title }),
+  updateSceneMeta: (chapterId: string, sceneId: string, meta: NodeMeta) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/meta`, meta),
+  deleteScene: (chapterId: string, sceneId: string) =>
+    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}`),
+
+  createAction: (chapterId: string, sceneId: string, title: string) =>
+    post<ActionNode>(`/chapters/${chapterId}/scenes/${sceneId}/actions`, { title }),
+  updateActionMeta: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/meta`, meta),
+  deleteAction: (chapterId: string, sceneId: string, actionId: string) =>
+    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}`),
+
+  getActionContent: (chapterId: string, sceneId: string, actionId: string) =>
+    get<{ content: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content`),
+  saveActionContent: (chapterId: string, sceneId: string, actionId: string, content: string) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content`, { content }),
+
+  reorderScenes: (chapterId: string, ids: string[]) =>
+    put<{ status: string }>(`/chapters/${chapterId}/reorder`, { ids }),
+  reorderActions: (chapterId: string, sceneId: string, ids: string[]) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/reorder`, { ids }),
 };
 
 export function streamChat(

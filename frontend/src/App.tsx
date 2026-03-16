@@ -1,12 +1,11 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
 import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw } from 'lucide-react';
-import { FileTree } from './components/FileTree.tsx';
-import { Editor } from './components/Editor.tsx';
+import { Outliner } from './components/Outliner.tsx';
+import { ChapterView } from './components/ChapterView.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
-import { FileHistoryModal } from './components/FileHistoryModal.tsx';
 import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
@@ -14,12 +13,14 @@ import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
 import { modesApi, gitApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
+import { useChapter } from './hooks/useChapter.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
 import { useChatHistory } from './hooks/useChatHistory.ts';
 
 function App() {
   const project = useProject();
+  const chapter = useChapter();
   const refs = useReferencedFiles();
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
@@ -27,12 +28,19 @@ function App() {
   const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages);
 
+  // Load chapter list when project opens
+  useEffect(() => {
+    if (project.projectPath) {
+      chapter.refreshChapters();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.projectPath]);
+
   // Load messages when switching conversations
   useEffect(() => {
     if (history.activeConversation) {
       chat.loadMessages(history.activeConversation.messages);
     }
-    // Only react to activeId changes, not the conversation object itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
 
@@ -46,8 +54,6 @@ function App() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ path: string; x: number; y: number; isDirectory: boolean } | null>(null);
-  const [historyFile, setHistoryFile] = useState<string | null>(null);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
@@ -71,7 +77,6 @@ function App() {
       if (err instanceof AuthRequiredError) {
         showCredentialsDialog(fetchGitState);
       }
-      // silently ignore other errors (no repo, no remote)
     }
   }, [showCredentialsDialog]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -87,22 +92,10 @@ function App() {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
-      if (e.key === 'Escape') {
-        setContextMenu(null);
-      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
-
-  const changedPaths = useMemo(() => new Set([
-    ...(gitStatus?.modified ?? []),
-    ...(gitStatus?.added ?? []),
-    ...(gitStatus?.removed ?? []),
-    ...(gitStatus?.untracked ?? []),
-    ...(gitStatus?.changed ?? []),
-    ...(gitStatus?.missing ?? []),
-  ]), [gitStatus]);
 
   const syncBadge = useMemo(() => {
     if (!syncStatus) return null;
@@ -159,20 +152,15 @@ function App() {
 
   const handleOpenProject = useCallback(async (path: string) => {
     await project.openProject(path);
+    await chapter.refreshChapters();
     loadModes();
-  }, [project, loadModes]);
-
-  const handleFileDragStart = useCallback((_path: string) => {
-    // Visual feedback could be added here
-  }, []);
-
-  const handleFileContextMenu = useCallback((path: string, x: number, y: number, isDirectory: boolean) => {
-    setContextMenu({ path, x, y, isDirectory });
-  }, []);
+  }, [project, chapter, loadModes]);
 
   const handleSendMessage = useCallback(
     (message: string) => {
       const mode = modes.find((m) => m.id === selectedMode);
+      // TODO: reconnect to chapter structure — pass active chapter/scene/action metadata as context
+      // Currently sending null as activeFile; replace with chapter context when ContextService is updated
       chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color);
     },
     [chat, selectedMode, modes, refs.referencedFiles],
@@ -190,8 +178,10 @@ function App() {
     chat.clearChat();
   }, [chat]);
 
+  const activeChapterTitle = chapter.activeChapter?.meta.title ?? null;
+
   return (
-    <div className="app" onClick={() => setContextMenu(null)}>
+    <div className="app">
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -204,27 +194,56 @@ function App() {
 
       <Group direction="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="50%">
-          <FileTree
-            tree={project.fileTree}
-            activeFile={project.openFilePath}
-            onFileClick={project.openFile}
-            onFileDragStart={handleFileDragStart}
-            changedPaths={changedPaths}
-            onFileContextMenu={handleFileContextMenu}
+          <Outliner
+            chapters={chapter.chapters}
+            activeChapter={chapter.activeChapter}
+            scrollTarget={chapter.scrollTarget}
+            onOpenChapter={chapter.openChapter}
+            onScrollTo={chapter.scrollTo}
+            onCreateChapter={chapter.createChapter}
+            onDeleteChapter={chapter.deleteChapter}
+            onRenameChapter={(id, title) => {
+              const current = chapter.chapters.find(c => c.id === id)?.meta;
+              if (current) chapter.updateChapterMeta(id, { ...current, title });
+            }}
+            onCreateScene={chapter.createScene}
+            onDeleteScene={chapter.deleteScene}
+            onRenameScene={(chapterId, sceneId, title) => {
+              const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
+              if (scene) chapter.updateSceneMeta(chapterId, sceneId, { ...scene.meta, title });
+            }}
+            onCreateAction={chapter.createAction}
+            onDeleteAction={chapter.deleteAction}
+            onRenameAction={(chapterId, sceneId, actionId, title) => {
+              const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
+              const action = scene?.actions.find(a => a.id === actionId);
+              if (action) chapter.updateActionMeta(chapterId, sceneId, actionId, { ...action.meta, title });
+            }}
+            onReorderScenes={chapter.reorderScenes}
+            onReorderActions={chapter.reorderActions}
           />
         </Panel>
 
         <Separator className="resize-handle" />
 
         <Panel defaultSize="45%" minSize="15%">
-          <Editor
-            content={project.fileContent}
-            filePath={project.openFilePath}
-            projectPath={project.projectPath}
-            isDirty={project.isDirty}
-            onChange={project.updateContent}
-            onSave={async () => { await project.saveFile(); fetchGitState(); }}
-          />
+          {chapter.activeChapter ? (
+            <ChapterView
+              chapter={chapter.activeChapter}
+              actionContents={chapter.actionContents}
+              scrollTarget={chapter.scrollTarget}
+              hasDirtyActions={chapter.hasDirtyActions}
+              onActionChange={chapter.updateActionContent}
+              onActionSave={chapter.saveAction}
+              onSaveAll={() => { chapter.saveAllDirty(); fetchGitState(); }}
+              onScrollTargetConsumed={chapter.clearScrollTarget}
+            />
+          ) : (
+            <div className="editor-empty">
+              <ChapterPlaceholder />
+              <p>Kapitel im Outliner auswählen oder ein neues erstellen</p>
+            </div>
+          )}
         </Panel>
 
         <Separator className="resize-handle" />
@@ -257,160 +276,9 @@ function App() {
 
       <ContextBar
         contextInfo={chat.contextInfo}
-        activeFile={project.openFilePath}
-        isDirty={project.isDirty}
+        activeFile={activeChapterTitle}
+        isDirty={chapter.hasDirtyActions}
       />
-
-      {contextMenu && (
-        <div
-          className="tree-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {contextMenu.isDirectory ? (
-            <>
-              <div
-                className="tree-context-menu-item"
-                onClick={async () => {
-                  const parentPath = contextMenu.path;
-                  const name = window.prompt('Dateiname:');
-                  setContextMenu(null);
-                  if (name != null && name.trim() !== '') {
-                    try {
-                      const newPath = await project.createFile(parentPath, name.trim());
-                      project.openFile(newPath);
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Create file failed:', err);
-                      alert(err instanceof Error ? err.message : 'Datei konnte nicht erstellt werden.');
-                    }
-                  }
-                }}
-              >
-                Neue Datei
-              </div>
-              <div
-                className="tree-context-menu-item"
-                onClick={async () => {
-                  const parentPath = contextMenu.path;
-                  const name = window.prompt('Ordnername:');
-                  setContextMenu(null);
-                  if (name != null && name.trim() !== '') {
-                    try {
-                      await project.createFolder(parentPath, name.trim());
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Create folder failed:', err);
-                      alert(err instanceof Error ? err.message : 'Ordner konnte nicht erstellt werden.');
-                    }
-                  }
-                }}
-              >
-                Neuer Ordner
-              </div>
-              {contextMenu.path !== '.' && (
-                <div
-                  className="tree-context-menu-item"
-                  onClick={async () => {
-                    const path = contextMenu.path;
-                    const currentName = path.split('/').pop() ?? path;
-                    const newName = window.prompt('Neuer Ordnername:', currentName);
-                    setContextMenu(null);
-                    if (newName != null && newName.trim() !== '' && newName !== currentName) {
-                      try {
-                        await project.renamePath(path, newName.trim());
-                        fetchGitState();
-                      } catch (err) {
-                        console.error('Rename failed:', err);
-                        alert(err instanceof Error ? err.message : 'Ordner konnte nicht umbenannt werden.');
-                      }
-                    }
-                  }}
-                >
-                  Umbenennen
-                </div>
-              )}
-              {contextMenu.path !== '.' && (
-                <div
-                  className="tree-context-menu-item tree-context-menu-item-danger"
-                  onClick={async () => {
-                    const path = contextMenu.path;
-                    setContextMenu(null);
-                    if (window.confirm(`Ordner "${path}" und alle Inhalte wirklich löschen?`)) {
-                      try {
-                        await project.deleteFile(path);
-                        fetchGitState();
-                      } catch (err) {
-                        console.error('Delete failed:', err);
-                        alert(err instanceof Error ? err.message : 'Ordner konnte nicht gelöscht werden.');
-                      }
-                    }
-                  }}
-                >
-                  Löschen
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div
-                className="tree-context-menu-item"
-                onClick={() => {
-                  setHistoryFile(contextMenu.path);
-                  setContextMenu(null);
-                }}
-              >
-                Show History
-              </div>
-              <div
-                className="tree-context-menu-item"
-                onClick={async () => {
-                  const path = contextMenu.path;
-                  const currentName = path.split('/').pop() ?? path;
-                  const newName = window.prompt('Neuer Dateiname:', currentName);
-                  setContextMenu(null);
-                  if (newName != null && newName.trim() !== '' && newName !== currentName) {
-                    try {
-                      await project.renamePath(path, newName.trim());
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Rename failed:', err);
-                      alert(err instanceof Error ? err.message : 'Datei konnte nicht umbenannt werden.');
-                    }
-                  }
-                }}
-              >
-                Umbenennen
-              </div>
-              <div
-                className="tree-context-menu-item tree-context-menu-item-danger"
-                onClick={async () => {
-                  const path = contextMenu.path;
-                  setContextMenu(null);
-                  if (window.confirm(`Datei "${path}" wirklich löschen?`)) {
-                    try {
-                      await project.deleteFile(path);
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Delete failed:', err);
-                      alert(err instanceof Error ? err.message : 'Datei konnte nicht gelöscht werden.');
-                    }
-                  }
-                }}
-              >
-                Löschen
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {historyFile && (
-        <FileHistoryModal
-          filePath={historyFile}
-          onClose={() => setHistoryFile(null)}
-        />
-      )}
 
       {credDialogOpen && (
         <GitCredentialsDialog
@@ -433,6 +301,16 @@ function App() {
         />
       )}
     </div>
+  );
+}
+
+function ChapterPlaceholder() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3 }}>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+    </svg>
   );
 }
 
