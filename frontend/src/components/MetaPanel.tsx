@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Save, X } from 'lucide-react';
 import type { MetaSelection, NodeMeta, MetaNodeType } from '../types.ts';
 import { metaSchemas } from '../meta/index.ts';
+import { fieldTypeRegistry } from '../meta/fieldTypes/index.ts';
 
 interface MetaPanelProps {
   selection: MetaSelection;
@@ -73,28 +74,20 @@ export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
       </div>
 
       <div className="meta-panel-body">
-        {schema.fields.map(field => (
-          <div key={field.key} className="meta-field">
-            <label className="meta-field-label">{field.label}</label>
-            {field.type === 'textarea' ? (
-              <textarea
-                className="meta-field-textarea"
+        {schema.fields.map(field => {
+          const Renderer = fieldTypeRegistry[field.type] ?? fieldTypeRegistry['input'];
+          return (
+            <div key={field.key} className="meta-field">
+              <label className="meta-field-label">{field.label}</label>
+              <Renderer
+                field={field}
                 value={values[field.key] ?? ''}
-                onChange={e => handleChange(field.key, e.target.value)}
-                placeholder={field.placeholder}
-                rows={4}
+                onChange={v => handleChange(field.key, v)}
+                onCommit={handleSave}
               />
-            ) : (
-              <input
-                className="meta-field-input"
-                value={values[field.key] ?? ''}
-                onChange={e => handleChange(field.key, e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
-                placeholder={field.placeholder}
-              />
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
 
         {dirty && (
           <button className="meta-panel-save-full-btn" onClick={handleSave}>
