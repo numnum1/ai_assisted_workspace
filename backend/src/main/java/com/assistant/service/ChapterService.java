@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 @Service
 public class ChapterService {
 
-    private static final String CHAPTERS_DIR = "chapter";
+    private static final String CHAPTERS_DIR = ".project/chapter";
 
     private final FileService fileService;
     private final ObjectMapper objectMapper;
