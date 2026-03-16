@@ -77,22 +77,22 @@ export const wikiTypePresets: WikiTypePreset[] = [
       {
         key: 'aussehen',
         label: 'Aussehen',
-        type: 'textarea',
-        placeholder: 'Körperbau, Haare, Augen, Kleidung, markante Merkmale...',
+        type: 'wikitextarea',
+        placeholder: 'Körperbau, Haare, Augen, Kleidung, markante Merkmale... (@Name für Wiki-Links)',
         defaultValue: '',
       },
       {
         key: 'persoenlichkeit',
         label: 'Persönlichkeit',
-        type: 'textarea',
-        placeholder: 'Kernzüge, Verhalten, Stärken, Schwächen...',
+        type: 'wikitextarea',
+        placeholder: 'Kernzüge, Verhalten, Stärken, Schwächen... (@Name für Wiki-Links)',
         defaultValue: '',
       },
       {
         key: 'motivation',
         label: 'Motivation / Ziel',
-        type: 'textarea',
-        placeholder: 'Was will der Charakter und warum?',
+        type: 'wikitextarea',
+        placeholder: 'Was will der Charakter und warum? (@Name für Wiki-Links)',
         defaultValue: '',
       },
       // ── Story-Kontext ─────────────────────────────────────────────────────────
@@ -114,19 +114,19 @@ export const wikiTypePresets: WikiTypePreset[] = [
       {
         key: 'namenskonvention',
         label: 'Namenskonvention',
-        type: 'textarea',
+        type: 'wikitextarea',
         placeholder:
           'Wie wird der Charakter in verschiedenen Kontexten angesprochen?\n' +
-          'z.B. POV: "Heia" | Erzähler: "Lady Valdren" | Formal: "Gräfin Valdren"',
+          'z.B. POV: "Heia" | Erzähler: "Lady Valdren" | Formal: "Gräfin Valdren" (@Name für Wiki-Links)',
         defaultValue: '',
       },
       {
         key: 'ki_hinweise',
         label: 'Hinweise für KI',
-        type: 'textarea',
+        type: 'wikitextarea',
         placeholder:
           'Wichtige Regeln für Konsistenz, Dinge die vermieden werden sollen, ' +
-          'Tonalität, Besonderheiten...',
+          'Tonalität, Besonderheiten... (@Name für Wiki-Links)',
         defaultValue: '',
       },
     ] satisfies WikiFieldDef[],

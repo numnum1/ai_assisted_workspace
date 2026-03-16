@@ -102,12 +102,11 @@ export function WikiTypeEditor({ type, onSave, onClose }: WikiTypeEditorProps) {
                 />
                 <select
                   className="wiki-type-editor-field-type"
-                  value={field.type}
+                  value={field.type === 'textarea' ? 'wikitextarea' : field.type}
                   onChange={e => handleFieldTypeChange(idx, e.target.value)}
                 >
                   <option value="input">Einzeilig</option>
-                  <option value="textarea">Mehrzeilig</option>
-                  <option value="wikitextarea">Fließtext (Wiki-Links)</option>
+                  <option value="wikitextarea">Fließtext (mit Wiki-Links)</option>
                 </select>
                 <button
                   className="wiki-type-editor-field-delete"
