@@ -124,6 +124,7 @@ export interface WikiFieldDef {
   type: string;
   placeholder?: string;
   defaultValue: string;
+  config?: Record<string, unknown>;
 }
 
 export interface WikiType {

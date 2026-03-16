@@ -107,6 +107,7 @@ export function WikiTypeEditor({ type, onSave, onClose }: WikiTypeEditorProps) {
                 >
                   <option value="input">Einzeilig</option>
                   <option value="textarea">Mehrzeilig</option>
+                  <option value="wikitextarea">Fließtext (Wiki-Links)</option>
                 </select>
                 <button
                   className="wiki-type-editor-field-delete"

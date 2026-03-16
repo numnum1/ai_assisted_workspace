@@ -18,6 +18,7 @@ function wikiTypeToSchema(editing: EditingWikiEntry): MetaTypeSchema {
       type: f.type,
       placeholder: f.placeholder,
       defaultValue: f.defaultValue,
+      config: f.config,
     })),
   };
 }

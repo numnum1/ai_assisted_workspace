@@ -99,15 +99,15 @@ export const wikiTypePresets: WikiTypePreset[] = [
       {
         key: 'hintergrund',
         label: 'Hintergrund',
-        type: 'textarea',
-        placeholder: 'Vorgeschichte, relevante Ereignisse...',
+        type: 'wikitextarea',
+        placeholder: 'Vorgeschichte, relevante Ereignisse... (@Name für Wiki-Links)',
         defaultValue: '',
       },
       {
         key: 'beziehungen',
         label: 'Wichtige Beziehungen',
-        type: 'textarea',
-        placeholder: 'Name – Beziehungsart (z.B. Nils – Verlobter/Werkzeug)...',
+        type: 'wikitextarea',
+        placeholder: 'z.B. Mitglied von @[Morningstar], aufgewachsen in @[E-Rantel]...',
         defaultValue: '',
       },
       // ── KI-Hilfsfelder ────────────────────────────────────────────────────────
