@@ -35,6 +35,7 @@ interface ChapterViewProps {
   onSaveAll: () => void;
   onClose: () => void;
   onScrollTargetConsumed: () => void;
+  onEditorFocus?: (sceneId: string, actionId: string) => void;
 }
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
@@ -51,6 +52,7 @@ export function ChapterView({
   onSaveAll,
   onClose,
   onScrollTargetConsumed,
+  onEditorFocus,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -256,6 +258,7 @@ export function ChapterView({
                     key={action.id}
                     ref={el => registerRef(`action-${action.id}`, el)}
                     className="action-block"
+                    onFocus={() => onEditorFocus?.(scene.id, action.id)}
                   >
                     <ActionEditor
                       actionId={`${chapter.id}-${scene.id}-${action.id}`}

@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronDown, BookOpen, Layers, AlignLeft, FolderOpen } from 'lucide-react';
-import type { ChapterSummary, ChapterNode, ScrollTarget, MetaSelection } from '../types.ts';
+import type { ChapterSummary, ChapterNode, MetaSelection } from '../types.ts';
 
 interface OutlinerProps {
   chapters: ChapterSummary[];
   activeChapter: ChapterNode | null;
-  scrollTarget: ScrollTarget | null;
+  editorPosition: { chapterId: string; sceneId?: string; actionId?: string } | null;
   onOpenChapter: (id: string) => void;
   onScrollTo: (target: ScrollTarget) => void;
   onRevealInExplorer: () => void;
@@ -43,7 +43,7 @@ type RenameState = {
 export function Outliner({
   chapters,
   activeChapter,
-  scrollTarget,
+  editorPosition,
   onOpenChapter,
   onScrollTo,
   onCreateChapter,
@@ -68,8 +68,31 @@ export function Outliner({
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   // Active node key for highlighting
-  const activeSceneId = scrollTarget?.sceneId;
-  const activeActionId = scrollTarget?.actionId;
+  const activeSceneId = editorPosition?.sceneId;
+  const activeActionId = editorPosition?.actionId;
+
+  // Auto-expand chapter when it becomes active
+  useEffect(() => {
+    if (!editorPosition?.chapterId) return;
+    setExpandedChapters(prev => {
+      if (prev.has(editorPosition.chapterId)) return prev;
+      const next = new Set(prev);
+      next.add(editorPosition.chapterId);
+      return next;
+    });
+  }, [editorPosition?.chapterId]);
+
+  // Auto-expand scene when it becomes active
+  useEffect(() => {
+    if (!activeChapter || !editorPosition?.sceneId) return;
+    const sceneKey = `${activeChapter.id}-${editorPosition.sceneId}`;
+    setExpandedScenes(prev => {
+      if (prev.has(sceneKey)) return prev;
+      const next = new Set(prev);
+      next.add(sceneKey);
+      return next;
+    });
+  }, [editorPosition?.sceneId, activeChapter?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus rename input when it opens
   useEffect(() => {
@@ -211,9 +234,11 @@ export function Outliner({
 
       <div className="outliner-content">
         {chapters.map(chapter => {
-          const isActiveChapter = activeChapter?.id === chapter.id;
+          const isOpenChapter = activeChapter?.id === chapter.id;
+          // Only highlight the deepest active node — chapter only if no scene/action is active
+          const isActiveChapter = isOpenChapter && !activeSceneId && !activeActionId;
           const isExpanded = expandedChapters.has(chapter.id);
-          const chapterData = isActiveChapter ? activeChapter : null;
+          const chapterData = isOpenChapter ? activeChapter : null;
 
           return (
             <div key={chapter.id}>
@@ -256,7 +281,7 @@ export function Outliner({
 
               {isExpanded && chapterData && chapterData.scenes.map(scene => {
                 const sceneKey = `${chapter.id}-${scene.id}`;
-                const isActiveScene = isActiveChapter && activeSceneId === scene.id && !activeActionId;
+                const isActiveScene = isOpenChapter && activeSceneId === scene.id;
                 const isSceneExpanded = expandedScenes.has(sceneKey);
 
                 return (
@@ -300,7 +325,7 @@ export function Outliner({
                     </div>
 
                     {isSceneExpanded && scene.actions.map(action => {
-                      const isActiveAction = isActiveChapter && activeActionId === action.id;
+                      const isActiveAction = false;
                       return (
                         <div
                           key={action.id}

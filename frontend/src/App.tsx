@@ -230,7 +230,7 @@ function App() {
               <Outliner
                 chapters={chapter.chapters}
                 activeChapter={chapter.activeChapter}
-                scrollTarget={chapter.scrollTarget}
+                editorPosition={chapter.editorPosition}
                 onOpenChapter={chapter.openChapter}
                 onScrollTo={chapter.scrollTo}
                 onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
@@ -285,6 +285,7 @@ function App() {
               onSaveAll={() => { chapter.saveAllDirty(); fetchGitState(); }}
               onClose={chapter.closeChapter}
               onScrollTargetConsumed={chapter.clearScrollTarget}
+              onEditorFocus={chapter.updateEditorPosition}
             />
           ) : (
             <div className="editor-empty">

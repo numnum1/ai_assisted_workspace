@@ -25,6 +25,7 @@ export function useChapter() {
   const [activeChapter, setActiveChapter] = useState<ChapterNode | null>(null);
   const [actionContents, setActionContents] = useState<Map<string, ActionContentEntry>>(new Map());
   const [scrollTarget, setScrollTarget] = useState<ScrollTarget | null>(null);
+  const [editorPosition, setEditorPosition] = useState<{ chapterId: string; sceneId?: string; actionId?: string } | null>(null);
 
   const projectPathRef = useRef('');
   const lastPositionRef = useRef<{ chapterId: string; sceneId?: string; actionId?: string } | null>(null);
@@ -98,6 +99,7 @@ export function useChapter() {
       // Set both atomically in one render — editors mount with correct content from the start
       setActiveChapter(chapter);
       setActionContents(new Map(entries));
+      setEditorPosition({ chapterId: id, sceneId: initialScrollTarget?.sceneId, actionId: initialScrollTarget?.actionId });
       if (initialScrollTarget) setScrollTarget(initialScrollTarget);
     } catch (err) {
       console.error('Failed to open chapter:', err);
@@ -162,8 +164,17 @@ export function useChapter() {
 
   const scrollTo = useCallback((target: ScrollTarget) => {
     setScrollTarget(target);
+    setEditorPosition(prev => prev ? { chapterId: prev.chapterId, ...target } : null);
     if (lastPositionRef.current) {
       lastPositionRef.current = { chapterId: lastPositionRef.current.chapterId, ...target };
+      persistPosition();
+    }
+  }, [persistPosition]);
+
+  const updateEditorPosition = useCallback((sceneId: string, actionId: string) => {
+    setEditorPosition(prev => prev ? { chapterId: prev.chapterId, sceneId, actionId } : null);
+    if (lastPositionRef.current) {
+      lastPositionRef.current = { chapterId: lastPositionRef.current.chapterId, sceneId, actionId };
       persistPosition();
     }
   }, [persistPosition]);
@@ -345,6 +356,8 @@ export function useChapter() {
     scrollTarget,
     scrollTo,
     clearScrollTarget,
+    editorPosition,
+    updateEditorPosition,
     createChapter,
     deleteChapter,
     updateChapterMeta,
