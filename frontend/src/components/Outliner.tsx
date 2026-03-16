@@ -67,13 +67,6 @@ export function Outliner({
   const activeSceneId = scrollTarget?.sceneId;
   const activeActionId = scrollTarget?.actionId;
 
-  // Expand chapter when it becomes active
-  useEffect(() => {
-    if (activeChapter) {
-      setExpandedChapters(prev => new Set([...prev, activeChapter.id]));
-    }
-  }, [activeChapter]);
-
   // Focus rename input when it opens
   useEffect(() => {
     if (renameState && renameInputRef.current) {
@@ -106,21 +99,16 @@ export function Outliner({
     });
   }, []);
 
-  const handleChapterClick = useCallback((id: string) => {
-    if (activeChapter?.id !== id) {
-      onOpenChapter(id);
-    }
-    toggleChapter(id);
-  }, [activeChapter, onOpenChapter, toggleChapter]);
+  const handleChapterLabelClick = useCallback((id: string) => {
+    onOpenChapter(id);
+  }, [onOpenChapter]);
 
-  const handleSceneClick = useCallback((chapterId: string, sceneId: string) => {
+  const handleSceneLabelClick = useCallback((chapterId: string, sceneId: string) => {
     if (activeChapter?.id !== chapterId) {
       onOpenChapter(chapterId);
     }
     onScrollTo({ sceneId });
-    const key = `${chapterId}-${sceneId}`;
-    toggleScene(key);
-  }, [activeChapter, onOpenChapter, onScrollTo, toggleScene]);
+  }, [activeChapter, onOpenChapter, onScrollTo]);
 
   const handleActionClick = useCallback((chapterId: string, sceneId: string, actionId: string) => {
     if (activeChapter?.id !== chapterId) {
@@ -218,14 +206,20 @@ export function Outliner({
             <div key={chapter.id}>
               <div
                 className={`outliner-node outliner-chapter${isActiveChapter ? ' active' : ''}`}
-                onClick={() => handleChapterClick(chapter.id)}
                 onContextMenu={e => openContextMenu(e, { type: 'chapter', chapterId: chapter.id })}
                 title={chapter.meta.title}
               >
-                <span className="outliner-arrow">
+                <span
+                  className="outliner-arrow outliner-arrow-btn"
+                  onClick={e => { e.stopPropagation(); toggleChapter(chapter.id); }}
+                >
                   {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </span>
-                <BookOpen size={13} className="outliner-type-icon" />
+                <BookOpen
+                  size={13}
+                  className="outliner-type-icon outliner-clickable"
+                  onClick={() => handleChapterLabelClick(chapter.id)}
+                />
                 {renameState?.type === 'chapter' && renameState.chapterId === chapter.id ? (
                   <input
                     ref={renameInputRef}
@@ -240,7 +234,10 @@ export function Outliner({
                     onClick={e => e.stopPropagation()}
                   />
                 ) : (
-                  <span className="outliner-label">{chapter.meta.title}</span>
+                  <span
+                    className="outliner-label outliner-clickable"
+                    onClick={() => handleChapterLabelClick(chapter.id)}
+                  >{chapter.meta.title}</span>
                 )}
               </div>
 
@@ -254,14 +251,20 @@ export function Outliner({
                     <div
                       className={`outliner-node outliner-scene${isActiveScene ? ' active' : ''}`}
                       style={{ paddingLeft: '20px' }}
-                      onClick={() => handleSceneClick(chapter.id, scene.id)}
                       onContextMenu={e => openContextMenu(e, { type: 'scene', chapterId: chapter.id, sceneId: scene.id })}
                       title={scene.meta.title}
                     >
-                      <span className="outliner-arrow">
+                      <span
+                        className="outliner-arrow outliner-arrow-btn"
+                        onClick={e => { e.stopPropagation(); toggleScene(`${chapter.id}-${scene.id}`); }}
+                      >
                         {isSceneExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                       </span>
-                      <Layers size={12} className="outliner-type-icon" />
+                      <Layers
+                        size={12}
+                        className="outliner-type-icon outliner-clickable"
+                        onClick={() => handleSceneLabelClick(chapter.id, scene.id)}
+                      />
                       {renameState?.type === 'scene' && renameState.sceneId === scene.id ? (
                         <input
                           ref={renameInputRef}
@@ -276,7 +279,10 @@ export function Outliner({
                           onClick={e => e.stopPropagation()}
                         />
                       ) : (
-                        <span className="outliner-label">{scene.meta.title}</span>
+                        <span
+                          className="outliner-label outliner-clickable"
+                          onClick={() => handleSceneLabelClick(chapter.id, scene.id)}
+                        >{scene.meta.title}</span>
                       )}
                     </div>
 

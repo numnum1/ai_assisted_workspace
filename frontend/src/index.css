@@ -141,6 +141,21 @@ body {
   color: var(--text-muted);
 }
 
+.outliner-arrow-btn {
+  padding: 2px 3px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.outliner-arrow-btn:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.outliner-clickable {
+  cursor: pointer;
+}
+
 .outliner-type-icon {
   display: flex;
   align-items: center;
