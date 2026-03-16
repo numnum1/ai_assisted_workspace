@@ -56,6 +56,12 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         }
         return;
       }
+
+      // HTML comments: <!-- ... --> block and inline
+      if (node.name === 'CommentBlock' || node.name === 'Comment') {
+        builder.add(node.from, node.to, hidden);
+        return false;
+      }
     },
   });
 
