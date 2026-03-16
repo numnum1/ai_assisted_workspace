@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, MoveHorizontal, X } from 'lucide-react';
+import { Save, Moon, Sun, MoveHorizontal, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
 import type { ChapterNode, ScrollTarget } from '../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
@@ -7,6 +7,7 @@ import type { ActionEditorColors } from './ActionEditor';
 const FONT_SIZE_KEY = 'reading-font-size';
 const PADDING_KEY = 'reading-padding';
 const NIGHT_MODE_KEY = 'reading-night-mode';
+const COLLAPSED_SCENES_KEY = 'chapter-collapsed-scenes';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 64;
 
@@ -65,10 +66,36 @@ export function ChapterView({
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [collapsedScenes, setCollapsedScenes] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`${COLLAPSED_SCENES_KEY}-${chapter.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[];
+        return new Set(parsed);
+      }
+    } catch {
+      /* ignore */
+    }
+    return new Set();
+  });
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const colors = nightMode ? NIGHT_COLORS : DAY_COLORS;
+
+  const toggleSceneCollapsed = useCallback((sceneId: string) => {
+    setCollapsedScenes(prev => {
+      const next = new Set(prev);
+      if (next.has(sceneId)) next.delete(sceneId);
+      else next.add(sceneId);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(`${COLLAPSED_SCENES_KEY}-${chapter.id}`, JSON.stringify([...collapsedScenes]));
+  }, [chapter.id, collapsedScenes]);
 
   const registerRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) {
@@ -196,44 +223,55 @@ export function ChapterView({
           <span className="section-separator-line" style={{ borderColor: mutedText }} />
         </div>
 
-        {chapter.scenes.map(scene => (
-          <div key={scene.id} className="scene-block">
-            <div
-              ref={el => registerRef(`scene-${scene.id}`, el)}
-              className="section-separator scene-heading"
-              style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
-            >
-              <span className="section-separator-line" style={{ borderColor: mutedText }} />
-              <span className="section-separator-title" style={{ color: colors.text }}>
-                {scene.meta.title || scene.id}
-              </span>
-              <span className="section-separator-line" style={{ borderColor: mutedText }} />
-            </div>
+        {chapter.scenes.map(scene => {
+          const isCollapsed = collapsedScenes.has(scene.id);
+          return (
+            <div key={scene.id} className="scene-block">
+              <div
+                ref={el => registerRef(`scene-${scene.id}`, el)}
+                className="section-separator scene-heading scene-heading-clickable"
+                style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
+                role="button"
+                tabIndex={0}
+                onClick={() => toggleSceneCollapsed(scene.id)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSceneCollapsed(scene.id); } }}
+                title={isCollapsed ? 'Szene einblenden' : 'Szene ausblenden'}
+              >
+                <span className="scene-heading-chevron" style={{ color: mutedText }}>
+                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                </span>
+                <span className="section-separator-line" style={{ borderColor: mutedText }} />
+                <span className="section-separator-title" style={{ color: colors.text }}>
+                  {scene.meta.title || scene.id}
+                </span>
+                <span className="section-separator-line" style={{ borderColor: mutedText }} />
+              </div>
 
-            {scene.actions.map(action => {
-              const key = actionKey(chapter.id, scene.id, action.id);
-              const entry = actionContents.get(key);
-              const content = entry?.content ?? '';
-              return (
-                <div
-                  key={action.id}
-                  ref={el => registerRef(`action-${action.id}`, el)}
-                  className="action-block"
-                >
-                  <ActionEditor
-                    actionId={`${chapter.id}-${scene.id}-${action.id}`}
-                    content={content}
-                    colors={colors}
-                    fontSize={fontSize}
-                    padding={padding}
-                    onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
-                    onSave={() => onActionSave(chapter.id, scene.id, action.id)}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        ))}
+              {!isCollapsed && scene.actions.map(action => {
+                const key = actionKey(chapter.id, scene.id, action.id);
+                const entry = actionContents.get(key);
+                const content = entry?.content ?? '';
+                return (
+                  <div
+                    key={action.id}
+                    ref={el => registerRef(`action-${action.id}`, el)}
+                    className="action-block"
+                  >
+                    <ActionEditor
+                      actionId={`${chapter.id}-${scene.id}-${action.id}`}
+                      content={content}
+                      colors={colors}
+                      fontSize={fontSize}
+                      padding={padding}
+                      onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
+                      onSave={() => onActionSave(chapter.id, scene.id, action.id)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          );
+        })}
       </div>
 
       {fontSizeIndicator !== null && (
