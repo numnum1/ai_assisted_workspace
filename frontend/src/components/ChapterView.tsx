@@ -185,22 +185,30 @@ export function ChapterView({
 
       {/* Scrollable content */}
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
-        <h1
-          className="chapter-heading"
-          style={{ color: colors.text, paddingLeft: `${padding}px`, paddingRight: `${padding}px` }}
+        <div
+          className="section-separator chapter-heading"
+          style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
         >
-          {chapter.meta.title || chapter.id}
-        </h1>
+          <span className="section-separator-line" style={{ borderColor: mutedText }} />
+          <span className="section-separator-title" style={{ color: colors.text }}>
+            {chapter.meta.title || chapter.id}
+          </span>
+          <span className="section-separator-line" style={{ borderColor: mutedText }} />
+        </div>
 
         {chapter.scenes.map(scene => (
           <div key={scene.id} className="scene-block">
-            <h2
+            <div
               ref={el => registerRef(`scene-${scene.id}`, el)}
-              className="scene-heading"
-              style={{ color: colors.text, paddingLeft: `${padding}px`, paddingRight: `${padding}px` }}
+              className="section-separator scene-heading"
+              style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
             >
-              {scene.meta.title || scene.id}
-            </h2>
+              <span className="section-separator-line" style={{ borderColor: mutedText }} />
+              <span className="section-separator-title" style={{ color: colors.text }}>
+                {scene.meta.title || scene.id}
+              </span>
+              <span className="section-separator-line" style={{ borderColor: mutedText }} />
+            </div>
 
             {scene.actions.map(action => {
               const key = actionKey(chapter.id, scene.id, action.id);

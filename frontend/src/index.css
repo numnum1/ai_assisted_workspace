@@ -430,24 +430,46 @@ body {
   overflow-y: auto;
 }
 
+/* Section separators: centered title with horizontal lines */
+.section-separator {
+  display: flex;
+  align-items: center;
+  gap: 1.25em;
+  width: 100%;
+  max-width: 65%;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+.section-separator-line {
+  flex: 1;
+  min-width: 2em;
+  border-top: 1px solid;
+  border-color: inherit;
+}
+
+.section-separator-title {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .chapter-heading {
   font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
   font-size: 1.9em;
-  font-weight: 700;
-  line-height: 1.3;
-  text-align: center;
+  font-weight: 600;
   padding-top: 48px;
-  padding-bottom: 12px;
-  letter-spacing: -0.01em;
+  padding-bottom: 24px;
+  letter-spacing: 0.02em;
 }
 
 .scene-heading {
   font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
   font-size: 1.35em;
-  font-weight: 700;
-  line-height: 1.4;
-  padding-top: 36px;
-  padding-bottom: 8px;
+  font-weight: 600;
+  padding-top: 32px;
+  padding-bottom: 16px;
+  letter-spacing: 0.02em;
 }
 
 .scene-block {
