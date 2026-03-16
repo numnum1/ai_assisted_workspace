@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry } from './types.ts';
 
 const BASE = '/api';
 
@@ -161,6 +161,29 @@ export const chapterApi = {
     put<{ status: string }>(`/chapters/${chapterId}/reorder`, { ids }),
   reorderActions: (chapterId: string, sceneId: string, ids: string[]) =>
     put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/reorder`, { ids }),
+};
+
+export const wikiApi = {
+  listTypes: () =>
+    get<WikiType[]>('/wiki/types'),
+  createType: (name: string) =>
+    post<WikiType>('/wiki/types', { name }),
+  getType: (typeId: string) =>
+    get<WikiType>(`/wiki/types/${typeId}`),
+  updateType: (typeId: string, type: WikiType) =>
+    put<WikiType>(`/wiki/types/${typeId}`, type),
+  deleteType: (typeId: string) =>
+    del<{ status: string }>(`/wiki/types/${typeId}`),
+  listEntries: (typeId: string) =>
+    get<WikiEntry[]>(`/wiki/types/${typeId}/entries`),
+  createEntry: (typeId: string, name: string) =>
+    post<WikiEntry>(`/wiki/types/${typeId}/entries`, { name }),
+  getEntry: (typeId: string, entryId: string) =>
+    get<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`),
+  updateEntry: (typeId: string, entryId: string, values: Record<string, string>) =>
+    put<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`, { values }),
+  deleteEntry: (typeId: string, entryId: string) =>
+    del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
 };
 
 export function streamChat(

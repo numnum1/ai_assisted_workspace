@@ -3,7 +3,7 @@ import { Save, X } from 'lucide-react';
 import type { MetaTypeSchema } from '../meta/metaSchema.ts';
 import { fieldTypeRegistry } from '../meta/fieldTypes/index.ts';
 
-export interface SchemaFormPanelProps {
+export interface AssetPanelProps {
   schema: MetaTypeSchema;
   values: Record<string, string>;
   title: string;
@@ -11,7 +11,7 @@ export interface SchemaFormPanelProps {
   onClose: () => void;
 }
 
-export function SchemaFormPanel({ schema, values: initialValues, title, onSave, onClose }: SchemaFormPanelProps) {
+export function AssetPanel({ schema, values: initialValues, title, onSave, onClose }: AssetPanelProps) {
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   const [dirty, setDirty] = useState(false);
 

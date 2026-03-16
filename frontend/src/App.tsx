@@ -9,6 +9,8 @@ import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
+import { WikiBrowser } from './components/WikiBrowser.tsx';
+import { WikiEntryPopup } from './components/WikiEntryPopup.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta } from './types.ts';
 import { modesApi, gitApi, projectApi, AuthRequiredError } from './api.ts';
@@ -18,11 +20,13 @@ import { useChapter } from './hooks/useChapter.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
 import { useChatHistory } from './hooks/useChatHistory.ts';
+import { useWiki } from './hooks/useWiki.ts';
 
 function App() {
   const project = useProject();
   const chapter = useChapter();
   const refs = useReferencedFiles();
+  const wiki = useWiki();
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
 
@@ -85,6 +89,7 @@ function App() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [wikiOpen, setWikiOpen] = useState(false);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
@@ -122,6 +127,10 @@ function App() {
       if (e.ctrlKey && e.shiftKey && e.key === 'A') {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === ' ') {
+        e.preventDefault();
+        setWikiOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handler);
@@ -347,6 +356,21 @@ function App() {
         <ProjectSettingsModal
           onClose={() => setSettingsOpen(false)}
           onModesChanged={loadModes}
+        />
+      )}
+
+      {wikiOpen && (
+        <WikiBrowser
+          wiki={wiki}
+          onClose={() => setWikiOpen(false)}
+        />
+      )}
+
+      {wiki.editingEntry && (
+        <WikiEntryPopup
+          editing={wiki.editingEntry}
+          onSave={wiki.saveEntry}
+          onClose={wiki.closeEntry}
         />
       )}
     </div>

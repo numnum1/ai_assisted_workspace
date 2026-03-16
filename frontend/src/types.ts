@@ -115,3 +115,25 @@ export interface MetaSelection {
   actionId?: string;
   meta: NodeMeta;
 }
+
+// ─── Wiki ─────────────────────────────────────────────────────────────────────
+
+export interface WikiFieldDef {
+  key: string;
+  label: string;
+  type: string;
+  placeholder?: string;
+  defaultValue: string;
+}
+
+export interface WikiType {
+  id: string;
+  name: string;
+  fields: WikiFieldDef[];
+}
+
+export interface WikiEntry {
+  id: string;
+  typeId: string;
+  values: Record<string, string>;
+}

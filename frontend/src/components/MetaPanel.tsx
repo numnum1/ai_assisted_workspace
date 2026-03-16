@@ -1,6 +1,6 @@
 import type { MetaSelection, NodeMeta, MetaNodeType } from '../types.ts';
 import { metaSchemas } from '../meta/index.ts';
-import { SchemaFormPanel } from './SchemaFormPanel.tsx';
+import { AssetPanel } from './AssetPanel.tsx';
 
 interface MetaPanelProps {
   selection: MetaSelection;
@@ -44,7 +44,7 @@ export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
   };
 
   return (
-    <SchemaFormPanel
+    <AssetPanel
       schema={schema}
       values={initialValues}
       title={schema.filename}
