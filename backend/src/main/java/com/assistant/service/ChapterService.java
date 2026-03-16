@@ -171,6 +171,8 @@ public class ChapterService {
         writeMeta(sceneMeta(chapterId, id), meta);
         Files.createDirectories(sceneDir(chapterId, id));
         SceneNode scene = new SceneNode(id, meta);
+        ActionNode defaultAction = createAction(chapterId, id, "Inhalt");
+        scene.getActions().add(defaultAction);
         return scene;
     }
 
