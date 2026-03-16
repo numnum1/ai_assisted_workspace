@@ -140,7 +140,7 @@ export function ChapterView({
       {/* Toolbar */}
       <div className="chapter-view-toolbar" style={{ backgroundColor: headerBg, borderBottomColor: borderColor }}>
         <span className="chapter-view-title-label" style={{ color: mutedText }}>
-          {chapter.meta.title}
+          {chapter.meta.title || chapter.id}
           {hasDirtyActions && <span className="editor-dirty"> *</span>}
         </span>
         <div className="chapter-view-toolbar-actions">
@@ -180,7 +180,7 @@ export function ChapterView({
           className="chapter-heading"
           style={{ color: colors.text, paddingLeft: `${padding}px`, paddingRight: `${padding}px` }}
         >
-          {chapter.meta.title}
+          {chapter.meta.title || chapter.id}
         </h1>
 
         {chapter.scenes.map(scene => (
@@ -190,7 +190,7 @@ export function ChapterView({
               className="scene-heading"
               style={{ color: colors.text, paddingLeft: `${padding}px`, paddingRight: `${padding}px` }}
             >
-              {scene.meta.title}
+              {scene.meta.title || scene.id}
             </h2>
 
             {scene.actions.map(action => {

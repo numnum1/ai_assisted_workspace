@@ -215,7 +215,7 @@ export function Outliner({
               <div
                 className={`outliner-node outliner-chapter${isActiveChapter ? ' active' : ''}`}
                 onContextMenu={e => openContextMenu(e, { type: 'chapter', chapterId: chapter.id })}
-                title={chapter.meta.title}
+                title={chapter.meta.title || chapter.id}
               >
                 <span
                   className="outliner-arrow outliner-arrow-btn"
@@ -245,7 +245,7 @@ export function Outliner({
                   <span
                     className="outliner-label outliner-clickable"
                     onClick={() => handleChapterLabelClick(chapter.id)}
-                  >{chapter.meta.title}</span>
+                  >{chapter.meta.title || chapter.id}</span>
                 )}
               </div>
 
@@ -260,7 +260,7 @@ export function Outliner({
                       className={`outliner-node outliner-scene${isActiveScene ? ' active' : ''}`}
                       style={{ paddingLeft: '20px' }}
                       onContextMenu={e => openContextMenu(e, { type: 'scene', chapterId: chapter.id, sceneId: scene.id })}
-                      title={scene.meta.title}
+                      title={scene.meta.title || scene.id}
                     >
                       <span
                         className="outliner-arrow outliner-arrow-btn"
@@ -290,7 +290,7 @@ export function Outliner({
                         <span
                           className="outliner-label outliner-clickable"
                           onClick={() => handleSceneLabelClick(chapter.id, scene.id)}
-                        >{scene.meta.title}</span>
+                        >{scene.meta.title || scene.id}</span>
                       )}
                     </div>
 
@@ -303,7 +303,7 @@ export function Outliner({
                           style={{ paddingLeft: '36px' }}
                           onClick={() => handleActionClick(chapter.id, scene.id, action.id)}
                           onContextMenu={e => openContextMenu(e, { type: 'action', chapterId: chapter.id, sceneId: scene.id, actionId: action.id })}
-                          title={action.meta.title}
+                          title={action.meta.title || action.id}
                         >
                           <span className="outliner-arrow" style={{ width: 13 }} />
                           <AlignLeft size={12} className="outliner-type-icon" />
@@ -321,7 +321,7 @@ export function Outliner({
                               onClick={e => e.stopPropagation()}
                             />
                           ) : (
-                            <span className="outliner-label">{action.meta.title}</span>
+                            <span className="outliner-label">{action.meta.title || action.id}</span>
                           )}
                         </div>
                       );
