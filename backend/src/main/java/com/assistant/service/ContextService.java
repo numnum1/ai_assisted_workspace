@@ -95,14 +95,19 @@ public class ContextService {
 
         // Tool usage instructions
         systemPrompt.append("=== Available Tools ===\n");
-        systemPrompt.append("You have access to tools that let you search and read project files:\n");
+        systemPrompt.append("You have access to tools for project files and the project wiki:\n\n");
+        systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
+        systemPrompt.append("- wiki_search(query, type?, limit?): Search the project wiki for entries. " +
+                "Returns compact hit list with IDs.\n");
+        systemPrompt.append("- wiki_read(id): Read the full content of a wiki entry by id (format: typeId/entryId, e.g. character/mara-voss).\n\n");
+        systemPrompt.append("**IMPORTANT:** When you see a character name, location, organization, or other named entity " +
+                "in the user's message or in referenced content, call wiki_search with that name to look it up in the wiki. " +
+                "Do not assume you know the character — always search first. Use wiki_read to get full details when needed.\n\n");
+        systemPrompt.append("**Project files:**\n");
         systemPrompt.append("- search_project(query): Search for files/folders by name or path. " +
-                "Use this when discussing characters, locations, plot elements, or any topic that " +
-                "might have corresponding files in the project.\n");
+                "Use for story chapters, notes, or other non-wiki project files.\n");
         systemPrompt.append("- read_file(path): Read the full content of a project file. " +
-                "Use this after searching to inspect relevant files.\n");
-        systemPrompt.append("Proactively use these tools when the conversation involves elements " +
-                "that may have dedicated files in the project structure.\n\n");
+                "Use after searching to inspect relevant files.\n\n");
 
         messages.add(new ChatMessage("system", systemPrompt.toString()));
 
