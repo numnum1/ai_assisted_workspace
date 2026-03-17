@@ -1077,6 +1077,7 @@ body {
 /* ==================== Chat Input ==================== */
 
 .chat-input-container {
+  position: relative;
   padding: 8px 12px 12px;
   border-top: 1px solid var(--border);
 }
@@ -1149,6 +1150,76 @@ body {
 
 .chat-send-btn.stop {
   background: var(--red);
+}
+
+/* ==================== Chat Autocomplete ==================== */
+
+.ac-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  right: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.ac-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ac-item:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.ac-item:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.ac-item:first-child:last-child {
+  border-radius: 8px;
+}
+
+.ac-item:hover,
+.ac-item-active {
+  background: var(--bg-hover);
+}
+
+.ac-item-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ac-item-title {
+  flex: 1;
+  color: var(--text-primary);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ac-item-breadcrumb {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ==================== File Chips ==================== */
