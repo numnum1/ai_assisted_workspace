@@ -2731,8 +2731,8 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
-  width: 420px;
-  max-width: 90vw;
+  width: 840px;
+  max-width: 92vw;
   max-height: 80vh;
   overflow-y: auto;
   display: flex;
@@ -2758,6 +2758,22 @@ body {
 .wiki-entry-popup .meta-panel {
   border: none;
   border-radius: 0 0 8px 8px;
+  width: 100%;
+}
+
+.wiki-entry-popup .meta-panel-body {
+  padding: 12px 16px;
+}
+
+.wiki-entry-popup .meta-field {
+  width: 100%;
+}
+
+.wiki-entry-popup .meta-field-input,
+.wiki-entry-popup .meta-field-textarea,
+.wiki-entry-popup .wiki-mention-wrap {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ==================== Wiki Type Editor ==================== */
