@@ -107,7 +107,10 @@ public class ContextService {
         systemPrompt.append("- search_project(query): Search for files/folders by name or path. " +
                 "Use for story chapters, notes, or other non-wiki project files.\n");
         systemPrompt.append("- read_file(path): Read the full content of a project file. " +
-                "Use after searching to inspect relevant files.\n\n");
+                "Use after searching to inspect relevant files.\n");
+        systemPrompt.append("- read_story_text(chapter_id, scene_id?): Read the combined prose text " +
+                "of all actions in a scene (if scene_id given) or an entire chapter. " +
+                "Use this to read what has actually been written in the story.\n\n");
 
         messages.add(new ChatMessage("system", systemPrompt.toString()));
 
