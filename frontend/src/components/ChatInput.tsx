@@ -1,14 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Sparkles } from 'lucide-react';
 import { FileChip } from './FileChip.tsx';
 import type { ChapterNode, WikiType, WikiEntry } from '../types.ts';
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'wiki';
+  type: 'chapter' | 'scene' | 'wiki' | 'alias';
   title: string;
   path: string;
   breadcrumb: string;
 };
+
+const FIXED_ITEMS: AutocompleteItem[] = [
+  { type: 'alias', title: 'Story', path: 'Story', breadcrumb: 'Buch-Metadaten' },
+];
 
 function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem[] {
   const limit = 20;
@@ -129,8 +133,10 @@ export function ChatInput({
       }
     }
 
-    itemsCacheRef.current = items;
-    return items;
+    // Fixed aliases always at the top
+    const allItems = [...FIXED_ITEMS, ...items];
+    itemsCacheRef.current = allItems;
+    return allItems;
   }, []);
 
   const handleSend = useCallback(() => {
@@ -278,7 +284,9 @@ export function ChatInput({
               }
             >
               <span className="ac-item-icon">
-                {item.type === 'chapter' ? (
+                {item.type === 'alias' ? (
+                  <Sparkles size={13} />
+                ) : item.type === 'chapter' ? (
                   <BookOpen size={13} />
                 ) : item.type === 'scene' ? (
                   <Layers size={13} />

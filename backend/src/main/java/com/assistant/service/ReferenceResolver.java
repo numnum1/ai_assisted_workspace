@@ -10,6 +10,9 @@ import java.util.regex.Pattern;
 /**
  * Parses @file and @file:startLine-endLine references in user messages
  * and resolves them to file content.
+ *
+ * Special aliases:
+ *   @Story  →  .project/book.json
  */
 @Service
 public class ReferenceResolver {
@@ -18,6 +21,9 @@ public class ReferenceResolver {
     private static final Pattern REF_PATTERN = Pattern.compile(
             "@([\\w./_-]+(?:\\.[\\w]+)?)(?::(\\d+)-(\\d+))?"
     );
+
+    private static final Pattern STORY_ALIAS = Pattern.compile("@Story\\b", Pattern.CASE_INSENSITIVE);
+    private static final String BOOK_META_PATH = ".project/book.json";
 
     private final FileService fileService;
 
@@ -28,6 +34,10 @@ public class ReferenceResolver {
     public ResolvedReferences resolve(String message, List<String> explicitFiles) {
         Set<String> allFiles = new LinkedHashSet<>();
         Map<String, String> fileContents = new LinkedHashMap<>();
+
+        // Expand @Story alias to the book meta file path before further processing
+        message = STORY_ALIAS.matcher(message).replaceAll("@" + BOOK_META_PATH);
+
         StringBuilder cleanMessage = new StringBuilder(message);
 
         // Resolve inline @references
