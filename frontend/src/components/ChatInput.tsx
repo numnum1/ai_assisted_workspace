@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, FileText } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library } from 'lucide-react';
 import { FileChip } from './FileChip.tsx';
-import type { ChapterNode } from '../types.ts';
+import type { ChapterNode, WikiType, WikiEntry } from '../types.ts';
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'action';
+  type: 'chapter' | 'scene' | 'wiki';
   title: string;
   path: string;
   breadcrumb: string;
@@ -77,16 +77,18 @@ export function ChatInput({
   const loadItems = useCallback(async (): Promise<AutocompleteItem[]> => {
     if (itemsCacheRef.current) return itemsCacheRef.current;
 
-    const summaries = (await fetch('/api/chapters').then(r => r.json())) as Array<{
-      id: string;
-      meta: { title: string };
-    }>;
+    const [summaries, wikiTypes] = await Promise.all([
+      fetch('/api/chapters').then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
+      fetch('/api/wiki/types').then(r => r.json()) as Promise<WikiType[]>,
+    ]);
 
     const details = await Promise.all(
       summaries.map(s => fetch(`/api/chapters/${s.id}`).then(r => r.json()) as Promise<ChapterNode>)
     );
 
     const items: AutocompleteItem[] = [];
+
+    // Chapters and scenes (no actions)
     for (const chapter of details) {
       const chapterTitle = chapter.meta.title || chapter.id;
       items.push({
@@ -103,14 +105,27 @@ export function ChatInput({
           path: `.project/chapter/${chapter.id}/${scene.id}.json`,
           breadcrumb: chapterTitle,
         });
-        for (const action of scene.actions) {
-          items.push({
-            type: 'action',
-            title: action.meta.title || action.id,
-            path: `.project/chapter/${chapter.id}/${scene.id}/${action.id}.json`,
-            breadcrumb: `${chapterTitle} › ${sceneTitle}`,
-          });
-        }
+      }
+    }
+
+    // Wiki entries (respecting excludeFromMentions)
+    const includedTypes = wikiTypes.filter(t => !t.excludeFromMentions);
+    const wikiEntries = await Promise.all(
+      includedTypes.map(t =>
+        fetch(`/api/wiki/types/${t.id}/entries`)
+          .then(r => r.json())
+          .then((entries: WikiEntry[]) => ({ type: t, entries }))
+      )
+    );
+    for (const { type: wType, entries } of wikiEntries) {
+      for (const entry of entries) {
+        const displayName = entry.values['name'] || entry.values['title'] || entry.id;
+        items.push({
+          type: 'wiki',
+          title: displayName,
+          path: `.wiki/entries/${wType.id}/${entry.id}.json`,
+          breadcrumb: wType.name,
+        });
       }
     }
 
@@ -268,7 +283,7 @@ export function ChatInput({
                 ) : item.type === 'scene' ? (
                   <Layers size={13} />
                 ) : (
-                  <FileText size={13} />
+                  <Library size={13} />
                 )}
               </span>
               <span className="ac-item-title">{item.title}</span>
@@ -298,7 +313,7 @@ export function ChatInput({
           placeholder={
             streaming
               ? 'AI is responding...'
-              : 'Type a message... (Enter to send, Shift+Enter for newline, @ for chapters)'
+              : 'Nachricht... (Enter senden, Shift+Enter neue Zeile, @ für Kapitel/Szenen/Wiki)'
           }
           disabled={streaming}
           rows={1}
