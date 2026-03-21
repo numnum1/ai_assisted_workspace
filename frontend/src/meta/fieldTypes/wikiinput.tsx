@@ -237,6 +237,7 @@ export function wikiInputRenderer({ field, value, onChange, onCommit }: FieldRen
         value={value}
         onChange={handleInput}
         onKeyDown={handleKeyDown}
+        onBlur={onCommit}
         placeholder={field.placeholder}
       />
 

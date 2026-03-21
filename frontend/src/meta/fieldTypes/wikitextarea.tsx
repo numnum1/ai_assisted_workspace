@@ -53,7 +53,7 @@ function invalidateCache() {
   _cache = null;
 }
 
-export function wikiTextareaRenderer({ field, value, onChange }: FieldRendererProps) {
+export function wikiTextareaRenderer({ field, value, onChange, onCommit }: FieldRendererProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -250,6 +250,7 @@ export function wikiTextareaRenderer({ field, value, onChange }: FieldRendererPr
         value={value}
         onChange={handleInput}
         onKeyDown={handleKeyDown}
+        onBlur={onCommit}
         placeholder={field.placeholder}
         rows={4}
       />
