@@ -70,6 +70,8 @@ export interface ProjectConfig {
   description: string;
   alwaysInclude: string[];
   globalRules: string[];
+  /** Mode id; empty means client uses review or first available mode */
+  defaultMode?: string;
 }
 
 export interface NodeMeta {

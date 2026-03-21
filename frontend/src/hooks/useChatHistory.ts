@@ -85,6 +85,16 @@ export function useChatHistory(currentMode: string) {
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? conversations[0];
 
+  useEffect(() => {
+    setConversations((prev) => {
+      if (prev.length !== 1) return prev;
+      const c = prev[0];
+      if (c.messages.length > 0) return prev;
+      if (c.mode === currentMode) return prev;
+      return [{ ...c, mode: currentMode }];
+    });
+  }, [currentMode]);
+
   const updateMessages = useCallback(
     (messages: ChatMessage[]) => {
       setConversations((prev) => {

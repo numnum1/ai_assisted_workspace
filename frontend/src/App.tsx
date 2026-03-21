@@ -15,7 +15,7 @@ import { WikiTypeEditor } from './components/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta } from './types.ts';
-import { modesApi, gitApi, projectApi, bookApi, AuthRequiredError } from './api.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -56,13 +56,36 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
 
-  const loadModes = useCallback(() => {
-    modesApi.getAll().then(setModes).catch(console.error);
+  function resolveDefaultModeId(mds: Mode[], configured: string | undefined): string {
+    const id = configured?.trim() ?? '';
+    if (id && mds.some((m) => m.id === id)) return id;
+    if (mds.some((m) => m.id === 'review')) return 'review';
+    if (mds.length > 0) return mds[0].id;
+    return 'review';
+  }
+
+  const loadModes = useCallback(async () => {
+    try {
+      const [mds, status] = await Promise.all([modesApi.getAll(), projectConfigApi.status()]);
+      setModes(mds);
+      let configured: string | undefined;
+      if (status.initialized) {
+        try {
+          const cfg = await projectConfigApi.get();
+          configured = cfg.defaultMode;
+        } catch {
+          /* ignore */
+        }
+      }
+      setSelectedMode(resolveDefaultModeId(mds, configured));
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
   useEffect(() => {
     loadModes();
-  }, [loadModes]);
+  }, [loadModes, project.projectPath]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -380,6 +403,7 @@ function App() {
         <ProjectSettingsModal
           onClose={() => setSettingsOpen(false)}
           onModesChanged={loadModes}
+          onGeneralConfigSaved={loadModes}
         />
       )}
 

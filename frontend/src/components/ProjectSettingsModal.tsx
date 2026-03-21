@@ -6,6 +6,7 @@ import type { ProjectConfig, Mode } from '../types.ts';
 interface ProjectSettingsModalProps {
   onClose: () => void;
   onModesChanged: () => void;
+  onGeneralConfigSaved?: () => void;
 }
 
 type Tab = 'general' | 'modes' | 'rules';
@@ -76,7 +77,7 @@ function TagListEditor({
   );
 }
 
-export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSettingsModalProps) {
+export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigSaved }: ProjectSettingsModalProps) {
   const [tab, setTab] = useState<Tab>('general');
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
@@ -84,7 +85,13 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
   const [error, setError] = useState<string | null>(null);
 
   // General
-  const [config, setConfig] = useState<ProjectConfig>({ name: '', description: '', alwaysInclude: [], globalRules: [] });
+  const [config, setConfig] = useState<ProjectConfig>({
+    name: '',
+    description: '',
+    alwaysInclude: [],
+    globalRules: [],
+    defaultMode: '',
+  });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
 
@@ -164,6 +171,7 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
       await projectConfigApi.update(config);
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 2000);
+      onGeneralConfigSaved?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -354,6 +362,19 @@ export function ProjectSettingsModal({ onClose, onModesChanged }: ProjectSetting
                   onChange={e => setConfig(p => ({ ...p, description: e.target.value }))}
                   placeholder="Short description of the project"
                 />
+
+                <label className="ps-label">Default mode</label>
+                <p className="ps-hint">Selected automatically when you open the app (by mode id).</p>
+                <select
+                  className="ps-input"
+                  value={config.defaultMode ?? ''}
+                  onChange={e => setConfig(p => ({ ...p, defaultMode: e.target.value }))}
+                >
+                  <option value="">Automatic (review, or first mode if review is missing)</option>
+                  {modes.map(m => (
+                    <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
+                  ))}
+                </select>
 
                 <label className="ps-label">Always Include Files</label>
                 <p className="ps-hint">These files are always added to the AI context, regardless of mode.</p>

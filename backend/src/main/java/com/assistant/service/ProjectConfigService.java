@@ -202,6 +202,7 @@ public class ProjectConfigService {
         ProjectConfig config = new ProjectConfig();
         String projectPath = appConfig.getProject().getPath();
         config.setName(Path.of(projectPath).getFileName().toString());
+        config.setDefaultMode("review");
 
         // Copy built-in modes as a starting point
         copyBuiltinModesToProject(assistantDir.resolve(MODES_DIR));
@@ -274,6 +275,10 @@ public class ProjectConfigService {
         if (globalRules instanceof List<?> list) {
             config.setGlobalRules(list.stream().map(Object::toString).toList());
         }
+        Object defaultMode = data.get("defaultMode");
+        if (defaultMode != null) {
+            config.setDefaultMode(defaultMode.toString());
+        }
         return config;
     }
 
@@ -283,6 +288,7 @@ public class ProjectConfigService {
         data.put("description", config.getDescription() != null ? config.getDescription() : "");
         data.put("alwaysInclude", config.getAlwaysInclude() != null ? config.getAlwaysInclude() : List.of());
         data.put("globalRules", config.getGlobalRules() != null ? config.getGlobalRules() : List.of());
+        data.put("defaultMode", config.getDefaultMode() != null ? config.getDefaultMode() : "");
         return buildYaml().dump(data);
     }
 
