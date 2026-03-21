@@ -12,6 +12,8 @@ export const szeneSchema: MetaTypeSchema = {
     { key: 'initial_situation', label: 'Ausgangssituation', type: 'textarea', placeholder: 'Was ist die Ausgangslage?', defaultValue: '' },
     { key: 'goal', label: 'Ziel der Szene', type: 'textarea', placeholder: 'Was will der Protagonist erreichen?', defaultValue: '' },
     { key: 'outcome', label: 'Ergebnis', type: 'textarea', placeholder: 'Wie endet die Szene?', defaultValue: '' },
+
+    { key: 'pov', label: 'POV', type: 'input', defaultValue: '' },
     { key: 'tone', label: 'Stimmung', type: 'input', placeholder: '', defaultValue: '' },
   ],
 };
