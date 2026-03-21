@@ -330,6 +330,26 @@ body {
   color: var(--text-primary);
 }
 
+.meta-panel-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.meta-panel-expand-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
 .meta-panel-body {
   flex: 1;
   min-width: 0;
@@ -435,6 +455,37 @@ body {
 
 .meta-panel .wiki-mention-wrap {
   flex-shrink: 0;
+}
+
+/* ==================== Meta Panel (expanded / center) ==================== */
+
+.meta-panel-center {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.meta-panel--expanded {
+  width: 100%;
+}
+
+.meta-panel--expanded .meta-panel-header {
+  padding: 12px 20px;
+}
+
+.meta-panel--expanded .meta-panel-filename {
+  font-size: 13px;
+}
+
+.meta-panel--expanded .meta-panel-body {
+  padding: 16px 20px;
+  gap: 14px;
+}
+
+.meta-panel--expanded .meta-field-textarea {
+  min-height: 10em;
+  resize: vertical;
 }
 
 /* ==================== Chapter View ==================== */

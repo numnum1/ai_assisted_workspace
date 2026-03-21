@@ -65,9 +65,11 @@ function App() {
   }, [loadModes]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
+  const [metaExpanded, setMetaExpanded] = useState(false);
 
   const handleSelectMeta = useCallback((selection: MetaSelection) => {
     setSelectedMeta(selection);
+    setMetaExpanded(false);
   }, []);
 
   const handleSaveMeta = useCallback(async (
@@ -275,7 +277,8 @@ function App() {
                 <MetaPanel
                   selection={selectedMeta}
                   onSave={handleSaveMeta}
-                  onClose={() => setSelectedMeta(null)}
+                  onClose={() => { setSelectedMeta(null); setMetaExpanded(false); }}
+                  onExpand={() => setMetaExpanded(true)}
                 />
               </div>
             )}
@@ -285,7 +288,16 @@ function App() {
         <Separator className="resize-handle" />
 
         <Panel defaultSize="45%" minSize="15%">
-          {chapter.activeChapter ? (
+          {metaExpanded && selectedMeta ? (
+            <div className="meta-panel-center">
+              <MetaPanel
+                selection={selectedMeta}
+                onSave={handleSaveMeta}
+                onClose={() => setMetaExpanded(false)}
+                expanded={true}
+              />
+            </div>
+          ) : chapter.activeChapter ? (
             <ChapterView
               chapter={chapter.activeChapter}
               actionContents={chapter.actionContents}

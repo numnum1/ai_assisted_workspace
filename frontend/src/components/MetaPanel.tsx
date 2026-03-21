@@ -6,6 +6,8 @@ interface MetaPanelProps {
   selection: MetaSelection;
   onSave: (type: MetaNodeType, meta: NodeMeta, chapterId: string, sceneId?: string, actionId?: string) => void;
   onClose: () => void;
+  onExpand?: () => void;
+  expanded?: boolean;
 }
 
 function buildInitialValues(selection: MetaSelection): Record<string, string> {
@@ -23,7 +25,7 @@ function buildInitialValues(selection: MetaSelection): Record<string, string> {
   return values;
 }
 
-export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
+export function MetaPanel({ selection, onSave, onClose, onExpand, expanded }: MetaPanelProps) {
   const schema = metaSchemas[selection.type];
   const initialValues = buildInitialValues(selection);
 
@@ -54,6 +56,8 @@ export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
       title={schema.filename}
       onSave={handleSave}
       onClose={onClose}
+      onExpand={onExpand}
+      expanded={expanded}
     />
   );
 }

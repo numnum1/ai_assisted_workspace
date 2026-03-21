@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save, X, Maximize2 } from 'lucide-react';
 import type { MetaTypeSchema } from '../meta/metaSchema.ts';
 import { fieldTypeRegistry } from '../meta/fieldTypes/index.ts';
 
@@ -9,9 +9,11 @@ export interface AssetPanelProps {
   title: string;
   onSave: (values: Record<string, string>) => void;
   onClose: () => void;
+  onExpand?: () => void;
+  expanded?: boolean;
 }
 
-export function AssetPanel({ schema, values: initialValues, title, onSave, onClose }: AssetPanelProps) {
+export function AssetPanel({ schema, values: initialValues, title, onSave, onClose, onExpand, expanded }: AssetPanelProps) {
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   const [dirty, setDirty] = useState(false);
 
@@ -35,13 +37,18 @@ export function AssetPanel({ schema, values: initialValues, title, onSave, onClo
   };
 
   return (
-    <div className="meta-panel">
+    <div className={`meta-panel${expanded ? ' meta-panel--expanded' : ''}`}>
       <div className="meta-panel-header">
         <span className="meta-panel-filename">{title}</span>
         <div className="meta-panel-header-actions">
           {dirty && (
             <button className="meta-panel-save-btn" onClick={handleSave} title="Speichern">
               <Save size={13} />
+            </button>
+          )}
+          {onExpand && !expanded && (
+            <button className="meta-panel-expand-btn" onClick={onExpand} title="Im Haupteditor öffnen">
+              <Maximize2 size={13} />
             </button>
           )}
           <button className="meta-panel-close-btn" onClick={onClose} title="Schließen">
