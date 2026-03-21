@@ -13,6 +13,5 @@ export const szeneSchema: MetaTypeSchema = {
     { key: 'goal', label: 'Ziel der Szene', type: 'textarea', placeholder: 'Was will der Protagonist erreichen?', defaultValue: '' },
     { key: 'outcome', label: 'Ergebnis', type: 'textarea', placeholder: 'Wie endet die Szene?', defaultValue: '' },
     { key: 'tone', label: 'Stimmung', type: 'input', placeholder: '', defaultValue: '' },
-    { key: 'importance', label: 'Bedeutung', type: 'selector', options: ['setup', 'endgame'], defaultValue: 'setup' },
   ],
 };
