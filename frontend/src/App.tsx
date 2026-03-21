@@ -15,7 +15,7 @@ import { WikiTypeEditor } from './components/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta } from './types.ts';
-import { modesApi, gitApi, projectApi, AuthRequiredError } from './api.ts';
+import { modesApi, gitApi, projectApi, bookApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -72,6 +72,12 @@ function App() {
     setMetaExpanded(false);
   }, []);
 
+  const handleSelectBookMeta = useCallback(async () => {
+    const meta = await bookApi.getMeta();
+    setSelectedMeta({ type: 'book', chapterId: '', meta });
+    setMetaExpanded(false);
+  }, []);
+
   const handleSaveMeta = useCallback(async (
     type: MetaNodeType,
     meta: NodeMeta,
@@ -79,7 +85,10 @@ function App() {
     sceneId?: string,
     actionId?: string,
   ) => {
-    if (type === 'chapter') {
+    if (type === 'book') {
+      await bookApi.updateMeta(meta);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    } else if (type === 'chapter') {
       await chapter.updateChapterMeta(chapterId, meta);
       setSelectedMeta(prev => prev ? { ...prev, meta } : null);
     } else if (type === 'scene' && sceneId) {
@@ -269,6 +278,7 @@ function App() {
                 onReorderScenes={chapter.reorderScenes}
                 onReorderActions={chapter.reorderActions}
                 onSelectMeta={handleSelectMeta}
+                onSelectBookMeta={handleSelectBookMeta}
               />
             </div>
 

@@ -106,7 +106,7 @@ export interface ScrollTarget {
   actionId?: string;
 }
 
-export type MetaNodeType = 'chapter' | 'scene' | 'action';
+export type MetaNodeType = 'book' | 'chapter' | 'scene' | 'action';
 
 export interface MetaSelection {
   type: MetaNodeType;

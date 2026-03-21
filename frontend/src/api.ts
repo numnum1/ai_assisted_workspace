@@ -163,6 +163,11 @@ export const chapterApi = {
     put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/reorder`, { ids }),
 };
 
+export const bookApi = {
+  getMeta: () => get<NodeMeta>('/book/meta'),
+  updateMeta: (meta: NodeMeta) => put<{ status: string }>('/book/meta', meta),
+};
+
 export const wikiApi = {
   listTypes: () =>
     get<WikiType[]>('/wiki/types'),

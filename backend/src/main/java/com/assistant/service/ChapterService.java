@@ -233,6 +233,24 @@ public class ChapterService {
         }
     }
 
+    // ─── Book meta ────────────────────────────────────────────────────────────
+
+    private Path bookMeta() {
+        return fileService.getProjectRoot().resolve(".project/book.json");
+    }
+
+    public StructureNodeMeta getBookMeta() throws IOException {
+        Path path = bookMeta();
+        if (!Files.exists(path)) {
+            return new StructureNodeMeta();
+        }
+        return readMeta(path);
+    }
+
+    public void updateBookMeta(StructureNodeMeta meta) throws IOException {
+        writeMeta(bookMeta(), meta);
+    }
+
     // ─── Private helpers ──────────────────────────────────────────────────────
 
     private StructureNodeMeta readMeta(Path path) throws IOException {

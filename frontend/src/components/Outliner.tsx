@@ -21,6 +21,7 @@ interface OutlinerProps {
   onReorderScenes: (chapterId: string, orderedIds: string[]) => void;
   onReorderActions: (chapterId: string, sceneId: string, orderedIds: string[]) => void;
   onSelectMeta: (selection: MetaSelection) => void;
+  onSelectBookMeta: () => void;
 }
 
 type ContextMenuState = {
@@ -59,6 +60,7 @@ export function Outliner({
   onRevealInExplorer,
   onReorderActions,
   onSelectMeta,
+  onSelectBookMeta,
 }: OutlinerProps) {
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
   const [expandedScenes, setExpandedScenes] = useState<Set<string>>(new Set());
@@ -223,6 +225,13 @@ export function Outliner({
     >
       <div className="outliner-header">
         <span className="outliner-header-title">Projekt</span>
+        <button
+          className="outliner-reveal-btn"
+          onClick={onSelectBookMeta}
+          title="Buch-Metadaten"
+        >
+          <BookOpen size={13} />
+        </button>
         <button
           className="outliner-reveal-btn"
           onClick={onRevealInExplorer}
