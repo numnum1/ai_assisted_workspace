@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import type { WikiType, WikiFieldDef } from '../types.ts';
+import { wikiEditorFieldTypeOptions } from '../meta/fieldTypes/index.ts';
 
 interface WikiTypeEditorProps {
   type: WikiType;
@@ -105,8 +106,9 @@ export function WikiTypeEditor({ type, onSave, onClose }: WikiTypeEditorProps) {
                   value={field.type === 'textarea' ? 'wikitextarea' : field.type}
                   onChange={e => handleFieldTypeChange(idx, e.target.value)}
                 >
-                  <option value="input">Einzeilig</option>
-                  <option value="wikitextarea">Fließtext (mit Wiki-Links)</option>
+                  {wikiEditorFieldTypeOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
                 <button
                   className="wiki-type-editor-field-delete"

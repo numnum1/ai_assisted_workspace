@@ -15,6 +15,7 @@ export interface MetaFieldDef {
   type: string;
   placeholder?: string;
   defaultValue: string;
+  options?: string[];  // für type: 'selector'
   config?: Record<string, unknown>;
 }
 

@@ -358,7 +358,8 @@ body {
 }
 
 .meta-field-input,
-.meta-field-textarea {
+.meta-field-textarea,
+.meta-field-select {
   width: 100%;
   box-sizing: border-box;
   background: var(--bg-tertiary);
@@ -374,7 +375,8 @@ body {
 }
 
 .meta-field-input:focus,
-.meta-field-textarea:focus {
+.meta-field-textarea:focus,
+.meta-field-select:focus {
   border-color: var(--accent);
 }
 
@@ -411,6 +413,7 @@ body {
 
 .meta-panel .meta-field-input,
 .meta-panel .meta-field-textarea,
+.meta-panel .meta-field-select,
 .meta-panel .wiki-mention-wrap {
   width: 100% !important;
   max-width: 100%;
