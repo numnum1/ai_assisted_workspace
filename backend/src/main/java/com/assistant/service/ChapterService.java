@@ -1,6 +1,7 @@
 package com.assistant.service;
 
 import com.assistant.model.*;
+import com.assistant.util.NaturalTitleComparator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
@@ -75,7 +76,17 @@ public class ChapterService {
                     }
                 });
         }
-        chapters.sort(Comparator.comparingInt(c -> c.getMeta().getSortOrder()));
+        chapters.sort((c1, c2) -> {
+            int byKey = NaturalTitleComparator.INSTANCE.compare(
+                    NaturalTitleComparator.chapterSortKey(c1),
+                    NaturalTitleComparator.chapterSortKey(c2));
+            if (byKey != 0) {
+                return byKey;
+            }
+            String id1 = c1.getId() != null ? c1.getId() : "";
+            String id2 = c2.getId() != null ? c2.getId() : "";
+            return NaturalTitleComparator.INSTANCE.compare(id1, id2);
+        });
         return chapters;
     }
 
