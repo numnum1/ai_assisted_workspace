@@ -6,5 +6,7 @@ export const buchSchema: MetaTypeSchema = {
     { key: 'title', label: 'Titel', type: 'input', placeholder: 'Buchtitel...', defaultValue: '' },
     { key: 'description', label: 'Kurzbeschreibung', type: 'input', placeholder: 'Ein Satz...', defaultValue: '' },
     { key: 'synopsis', label: 'Synopsis (für KI)', type: 'largetextarea', placeholder: 'Gesamte Story zusammenfassen...', defaultValue: '' },
+
+    { key: 'tone', label: 'Ton', type: 'input', placeholder: 'Ernst, bedrückend, ...', defaultValue: '' },
   ],
 };
