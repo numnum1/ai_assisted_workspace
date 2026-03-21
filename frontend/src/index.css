@@ -374,6 +374,15 @@ body {
   transition: border-color 0.15s;
 }
 
+.meta-field-textarea {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 1.5em;
+}
+
 .meta-field-input:focus,
 .meta-field-textarea:focus,
 .meta-field-select:focus {
@@ -409,6 +418,7 @@ body {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .meta-panel .meta-field-input,
@@ -421,6 +431,10 @@ body {
   min-width: 0;
   align-self: stretch;
   display: block;
+}
+
+.meta-panel .wiki-mention-wrap {
+  flex-shrink: 0;
 }
 
 /* ==================== Chapter View ==================== */

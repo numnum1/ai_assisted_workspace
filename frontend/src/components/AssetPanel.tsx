@@ -15,10 +15,14 @@ export function AssetPanel({ schema, values: initialValues, title, onSave, onClo
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   const [dirty, setDirty] = useState(false);
 
+  // Use stringified comparison so re-renders that create new object references
+  // (but same data) don't reset the user's in-progress edits.
+  const initialValuesStr = JSON.stringify(initialValues);
   useEffect(() => {
     setValues(initialValues);
     setDirty(false);
-  }, [initialValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialValuesStr]);
 
   const handleChange = (key: string, value: string) => {
     setValues(prev => ({ ...prev, [key]: value }));

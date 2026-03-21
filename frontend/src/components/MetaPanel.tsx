@@ -43,8 +43,12 @@ export function MetaPanel({ selection, onSave, onClose }: MetaPanelProps) {
     onSave(selection.type, meta, selection.chapterId, selection.sceneId, selection.actionId);
   };
 
+  // key ensures AssetPanel fully re-mounts when the selected node changes
+  const panelKey = `${selection.type}-${selection.chapterId}-${selection.sceneId ?? ''}-${selection.actionId ?? ''}`;
+
   return (
     <AssetPanel
+      key={panelKey}
       schema={schema}
       values={initialValues}
       title={schema.filename}
