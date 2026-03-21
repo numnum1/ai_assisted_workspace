@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 public class ChapterService {
 
     private static final String CHAPTERS_DIR = ".project/chapter";
+    private static final int MAX_STRUCTURE_SEARCH_HITS = 40;
 
     private final FileService fileService;
     private final ObjectMapper objectMapper;
@@ -134,6 +135,132 @@ public class ChapterService {
         }
         chapter.getScenes().sort(Comparator.comparingInt(s -> s.getMeta().getSortOrder()));
         return chapter;
+    }
+
+    /**
+     * Compact tree of chapter / scene / action ids and human titles for AI context.
+     */
+    public String buildStoryStructureOverview() throws IOException {
+        List<ChapterSummary> chapters = listChapters();
+        if (chapters.isEmpty()) {
+            return "(No story chapters yet.)\n";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (ChapterSummary summary : chapters) {
+            String cid = summary.getId();
+            sb.append(cid).append(": ").append(formatMetaTitle(summary.getMeta())).append('\n');
+            ChapterNode full = getChapter(cid);
+            for (SceneNode scene : full.getScenes()) {
+                sb.append("  ").append(scene.getId()).append(": ")
+                        .append(formatMetaTitle(scene.getMeta())).append('\n');
+                for (ActionNode action : scene.getActions()) {
+                    sb.append("    ").append(action.getId()).append(": ")
+                            .append(formatMetaTitle(action.getMeta())).append('\n');
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Search chapters, scenes, and actions by title or description in meta JSON (not file names).
+     * Returns ids, meta paths, and tool hints (read_story_text / read_file).
+     */
+    public String searchStoryStructure(String query) throws IOException {
+        String trimmed = query == null ? "" : query.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        StringBuilder sb = new StringBuilder();
+        int hits = 0;
+        search:
+        for (ChapterSummary summary : listChapters()) {
+            String chapterId = summary.getId();
+            ChapterNode chapter = getChapter(chapterId);
+            if (hits < MAX_STRUCTURE_SEARCH_HITS && metaMatches(chapter.getMeta(), lower)) {
+                appendChapterSearchLine(sb, chapterId, chapter.getMeta());
+                hits++;
+            }
+            if (hits >= MAX_STRUCTURE_SEARCH_HITS) {
+                break;
+            }
+            for (SceneNode scene : chapter.getScenes()) {
+                if (hits < MAX_STRUCTURE_SEARCH_HITS && metaMatches(scene.getMeta(), lower)) {
+                    appendSceneSearchLine(sb, chapterId, scene);
+                    hits++;
+                }
+                if (hits >= MAX_STRUCTURE_SEARCH_HITS) {
+                    break search;
+                }
+                for (ActionNode action : scene.getActions()) {
+                    if (hits < MAX_STRUCTURE_SEARCH_HITS && metaMatches(action.getMeta(), lower)) {
+                        appendActionSearchLine(sb, chapterId, scene.getId(), action);
+                        hits++;
+                    }
+                    if (hits >= MAX_STRUCTURE_SEARCH_HITS) {
+                        break search;
+                    }
+                }
+            }
+        }
+        if (hits == 0) {
+            return "No chapters, scenes, or actions matching '" + trimmed + "' in titles or descriptions.";
+        }
+        sb.insert(0, "Found " + hits + " matching node(s) (by title/description in meta JSON, not file names):\n");
+        if (hits >= MAX_STRUCTURE_SEARCH_HITS) {
+            sb.append("(Result limit reached; refine your query.)\n");
+        }
+        return sb.toString();
+    }
+
+    private static String formatMetaTitle(StructureNodeMeta meta) {
+        if (meta == null) {
+            return "(untitled)";
+        }
+        String t = meta.getTitle();
+        if (t == null || t.isBlank()) {
+            return "(untitled)";
+        }
+        return "\"" + t.replace("\"", "'") + "\"";
+    }
+
+    private static boolean metaMatches(StructureNodeMeta meta, String lowerQuery) {
+        if (meta == null) {
+            return false;
+        }
+        String title = meta.getTitle() != null ? meta.getTitle() : "";
+        String desc = meta.getDescription() != null ? meta.getDescription() : "";
+        return title.toLowerCase(Locale.ROOT).contains(lowerQuery)
+                || desc.toLowerCase(Locale.ROOT).contains(lowerQuery);
+    }
+
+    private void appendChapterSearchLine(StringBuilder sb, String chapterId, StructureNodeMeta meta) {
+        sb.append("- CHAPTER ").append(chapterId);
+        sb.append(" — ").append(formatMetaTitle(meta));
+        sb.append("\n  meta: ").append(CHAPTERS_DIR).append('/').append(chapterId).append(".json");
+        sb.append("\n  read_story_text: chapter_id=\"").append(chapterId).append("\"\n\n");
+    }
+
+    private void appendSceneSearchLine(StringBuilder sb, String chapterId, SceneNode scene) {
+        sb.append("- SCENE ").append(scene.getId()).append(" (chapter ").append(chapterId).append(")");
+        sb.append(" — ").append(formatMetaTitle(scene.getMeta()));
+        sb.append("\n  meta: ").append(CHAPTERS_DIR).append('/').append(chapterId).append('/')
+                .append(scene.getId()).append(".json");
+        sb.append("\n  read_story_text: chapter_id=\"").append(chapterId).append("\", scene_id=\"")
+                .append(scene.getId()).append("\"\n\n");
+    }
+
+    private void appendActionSearchLine(StringBuilder sb, String chapterId, String sceneId, ActionNode action) {
+        sb.append("- ACTION ").append(action.getId()).append(" (").append(chapterId).append('/')
+                .append(sceneId).append(")");
+        sb.append(" — ").append(formatMetaTitle(action.getMeta()));
+        sb.append("\n  meta: ").append(CHAPTERS_DIR).append('/').append(chapterId).append('/')
+                .append(sceneId).append('/').append(action.getId()).append(".json");
+        sb.append("\n  prose: ").append(CHAPTERS_DIR).append('/').append(chapterId).append('/')
+                .append(sceneId).append('/').append(action.getId()).append(".md");
+        sb.append("\n  read_story_text: chapter_id=\"").append(chapterId).append("\", scene_id=\"")
+                .append(sceneId).append("\" (scene-level prose; use read_file on .md for this beat only)\n\n");
     }
 
     // ─── Action content ────────────────────────────────────────────────────────

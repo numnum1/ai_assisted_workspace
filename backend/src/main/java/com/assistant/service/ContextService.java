@@ -18,15 +18,18 @@ public class ContextService {
     private final ReferenceResolver referenceResolver;
     private final AppConfig appConfig;
     private final ProjectConfigService projectConfigService;
+    private final ChapterService chapterService;
 
     public ContextService(FileService fileService, ModeService modeService,
                           ReferenceResolver referenceResolver, AppConfig appConfig,
-                          ProjectConfigService projectConfigService) {
+                          ProjectConfigService projectConfigService,
+                          ChapterService chapterService) {
         this.fileService = fileService;
         this.modeService = modeService;
         this.referenceResolver = referenceResolver;
         this.appConfig = appConfig;
         this.projectConfigService = projectConfigService;
+        this.chapterService = chapterService;
     }
 
     public AssembledContext assemble(ChatRequest request) {
@@ -64,10 +67,16 @@ public class ContextService {
         // Deduplicate
         Set<String> seen = new LinkedHashSet<>(alwaysInclude);
 
-        // TODO: inject chapter metadata as AI context
-        // Replace the project file listing below with a structured summary of chapters/scenes/actions
-        // using ChapterService.listChapters() and ChapterService.getChapter() so the AI understands
-        // the narrative structure without reading full .md content.
+        systemPrompt.append("=== Story structure (ids ↔ titles) ===\n");
+        systemPrompt.append("Use these ids with read_story_text(chapter_id, scene_id?). ");
+        systemPrompt.append("Human titles are in meta JSON, not in file names — use search_story_structure " +
+                "when you need to find a node by title or description.\n");
+        try {
+            systemPrompt.append(chapterService.buildStoryStructureOverview());
+        } catch (IOException e) {
+            systemPrompt.append("[Could not read story structure]\n");
+        }
+        systemPrompt.append("\n");
 
         // Build project file listing
         systemPrompt.append("=== Project Files ===\n");
@@ -103,9 +112,11 @@ public class ContextService {
         systemPrompt.append("**IMPORTANT:** When you see a character name, location, organization, or other named entity " +
                 "in the user's message or in referenced content, call wiki_search with that name to look it up in the wiki. " +
                 "Do not assume you know the character — always search first. Use wiki_read to get full details when needed.\n\n");
-        systemPrompt.append("**Project files:**\n");
-        systemPrompt.append("- search_project(query): Search for files/folders by name or path. " +
-                "Use for story chapters, notes, or other non-wiki project files.\n");
+        systemPrompt.append("**Project files & story:**\n");
+        systemPrompt.append("- search_story_structure(query): Find chapters, scenes, or actions by **title/description** " +
+                "in meta JSON (not by opaque ids like chapter_1). Returns ids and paths for read_file / read_story_text.\n");
+        systemPrompt.append("- search_project(query): Search files/folders by **path and file name** only. " +
+                "For human story titles, prefer search_story_structure.\n");
         systemPrompt.append("- read_file(path): Read the full content of a project file. " +
                 "Use after searching to inspect relevant files.\n");
         systemPrompt.append("- read_story_text(chapter_id, scene_id?): Read the combined prose text " +
