@@ -11,10 +11,11 @@ export interface FieldTypeDef {
 }
 
 export const fieldTypeDefinitions: FieldTypeDef[] = [
-  { id: 'input',       label: 'Einzeilig',                renderer: wikiInputRenderer,   availableInWikiEditor: true  },
-  { id: 'textarea',    label: 'Textarea',                 renderer: wikiTextareaRenderer, availableInWikiEditor: false },
-  { id: 'wikitextarea',label: 'Fließtext (mit Wiki-Links)', renderer: wikiTextareaRenderer, availableInWikiEditor: true  },
-  { id: 'selector',    label: 'Dropdown',                 renderer: selectorRenderer,    availableInWikiEditor: false },
+  { id: 'input',          label: 'Einzeilig',                    renderer: wikiInputRenderer,    availableInWikiEditor: true  },
+  { id: 'textarea',       label: 'Textarea',                     renderer: wikiTextareaRenderer, availableInWikiEditor: false },
+  { id: 'wikitextarea',   label: 'Fließtext (mit Wiki-Links)',   renderer: wikiTextareaRenderer, availableInWikiEditor: true  },
+  { id: 'largetextarea',  label: 'Fließtext groß (mit Wiki-Links)', renderer: wikiTextareaRenderer, availableInWikiEditor: true  },
+  { id: 'selector',       label: 'Dropdown',                     renderer: selectorRenderer,     availableInWikiEditor: false },
 ];
 
 export const fieldTypeRegistry: Record<string, FieldRenderer> = Object.fromEntries(

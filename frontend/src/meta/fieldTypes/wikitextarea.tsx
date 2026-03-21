@@ -252,7 +252,7 @@ export function wikiTextareaRenderer({ field, value, onChange, onCommit }: Field
         onKeyDown={handleKeyDown}
         onBlur={onCommit}
         placeholder={field.placeholder}
-        rows={4}
+        rows={(field.config?.rows as number) ?? (field.type === 'largetextarea' ? 9 : 4)}
       />
 
       {/* Hidden mirror for cursor position calculation */}
