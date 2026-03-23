@@ -4,6 +4,7 @@ import type { ChatMessage, Mode, Conversation } from '../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
+import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -133,8 +134,16 @@ export function ChatPanel({
                 'Assistant'
               )}
             </div>
-            <div className="chat-message-content">
-              {msg.content}
+            <div
+              className={
+                msg.role === 'assistant' ? 'chat-message-content chat-message-md' : 'chat-message-content'
+              }
+            >
+              {msg.role === 'assistant' ? (
+                <ChatMessageMarkdown content={msg.content} />
+              ) : (
+                msg.content
+              )}
             </div>
             {i > 0 && !streaming && (
               <button

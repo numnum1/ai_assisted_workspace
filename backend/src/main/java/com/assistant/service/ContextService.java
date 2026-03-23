@@ -109,9 +109,23 @@ public class ContextService {
         systemPrompt.append("- wiki_search(query, type?, limit?): Search the project wiki for entries. " +
                 "Returns compact hit list with IDs.\n");
         systemPrompt.append("- wiki_read(id): Read the full content of a wiki entry by id (format: typeId/entryId, e.g. character/mara-voss).\n\n");
-        systemPrompt.append("**IMPORTANT:** When you see a character name, location, organization, or other named entity " +
-                "in the user's message or in referenced content, call wiki_search with that name to look it up in the wiki. " +
-                "Do not assume you know the character — always search first. Use wiki_read to get full details when needed.\n\n");
+        systemPrompt.append("**Wiki lookup strategy:**\n");
+        systemPrompt.append("1) If referenced story/scene JSON or markdown contains a wiki link or id in the form " +
+                "`typeId/entryId` (e.g. markdown `@[Name](charakter/slug)` or `@@[Name](charakter/slug)`), " +
+                "call **wiki_read** with that exact id first. Those paths are authoritative; do not skip lookup " +
+                "just because wiki_search by display name returned nothing.\n");
+        systemPrompt.append("2) wiki_search matches **substrings** only on entry ids and field values. " +
+                "Hyphenated ids (e.g. `lupus-regina`) do **not** match the query `lupusregina`. " +
+                "Underscores in a label (e.g. `Beobachter_A`) do not match a slug `beobachter-a`. " +
+                "If the full name fails, retry with shorter tokens (e.g. `lupus`, `regina`, `beobachter`) " +
+                "or obvious hyphen/underscore variants.\n");
+        systemPrompt.append("3) The optional `type` filter matches the wiki **type id or type display name** as substring. " +
+                "If a filtered search returns no hits, repeat **without** `type` or try the actual type id from the project " +
+                "(German vs English names differ, e.g. `charakter` vs `character`).\n");
+        systemPrompt.append("4) After wiki_search returns ids, use wiki_read for entities you rely on in your answer.\n\n");
+        systemPrompt.append("**IMPORTANT:** For named entities, prefer the steps above over guessing. " +
+                "If the user or attached content names a character, place, or organization, look it up in the wiki " +
+                "before asserting facts. Use wiki_read to get full details when needed.\n\n");
         systemPrompt.append("**Project files & story:**\n");
         systemPrompt.append("- search_story_structure(query): Find chapters, scenes, or actions by **title/description** " +
                 "in meta JSON (not by opaque ids like chapter_1). Returns ids and paths for read_file / read_story_text.\n");
