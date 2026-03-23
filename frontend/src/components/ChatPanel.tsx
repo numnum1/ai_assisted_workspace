@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Trash2, Search, Scissors, History } from 'lucide-react';
+import { Trash2, Search, Scissors, History, Copy, Check, Wand2 } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation } from '../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
+
+const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -27,6 +29,7 @@ interface ChatPanelProps {
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
+  onOpenPromptPack?: () => void;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -59,9 +62,11 @@ export function ChatPanel({
   onSwitchChat,
   onDeleteChat,
   onRenameChat,
+  onOpenPromptPack,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,6 +77,16 @@ export function ChatPanel({
       <div className="chat-header">
         <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
         <div className="chat-header-actions">
+          {onOpenPromptPack && (
+            <button
+              type="button"
+              className="chat-prompt-pack-btn"
+              onClick={onOpenPromptPack}
+              title="Prompt-Paket (Export für ChatGPT / Grok)"
+            >
+              <Wand2 size={14} />
+            </button>
+          )}
           <button
             className={`chat-history-btn ${historyOpen ? 'active' : ''}`}
             onClick={() => setHistoryOpen((prev) => !prev)}
@@ -104,58 +119,91 @@ export function ChatPanel({
             <p className="chat-empty-hint">
               Drag files from the project tree into the input area to reference them,
               or use @filename syntax in your message.
+              {onOpenPromptPack && (
+                <>
+                  {' '}
+                  Für einen fertigen Export-Prompt nutze das Zauberstab-Symbol oben (Prompt-Paket).
+                </>
+              )}
             </p>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`chat-message ${msg.role}`}
-            style={msg.role === 'user' && msg.modeColor ? {
-              backgroundColor: msg.modeColor,
-              borderLeftColor: msg.modeColor,
-              color: getContrastingTextColor(msg.modeColor),
-            } : undefined}
-          >
+        {messages.map((msg, i) => {
+          const prevUser = i > 0 ? messages[i - 1] : null;
+          const showCopyForPromptPack =
+            msg.role === 'assistant' &&
+            msg.content.trim() &&
+            prevUser?.role === 'user' &&
+            prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
+
+          return (
             <div
-              className="chat-message-role"
-              style={msg.role === 'user' && msg.modeColor ? { color: getContrastingTextColor(msg.modeColor) } : undefined}
+              key={i}
+              className={`chat-message ${msg.role}`}
+              style={msg.role === 'user' && msg.modeColor ? {
+                backgroundColor: msg.modeColor,
+                borderLeftColor: msg.modeColor,
+                color: getContrastingTextColor(msg.modeColor),
+              } : undefined}
             >
-              {msg.role === 'user' ? (
-                <span>
-                  You
-                  {msg.mode && (
-                    <span className="chat-message-mode" style={{ color: getContrastingTextColor(msg.modeColor) }}>
-                      {' · '}{msg.mode}
-                    </span>
-                  )}
-                </span>
-              ) : (
-                'Assistant'
-              )}
-            </div>
-            <div
-              className={
-                msg.role === 'assistant' ? 'chat-message-content chat-message-md' : 'chat-message-content'
-              }
-            >
-              {msg.role === 'assistant' ? (
-                <ChatMessageMarkdown content={msg.content} />
-              ) : (
-                msg.content
-              )}
-            </div>
-            {i > 0 && !streaming && (
-              <button
-                className="chat-fork-btn"
-                onClick={() => onForkFromMessage(i)}
-                title="Neuen Chat ab hier"
+              <div
+                className="chat-message-role"
+                style={msg.role === 'user' && msg.modeColor ? { color: getContrastingTextColor(msg.modeColor) } : undefined}
               >
-                <Scissors size={12} />
-              </button>
-            )}
-          </div>
-        ))}
+                {msg.role === 'user' ? (
+                  <span>
+                    You
+                    {msg.mode && (
+                      <span className="chat-message-mode" style={{ color: getContrastingTextColor(msg.modeColor) }}>
+                        {' · '}{msg.mode}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  'Assistant'
+                )}
+              </div>
+              <div
+                className={
+                  msg.role === 'assistant' ? 'chat-message-content chat-message-md' : 'chat-message-content'
+                }
+              >
+                {msg.role === 'assistant' ? (
+                  <ChatMessageMarkdown content={msg.content} />
+                ) : (
+                  msg.content
+                )}
+              </div>
+              {showCopyForPromptPack && (
+                <button
+                  type="button"
+                  className="copy-msg-btn"
+                  title="In Zwischenablage kopieren"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(msg.content);
+                      setCopiedIdx(i);
+                      setTimeout(() => setCopiedIdx(null), 2000);
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  {copiedIdx === i ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              )}
+              {i > 0 && !streaming && (
+                <button
+                  className="chat-fork-btn"
+                  onClick={() => onForkFromMessage(i)}
+                  title="Neuen Chat ab hier"
+                >
+                  <Scissors size={12} />
+                </button>
+              )}
+            </div>
+          );
+        })}
         {toolActivity && streaming && (
           <div className="chat-tool-activity">
             <Search size={14} className="chat-tool-activity-icon" />

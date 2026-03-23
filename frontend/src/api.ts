@@ -191,6 +191,11 @@ export const wikiApi = {
     del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
 };
 
+export const chatApi = {
+  previewContext: (body: ChatRequest) =>
+    post<{ includedFiles: string[]; estimatedTokens: number }>('/chat/context-preview', body),
+};
+
 export function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,

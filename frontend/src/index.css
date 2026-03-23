@@ -846,6 +846,25 @@ body {
   gap: 4px;
 }
 
+.chat-prompt-pack-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--yellow);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-prompt-pack-btn:hover {
+  background: var(--bg-hover);
+  color: var(--yellow);
+  filter: brightness(1.1);
+}
+
 .chat-clear-btn {
   display: flex;
   align-items: center;
@@ -1134,6 +1153,429 @@ body {
 .chat-fork-btn:hover {
   background: var(--accent-dim);
   color: var(--accent);
+}
+
+.copy-msg-btn {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  opacity: 0.65;
+}
+
+.chat-message.assistant:hover .copy-msg-btn {
+  opacity: 1;
+}
+
+.copy-msg-btn:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ==================== Prompt-Paket panel ==================== */
+
+.prompt-pack-panel {
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.prompt-pack-dropzone {
+  border: 1px dashed transparent;
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.prompt-pack-dropzone:hover {
+  border-color: var(--border);
+}
+
+.prompt-pack-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.prompt-pack-panel-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.prompt-pack-sources-section {
+  margin-bottom: 10px;
+}
+
+.prompt-pack-sources-header {
+  margin-bottom: 6px;
+}
+
+.prompt-pack-sources-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.prompt-pack-row-inline {
+  margin-bottom: 0;
+  align-items: center;
+}
+
+.prompt-pack-label-compact {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.prompt-pack-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 28px;
+}
+
+.prompt-pack-chips-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.prompt-pack-instruction-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.prompt-pack-instruction {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+}
+
+.prompt-pack-instruction:focus {
+  border-color: var(--accent);
+}
+
+.prompt-pack-instruction:disabled {
+  opacity: 0.5;
+}
+
+.prompt-pack-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--yellow);
+  color: #1e1e2e;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s, filter 0.15s;
+}
+
+.prompt-pack-generate-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.prompt-pack-generate-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Prompt-Paket modal */
+.prompt-pack-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1150;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.prompt-pack-modal-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+  width: min(520px, 100%);
+  max-height: min(90vh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.prompt-pack-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.prompt-pack-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.prompt-pack-modal-icon {
+  color: var(--yellow);
+  flex-shrink: 0;
+}
+
+.prompt-pack-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.prompt-pack-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.prompt-pack-modal-close:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.prompt-pack-modal-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.prompt-pack-modal-intro {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  padding: 10px 14px 0;
+  margin: 0;
+}
+
+.prompt-pack-modal-warning {
+  font-size: 11px;
+  color: var(--yellow);
+  line-height: 1.4;
+  padding: 8px 14px 0;
+  margin: 0;
+}
+
+.prompt-pack-modal-warning code {
+  font-size: 10px;
+  background: var(--bg-tertiary);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.prompt-pack-modal-body {
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.prompt-pack-modal-body .prompt-pack-panel {
+  border-top: none;
+  padding: 0;
+  background: transparent;
+}
+
+.prompt-pack-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.prompt-pack-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 140px;
+}
+
+.prompt-pack-select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.prompt-pack-source-wrap {
+  position: relative;
+}
+
+.prompt-pack-source-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.prompt-pack-source-btn:hover {
+  background: var(--bg-hover);
+}
+
+.prompt-pack-chevron-open {
+  transform: rotate(180deg);
+}
+
+.prompt-pack-source-dropdown {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 4px;
+  min-width: 220px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+
+.prompt-pack-source-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.prompt-pack-source-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.prompt-pack-source-item:hover {
+  background: var(--bg-hover);
+}
+
+.prompt-pack-token-meter {
+  margin-top: 4px;
+}
+
+.prompt-pack-token-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.prompt-pack-token-value {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.prompt-pack-token-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
+.token-meter-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.token-meter-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.token-meter-neutral {
+  background: var(--text-muted);
+}
+
+.token-meter-green {
+  background: var(--green);
+}
+
+.token-meter-yellow {
+  background: var(--yellow);
+}
+
+.token-meter-red {
+  background: var(--red);
 }
 
 /* ==================== Chat History Panel ==================== */

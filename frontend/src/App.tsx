@@ -5,6 +5,7 @@ import { Outliner } from './components/Outliner.tsx';
 import { MetaPanel } from './components/MetaPanel.tsx';
 import { ChapterView } from './components/ChapterView.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
+import { PromptPackModal } from './components/PromptPackModal.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
@@ -68,6 +69,7 @@ function App() {
     try {
       const [mds, status] = await Promise.all([modesApi.getAll(), projectConfigApi.status()]);
       setModes(mds);
+      const chatModes = mds.filter(m => m.id !== 'prompt-pack');
       let configured: string | undefined;
       if (status.initialized) {
         try {
@@ -77,7 +79,8 @@ function App() {
           /* ignore */
         }
       }
-      setSelectedMode(resolveDefaultModeId(mds, configured));
+      if (configured === 'prompt-pack') configured = undefined;
+      setSelectedMode(resolveDefaultModeId(chatModes, configured));
     } catch (e) {
       console.error(e);
     }
@@ -126,6 +129,7 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [wikiOpen, setWikiOpen] = useState(false);
+  const [promptPackOpen, setPromptPackOpen] = useState(false);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
@@ -241,6 +245,32 @@ function App() {
     },
     [chat, selectedMode, modes, refs.referencedFiles],
   );
+
+  const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
+
+  const handlePromptPackGenerate = useCallback(
+    (message: string, files: string[]) => {
+      const m = modes.find(x => x.id === 'prompt-pack');
+      chat.sendMessage(
+        message,
+        null,
+        'prompt-pack',
+        files,
+        m?.name ?? 'Prompt-Paket',
+        m?.color ?? '#f9e2af',
+      );
+      setPromptPackOpen(false);
+    },
+    [chat, modes],
+  );
+
+  useEffect(() => {
+    if (!modes.length) return;
+    if (selectedMode === 'prompt-pack') {
+      const chatModes = modes.filter(x => x.id !== 'prompt-pack');
+      setSelectedMode(resolveDefaultModeId(chatModes, undefined));
+    }
+  }, [modes, selectedMode]);
 
   const handleNewChat = useCallback(() => {
     history.createConversation(selectedMode);
@@ -359,7 +389,7 @@ function App() {
             streaming={chat.streaming}
             error={chat.error}
             toolActivity={chat.toolActivity}
-            modes={modes}
+            modes={modesForChat}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}
             conversations={history.conversations}
@@ -375,6 +405,7 @@ function App() {
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
+            onOpenPromptPack={() => setPromptPackOpen(true)}
           />
         </Panel>
       </Group>
@@ -406,6 +437,14 @@ function App() {
           onGeneralConfigSaved={loadModes}
         />
       )}
+
+      <PromptPackModal
+        open={promptPackOpen}
+        onClose={() => setPromptPackOpen(false)}
+        onGenerate={handlePromptPackGenerate}
+        streaming={chat.streaming}
+        hasPromptPackMode={modes.some(m => m.id === 'prompt-pack')}
+      />
 
       {wikiOpen && (
         <WikiBrowser

@@ -28,6 +28,9 @@ interface ChatInputProps {
   referencedFiles: string[];
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
+  /** When true, file chips are not shown (e.g. Prompt-Paket panel already lists them). */
+  hideFileChips?: boolean;
+  placeholder?: string;
 }
 
 export function ChatInput({
@@ -37,6 +40,8 @@ export function ChatInput({
   referencedFiles,
   onAddFile,
   onRemoveFile,
+  hideFileChips = false,
+  placeholder: placeholderProp,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [ac, setAc] = useState<{
@@ -303,7 +308,7 @@ export function ChatInput({
         </div>
       )}
 
-      {referencedFiles.length > 0 && (
+      {!hideFileChips && referencedFiles.length > 0 && (
         <div className="chat-input-files">
           {referencedFiles.map(f => (
             <FileChip key={f} path={f} onRemove={onRemoveFile} />
@@ -321,7 +326,8 @@ export function ChatInput({
           placeholder={
             streaming
               ? 'AI is responding...'
-              : 'Nachricht... (Enter senden, Shift+Enter neue Zeile, @ für Kapitel/Szenen/Wiki)'
+              : (placeholderProp ??
+                'Nachricht... (Enter senden, Shift+Enter neue Zeile, @ für Kapitel/Szenen/Wiki)')
           }
           disabled={streaming}
           rows={1}
