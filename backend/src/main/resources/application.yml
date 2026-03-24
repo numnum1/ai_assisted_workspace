@@ -2,6 +2,8 @@ server:
   port: 8080
 
 app:
+  data:
+    data-dir: ${APP_DATA_DIR:}
   ai:
     api-url: https://api.eecc.ai
     api-key: ${AI_API_KEY:your-api-key-here}

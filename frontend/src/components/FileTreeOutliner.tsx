@@ -1,0 +1,279 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
+import { filesApi, subprojectApi } from '../api.ts';
+import type { FileNode } from '../types.ts';
+import { OutlinerIcon } from './outlinerIcons.tsx';
+
+function folderIconForSubprojectType(type: string | null | undefined): string {
+  if (!type) return 'folder';
+  if (type === 'music') return 'disc';
+  if (type === 'game') return 'sword';
+  if (type === 'book') return 'book';
+  return 'book';
+}
+
+interface FileTreeOutlinerProps {
+  projectPath: string | null;
+  selectedPath: string | null;
+  onSelectFile: (path: string) => void;
+  onRevealInExplorer?: () => void;
+  /** Bump to reload file tree after disk changes */
+  refreshNonce?: number;
+  onSubprojectOpen?: (path: string, type: string) => void;
+  onConfigureSubproject?: (path: string, existingType?: string | null) => void;
+}
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  path: string;
+  subprojectType: string | null | undefined;
+}
+
+function TreeNodeRow({
+  node,
+  depth,
+  expanded,
+  toggle,
+  selectedPath,
+  onSelectFile,
+  onContextMenu,
+  onSubprojectOpen,
+}: {
+  node: FileNode;
+  depth: number;
+  expanded: Set<string>;
+  toggle: (path: string) => void;
+  selectedPath: string | null;
+  onSelectFile: (path: string) => void;
+  onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
+  onSubprojectOpen?: (path: string, type: string) => void;
+}) {
+  const isDir = node.directory;
+  const isOpen = expanded.has(node.path);
+  const isSelected = selectedPath === node.path;
+  const isSubproject = Boolean(isDir && node.subprojectType);
+
+  const handleClick = () => {
+    if (isDir) {
+      if (node.subprojectType && onSubprojectOpen) {
+        onSubprojectOpen(node.path, node.subprojectType);
+        return;
+      }
+      toggle(node.path);
+      return;
+    }
+    onSelectFile(node.path);
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`file-tree-row${isSelected ? ' file-tree-row--active' : ''}${isSubproject ? ' file-tree-row--subproject' : ''}`}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        onClick={handleClick}
+        onContextMenu={(e) => onContextMenu(e, node)}
+      >
+        <span className="file-tree-chevron">
+          {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}
+        </span>
+        {isDir ? (
+          isSubproject ? (
+            <OutlinerIcon name={folderIconForSubprojectType(node.subprojectType)} size={14} className="file-tree-icon file-tree-icon--subproject" />
+          ) : (
+            <Folder size={14} className="file-tree-icon" />
+          )
+        ) : (
+          <File size={14} className="file-tree-icon" />
+        )}
+        <span className="file-tree-name">{node.name}</span>
+        {isSubproject && <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>}
+      </button>
+      {isDir && isOpen && node.children?.map((ch) => (
+        <TreeNodeRow
+          key={ch.path}
+          node={ch}
+          depth={depth + 1}
+          expanded={expanded}
+          toggle={toggle}
+          selectedPath={selectedPath}
+          onSelectFile={onSelectFile}
+          onContextMenu={onContextMenu}
+          onSubprojectOpen={onSubprojectOpen}
+        />
+      ))}
+    </>
+  );
+}
+
+export function FileTreeOutliner({
+  projectPath,
+  selectedPath,
+  onSelectFile,
+  onRevealInExplorer,
+  refreshNonce = 0,
+  onSubprojectOpen,
+  onConfigureSubproject,
+}: FileTreeOutlinerProps) {
+  const [root, setRoot] = useState<FileNode | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['.']));
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const toggle = useCallback((path: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!projectPath) {
+      setRoot(null);
+      setLoadError(null);
+      return;
+    }
+    let cancelled = false;
+    filesApi
+      .getTree()
+      .then((tree) => {
+        if (!cancelled) {
+          setRoot(tree);
+          setLoadError(null);
+          setExpanded(new Set(['.']));
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Baum konnte nicht geladen werden');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath, refreshNonce]);
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
+
+  const onContextMenu = useCallback((e: React.MouseEvent, node: FileNode) => {
+    if (!node.directory) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, path: node.path, subprojectType: node.subprojectType });
+  }, []);
+
+  const handleRemoveSubproject = async (path: string) => {
+    try {
+      await subprojectApi.remove(path);
+      setMenu(null);
+      // parent should bump refreshNonce; also reload locally
+      if (projectPath) {
+        const tree = await filesApi.getTree();
+        setRoot(tree);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="file-tree-outliner outliner">
+      <div className="outliner-header">
+        <span className="outliner-header-title">Dateien</span>
+        {onRevealInExplorer && (
+          <button type="button" className="outliner-reveal-btn" onClick={onRevealInExplorer} title="Im Explorer öffnen">
+            <FolderOpen size={13} />
+          </button>
+        )}
+      </div>
+      <div className="file-tree-scroll outliner-content">
+        {loadError && <div className="file-tree-error">{loadError}</div>}
+        {!root && !loadError && projectPath && <div className="file-tree-loading">Laden…</div>}
+        {root && (
+          <TreeNodeRow
+            node={root}
+            depth={0}
+            expanded={expanded}
+            toggle={toggle}
+            selectedPath={selectedPath}
+            onSelectFile={onSelectFile}
+            onContextMenu={onContextMenu}
+            onSubprojectOpen={onSubprojectOpen}
+          />
+        )}
+      </div>
+      {menu && (
+        <div
+          ref={menuRef}
+          className="file-tree-context-menu"
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(ev) => ev.stopPropagation()}
+          onMouseDown={(ev) => ev.stopPropagation()}
+        >
+          {menu.subprojectType ? (
+            <>
+              {onSubprojectOpen && (
+                <button
+                  type="button"
+                  className="file-tree-context-item"
+                  onClick={() => {
+                    onSubprojectOpen(menu.path, menu.subprojectType!);
+                    setMenu(null);
+                  }}
+                >
+                  Medien-Projekt öffnen
+                </button>
+              )}
+              {onConfigureSubproject && (
+                <button
+                  type="button"
+                  className="file-tree-context-item"
+                  onClick={() => {
+                    onConfigureSubproject(menu.path, menu.subprojectType);
+                    setMenu(null);
+                  }}
+                >
+                  Typ ändern…
+                </button>
+              )}
+              <button
+                type="button"
+                className="file-tree-context-item file-tree-context-item--danger"
+                onClick={() => void handleRemoveSubproject(menu.path)}
+              >
+                Medien-Projekt entfernen
+              </button>
+            </>
+          ) : (
+            onConfigureSubproject && (
+              <button
+                type="button"
+                className="file-tree-context-item"
+                onClick={() => {
+                  onConfigureSubproject(menu.path, null);
+                  setMenu(null);
+                }}
+              >
+                Als Medien-Projekt einrichten…
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

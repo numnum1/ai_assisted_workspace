@@ -2,6 +2,9 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
 import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw } from 'lucide-react';
 import { Outliner } from './components/Outliner.tsx';
+import { FileTreeOutliner } from './components/FileTreeOutliner.tsx';
+import { MarkdownFileEditor } from './components/MarkdownFileEditor.tsx';
+import { SubprojectTypeDialog } from './components/SubprojectTypeDialog.tsx';
 import { MetaPanel } from './components/MetaPanel.tsx';
 import { ChapterView } from './components/ChapterView.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
@@ -24,6 +27,8 @@ import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
 import { useChatHistory } from './hooks/useChatHistory.ts';
 import { useWiki } from './hooks/useWiki.ts';
+import { useWorkspaceMode } from './hooks/useWorkspaceMode.ts';
+import { useFileEditor } from './hooks/useFileEditor.ts';
 
 function App() {
   const project = useProject();
@@ -36,18 +41,40 @@ function App() {
   const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages);
 
-  // Load chapter list when project opens, then restore last position
+  const [openSubproject, setOpenSubproject] = useState<{ path: string; type: string; name?: string } | null>(null);
+  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+  const [subprojectDialog, setSubprojectDialog] = useState<{ path: string; initialType?: string | null } | null>(null);
+
+  // Project root changes: reset subproject and structure root
   useEffect(() => {
     if (!project.projectPath) return;
     chapter.setProjectPath(project.projectPath);
-    chapter.refreshChapters().then(() => {
-      const stored = chapter.restoreLastPosition(project.projectPath);
-      if (stored) {
-        chapter.openChapter(stored.chapterId, stored.scrollTarget ?? undefined);
-      }
-    });
+    setOpenSubproject(null);
+    chapter.setStructureRoot(null);
+    chapter.closeChapter();
+    setSelectedMeta(null);
+    setMetaExpanded(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
+
+  // Subproject folder: load chapters under that root
+  useEffect(() => {
+    if (!project.projectPath) return;
+    if (openSubproject) {
+      chapter.setStructureRoot(openSubproject.path);
+      chapter.refreshChapters().then(() => {
+        const stored = chapter.restoreLastPosition(project.projectPath, openSubproject.path);
+        if (stored) {
+          chapter.openChapter(stored.chapterId, stored.scrollTarget ?? undefined);
+        }
+      });
+    } else {
+      chapter.setStructureRoot(null);
+      chapter.closeChapter();
+      void chapter.refreshChapters();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSubproject?.path, project.projectPath]);
 
   // Load messages when switching conversations
   useEffect(() => {
@@ -99,10 +126,11 @@ function App() {
   }, []);
 
   const handleSelectBookMeta = useCallback(async () => {
-    const meta = await bookApi.getMeta();
+    const structureRoot = openSubproject?.path;
+    const meta = await bookApi.getMeta(structureRoot);
     setSelectedMeta({ type: 'book', chapterId: '', meta });
     setMetaExpanded(false);
-  }, []);
+  }, [openSubproject?.path]);
 
   const handleSaveMeta = useCallback(async (
     type: MetaNodeType,
@@ -112,7 +140,7 @@ function App() {
     actionId?: string,
   ) => {
     if (type === 'book') {
-      await bookApi.updateMeta(meta);
+      await bookApi.updateMeta(meta, openSubproject?.path);
       setSelectedMeta(prev => prev ? { ...prev, meta } : null);
     } else if (type === 'chapter') {
       await chapter.updateChapterMeta(chapterId, meta);
@@ -124,7 +152,7 @@ function App() {
       await chapter.updateActionMeta(chapterId, sceneId, actionId, meta);
       setSelectedMeta(prev => prev ? { ...prev, meta } : null);
     }
-  }, [chapter]);
+  }, [chapter, openSubproject?.path]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -231,10 +259,52 @@ function App() {
   ], [hasUncommitted, syncBadge]);
 
   const handleOpenProject = useCallback(async (path: string) => {
+    setOpenSubproject(null);
     await project.openProject(path);
     await chapter.refreshChapters();
     loadModes();
   }, [project, chapter, loadModes]);
+
+  const browseAndOpenProject = useCallback(async () => {
+    try {
+      const r = await projectApi.browse();
+      if (r.cancelled || !r.path) return;
+      await handleOpenProject(r.path);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [handleOpenProject]);
+
+  const workspaceModeId = openSubproject?.type ?? 'default';
+  const {
+    schema: workspaceModeSchema,
+    metaSchemas: workspaceMetaSchemas,
+    levelConfig: workspaceLevelConfig,
+    refresh: refreshWorkspaceModeSchema,
+  } = useWorkspaceMode(project.projectPath ?? '', workspaceModeId);
+
+  const editorMode = openSubproject ? (workspaceModeSchema?.editorMode ?? 'prose') : 'standard';
+
+  const fileEditor = useFileEditor(project.projectPath ?? null);
+
+  useEffect(() => {
+    if (editorMode === 'standard') {
+      setSelectedMeta(null);
+      setMetaExpanded(false);
+    }
+  }, [editorMode]);
+
+  useEffect(() => {
+    if (openSubproject) {
+      setSelectedMeta(null);
+      setMetaExpanded(false);
+    }
+  }, [openSubproject?.path]);
+
+  const onProjectGeneralSaved = useCallback(() => {
+    loadModes();
+    void refreshWorkspaceModeSchema();
+  }, [loadModes, refreshWorkspaceModeSchema]);
 
   const handleSendMessage = useCallback(
     (message: string) => {
@@ -292,53 +362,92 @@ function App() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         actions={commandActions}
-        onOpenFolder={handleOpenProject}
+        onOpenFolder={browseAndOpenProject}
         onGitRefresh={fetchGitState}
         gitStatus={gitStatus ?? undefined}
         onAuthRequired={showCredentialsDialog}
       />
 
-      <Group direction="horizontal" className="app-panels">
+      <Group orientation="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="50%">
           <div className="left-column">
-            <div className={`outliner-slot${selectedMeta ? ' split' : ''}`}>
-              <Outliner
-                chapters={chapter.chapters}
-                activeChapter={chapter.activeChapter}
-                editorPosition={chapter.editorPosition}
-                onOpenChapter={chapter.openChapter}
-                onScrollTo={chapter.scrollTo}
-                onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
-                onCreateChapter={chapter.createChapter}
-                onDeleteChapter={chapter.deleteChapter}
-                onRenameChapter={(id, title) => {
-                  const current = chapter.chapters.find(c => c.id === id)?.meta;
-                  if (current) chapter.updateChapterMeta(id, { ...current, title });
-                }}
-                onCreateScene={chapter.createScene}
-                onDeleteScene={chapter.deleteScene}
-                onRenameScene={(chapterId, sceneId, title) => {
-                  const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
-                  if (scene) chapter.updateSceneMeta(chapterId, sceneId, { ...scene.meta, title });
-                }}
-                onCreateAction={chapter.createAction}
-                onDeleteAction={chapter.deleteAction}
-                onRenameAction={(chapterId, sceneId, actionId, title) => {
-                  const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
-                  const action = scene?.actions.find(a => a.id === actionId);
-                  if (action) chapter.updateActionMeta(chapterId, sceneId, actionId, { ...action.meta, title });
-                }}
-                onReorderScenes={chapter.reorderScenes}
-                onReorderActions={chapter.reorderActions}
-                onSelectMeta={handleSelectMeta}
-                onSelectBookMeta={handleSelectBookMeta}
-              />
+            <div className="workspace-toolbar">
+              <button type="button" onClick={() => { void browseAndOpenProject(); }} title="Projekt-Ordner öffnen">
+                <FolderOpen size={16} />
+                <span>Ordner</span>
+              </button>
+              {openSubproject && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenSubproject(null);
+                    setSelectedMeta(null);
+                    setMetaExpanded(false);
+                  }}
+                  title="Zurück zum Datei-Browser"
+                >
+                  Dateien
+                </button>
+              )}
+            </div>
+            <div className={`outliner-slot${selectedMeta && editorMode !== 'standard' ? ' split' : ''}`}>
+              {editorMode === 'standard' ? (
+                <FileTreeOutliner
+                  projectPath={project.projectPath ?? null}
+                  selectedPath={fileEditor.selectedPath}
+                  onSelectFile={fileEditor.openFile}
+                  onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
+                  refreshNonce={treeRefreshKey}
+                  onSubprojectOpen={(path, type) => {
+                    setOpenSubproject({ path, type });
+                    setSelectedMeta(null);
+                    setMetaExpanded(false);
+                  }}
+                  onConfigureSubproject={(path, existingType) => {
+                    setSubprojectDialog({ path, initialType: existingType ?? undefined });
+                  }}
+                />
+              ) : (
+                <Outliner
+                  levelConfig={workspaceLevelConfig}
+                  chapters={chapter.chapters}
+                  activeChapter={chapter.activeChapter}
+                  editorPosition={chapter.editorPosition}
+                  onOpenChapter={chapter.openChapter}
+                  onScrollTo={chapter.scrollTo}
+                  onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
+                  onCreateChapter={chapter.createChapter}
+                  onDeleteChapter={chapter.deleteChapter}
+                  onRenameChapter={(id, title) => {
+                    const current = chapter.chapters.find(c => c.id === id)?.meta;
+                    if (current) chapter.updateChapterMeta(id, { ...current, title });
+                  }}
+                  onCreateScene={chapter.createScene}
+                  onDeleteScene={chapter.deleteScene}
+                  onRenameScene={(chapterId, sceneId, title) => {
+                    const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
+                    if (scene) chapter.updateSceneMeta(chapterId, sceneId, { ...scene.meta, title });
+                  }}
+                  onCreateAction={chapter.createAction}
+                  onDeleteAction={chapter.deleteAction}
+                  onRenameAction={(chapterId, sceneId, actionId, title) => {
+                    const scene = chapter.activeChapter?.scenes.find(s => s.id === sceneId);
+                    const action = scene?.actions.find(a => a.id === actionId);
+                    if (action) chapter.updateActionMeta(chapterId, sceneId, actionId, { ...action.meta, title });
+                  }}
+                  onReorderScenes={chapter.reorderScenes}
+                  onReorderActions={chapter.reorderActions}
+                  onSelectMeta={handleSelectMeta}
+                  onSelectBookMeta={handleSelectBookMeta}
+                />
+              )}
             </div>
 
-            {selectedMeta && (
+            {selectedMeta && editorMode !== 'standard' && (
               <div className="meta-panel-slot">
                 <MetaPanel
                   selection={selectedMeta}
+                  metaSchemas={workspaceMetaSchemas}
                   onSave={handleSaveMeta}
                   onClose={() => { setSelectedMeta(null); setMetaExpanded(false); }}
                   onExpand={() => setMetaExpanded(true)}
@@ -351,32 +460,50 @@ function App() {
         <Separator className="resize-handle" />
 
         <Panel defaultSize="45%" minSize="15%">
-          {metaExpanded && selectedMeta ? (
+          {metaExpanded && selectedMeta && editorMode !== 'standard' ? (
             <div className="meta-panel-center">
               <MetaPanel
                 selection={selectedMeta}
+                metaSchemas={workspaceMetaSchemas}
                 onSave={handleSaveMeta}
                 onClose={() => setMetaExpanded(false)}
                 expanded={true}
               />
             </div>
-          ) : chapter.activeChapter ? (
-            <ChapterView
-              chapter={chapter.activeChapter}
-              actionContents={chapter.actionContents}
-              scrollTarget={chapter.scrollTarget}
-              hasDirtyActions={chapter.hasDirtyActions}
-              onActionChange={chapter.updateActionContent}
-              onActionSave={chapter.saveAction}
-              onSaveAll={() => { chapter.saveAllDirty(); fetchGitState(); }}
-              onClose={chapter.closeChapter}
-              onScrollTargetConsumed={chapter.clearScrollTarget}
-              onEditorFocus={chapter.updateEditorPosition}
+          ) : editorMode === 'standard' ? (
+            <MarkdownFileEditor
+              path={fileEditor.selectedPath}
+              content={fileEditor.content}
+              dirty={fileEditor.dirty}
+              loading={fileEditor.loading}
+              error={fileEditor.error}
+              onChange={fileEditor.setContent}
+              onSave={() => { void fileEditor.save(); fetchGitState(); }}
+              onClearError={fileEditor.clearError}
             />
+          ) : editorMode === 'prose' ? (
+            chapter.activeChapter ? (
+              <ChapterView
+                chapter={chapter.activeChapter}
+                actionContents={chapter.actionContents}
+                scrollTarget={chapter.scrollTarget}
+                hasDirtyActions={chapter.hasDirtyActions}
+                onActionChange={chapter.updateActionContent}
+                onActionSave={chapter.saveAction}
+                onSaveAll={() => { chapter.saveAllDirty(); fetchGitState(); }}
+                onClose={chapter.closeChapter}
+                onScrollTargetConsumed={chapter.clearScrollTarget}
+                onEditorFocus={chapter.updateEditorPosition}
+              />
+            ) : (
+              <div className="editor-empty">
+                <ChapterPlaceholder />
+                <p>Kapitel im Outliner auswählen oder ein neues erstellen</p>
+              </div>
+            )
           ) : (
-            <div className="editor-empty">
-              <ChapterPlaceholder />
-              <p>Kapitel im Outliner auswählen oder ein neues erstellen</p>
+            <div className="editor-mode-placeholder editor-empty">
+              <p>Kein Editor für diesen Modus</p>
             </div>
           )}
         </Panel>
@@ -434,7 +561,7 @@ function App() {
         <ProjectSettingsModal
           onClose={() => setSettingsOpen(false)}
           onModesChanged={loadModes}
-          onGeneralConfigSaved={loadModes}
+          onGeneralConfigSaved={onProjectGeneralSaved}
         />
       )}
 
@@ -473,6 +600,15 @@ function App() {
         <WikiTypePickerDialog
           onConfirm={wiki.createType}
           onClose={wiki.closeTypePicker}
+        />
+      )}
+
+      {subprojectDialog && (
+        <SubprojectTypeDialog
+          folderPath={subprojectDialog.path}
+          initialTypeId={subprojectDialog.initialType}
+          onClose={() => setSubprojectDialog(null)}
+          onSaved={() => setTreeRefreshKey((k) => k + 1)}
         />
       )}
     </div>

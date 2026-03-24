@@ -2,6 +2,8 @@ package com.assistant.controller;
 
 import com.assistant.model.Mode;
 import com.assistant.model.ProjectConfig;
+import com.assistant.model.WorkspaceModeInfo;
+import com.assistant.model.WorkspaceModeSchema;
 import com.assistant.service.ModeService;
 import com.assistant.service.ProjectConfigService;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,26 @@ public class ProjectConfigController {
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> status() {
         return ResponseEntity.ok(Map.of("initialized", projectConfigService.hasProjectConfig()));
+    }
+
+    /**
+     * Built-in workspace mode definition (labels, icons, meta field schemas) for the current project.
+     */
+    @GetMapping("/workspace-mode")
+    public ResponseEntity<WorkspaceModeSchema> getWorkspaceModeSchema(
+            @RequestParam(value = "id", required = false) String modeId) {
+        if (modeId != null && !modeId.isBlank()) {
+            return ResponseEntity.ok(projectConfigService.getWorkspaceModeSchemaById(modeId));
+        }
+        return ResponseEntity.ok(projectConfigService.getWorkspaceModeSchema());
+    }
+
+    /**
+     * All workspace modes: built-in (classpath) and user plugins (AppData), for settings UI.
+     */
+    @GetMapping("/workspace-modes")
+    public ResponseEntity<List<WorkspaceModeInfo>> listWorkspaceModes() {
+        return ResponseEntity.ok(projectConfigService.listAvailableWorkspaceModes());
     }
 
     @GetMapping

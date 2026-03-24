@@ -3,8 +3,14 @@ package com.assistant.service;
 import com.assistant.config.AppConfig;
 import com.assistant.model.Mode;
 import com.assistant.model.ProjectConfig;
+import com.assistant.model.WorkspaceModeInfo;
+import com.assistant.model.WorkspaceModeSchema;
+import com.assistant.model.WorkspaceModeSchema.MetaFieldPayload;
+import com.assistant.model.WorkspaceModeSchema.MetaTypeSchemaPayload;
+import com.assistant.model.WorkspaceModeSchema.WorkspaceLevelConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
@@ -13,6 +19,7 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -26,6 +33,9 @@ public class ProjectConfigService {
     private static final String PROJECT_YAML = "project.yaml";
     private static final String MODES_DIR = "modes";
     private static final String RULES_DIR = "rules";
+    private static final String WORKSPACE_MODES_PREFIX = "workspace-modes/";
+    /** User plugin YAMLs: {@code <appData>/workspace-modes/*.yaml} */
+    private static final String USER_WORKSPACE_MODES_DIR = "workspace-modes";
 
     private final AppConfig appConfig;
 
@@ -203,6 +213,7 @@ public class ProjectConfigService {
         String projectPath = appConfig.getProject().getPath();
         config.setName(Path.of(projectPath).getFileName().toString());
         config.setDefaultMode("review");
+        config.setWorkspaceMode("default");
 
         // Copy built-in modes as a starting point
         copyBuiltinModesToProject(assistantDir.resolve(MODES_DIR));
@@ -279,6 +290,10 @@ public class ProjectConfigService {
         if (defaultMode != null) {
             config.setDefaultMode(defaultMode.toString());
         }
+        Object workspaceMode = data.get("workspaceMode");
+        if (workspaceMode != null) {
+            config.setWorkspaceMode(workspaceMode.toString());
+        }
         return config;
     }
 
@@ -289,7 +304,272 @@ public class ProjectConfigService {
         data.put("alwaysInclude", config.getAlwaysInclude() != null ? config.getAlwaysInclude() : List.of());
         data.put("globalRules", config.getGlobalRules() != null ? config.getGlobalRules() : List.of());
         data.put("defaultMode", config.getDefaultMode() != null ? config.getDefaultMode() : "");
+        data.put("workspaceMode", config.getWorkspaceMode() != null ? config.getWorkspaceMode() : "default");
         return buildYaml().dump(data);
+    }
+
+    // ─── Workspace mode schema (classpath YAML) ────────────────────────────────
+
+    /**
+     * Resolves the workspace mode for the current project and returns the full schema for the UI.
+     */
+    public WorkspaceModeSchema getWorkspaceModeSchema() {
+        ProjectConfig cfg = getConfig();
+        String modeId = cfg.getWorkspaceMode();
+        if (modeId == null || modeId.isBlank()) {
+            modeId = "default";
+        }
+        if (!isValidWorkspaceModeId(modeId)) {
+            log.warn("Invalid workspaceMode in config: {}, falling back to default", modeId);
+            modeId = "default";
+        }
+        return getWorkspaceModeSchemaById(modeId);
+    }
+
+    /**
+     * Loads a workspace mode by id (classpath / user plugins), independent of {@link ProjectConfig#getWorkspaceMode()}.
+     */
+    public WorkspaceModeSchema getWorkspaceModeSchemaById(String modeId) {
+        if (modeId == null || modeId.isBlank()) {
+            modeId = "default";
+        }
+        if (!isValidWorkspaceModeId(modeId)) {
+            log.warn("Invalid workspace mode id: {}, falling back to default", modeId);
+            modeId = "default";
+        }
+        WorkspaceModeSchema schema = loadBuiltinWorkspaceModeYaml(modeId);
+        if (schema == null && !"default".equals(modeId)) {
+            schema = loadBuiltinWorkspaceModeYaml("default");
+        }
+        if (schema == null && !"book".equals(modeId)) {
+            schema = loadBuiltinWorkspaceModeYaml("book");
+        }
+        return schema != null ? schema : new WorkspaceModeSchema();
+    }
+
+    private boolean isValidWorkspaceModeId(String id) {
+        return id != null && id.matches("[a-zA-Z0-9_-]+");
+    }
+
+    /**
+     * Loads workspace mode YAML: first {@code <appData>/workspace-modes/{id}.yaml}, then classpath.
+     * Returns null if missing or invalid in both places.
+     */
+    public WorkspaceModeSchema loadBuiltinWorkspaceModeYaml(String modeId) {
+        if (!isValidWorkspaceModeId(modeId)) {
+            return null;
+        }
+        Path userFile = resolveAppDataDir().resolve(USER_WORKSPACE_MODES_DIR).resolve(modeId + ".yaml");
+        if (Files.isRegularFile(userFile)) {
+            Yaml yaml = new Yaml();
+            try (InputStream is = Files.newInputStream(userFile)) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> data = yaml.load(is);
+                if (data != null) {
+                    return mapToWorkspaceModeSchema(data);
+                }
+            } catch (IOException e) {
+                log.warn("Could not read user workspace mode {}: {}", modeId, e.getMessage());
+            }
+        }
+
+        String path = WORKSPACE_MODES_PREFIX + modeId + ".yaml";
+        ClassPathResource resource = new ClassPathResource(path);
+        if (!resource.exists()) {
+            log.warn("Workspace mode resource not found: {}", path);
+            return null;
+        }
+        Yaml yaml = new Yaml();
+        try (InputStream is = resource.getInputStream()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = yaml.load(is);
+            if (data == null) {
+                return null;
+            }
+            return mapToWorkspaceModeSchema(data);
+        } catch (IOException e) {
+            log.warn("Could not read workspace mode {}: {}", modeId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Built-in classpath modes plus user plugins from app data directory. User YAML overrides same {@code id}.
+     */
+    public List<WorkspaceModeInfo> listAvailableWorkspaceModes() {
+        Map<String, WorkspaceModeInfo> byId = new LinkedHashMap<>();
+        try {
+            collectClasspathWorkspaceModeInfos(byId);
+        } catch (IOException e) {
+            log.warn("Could not scan classpath workspace-modes: {}", e.getMessage());
+        }
+        collectUserWorkspaceModeInfos(byId);
+        List<WorkspaceModeInfo> list = new ArrayList<>(byId.values());
+        list.sort(Comparator.comparing(WorkspaceModeInfo::name, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(WorkspaceModeInfo::id));
+        return list;
+    }
+
+    private Path resolveAppDataDir() {
+        String configured = appConfig.getData().getDataDir();
+        if (configured != null && !configured.isBlank()) {
+            return Path.of(configured);
+        }
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.contains("win")) {
+            String appdata = System.getenv("APPDATA");
+            if (appdata != null && !appdata.isBlank()) {
+                return Path.of(appdata, "markdown-project");
+            }
+            return Path.of(System.getProperty("user.home"), "AppData", "Roaming", "markdown-project");
+        }
+        return Path.of(System.getProperty("user.home"), ".config", "markdown-project");
+    }
+
+    private void collectClasspathWorkspaceModeInfos(Map<String, WorkspaceModeInfo> byId) throws IOException {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource[] resources = resolver.getResources("classpath:workspace-modes/*.yaml");
+        Yaml yaml = new Yaml();
+        for (Resource resource : resources) {
+            String filename = resource.getFilename();
+            if (filename == null || !filename.endsWith(".yaml")) {
+                continue;
+            }
+            String stem = filename.substring(0, filename.length() - ".yaml".length());
+            if (!isValidWorkspaceModeId(stem)) {
+                continue;
+            }
+            try (InputStream is = resource.getInputStream()) {
+                WorkspaceModeInfo info = readWorkspaceModeInfoFromYaml(yaml, is, stem, "builtin");
+                byId.put(info.id(), info);
+            } catch (IOException e) {
+                log.warn("Could not read workspace mode resource {}: {}", filename, e.getMessage());
+            }
+        }
+    }
+
+    private void collectUserWorkspaceModeInfos(Map<String, WorkspaceModeInfo> byId) {
+        Path dir = resolveAppDataDir().resolve(USER_WORKSPACE_MODES_DIR);
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        Yaml yaml = new Yaml();
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".yaml"))
+                    .forEach(p -> {
+                        String fn = p.getFileName().toString();
+                        String stem = fn.substring(0, fn.length() - ".yaml".length());
+                        if (!isValidWorkspaceModeId(stem)) {
+                            return;
+                        }
+                        try (InputStream is = Files.newInputStream(p)) {
+                            WorkspaceModeInfo info = readWorkspaceModeInfoFromYaml(yaml, is, stem, "user");
+                            byId.put(info.id(), info);
+                        } catch (IOException e) {
+                            log.warn("Could not read user workspace mode {}: {}", p, e.getMessage());
+                        }
+                    });
+        } catch (IOException e) {
+            log.warn("Could not list user workspace modes dir {}: {}", dir, e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private WorkspaceModeInfo readWorkspaceModeInfoFromYaml(Yaml yaml, InputStream is, String fallbackId, String source) {
+        Map<String, Object> data;
+        try {
+            data = yaml.load(is);
+        } catch (Exception e) {
+            log.warn("Invalid workspace mode YAML ({}): {}", fallbackId, e.getMessage());
+            return new WorkspaceModeInfo(fallbackId, fallbackId, source);
+        }
+        if (data == null) {
+            return new WorkspaceModeInfo(fallbackId, fallbackId, source);
+        }
+        String id = stringVal(data.get("id"), fallbackId);
+        if (!isValidWorkspaceModeId(id)) {
+            id = fallbackId;
+        }
+        String name = stringVal(data.get("name"), id);
+        return new WorkspaceModeInfo(id, name, source);
+    }
+
+    @SuppressWarnings("unchecked")
+    private WorkspaceModeSchema mapToWorkspaceModeSchema(Map<String, Object> data) {
+        WorkspaceModeSchema schema = new WorkspaceModeSchema();
+        schema.setId(stringVal(data.get("id"), "book"));
+        schema.setName(stringVal(data.get("name"), ""));
+        schema.setEditorMode(stringVal(data.get("editorMode"), "prose"));
+        schema.setRootMetaLabel(stringVal(data.get("rootMetaLabel"), ""));
+        schema.setRootMetaIcon(stringVal(data.get("rootMetaIcon"), "book"));
+
+        Object levelsObj = data.get("levels");
+        if (levelsObj instanceof List<?> list) {
+            List<WorkspaceLevelConfig> levels = new ArrayList<>();
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> m) {
+                    WorkspaceLevelConfig lvl = new WorkspaceLevelConfig();
+                    lvl.setKey(stringVal(m.get("key"), ""));
+                    lvl.setLabel(stringVal(m.get("label"), ""));
+                    lvl.setLabelNew(stringVal(m.get("labelNew"), ""));
+                    lvl.setIcon(stringVal(m.get("icon"), ""));
+                    levels.add(lvl);
+                }
+            }
+            schema.setLevels(levels);
+        }
+
+        Object metaObj = data.get("metaSchemas");
+        if (metaObj instanceof Map<?, ?> metaMap) {
+            Map<String, MetaTypeSchemaPayload> schemas = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : metaMap.entrySet()) {
+                String key = e.getKey() != null ? e.getKey().toString() : "";
+                if (e.getValue() instanceof Map<?, ?> schemaMap) {
+                    schemas.put(key, mapToMetaTypeSchema(schemaMap));
+                }
+            }
+            schema.setMetaSchemas(schemas);
+        }
+        return schema;
+    }
+
+    @SuppressWarnings("unchecked")
+    private MetaTypeSchemaPayload mapToMetaTypeSchema(Map<?, ?> schemaMap) {
+        MetaTypeSchemaPayload payload = new MetaTypeSchemaPayload();
+        payload.setFilename(stringVal(schemaMap.get("filename"), ""));
+        Object fieldsObj = schemaMap.get("fields");
+        List<MetaFieldPayload> fields = new ArrayList<>();
+        if (fieldsObj instanceof List<?> list) {
+            for (Object f : list) {
+                if (f instanceof Map<?, ?> fm) {
+                    MetaFieldPayload field = new MetaFieldPayload();
+                    field.setKey(stringVal(fm.get("key"), ""));
+                    field.setLabel(stringVal(fm.get("label"), ""));
+                    field.setType(stringVal(fm.get("type"), "input"));
+                    Object ph = fm.get("placeholder");
+                    if (ph != null) {
+                        field.setPlaceholder(ph.toString());
+                    }
+                    Object dv = fm.get("defaultValue");
+                    field.setDefaultValue(dv != null ? dv.toString() : "");
+                    Object opt = fm.get("options");
+                    if (opt instanceof List<?> ol) {
+                        field.setOptions(ol.stream().map(Object::toString).toList());
+                    }
+                    fields.add(field);
+                }
+            }
+        }
+        payload.setFields(fields);
+        return payload;
+    }
+
+    private static String stringVal(Object o, String fallback) {
+        if (o == null) {
+            return fallback;
+        }
+        String s = o.toString();
+        return s.isEmpty() ? fallback : s;
     }
 
     private String serializeMode(Mode mode) {

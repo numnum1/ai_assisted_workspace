@@ -26,40 +26,55 @@ public class ChapterService {
         this.objectMapper = objectMapper;
     }
 
-    // ─── Path helpers ─────────────────────────────────────────────────────────
+    // ─── Path helpers (workspaceRoot = null or blank → project root) ───────────
 
-    private Path chaptersRoot() {
-        return fileService.getProjectRoot().resolve(CHAPTERS_DIR);
+    private Path structureBase(String workspaceRoot) throws IOException {
+        if (workspaceRoot == null || workspaceRoot.isBlank() || ".".equals(workspaceRoot)) {
+            return fileService.resolveRelativeDirectory(null);
+        }
+        return fileService.resolveRelativeDirectory(workspaceRoot);
     }
 
-    private Path chapterDir(String chapterId) {
-        return chaptersRoot().resolve(chapterId);
+    private Path chaptersRoot(String workspaceRoot) throws IOException {
+        return structureBase(workspaceRoot).resolve(CHAPTERS_DIR);
     }
 
-    private Path chapterMeta(String chapterId) {
-        return chaptersRoot().resolve(chapterId + ".json");
+    private Path chapterDir(String workspaceRoot, String chapterId) throws IOException {
+        return chaptersRoot(workspaceRoot).resolve(chapterId);
     }
 
-    private Path sceneDir(String chapterId, String sceneId) {
-        return chapterDir(chapterId).resolve(sceneId);
+    private Path chapterMeta(String workspaceRoot, String chapterId) throws IOException {
+        return chaptersRoot(workspaceRoot).resolve(chapterId + ".json");
     }
 
-    private Path sceneMeta(String chapterId, String sceneId) {
-        return chapterDir(chapterId).resolve(sceneId + ".json");
+    private Path sceneDir(String workspaceRoot, String chapterId, String sceneId) throws IOException {
+        return chapterDir(workspaceRoot, chapterId).resolve(sceneId);
     }
 
-    private Path actionMeta(String chapterId, String sceneId, String actionId) {
-        return sceneDir(chapterId, sceneId).resolve(actionId + ".json");
+    private Path sceneMeta(String workspaceRoot, String chapterId, String sceneId) throws IOException {
+        return chapterDir(workspaceRoot, chapterId).resolve(sceneId + ".json");
     }
 
-    private Path actionContent(String chapterId, String sceneId, String actionId) {
-        return sceneDir(chapterId, sceneId).resolve(actionId + ".md");
+    private Path actionMeta(String workspaceRoot, String chapterId, String sceneId, String actionId) throws IOException {
+        return sceneDir(workspaceRoot, chapterId, sceneId).resolve(actionId + ".json");
+    }
+
+    private Path actionContent(String workspaceRoot, String chapterId, String sceneId, String actionId) throws IOException {
+        return sceneDir(workspaceRoot, chapterId, sceneId).resolve(actionId + ".md");
+    }
+
+    private Path bookMeta(String workspaceRoot) throws IOException {
+        return structureBase(workspaceRoot).resolve(".project/book.json");
     }
 
     // ─── Read structure ────────────────────────────────────────────────────────
 
     public List<ChapterSummary> listChapters() throws IOException {
-        Path root = chaptersRoot();
+        return listChapters(null);
+    }
+
+    public List<ChapterSummary> listChapters(String workspaceRoot) throws IOException {
+        Path root = chaptersRoot(workspaceRoot);
         if (!Files.isDirectory(root)) {
             return List.of();
         }
@@ -92,14 +107,18 @@ public class ChapterService {
     }
 
     public ChapterNode getChapter(String chapterId) throws IOException {
-        Path metaPath = chapterMeta(chapterId);
+        return getChapter(null, chapterId);
+    }
+
+    public ChapterNode getChapter(String workspaceRoot, String chapterId) throws IOException {
+        Path metaPath = chapterMeta(workspaceRoot, chapterId);
         if (!Files.exists(metaPath)) {
             throw new NoSuchFileException("Chapter not found: " + chapterId);
         }
         StructureNodeMeta chapterMeta = readMeta(metaPath);
         ChapterNode chapter = new ChapterNode(chapterId, chapterMeta);
 
-        Path cDir = chapterDir(chapterId);
+        Path cDir = chapterDir(workspaceRoot, chapterId);
         if (Files.isDirectory(cDir)) {
             try (Stream<Path> entries = Files.list(cDir)) {
                 entries
@@ -109,12 +128,12 @@ public class ChapterService {
                         try {
                             StructureNodeMeta sMeta = readMeta(p);
                             SceneNode scene = new SceneNode(sceneId, sMeta);
-                            Path sDir = sceneDir(chapterId, sceneId);
+                            Path sDir = sceneDir(workspaceRoot, chapterId, sceneId);
                             if (Files.isDirectory(sDir)) {
                                 try (Stream<Path> sEntries = Files.list(sDir)) {
                                     sEntries
                                         .filter(ap -> ap.getFileName().toString().endsWith(".json"))
-                                        .forEach(ap -> {
+                                            .forEach(ap -> {
                                             String actionId = stripExtension(ap.getFileName().toString());
                                             try {
                                                 StructureNodeMeta aMeta = readMeta(ap);
@@ -266,13 +285,21 @@ public class ChapterService {
     // ─── Action content ────────────────────────────────────────────────────────
 
     public String readActionContent(String chapterId, String sceneId, String actionId) throws IOException {
-        Path path = actionContent(chapterId, sceneId, actionId);
+        return readActionContent(null, chapterId, sceneId, actionId);
+    }
+
+    public String readActionContent(String workspaceRoot, String chapterId, String sceneId, String actionId) throws IOException {
+        Path path = actionContent(workspaceRoot, chapterId, sceneId, actionId);
         if (!Files.exists(path)) return "";
         return Files.readString(path, StandardCharsets.UTF_8);
     }
 
     public void writeActionContent(String chapterId, String sceneId, String actionId, String content) throws IOException {
-        Path path = actionContent(chapterId, sceneId, actionId);
+        writeActionContent(null, chapterId, sceneId, actionId, content);
+    }
+
+    public void writeActionContent(String workspaceRoot, String chapterId, String sceneId, String actionId, String content) throws IOException {
+        Path path = actionContent(workspaceRoot, chapterId, sceneId, actionId);
         Files.createDirectories(path.getParent());
         Files.writeString(path, content, StandardCharsets.UTF_8);
     }
@@ -280,77 +307,118 @@ public class ChapterService {
     // ─── Chapter CRUD ──────────────────────────────────────────────────────────
 
     public ChapterSummary createChapter(String title) throws IOException {
-        Files.createDirectories(chaptersRoot());
-        int nextOrder = nextSortOrder(chaptersRoot(), ".json");
-        String id = generateId("chapter", chaptersRoot(), ".json");
+        return createChapter(null, title);
+    }
+
+    public ChapterSummary createChapter(String workspaceRoot, String title) throws IOException {
+        Path cr = chaptersRoot(workspaceRoot);
+        Files.createDirectories(cr);
+        int nextOrder = nextSortOrder(cr, ".json");
+        String id = generateId("chapter", cr, ".json");
         StructureNodeMeta meta = new StructureNodeMeta(title, "", nextOrder);
-        writeMeta(chapterMeta(id), meta);
-        Files.createDirectories(chapterDir(id));
+        writeMeta(chapterMeta(workspaceRoot, id), meta);
+        Files.createDirectories(chapterDir(workspaceRoot, id));
         return new ChapterSummary(id, meta);
     }
 
     public void updateChapterMeta(String chapterId, StructureNodeMeta meta) throws IOException {
-        writeMeta(chapterMeta(chapterId), meta);
+        updateChapterMeta(null, chapterId, meta);
+    }
+
+    public void updateChapterMeta(String workspaceRoot, String chapterId, StructureNodeMeta meta) throws IOException {
+        writeMeta(chapterMeta(workspaceRoot, chapterId), meta);
     }
 
     public void deleteChapter(String chapterId) throws IOException {
-        deleteIfExists(chapterMeta(chapterId));
-        deleteRecursively(chapterDir(chapterId));
+        deleteChapter(null, chapterId);
+    }
+
+    public void deleteChapter(String workspaceRoot, String chapterId) throws IOException {
+        deleteIfExists(chapterMeta(workspaceRoot, chapterId));
+        deleteRecursively(chapterDir(workspaceRoot, chapterId));
     }
 
     // ─── Scene CRUD ────────────────────────────────────────────────────────────
 
     public SceneNode createScene(String chapterId, String title) throws IOException {
-        Path cDir = chapterDir(chapterId);
+        return createScene(null, chapterId, title);
+    }
+
+    public SceneNode createScene(String workspaceRoot, String chapterId, String title) throws IOException {
+        Path cDir = chapterDir(workspaceRoot, chapterId);
         Files.createDirectories(cDir);
         int nextOrder = nextSortOrder(cDir, ".json");
         String id = generateId("scene", cDir, ".json");
         StructureNodeMeta meta = new StructureNodeMeta(title, "", nextOrder);
-        writeMeta(sceneMeta(chapterId, id), meta);
-        Files.createDirectories(sceneDir(chapterId, id));
+        writeMeta(sceneMeta(workspaceRoot, chapterId, id), meta);
+        Files.createDirectories(sceneDir(workspaceRoot, chapterId, id));
         SceneNode scene = new SceneNode(id, meta);
-        ActionNode defaultAction = createAction(chapterId, id, "Inhalt");
+        ActionNode defaultAction = createAction(workspaceRoot, chapterId, id, "Inhalt");
         scene.getActions().add(defaultAction);
         return scene;
     }
 
     public void updateSceneMeta(String chapterId, String sceneId, StructureNodeMeta meta) throws IOException {
-        writeMeta(sceneMeta(chapterId, sceneId), meta);
+        updateSceneMeta(null, chapterId, sceneId, meta);
+    }
+
+    public void updateSceneMeta(String workspaceRoot, String chapterId, String sceneId, StructureNodeMeta meta) throws IOException {
+        writeMeta(sceneMeta(workspaceRoot, chapterId, sceneId), meta);
     }
 
     public void deleteScene(String chapterId, String sceneId) throws IOException {
-        deleteIfExists(sceneMeta(chapterId, sceneId));
-        deleteRecursively(sceneDir(chapterId, sceneId));
+        deleteScene(null, chapterId, sceneId);
+    }
+
+    public void deleteScene(String workspaceRoot, String chapterId, String sceneId) throws IOException {
+        deleteIfExists(sceneMeta(workspaceRoot, chapterId, sceneId));
+        deleteRecursively(sceneDir(workspaceRoot, chapterId, sceneId));
     }
 
     // ─── Action CRUD ───────────────────────────────────────────────────────────
 
     public ActionNode createAction(String chapterId, String sceneId, String title) throws IOException {
-        Path sDir = sceneDir(chapterId, sceneId);
+        return createAction(null, chapterId, sceneId, title);
+    }
+
+    public ActionNode createAction(String workspaceRoot, String chapterId, String sceneId, String title) throws IOException {
+        Path sDir = sceneDir(workspaceRoot, chapterId, sceneId);
         Files.createDirectories(sDir);
         int nextOrder = nextSortOrder(sDir, ".json");
         String id = generateId("action", sDir, ".json");
         StructureNodeMeta meta = new StructureNodeMeta(title, "", nextOrder);
-        writeMeta(actionMeta(chapterId, sceneId, id), meta);
-        Files.writeString(actionContent(chapterId, sceneId, id), "", StandardCharsets.UTF_8);
+        writeMeta(actionMeta(workspaceRoot, chapterId, sceneId, id), meta);
+        Files.writeString(actionContent(workspaceRoot, chapterId, sceneId, id), "", StandardCharsets.UTF_8);
         return new ActionNode(id, meta);
     }
 
     public void updateActionMeta(String chapterId, String sceneId, String actionId, StructureNodeMeta meta) throws IOException {
-        writeMeta(actionMeta(chapterId, sceneId, actionId), meta);
+        updateActionMeta(null, chapterId, sceneId, actionId, meta);
+    }
+
+    public void updateActionMeta(String workspaceRoot, String chapterId, String sceneId, String actionId, StructureNodeMeta meta) throws IOException {
+        writeMeta(actionMeta(workspaceRoot, chapterId, sceneId, actionId), meta);
     }
 
     public void deleteAction(String chapterId, String sceneId, String actionId) throws IOException {
-        deleteIfExists(actionMeta(chapterId, sceneId, actionId));
-        deleteIfExists(actionContent(chapterId, sceneId, actionId));
+        deleteAction(null, chapterId, sceneId, actionId);
+    }
+
+    public void deleteAction(String workspaceRoot, String chapterId, String sceneId, String actionId) throws IOException {
+        deleteIfExists(actionMeta(workspaceRoot, chapterId, sceneId, actionId));
+        deleteIfExists(actionContent(workspaceRoot, chapterId, sceneId, actionId));
     }
 
     // ─── Reorder ──────────────────────────────────────────────────────────────
 
     public void reorderScenes(String chapterId, List<String> orderedIds) throws IOException {
+        reorderScenes(null, chapterId, orderedIds);
+    }
+
+    public void reorderScenes(String workspaceRoot, String chapterId, List<String> orderedIds) throws IOException {
         for (int i = 0; i < orderedIds.size(); i++) {
             String sceneId = orderedIds.get(i);
-            Path metaPath = sceneMeta(chapterId, sceneId);
+            Path metaPath = sceneMeta(workspaceRoot, chapterId, sceneId);
             if (Files.exists(metaPath)) {
                 StructureNodeMeta meta = readMeta(metaPath);
                 meta.setSortOrder(i);
@@ -360,9 +428,13 @@ public class ChapterService {
     }
 
     public void reorderActions(String chapterId, String sceneId, List<String> orderedIds) throws IOException {
+        reorderActions(null, chapterId, sceneId, orderedIds);
+    }
+
+    public void reorderActions(String workspaceRoot, String chapterId, String sceneId, List<String> orderedIds) throws IOException {
         for (int i = 0; i < orderedIds.size(); i++) {
             String actionId = orderedIds.get(i);
-            Path metaPath = actionMeta(chapterId, sceneId, actionId);
+            Path metaPath = actionMeta(workspaceRoot, chapterId, sceneId, actionId);
             if (Files.exists(metaPath)) {
                 StructureNodeMeta meta = readMeta(metaPath);
                 meta.setSortOrder(i);
@@ -373,12 +445,12 @@ public class ChapterService {
 
     // ─── Book meta ────────────────────────────────────────────────────────────
 
-    private Path bookMeta() {
-        return fileService.getProjectRoot().resolve(".project/book.json");
+    public StructureNodeMeta getBookMeta() throws IOException {
+        return getBookMeta(null);
     }
 
-    public StructureNodeMeta getBookMeta() throws IOException {
-        Path path = bookMeta();
+    public StructureNodeMeta getBookMeta(String workspaceRoot) throws IOException {
+        Path path = bookMeta(workspaceRoot);
         if (!Files.exists(path)) {
             return new StructureNodeMeta();
         }
@@ -386,7 +458,11 @@ public class ChapterService {
     }
 
     public void updateBookMeta(StructureNodeMeta meta) throws IOException {
-        writeMeta(bookMeta(), meta);
+        updateBookMeta(null, meta);
+    }
+
+    public void updateBookMeta(String workspaceRoot, StructureNodeMeta meta) throws IOException {
+        writeMeta(bookMeta(workspaceRoot), meta);
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────

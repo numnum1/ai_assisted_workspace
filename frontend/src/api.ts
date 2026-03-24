@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo } from './types.ts';
 
 const BASE = '/api';
 
@@ -57,14 +57,25 @@ async function del<T>(path: string): Promise<T> {
   return res.json();
 }
 
+/** Encode each path segment for /api/files/content/... URLs */
+function encodeFilePathForApi(relativePath: string): string {
+  return relativePath.split('/').map(encodeURIComponent).join('/');
+}
+
+/** Optional chapter/book structure root (subfolder path relative to project) */
+function structureRootQuery(structureRoot?: string | null): string {
+  if (structureRoot == null || structureRoot === '' || structureRoot === '.') return '';
+  return `?root=${encodeURIComponent(structureRoot)}`;
+}
+
 export const filesApi = {
   getTree: () => get<FileNode>('/files'),
   getContent: (path: string) =>
-    get<{ path: string; content: string; lines: number }>(`/files/content/${path}`),
+    get<{ path: string; content: string; lines: number }>(`/files/content/${encodeFilePathForApi(path)}`),
   saveContent: (path: string, content: string) =>
-    put<{ status: string }>(`/files/content/${path}`, { content }),
+    put<{ status: string }>(`/files/content/${encodeFilePathForApi(path)}`, { content }),
   deleteContent: (path: string) =>
-    del<{ status: string; path: string }>(`/files/content/${path}`),
+    del<{ status: string; path: string }>(`/files/content/${encodeFilePathForApi(path)}`),
   createFile: (parentPath: string, name: string) =>
     post<{ status: string; path: string }>('/files/create-file', { parentPath, name }),
   createFolder: (parentPath: string, name: string) =>
@@ -96,6 +107,11 @@ export const projectApi = {
 
 export const projectConfigApi = {
   status: () => get<{ initialized: boolean }>('/project-config/status'),
+  getWorkspaceMode: (modeId?: string | null) =>
+    modeId != null && modeId !== ''
+      ? get<WorkspaceModeSchema>(`/project-config/workspace-mode?id=${encodeURIComponent(modeId)}`)
+      : get<WorkspaceModeSchema>('/project-config/workspace-mode'),
+  listWorkspaceModes: () => get<WorkspaceModeInfo[]>('/project-config/workspace-modes'),
   get: () => get<ProjectConfig>('/project-config'),
   init: () => post<ProjectConfig>('/project-config/init', {}),
   update: (config: ProjectConfig) => put<ProjectConfig>('/project-config', config),
@@ -130,42 +146,58 @@ export const gitApi = {
 };
 
 export const chapterApi = {
-  list: () => get<ChapterSummary[]>('/chapters'),
-  getStructure: (id: string) => get<ChapterNode>(`/chapters/${id}`),
-  create: (title: string) => post<ChapterSummary>('/chapters', { title }),
-  updateMeta: (chapterId: string, meta: NodeMeta) =>
-    put<{ status: string }>(`/chapters/${chapterId}/meta`, meta),
-  delete: (chapterId: string) =>
-    del<{ status: string }>(`/chapters/${chapterId}`),
+  list: (structureRoot?: string | null) =>
+    get<ChapterSummary[]>(`/chapters${structureRootQuery(structureRoot)}`),
+  getStructure: (id: string, structureRoot?: string | null) =>
+    get<ChapterNode>(`/chapters/${id}${structureRootQuery(structureRoot)}`),
+  create: (title: string, structureRoot?: string | null) =>
+    post<ChapterSummary>(`/chapters${structureRootQuery(structureRoot)}`, { title }),
+  updateMeta: (chapterId: string, meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/meta${structureRootQuery(structureRoot)}`, meta),
+  delete: (chapterId: string, structureRoot?: string | null) =>
+    del<{ status: string }>(`/chapters/${chapterId}${structureRootQuery(structureRoot)}`),
 
-  createScene: (chapterId: string, title: string) =>
-    post<SceneNode>(`/chapters/${chapterId}/scenes`, { title }),
-  updateSceneMeta: (chapterId: string, sceneId: string, meta: NodeMeta) =>
-    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/meta`, meta),
-  deleteScene: (chapterId: string, sceneId: string) =>
-    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}`),
+  createScene: (chapterId: string, title: string, structureRoot?: string | null) =>
+    post<SceneNode>(`/chapters/${chapterId}/scenes${structureRootQuery(structureRoot)}`, { title }),
+  updateSceneMeta: (chapterId: string, sceneId: string, meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/meta${structureRootQuery(structureRoot)}`, meta),
+  deleteScene: (chapterId: string, sceneId: string, structureRoot?: string | null) =>
+    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}${structureRootQuery(structureRoot)}`),
 
-  createAction: (chapterId: string, sceneId: string, title: string) =>
-    post<ActionNode>(`/chapters/${chapterId}/scenes/${sceneId}/actions`, { title }),
-  updateActionMeta: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) =>
-    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/meta`, meta),
-  deleteAction: (chapterId: string, sceneId: string, actionId: string) =>
-    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}`),
+  createAction: (chapterId: string, sceneId: string, title: string, structureRoot?: string | null) =>
+    post<ActionNode>(`/chapters/${chapterId}/scenes/${sceneId}/actions${structureRootQuery(structureRoot)}`, { title }),
+  updateActionMeta: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/meta${structureRootQuery(structureRoot)}`, meta),
+  deleteAction: (chapterId: string, sceneId: string, actionId: string, structureRoot?: string | null) =>
+    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}${structureRootQuery(structureRoot)}`),
 
-  getActionContent: (chapterId: string, sceneId: string, actionId: string) =>
-    get<{ content: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content`),
-  saveActionContent: (chapterId: string, sceneId: string, actionId: string, content: string) =>
-    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content`, { content }),
+  getActionContent: (chapterId: string, sceneId: string, actionId: string, structureRoot?: string | null) =>
+    get<{ content: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`),
+  saveActionContent: (chapterId: string, sceneId: string, actionId: string, content: string, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`, { content }),
 
-  reorderScenes: (chapterId: string, ids: string[]) =>
-    put<{ status: string }>(`/chapters/${chapterId}/reorder`, { ids }),
-  reorderActions: (chapterId: string, sceneId: string, ids: string[]) =>
-    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/reorder`, { ids }),
+  reorderScenes: (chapterId: string, ids: string[], structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/reorder${structureRootQuery(structureRoot)}`, { ids }),
+  reorderActions: (chapterId: string, sceneId: string, ids: string[], structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/reorder${structureRootQuery(structureRoot)}`, { ids }),
 };
 
 export const bookApi = {
-  getMeta: () => get<NodeMeta>('/book/meta'),
-  updateMeta: (meta: NodeMeta) => put<{ status: string }>('/book/meta', meta),
+  getMeta: (structureRoot?: string | null) =>
+    get<NodeMeta>(`/book/meta${structureRootQuery(structureRoot)}`),
+  updateMeta: (meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/book/meta${structureRootQuery(structureRoot)}`, meta),
+};
+
+export const subprojectApi = {
+  info: (path: string) =>
+    get<{ subproject: boolean; type?: string; name?: string }>(
+      `/subproject/info?path=${encodeURIComponent(path)}`,
+    ),
+  init: (path: string, type: string, name: string) =>
+    post<{ status: string }>('/subproject/init', { path, type, name }),
+  remove: (path: string) =>
+    del<{ status: string }>(`/subproject/remove?path=${encodeURIComponent(path)}`),
 };
 
 export const wikiApi = {

@@ -2,6 +2,8 @@ package com.assistant.service;
 
 import com.assistant.config.AppConfig;
 import com.assistant.model.FileNode;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,9 +19,11 @@ import java.util.stream.Stream;
 public class FileService {
 
     private final AppConfig appConfig;
+    private final ObjectMapper objectMapper;
 
-    public FileService(AppConfig appConfig) {
+    public FileService(AppConfig appConfig, ObjectMapper objectMapper) {
         this.appConfig = appConfig;
+        this.objectMapper = objectMapper;
     }
 
     public Path getProjectRoot() {
@@ -32,6 +36,25 @@ public class FileService {
             throw new IllegalStateException("Project path does not exist: " + root);
         }
         return root;
+    }
+
+    /**
+     * Resolves a path relative to the project root; must be an existing directory inside the project.
+     * {@code null}, blank, or "." means the project root.
+     */
+    public Path resolveRelativeDirectory(String relativePath) throws IOException {
+        Path root = getProjectRoot();
+        if (relativePath == null || relativePath.isBlank() || ".".equals(relativePath)) {
+            return root;
+        }
+        Path sub = root.resolve(relativePath.replace('\\', '/')).normalize();
+        if (!sub.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (!Files.exists(sub) || !Files.isDirectory(sub)) {
+            throw new IOException("Not a directory: " + relativePath);
+        }
+        return sub;
     }
 
     public FileNode getFileTree() throws IOException {
@@ -48,6 +71,17 @@ public class FileService {
         FileNode node = new FileNode(current.getFileName().toString(), relativePath, Files.isDirectory(current));
 
         if (Files.isDirectory(current)) {
+            Path marker = current.resolve(".subproject.json");
+            if (Files.isRegularFile(marker)) {
+                try {
+                    JsonNode n = objectMapper.readTree(marker.toFile());
+                    if (n != null && n.hasNonNull("type")) {
+                        node.setSubprojectType(n.get("type").asText());
+                    }
+                } catch (Exception ignored) {
+                    // leave subprojectType null
+                }
+            }
             try (Stream<Path> entries = Files.list(current)) {
                 entries
                     .filter(p -> !isHidden(p))

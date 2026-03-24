@@ -1,16 +1,17 @@
 import type { MetaSelection, NodeMeta, MetaNodeType } from '../types.ts';
-import { metaSchemas } from '../meta/index.ts';
+import type { MetaTypeSchema } from '../meta/metaSchema.ts';
 import { AssetPanel } from './AssetPanel.tsx';
 
 interface MetaPanelProps {
   selection: MetaSelection;
+  metaSchemas: Record<MetaNodeType, MetaTypeSchema>;
   onSave: (type: MetaNodeType, meta: NodeMeta, chapterId: string, sceneId?: string, actionId?: string) => void;
   onClose: () => void;
   onExpand?: () => void;
   expanded?: boolean;
 }
 
-function buildInitialValues(selection: MetaSelection): Record<string, string> {
+function buildInitialValues(selection: MetaSelection, metaSchemas: Record<MetaNodeType, MetaTypeSchema>): Record<string, string> {
   const schema = metaSchemas[selection.type];
   const values: Record<string, string> = {};
   for (const field of schema.fields) {
@@ -25,9 +26,9 @@ function buildInitialValues(selection: MetaSelection): Record<string, string> {
   return values;
 }
 
-export function MetaPanel({ selection, onSave, onClose, onExpand, expanded }: MetaPanelProps) {
+export function MetaPanel({ selection, metaSchemas, onSave, onClose, onExpand, expanded }: MetaPanelProps) {
   const schema = metaSchemas[selection.type];
-  const initialValues = buildInitialValues(selection);
+  const initialValues = buildInitialValues(selection, metaSchemas);
 
   const handleSave = (values: Record<string, string>) => {
     const extras: Record<string, string> = {};

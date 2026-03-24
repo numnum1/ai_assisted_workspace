@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronDown, BookOpen, Layers, AlignLeft, FolderOpen } from 'lucide-react';
-import type { ChapterSummary, ChapterNode, MetaSelection } from '../types.ts';
+import { ChevronRight, ChevronDown, FolderOpen } from 'lucide-react';
+import type { ChapterSummary, ChapterNode, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../types.ts';
+import { OutlinerIcon } from './outlinerIcons.tsx';
 
 interface OutlinerProps {
+  levelConfig: OutlinerLevelConfig;
   chapters: ChapterSummary[];
   activeChapter: ChapterNode | null;
   editorPosition: { chapterId: string; sceneId?: string; actionId?: string } | null;
@@ -42,6 +44,7 @@ type RenameState = {
 } | null;
 
 export function Outliner({
+  levelConfig,
   chapters,
   activeChapter,
   editorPosition,
@@ -180,15 +183,20 @@ export function Outliner({
     sceneId?: string
   ) => {
     setContextMenu(null);
-    const defaultTitle = type === 'chapter' ? 'Neues Kapitel'
-      : type === 'scene' ? 'Neue Szene'
-      : 'Neue Handlungseinheit';
-    const title = window.prompt(`Titel für neue ${type === 'chapter' ? 'Kapitel' : type === 'scene' ? 'Szene' : 'Handlungseinheit'}:`, defaultTitle);
+    const label =
+      type === 'chapter' ? levelConfig.chapter.label
+        : type === 'scene' ? levelConfig.scene.label
+          : levelConfig.action.label;
+    const defaultTitle =
+      type === 'chapter' ? levelConfig.chapter.labelNew
+        : type === 'scene' ? levelConfig.scene.labelNew
+          : levelConfig.action.labelNew;
+    const title = window.prompt(`Titel für neue ${label}:`, defaultTitle);
     if (!title?.trim()) return;
     if (type === 'chapter') onCreateChapter(title.trim());
     else if (type === 'scene' && chapterId) onCreateScene(chapterId, title.trim());
     else if (type === 'action' && chapterId && sceneId) onCreateAction(chapterId, sceneId, title.trim());
-  }, [onCreateChapter, onCreateScene, onCreateAction]);
+  }, [levelConfig, onCreateChapter, onCreateScene, onCreateAction]);
 
   const handleMoveScene = useCallback((chapterId: string, sceneId: string, direction: 'up' | 'down') => {
     if (!activeChapter || activeChapter.id !== chapterId) return;
@@ -228,9 +236,9 @@ export function Outliner({
         <button
           className="outliner-reveal-btn"
           onClick={onSelectBookMeta}
-          title="Buch-Metadaten"
+          title={levelConfig.rootMetaLabel}
         >
-          <BookOpen size={13} />
+          <OutlinerIcon name={levelConfig.rootMetaIcon} size={13} />
         </button>
         <button
           className="outliner-reveal-btn"
@@ -262,11 +270,13 @@ export function Outliner({
                 >
                   {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </span>
-                <BookOpen
-                  size={13}
+                <span
                   className="outliner-type-icon outliner-clickable"
                   onClick={() => handleChapterLabelClick(chapter.id, chapter.meta)}
-                />
+                  role="presentation"
+                >
+                  <OutlinerIcon name={levelConfig.chapter.icon} size={13} />
+                </span>
                 {renameState?.type === 'chapter' && renameState.chapterId === chapter.id ? (
                   <input
                     ref={renameInputRef}
@@ -307,11 +317,13 @@ export function Outliner({
                       >
                         {isSceneExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                       </span>
-                      <Layers
-                        size={12}
+                      <span
                         className="outliner-type-icon outliner-clickable"
                         onClick={() => handleSceneLabelClick(chapter.id, scene.id, scene.meta)}
-                      />
+                        role="presentation"
+                      >
+                        <OutlinerIcon name={levelConfig.scene.icon} size={12} />
+                      </span>
                       {renameState?.type === 'scene' && renameState.sceneId === scene.id ? (
                         <input
                           ref={renameInputRef}
@@ -334,7 +346,7 @@ export function Outliner({
                     </div>
 
                     {isSceneExpanded && scene.actions.map(action => {
-                      const isActiveAction = false;
+                      const isActiveAction = isOpenChapter && activeSceneId === scene.id && activeActionId === action.id;
                       return (
                         <div
                           key={action.id}
@@ -345,7 +357,7 @@ export function Outliner({
                           title={action.meta.title || action.id}
                         >
                           <span className="outliner-arrow" style={{ width: 13 }} />
-                          <AlignLeft size={12} className="outliner-type-icon" />
+                          <OutlinerIcon name={levelConfig.action.icon} size={12} className="outliner-type-icon" />
                           {renameState?.type === 'action' && renameState.actionId === action.id ? (
                             <input
                               ref={renameInputRef}
@@ -382,13 +394,13 @@ export function Outliner({
         >
           {contextMenu.type === 'root' && (
             <div className="tree-context-menu-item" onClick={() => promptCreate('chapter')}>
-              Neues Kapitel
+              {levelConfig.chapter.labelNew}
             </div>
           )}
           {contextMenu.type === 'chapter' && contextMenu.chapterId && (
             <>
               <div className="tree-context-menu-item" onClick={() => promptCreate('scene', contextMenu.chapterId)}>
-                Neue Szene
+                {levelConfig.scene.labelNew}
               </div>
               <div className="tree-context-menu-item" onClick={() => {
                 const chapterMeta = chapters.find(c => c.id === contextMenu.chapterId)?.meta;
@@ -398,18 +410,18 @@ export function Outliner({
               </div>
               <div className="tree-context-menu-item tree-context-menu-item-danger" onClick={() => {
                 setContextMenu(null);
-                if (window.confirm('Kapitel und alle Inhalte löschen?')) {
+                if (window.confirm(`${levelConfig.chapter.label} und alle Inhalte löschen?`)) {
                   onDeleteChapter(contextMenu.chapterId!);
                 }
               }}>
-                Kapitel löschen
+                {levelConfig.chapter.label} löschen
               </div>
             </>
           )}
           {contextMenu.type === 'scene' && contextMenu.chapterId && contextMenu.sceneId && (
             <>
               <div className="tree-context-menu-item" onClick={() => promptCreate('action', contextMenu.chapterId, contextMenu.sceneId)}>
-                Neue Handlungseinheit
+                {levelConfig.action.labelNew}
               </div>
               <div className="tree-context-menu-item" onClick={() => {
                 const scene = activeChapter?.scenes.find(s => s.id === contextMenu.sceneId);
@@ -425,11 +437,11 @@ export function Outliner({
               </div>
               <div className="tree-context-menu-item tree-context-menu-item-danger" onClick={() => {
                 setContextMenu(null);
-                if (window.confirm('Szene und alle Handlungseinheiten löschen?')) {
+                if (window.confirm(`${levelConfig.scene.label} mit allen Inhalten löschen?`)) {
                   onDeleteScene(contextMenu.chapterId!, contextMenu.sceneId!);
                 }
               }}>
-                Szene löschen
+                {levelConfig.scene.label} löschen
               </div>
             </>
           )}
@@ -450,11 +462,11 @@ export function Outliner({
               </div>
               <div className="tree-context-menu-item tree-context-menu-item-danger" onClick={() => {
                 setContextMenu(null);
-                if (window.confirm('Handlungseinheit löschen?')) {
+                if (window.confirm(`${levelConfig.action.label} löschen?`)) {
                   onDeleteAction(contextMenu.chapterId!, contextMenu.sceneId!, contextMenu.actionId!);
                 }
               }}>
-                Handlungseinheit löschen
+                {levelConfig.action.label} löschen
               </div>
             </>
           )}

@@ -15,6 +15,7 @@ public class AppConfig {
     private final Ai ai = new Ai();
     private final Project project = new Project();
     private final Git git = new Git();
+    private final Data data = new Data();
 
     public Ai getAi() {
         return ai;
@@ -26,6 +27,10 @@ public class AppConfig {
 
     public Git getGit() {
         return git;
+    }
+
+    public Data getData() {
+        return data;
     }
 
     @Bean
@@ -69,5 +74,21 @@ public class AppConfig {
         public void setToken(String token) { this.token = token; }
         public String getUsername() { return username; }
         public void setUsername(String username) { this.username = username; }
+    }
+
+    /**
+     * Optional override for application data directory (workspace mode plugins, etc.).
+     * When empty, OS default is used: %APPDATA%/markdown-project (Windows) or ~/.config/markdown-project.
+     */
+    public static class Data {
+        private String dataDir = "";
+
+        public String getDataDir() {
+            return dataDir;
+        }
+
+        public void setDataDir(String dataDir) {
+            this.dataDir = dataDir != null ? dataDir : "";
+        }
     }
 }

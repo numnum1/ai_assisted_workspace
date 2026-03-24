@@ -1,0 +1,19 @@
+id: default
+name: Standard
+editorMode: standard
+rootMetaLabel: Projekt-Metadaten
+rootMetaIcon: folder
+levels:
+  - key: chapter
+    label: Datei
+    labelNew: Neue Datei
+    icon: file-text
+  - key: scene
+    label: Abschnitt
+    labelNew: Neuer Abschnitt
+    icon: align-left
+  - key: action
+    label: Eintrag
+    labelNew: Neuer Eintrag
+    icon: minus
+metaSchemas: {}

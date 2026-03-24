@@ -3,6 +3,8 @@ export interface FileNode {
   path: string;
   directory: boolean;
   children: FileNode[] | null;
+  /** Workspace mode id from `.subproject.json` when this directory is a subproject */
+  subprojectType?: string | null;
 }
 
 export interface Mode {
@@ -11,6 +13,7 @@ export interface Mode {
   systemPrompt: string;
   autoIncludes: string[];
   color: string;
+  rules?: string[];
 }
 
 export interface ChatMessage {
@@ -72,6 +75,66 @@ export interface ProjectConfig {
   globalRules: string[];
   /** Mode id; empty means client uses review or first available mode */
   defaultMode?: string;
+  /** Built-in workspace mode: book, game, music (classpath workspace-modes) */
+  workspaceMode?: string;
+}
+
+/** Persisted browser tab: folder + display metadata */
+export interface WorkspaceEntry {
+  id: string;
+  path: string;
+  name: string;
+  /** Mirrors last known project workspaceMode (book, game, music) */
+  mode: string;
+}
+
+export interface WorkspaceLevelConfig {
+  key: string;
+  label: string;
+  labelNew: string;
+  icon: string;
+}
+
+export interface WorkspaceMetaFieldDef {
+  key: string;
+  label: string;
+  type: string;
+  placeholder?: string;
+  defaultValue: string;
+  options?: string[];
+}
+
+export interface WorkspaceMetaTypeSchema {
+  filename: string;
+  fields: WorkspaceMetaFieldDef[];
+}
+
+/** API: GET /api/project-config/workspace-mode */
+export interface WorkspaceModeSchema {
+  id: string;
+  name: string;
+  /** 'prose' | 'standard' | 'none' | future modes */
+  editorMode: string;
+  rootMetaLabel: string;
+  rootMetaIcon?: string;
+  levels: WorkspaceLevelConfig[];
+  metaSchemas: Record<string, WorkspaceMetaTypeSchema>;
+}
+
+/** Entry from GET /project-config/workspace-modes (built-in + user AppData plugins). */
+export interface WorkspaceModeInfo {
+  id: string;
+  name: string;
+  source: 'builtin' | 'user';
+}
+
+/** Resolved labels/icons for the three structure levels + root meta button */
+export interface OutlinerLevelConfig {
+  chapter: { label: string; labelNew: string; icon: string };
+  scene: { label: string; labelNew: string; icon: string };
+  action: { label: string; labelNew: string; icon: string };
+  rootMetaLabel: string;
+  rootMetaIcon: string;
 }
 
 export interface NodeMeta {
@@ -133,6 +196,8 @@ export interface WikiType {
   id: string;
   name: string;
   fields: WikiFieldDef[];
+  /** When true, omit from @-mention picker */
+  excludeFromMentions?: boolean;
 }
 
 export interface WikiEntry {

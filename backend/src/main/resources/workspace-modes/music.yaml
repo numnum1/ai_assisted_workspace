@@ -1,0 +1,119 @@
+id: music
+name: Musik
+editorMode: none
+rootMetaLabel: Album-Metadaten
+rootMetaIcon: disc
+levels:
+  - key: chapter
+    label: Album
+    labelNew: Neues Album
+    icon: disc
+  - key: scene
+    label: Track
+    labelNew: Neuer Track
+    icon: music
+  - key: action
+    label: Abschnitt
+    labelNew: Neuer Abschnitt
+    icon: align-left
+metaSchemas:
+  root:
+    filename: album.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Album- oder Projektname...
+        defaultValue: ""
+      - key: description
+        label: Kurzbeschreibung
+        type: input
+        placeholder: Ein Satz...
+        defaultValue: ""
+      - key: synopsis
+        label: Konzept (für KI)
+        type: largetextarea
+        placeholder: Stil, Referenzen, Stimmung...
+        defaultValue: ""
+      - key: tone
+        label: Genre / Stimmung
+        type: input
+        placeholder: z.B. Synthwave, ballad...
+        defaultValue: ""
+  chapter:
+    filename: album-meta.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Track- oder Release-Titel...
+        defaultValue: ""
+      - key: description
+        label: Beschreibung
+        type: textarea
+        placeholder: Notizen...
+        defaultValue: ""
+  scene:
+    filename: track.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Track-Titel...
+        defaultValue: ""
+      - key: description
+        label: Beschreibung
+        type: textarea
+        placeholder: Arrangement, Hooks...
+        defaultValue: ""
+      - key: location
+        label: BPM / Key
+        type: input
+        placeholder: z.B. 120 BPM, Am...
+        defaultValue: ""
+      - key: time
+        label: Länge
+        type: input
+        placeholder: z.B. 3:24...
+        defaultValue: ""
+      - key: characters
+        label: Features / Samples
+        type: textarea
+        placeholder: ...
+        defaultValue: ""
+      - key: initial_situation
+        label: Einstieg
+        type: textarea
+        placeholder: Intro-Idee...
+        defaultValue: ""
+      - key: goal
+        label: Kern-Idee
+        type: textarea
+        placeholder: Chorus / Hook...
+        defaultValue: ""
+      - key: outcome
+        label: Outro / Ende
+        type: textarea
+        placeholder: ...
+        defaultValue: ""
+      - key: pov
+        label: Stimme / Rolle
+        type: input
+        defaultValue: ""
+      - key: tone
+        label: Stimmung
+        type: input
+        defaultValue: ""
+  action:
+    filename: section.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: z.B. Verse, Chorus...
+        defaultValue: ""
+      - key: description
+        label: Lyrics / Notizen
+        type: textarea
+        placeholder: Text oder Produktionsnotizen...
+        defaultValue: ""

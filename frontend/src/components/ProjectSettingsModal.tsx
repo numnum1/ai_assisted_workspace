@@ -91,6 +91,7 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
     alwaysInclude: [],
     globalRules: [],
     defaultMode: '',
+    workspaceMode: 'default',
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -168,7 +169,7 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
     setSavingConfig(true);
     setError(null);
     try {
-      await projectConfigApi.update(config);
+      await projectConfigApi.update({ ...config, workspaceMode: 'default' });
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 2000);
       onGeneralConfigSaved?.();
@@ -375,6 +376,10 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
                     <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
                   ))}
                 </select>
+
+                <p className="ps-hint">
+                  Der Datei-Browser nutzt immer den Standard-Modus. Medien-Projekte (Buch, Musik, …) legst du per Rechtsklick auf einen Ordner im Dateibaum an.
+                </p>
 
                 <label className="ps-label">Always Include Files</label>
                 <p className="ps-hint">These files are always added to the AI context, regardless of mode.</p>
