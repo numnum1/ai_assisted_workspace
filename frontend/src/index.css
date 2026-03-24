@@ -319,6 +319,55 @@ body {
   line-height: 1;
 }
 
+.file-tree-subproject-meta-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.file-tree-raw-files-toggle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.file-tree-raw-files-toggle .file-tree-name {
+  font-weight: 500;
+}
+
+.file-tree-subproject-outline-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 2px 0 8px;
+}
+
+.file-tree-outline-loading {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.file-tree-subproject-outline-menu {
+  z-index: 1001;
+}
+
+.file-tree-chapter-row {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.file-tree-chapter-row .file-tree-name {
+  font-weight: 500;
+}
+
+.file-tree-icon--chapter {
+  color: var(--text-muted);
+}
+
+.file-tree-chapter-loading {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 0 4px;
+}
+
 .file-tree-context-menu {
   position: fixed;
   z-index: 1000;

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
-import { filesApi, subprojectApi } from '../api.ts';
-import type { FileNode } from '../types.ts';
+import { filesApi, subprojectApi, chapterApi } from '../api.ts';
+import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../types.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
+import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
+import { resolveLevelConfig } from '../hooks/useWorkspaceLevelConfigMap.ts';
 
 function folderIconForSubprojectType(type: string | null | undefined): string {
   if (!type) return 'folder';
@@ -22,19 +24,39 @@ function normalizeTreeItemName(raw: string): string | null {
   return t;
 }
 
-interface FileTreeOutlinerProps {
+export interface FileTreeOutlinerProps {
   projectPath: string | null;
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   onRevealInExplorer?: () => void;
-  /** Bump to reload file tree after disk changes */
   refreshNonce?: number;
-  /** Called after create / rename / delete so the rest of the app can refresh */
   onTreeMutated?: () => void;
-  /** Editor sync when paths change outside the editor */
   onFsChange?: (event: { deleted?: string; renamed?: { from: string; to: string } }) => void;
-  onSubprojectOpen?: (path: string, type: string) => void;
+  /** Book / root meta for this subproject folder */
+  onOpenBookMeta?: (subprojectPath: string, subprojectType: string) => void;
+  /** Prompt title then create chapter under this subproject */
+  onCreateChapterInSubproject?: (subprojectPath: string, subprojectType: string, title: string) => void | Promise<void>;
   onConfigureSubproject?: (path: string, existingType?: string | null) => void;
+  activeChapterId?: string | null;
+  activeStructureRoot?: string | null;
+  editorPosition?: { chapterId: string; sceneId?: string; actionId?: string } | null;
+  levelConfigByModeId: Record<string, OutlinerLevelConfig>;
+  /** Open chapter editor + meta from inline structure tree */
+  onActivateSubprojectStructure?: (
+    subprojectPath: string,
+    subprojectType: string,
+    chapterId: string,
+    scroll: ScrollTarget | null,
+    selection: MetaSelection,
+  ) => void | Promise<void>;
+  runSubprojectMutation?: (
+    subprojectPath: string,
+    subprojectType: string,
+    fn: () => Promise<void>,
+  ) => Promise<void>;
+  onSubprojectStructureChanged?: () => void;
+  /** Bump to refetch inline chapter lists under subprojects */
+  inlineChaptersRefreshNonce?: number;
 }
 
 interface ContextMenuState {
@@ -53,7 +75,16 @@ function TreeNodeRow({
   selectedPath,
   onSelectFile,
   onContextMenu,
-  onSubprojectOpen,
+  onOpenBookMeta,
+  onCreateChapterInSubproject,
+  activeChapterId,
+  activeStructureRoot,
+  editorPosition,
+  levelConfigByModeId,
+  onActivateSubprojectStructure,
+  runSubprojectMutation,
+  onSubprojectStructureChanged,
+  inlineChaptersRefreshNonce,
 }: {
   node: FileNode;
   depth: number;
@@ -62,24 +93,66 @@ function TreeNodeRow({
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   onContextMenu: (e: MouseEvent, node: FileNode) => void;
-  onSubprojectOpen?: (path: string, type: string) => void;
+  onOpenBookMeta?: (subprojectPath: string, subprojectType: string) => void;
+  onCreateChapterInSubproject?: (subprojectPath: string, subprojectType: string, title: string) => void | Promise<void>;
+  activeChapterId?: string | null;
+  activeStructureRoot?: string | null;
+  editorPosition?: { chapterId: string; sceneId?: string; actionId?: string } | null;
+  levelConfigByModeId: Record<string, OutlinerLevelConfig>;
+  onActivateSubprojectStructure?: (
+    subprojectPath: string,
+    subprojectType: string,
+    chapterId: string,
+    scroll: ScrollTarget | null,
+    selection: MetaSelection,
+  ) => void | Promise<void>;
+  runSubprojectMutation?: (subprojectPath: string, subprojectType: string, fn: () => Promise<void>) => Promise<void>;
+  onSubprojectStructureChanged?: () => void;
+  inlineChaptersRefreshNonce: number;
 }) {
   const isDir = node.directory;
   const isOpen = expanded.has(node.path);
   const isSelected = selectedPath === node.path;
   const isSubproject = Boolean(isDir && node.subprojectType);
 
+  const [subChapters, setSubChapters] = useState<ChapterSummary[] | null>(null);
+  const [subLoading, setSubLoading] = useState(false);
+  const [rawFilesOpen, setRawFilesOpen] = useState(false);
+
+  const subLevelConfig = resolveLevelConfig(levelConfigByModeId, node.subprojectType);
+
+  useEffect(() => {
+    if (!isSubproject || !isOpen || !node.subprojectType) return;
+    let cancelled = false;
+    setSubLoading(true);
+    chapterApi
+      .list(node.path)
+      .then((list) => {
+        if (!cancelled) {
+          setSubChapters(list);
+          setSubLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSubChapters([]);
+          setSubLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSubproject, isOpen, node.path, node.subprojectType, inlineChaptersRefreshNonce]);
+
   const handleClick = () => {
     if (isDir) {
-      if (node.subprojectType && onSubprojectOpen) {
-        onSubprojectOpen(node.path, node.subprojectType);
-        return;
-      }
       toggle(node.path);
       return;
     }
     onSelectFile(node.path);
   };
+
+  const spType = node.subprojectType ?? '';
 
   return (
     <>
@@ -103,9 +176,22 @@ function TreeNodeRow({
           <File size={14} className="file-tree-icon" />
         )}
         <span className="file-tree-name">{node.name}</span>
+        {isSubproject && onOpenBookMeta && (
+          <button
+            type="button"
+            className="file-tree-subproject-meta-btn outliner-reveal-btn"
+            title={subLevelConfig.rootMetaLabel}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenBookMeta(node.path, spType);
+            }}
+          >
+            <OutlinerIcon name={subLevelConfig.rootMetaIcon} size={13} />
+          </button>
+        )}
         {isSubproject && <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>}
       </button>
-      {isDir && isOpen && node.children?.map((ch) => (
+      {isDir && isOpen && !isSubproject && node.children?.map((ch) => (
         <TreeNodeRow
           key={ch.path}
           node={ch}
@@ -115,9 +201,77 @@ function TreeNodeRow({
           selectedPath={selectedPath}
           onSelectFile={onSelectFile}
           onContextMenu={onContextMenu}
-          onSubprojectOpen={onSubprojectOpen}
+          onOpenBookMeta={onOpenBookMeta}
+          onCreateChapterInSubproject={onCreateChapterInSubproject}
+          activeChapterId={activeChapterId}
+          activeStructureRoot={activeStructureRoot}
+          editorPosition={editorPosition}
+          levelConfigByModeId={levelConfigByModeId}
+          onActivateSubprojectStructure={onActivateSubprojectStructure}
+          runSubprojectMutation={runSubprojectMutation}
+          onSubprojectStructureChanged={onSubprojectStructureChanged}
+          inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
         />
       ))}
+      {isSubproject && isOpen && onActivateSubprojectStructure && runSubprojectMutation && onSubprojectStructureChanged && (
+        <>
+          <SubprojectInlineOutline
+            subprojectPath={node.path}
+            subprojectType={spType}
+            levelConfig={subLevelConfig}
+            baseDepth={depth}
+            chapterSummaries={subChapters}
+            summariesLoading={subLoading}
+            activeChapterId={activeChapterId ?? null}
+            activeStructureRoot={activeStructureRoot ?? null}
+            editorPosition={editorPosition ?? null}
+            onStructureMutated={onSubprojectStructureChanged}
+            onActivateNode={(chapterId, scroll, selection) => {
+              void onActivateSubprojectStructure(node.path, spType, chapterId, scroll, selection);
+            }}
+            runWithRoot={(fn) => runSubprojectMutation(node.path, spType, fn)}
+          />
+          {node.children && node.children.length > 0 && (
+            <>
+              <button
+                type="button"
+                className={`file-tree-row file-tree-raw-files-toggle${rawFilesOpen ? ' file-tree-row--active' : ''}`}
+                style={{ paddingLeft: 8 + (depth + 1) * 14 }}
+                onClick={() => setRawFilesOpen((o) => !o)}
+              >
+                <span className="file-tree-chevron">
+                  {rawFilesOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </span>
+                <Folder size={14} className="file-tree-icon" />
+                <span className="file-tree-name">Ordner-Dateien ({node.children.length})</span>
+              </button>
+              {rawFilesOpen &&
+                node.children.map((ch) => (
+                  <TreeNodeRow
+                    key={ch.path}
+                    node={ch}
+                    depth={depth + 2}
+                    expanded={expanded}
+                    toggle={toggle}
+                    selectedPath={selectedPath}
+                    onSelectFile={onSelectFile}
+                    onContextMenu={onContextMenu}
+                    onOpenBookMeta={onOpenBookMeta}
+                    onCreateChapterInSubproject={onCreateChapterInSubproject}
+                    activeChapterId={activeChapterId}
+                    activeStructureRoot={activeStructureRoot}
+                    editorPosition={editorPosition}
+                    levelConfigByModeId={levelConfigByModeId}
+                    onActivateSubprojectStructure={onActivateSubprojectStructure}
+                    runSubprojectMutation={runSubprojectMutation}
+                    onSubprojectStructureChanged={onSubprojectStructureChanged}
+                    inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
+                  />
+                ))}
+            </>
+          )}
+        </>
+      )}
     </>
   );
 }
@@ -130,8 +284,17 @@ export function FileTreeOutliner({
   refreshNonce = 0,
   onTreeMutated,
   onFsChange,
-  onSubprojectOpen,
+  onOpenBookMeta,
+  onCreateChapterInSubproject,
   onConfigureSubproject,
+  activeChapterId,
+  activeStructureRoot,
+  editorPosition = null,
+  levelConfigByModeId,
+  onActivateSubprojectStructure,
+  runSubprojectMutation,
+  onSubprojectStructureChanged,
+  inlineChaptersRefreshNonce = 0,
 }: FileTreeOutlinerProps) {
   const [root, setRoot] = useState<FileNode | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -272,6 +435,13 @@ export function FileTreeOutliner({
     }
   };
 
+  const handleNewChapterInSubproject = (path: string, type: string) => {
+    const title = window.prompt('Titel des neuen Kapitels:', 'Neues Kapitel');
+    if (!title?.trim()) return;
+    void onCreateChapterInSubproject?.(path, type, title.trim());
+    setMenu(null);
+  };
+
   const showCreate = menu?.directory === true;
   const showRenameDelete = menu != null && menu.path !== '.';
   const showSubproject =
@@ -300,7 +470,16 @@ export function FileTreeOutliner({
             selectedPath={selectedPath}
             onSelectFile={onSelectFile}
             onContextMenu={onContextMenu}
-            onSubprojectOpen={onSubprojectOpen}
+            onOpenBookMeta={onOpenBookMeta}
+            onCreateChapterInSubproject={onCreateChapterInSubproject}
+            activeChapterId={activeChapterId}
+            activeStructureRoot={activeStructureRoot}
+            editorPosition={editorPosition}
+            levelConfigByModeId={levelConfigByModeId}
+            onActivateSubprojectStructure={onActivateSubprojectStructure}
+            runSubprojectMutation={runSubprojectMutation}
+            onSubprojectStructureChanged={onSubprojectStructureChanged}
+            inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
           />
         )}
       </div>
@@ -339,16 +518,25 @@ export function FileTreeOutliner({
           {showSepBeforeSubproject && <div className="file-tree-context-separator" role="separator" />}
           {menu.directory && menu.subprojectType ? (
             <>
-              {onSubprojectOpen && (
+              {onOpenBookMeta && (
                 <button
                   type="button"
                   className="file-tree-context-item"
                   onClick={() => {
-                    onSubprojectOpen(menu.path, menu.subprojectType!);
+                    onOpenBookMeta(menu.path, menu.subprojectType!);
                     setMenu(null);
                   }}
                 >
-                  Medien-Projekt öffnen
+                  Root-Metadaten…
+                </button>
+              )}
+              {onCreateChapterInSubproject && (
+                <button
+                  type="button"
+                  className="file-tree-context-item"
+                  onClick={() => handleNewChapterInSubproject(menu.path, menu.subprojectType!)}
+                >
+                  Neues Kapitel…
                 </button>
               )}
               {onConfigureSubproject && (

@@ -33,14 +33,27 @@ export function useChapter() {
   const structureRootRef = useRef<string | null>(null);
   const lastPositionRef = useRef<{ chapterId: string; sceneId?: string; actionId?: string } | null>(null);
 
+  const [structureRoot, setStructureRootState] = useState<string | null>(null);
+  const [activeSubprojectType, setActiveSubprojectType] = useState<string | null>(null);
+
   const sr = useCallback(() => structureRootRef.current ?? undefined, []);
 
   const setProjectPath = useCallback((path: string) => {
     projectPathRef.current = path;
   }, []);
 
-  const setStructureRoot = useCallback((relativePath: string | null) => {
-    structureRootRef.current = relativePath && relativePath !== '.' ? relativePath : null;
+  /**
+   * Sets the folder path for chapter/book APIs (subproject root). Optional subprojectType drives workspace YAML (book, music, …).
+   */
+  const setStructureRoot = useCallback((relativePath: string | null, subprojectType?: string | null) => {
+    const root = relativePath && relativePath !== '.' ? relativePath : null;
+    structureRootRef.current = root;
+    setStructureRootState(root);
+    if (!root) {
+      setActiveSubprojectType(null);
+    } else if (subprojectType != null && subprojectType !== '') {
+      setActiveSubprojectType(subprojectType);
+    }
   }, []);
 
   const persistPosition = useCallback(() => {
@@ -369,6 +382,10 @@ export function useChapter() {
   const closeChapter = useCallback(() => {
     setActiveChapter(null);
     setActionContents(new Map());
+    setEditorPosition(null);
+    structureRootRef.current = null;
+    setStructureRootState(null);
+    setActiveSubprojectType(null);
   }, []);
 
   return {
@@ -379,6 +396,8 @@ export function useChapter() {
     closeChapter,
     setProjectPath,
     setStructureRoot,
+    structureRoot,
+    activeSubprojectType,
     restoreLastPosition,
     actionContents,
     updateActionContent,
