@@ -153,20 +153,24 @@ function TreeNodeRow({
   };
 
   const spType = node.subprojectType ?? '';
+  /** Files and normal folders → chat; Medien-Projekt-Ordner nicht */
+  const canDragToChat = !isDir || !isSubproject;
+  const dragPayload =
+    !canDragToChat ? '' : isDir ? `${node.path.replace(/\/+$/, '')}/` : node.path;
 
   return (
     <>
       <button
         type="button"
-        className={`file-tree-row${isSelected ? ' file-tree-row--active' : ''}${isSubproject ? ' file-tree-row--subproject' : ''}${!isDir ? ' file-tree-row--draggable' : ''}`}
+        className={`file-tree-row${isSelected ? ' file-tree-row--active' : ''}${isSubproject ? ' file-tree-row--subproject' : ''}${canDragToChat ? ' file-tree-row--draggable' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
         onClick={handleClick}
         onContextMenu={(e) => onContextMenu(e, node)}
-        draggable={!isDir}
+        draggable={canDragToChat}
         onDragStart={
-          !isDir
+          canDragToChat
             ? (e) => {
-                e.dataTransfer.setData('text/plain', node.path);
+                e.dataTransfer.setData('text/plain', dragPayload);
                 e.dataTransfer.effectAllowed = 'copy';
               }
             : undefined
