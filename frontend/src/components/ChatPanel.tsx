@@ -30,6 +30,7 @@ interface ChatPanelProps {
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
   onOpenPromptPack?: () => void;
+  structureRoot?: string | null;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -63,6 +64,7 @@ export function ChatPanel({
   onDeleteChat,
   onRenameChat,
   onOpenPromptPack,
+  structureRoot = null,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -225,6 +227,7 @@ export function ChatPanel({
         referencedFiles={referencedFiles}
         onAddFile={onAddFile}
         onRemoveFile={onRemoveFile}
+        structureRoot={structureRoot}
       />
     </div>
   );

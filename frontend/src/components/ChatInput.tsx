@@ -31,6 +31,8 @@ interface ChatInputProps {
   /** When true, file chips are not shown (e.g. Prompt-Paket panel already lists them). */
   hideFileChips?: boolean;
   placeholder?: string;
+  /** Active subproject root path — scopes chapter/scene autocomplete to that folder */
+  structureRoot?: string | null;
 }
 
 export function ChatInput({
@@ -42,6 +44,7 @@ export function ChatInput({
   onRemoveFile,
   hideFileChips = false,
   placeholder: placeholderProp,
+  structureRoot = null,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [ac, setAc] = useState<{
@@ -83,27 +86,36 @@ export function ChatInput({
     }
   }, [ac?.selectedIdx]);
 
+  // Invalidate cache when structure root changes (different subproject)
+  useEffect(() => {
+    itemsCacheRef.current = null;
+    loadingRef.current = false;
+  }, [structureRoot]);
+
   const loadItems = useCallback(async (): Promise<AutocompleteItem[]> => {
     if (itemsCacheRef.current) return itemsCacheRef.current;
 
+    const rootParam = structureRoot ? `?root=${encodeURIComponent(structureRoot)}` : '';
+
     const [summaries, wikiTypes] = await Promise.all([
-      fetch('/api/chapters').then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
+      fetch(`/api/chapters${rootParam}`).then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
       fetch('/api/wiki/types').then(r => r.json()) as Promise<WikiType[]>,
     ]);
 
     const details = await Promise.all(
-      summaries.map(s => fetch(`/api/chapters/${s.id}`).then(r => r.json()) as Promise<ChapterNode>)
+      summaries.map(s => fetch(`/api/chapters/${s.id}${rootParam}`).then(r => r.json()) as Promise<ChapterNode>)
     );
 
     const items: AutocompleteItem[] = [];
 
     // Chapters and scenes (no actions)
+    const chapterBase = structureRoot ? `${structureRoot}/.project/chapter` : '.project/chapter';
     for (const chapter of details) {
       const chapterTitle = chapter.meta.title || chapter.id;
       items.push({
         type: 'chapter',
         title: chapterTitle,
-        path: `.project/chapter/${chapter.id}.json`,
+        path: `${chapterBase}/${chapter.id}.json`,
         breadcrumb: '',
       });
       for (const scene of chapter.scenes) {
@@ -111,7 +123,7 @@ export function ChatInput({
         items.push({
           type: 'scene',
           title: sceneTitle,
-          path: `.project/chapter/${chapter.id}/${scene.id}.json`,
+          path: `${chapterBase}/${chapter.id}/${scene.id}.json`,
           breadcrumb: chapterTitle,
         });
       }
@@ -142,7 +154,7 @@ export function ChatInput({
     const allItems = [...FIXED_ITEMS, ...items];
     itemsCacheRef.current = allItems;
     return allItems;
-  }, []);
+  }, [structureRoot]);
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim();

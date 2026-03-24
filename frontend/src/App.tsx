@@ -464,6 +464,7 @@ function App() {
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
             onOpenPromptPack={() => setPromptPackOpen(true)}
+            structureRoot={chapter.structureRoot}
           />
         </Panel>
       </Group>
