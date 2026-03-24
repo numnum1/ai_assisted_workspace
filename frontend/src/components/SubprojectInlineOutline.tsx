@@ -118,7 +118,9 @@ export function SubprojectInlineOutline({
       next.add(cid);
       return next;
     });
-  }, [rootActive, editorPosition?.chapterId]);
+    // Label/icon click opens editor and expands here; scenes still need a structure fetch (chevron already loads).
+    void loadStructure(cid);
+  }, [rootActive, editorPosition?.chapterId, loadStructure]);
 
   useEffect(() => {
     if (!rootActive || !editorPosition?.sceneId || !editorPosition.chapterId) return;
