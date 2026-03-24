@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
 import { filesApi, subprojectApi } from '../api.ts';
 import type { FileNode } from '../types.ts';
@@ -12,6 +12,16 @@ function folderIconForSubprojectType(type: string | null | undefined): string {
   return 'book';
 }
 
+function normalizeTreeItemName(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (t.includes('/') || t.includes('\\')) {
+    window.alert('Der Name darf keine Pfadtrenner enthalten.');
+    return null;
+  }
+  return t;
+}
+
 interface FileTreeOutlinerProps {
   projectPath: string | null;
   selectedPath: string | null;
@@ -19,6 +29,10 @@ interface FileTreeOutlinerProps {
   onRevealInExplorer?: () => void;
   /** Bump to reload file tree after disk changes */
   refreshNonce?: number;
+  /** Called after create / rename / delete so the rest of the app can refresh */
+  onTreeMutated?: () => void;
+  /** Editor sync when paths change outside the editor */
+  onFsChange?: (event: { deleted?: string; renamed?: { from: string; to: string } }) => void;
   onSubprojectOpen?: (path: string, type: string) => void;
   onConfigureSubproject?: (path: string, existingType?: string | null) => void;
 }
@@ -27,6 +41,7 @@ interface ContextMenuState {
   x: number;
   y: number;
   path: string;
+  directory: boolean;
   subprojectType: string | null | undefined;
 }
 
@@ -46,7 +61,7 @@ function TreeNodeRow({
   toggle: (path: string) => void;
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
-  onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
+  onContextMenu: (e: MouseEvent, node: FileNode) => void;
   onSubprojectOpen?: (path: string, type: string) => void;
 }) {
   const isDir = node.directory;
@@ -113,6 +128,8 @@ export function FileTreeOutliner({
   onSelectFile,
   onRevealInExplorer,
   refreshNonce = 0,
+  onTreeMutated,
+  onFsChange,
   onSubprojectOpen,
   onConfigureSubproject,
 }: FileTreeOutlinerProps) {
@@ -155,6 +172,18 @@ export function FileTreeOutliner({
     };
   }, [projectPath, refreshNonce]);
 
+  const refreshAfterMutation = useCallback(() => {
+    setMenu(null);
+    if (onTreeMutated) {
+      onTreeMutated();
+    } else if (projectPath) {
+      void filesApi
+        .getTree()
+        .then(setRoot)
+        .catch((e) => setLoadError(e instanceof Error ? e.message : 'Baum konnte nicht geladen werden'));
+    }
+  }, [onTreeMutated, projectPath]);
+
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
@@ -169,26 +198,85 @@ export function FileTreeOutliner({
     };
   }, [menu]);
 
-  const onContextMenu = useCallback((e: React.MouseEvent, node: FileNode) => {
-    if (!node.directory) return;
+  const onContextMenu = useCallback((e: MouseEvent, node: FileNode) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ x: e.clientX, y: e.clientY, path: node.path, subprojectType: node.subprojectType });
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      path: node.path,
+      directory: node.directory,
+      subprojectType: node.subprojectType,
+    });
   }, []);
+
+  const runMutation = useCallback(
+    async (fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+        refreshAfterMutation();
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'Aktion fehlgeschlagen');
+      }
+    },
+    [refreshAfterMutation],
+  );
+
+  const handleNewFolder = (parentPath: string) => {
+    const name = window.prompt('Name des neuen Ordners:');
+    const n = name != null ? normalizeTreeItemName(name) : null;
+    if (n == null) return;
+    void runMutation(async () => {
+      await filesApi.createFolder(parentPath, n);
+    });
+  };
+
+  const handleNewFile = (parentPath: string) => {
+    const name = window.prompt('Name der neuen Datei:', 'unbenannt.md');
+    const n = name != null ? normalizeTreeItemName(name) : null;
+    if (n == null) return;
+    void runMutation(async () => {
+      await filesApi.createFile(parentPath, n);
+    });
+  };
+
+  const handleRename = (path: string, isDir: boolean) => {
+    const base = path === '.' ? '' : (path.split('/').pop() ?? '');
+    const next = window.prompt(isDir ? 'Neuer Ordnername:' : 'Neuer Dateiname:', base);
+    const n = next != null ? normalizeTreeItemName(next) : null;
+    if (n == null) return;
+    void runMutation(async () => {
+      const { path: newPath } = await filesApi.rename(path, n);
+      onFsChange?.({ renamed: { from: path, to: newPath } });
+    });
+  };
+
+  const handleDelete = (path: string, isDir: boolean) => {
+    const msg = isDir
+      ? `Ordner „${path}“ und alle Inhalte wirklich löschen?`
+      : `Datei „${path}“ wirklich löschen?`;
+    if (!window.confirm(msg)) return;
+    void runMutation(async () => {
+      await filesApi.deleteContent(path);
+      onFsChange?.({ deleted: path });
+    });
+  };
 
   const handleRemoveSubproject = async (path: string) => {
     try {
       await subprojectApi.remove(path);
       setMenu(null);
-      // parent should bump refreshNonce; also reload locally
-      if (projectPath) {
-        const tree = await filesApi.getTree();
-        setRoot(tree);
-      }
+      refreshAfterMutation();
     } catch (err) {
-      console.error(err);
+      window.alert(err instanceof Error ? err.message : 'Aktion fehlgeschlagen');
     }
   };
+
+  const showCreate = menu?.directory === true;
+  const showRenameDelete = menu != null && menu.path !== '.';
+  const showSubproject =
+    menu?.directory === true && Boolean(menu.subprojectType || onConfigureSubproject);
+  const showSepBeforeSubproject = Boolean(menu && showSubproject && (showCreate || showRenameDelete));
 
   return (
     <div className="file-tree-outliner outliner">
@@ -224,7 +312,32 @@ export function FileTreeOutliner({
           onClick={(ev) => ev.stopPropagation()}
           onMouseDown={(ev) => ev.stopPropagation()}
         >
-          {menu.subprojectType ? (
+          {showCreate && (
+            <>
+              <button type="button" className="file-tree-context-item" onClick={() => handleNewFolder(menu.path)}>
+                Neuer Ordner…
+              </button>
+              <button type="button" className="file-tree-context-item" onClick={() => handleNewFile(menu.path)}>
+                Neue Datei…
+              </button>
+            </>
+          )}
+          {showRenameDelete && (
+            <>
+              <button type="button" className="file-tree-context-item" onClick={() => handleRename(menu.path, menu.directory)}>
+                Umbenennen…
+              </button>
+              <button
+                type="button"
+                className="file-tree-context-item file-tree-context-item--danger"
+                onClick={() => handleDelete(menu.path, menu.directory)}
+              >
+                Löschen…
+              </button>
+            </>
+          )}
+          {showSepBeforeSubproject && <div className="file-tree-context-separator" role="separator" />}
+          {menu.directory && menu.subprojectType ? (
             <>
               {onSubprojectOpen && (
                 <button
@@ -259,6 +372,7 @@ export function FileTreeOutliner({
               </button>
             </>
           ) : (
+            menu.directory &&
             onConfigureSubproject && (
               <button
                 type="button"

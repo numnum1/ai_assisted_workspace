@@ -122,6 +122,9 @@ public class FileService {
     }
 
     public void deleteFile(String relativePath) throws IOException {
+        if (relativePath == null || relativePath.isBlank() || ".".equals(relativePath.trim())) {
+            throw new IOException("Cannot delete project root");
+        }
         Path file = resolveAndValidate(relativePath);
         if (Files.isDirectory(file)) {
             deleteRecursively(file);

@@ -58,6 +58,31 @@ export function useFileEditor(projectPath: string | null) {
     }
   }, [selectedPath, content]);
 
+  /** Keep editor path in sync when files are renamed or deleted from the tree */
+  const syncWithFilesystem = useCallback(
+    (event: { deleted?: string; renamed?: { from: string; to: string } }) => {
+      if (event.deleted) {
+        const p = event.deleted;
+        if (selectedPath === p || (selectedPath != null && selectedPath.startsWith(`${p}/`))) {
+          setSelectedPath(null);
+          setContentState('');
+          setDirty(false);
+          setError(null);
+        }
+      }
+      if (event.renamed) {
+        const { from, to } = event.renamed;
+        if (!selectedPath) return;
+        if (selectedPath === from) {
+          setSelectedPath(to);
+        } else if (selectedPath.startsWith(`${from}/`)) {
+          setSelectedPath(to + selectedPath.slice(from.length));
+        }
+      }
+    },
+    [selectedPath],
+  );
+
   return {
     selectedPath,
     content,
@@ -68,5 +93,6 @@ export function useFileEditor(projectPath: string | null) {
     save,
     setContent,
     clearError: () => setError(null),
+    syncWithFilesystem,
   };
 }

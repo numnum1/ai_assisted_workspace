@@ -398,6 +398,8 @@ function App() {
                   onSelectFile={fileEditor.openFile}
                   onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
                   refreshNonce={treeRefreshKey}
+                  onTreeMutated={() => setTreeRefreshKey((k) => k + 1)}
+                  onFsChange={fileEditor.syncWithFilesystem}
                   onSubprojectOpen={(path, type) => {
                     setOpenSubproject({ path, type });
                     setSelectedMeta(null);
