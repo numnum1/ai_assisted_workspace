@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
 import { filesApi, subprojectApi, chapterApi } from '../api.ts';
 import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../types.ts';
@@ -12,6 +12,16 @@ function folderIconForSubprojectType(type: string | null | undefined): string {
   if (type === 'game') return 'sword';
   if (type === 'book') return 'book';
   return 'book';
+}
+
+function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
+  if (root.path === targetPath) return root;
+  if (!root.children) return null;
+  for (const ch of root.children) {
+    const f = findNodeByPath(ch, targetPath);
+    if (f) return f;
+  }
+  return null;
 }
 
 function normalizeTreeItemName(raw: string): string | null {
@@ -57,6 +67,13 @@ export interface FileTreeOutlinerProps {
   onSubprojectStructureChanged?: () => void;
   /** Bump to refetch inline chapter lists under subprojects */
   inlineChaptersRefreshNonce?: number;
+  /** If set, tree shows only this folder (subproject) as root */
+  scopeToPath?: string | null;
+  onClearOutlinerScope?: () => void;
+  /** Persist / apply scoped view to this subproject path */
+  onSetOutlinerScope?: (relativeSubprojectPath: string) => void;
+  /** Called when saved scope no longer exists or is not a subproject */
+  onScopeInvalidated?: () => void;
 }
 
 interface ContextMenuState {
@@ -308,12 +325,41 @@ export function FileTreeOutliner({
   runSubprojectMutation,
   onSubprojectStructureChanged,
   inlineChaptersRefreshNonce = 0,
+  scopeToPath = null,
+  onClearOutlinerScope,
+  onSetOutlinerScope,
+  onScopeInvalidated,
 }: FileTreeOutlinerProps) {
   const [root, setRoot] = useState<FileNode | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['.']));
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const scopedNode = useMemo(() => {
+    if (!root || !scopeToPath) return null;
+    return findNodeByPath(root, scopeToPath);
+  }, [root, scopeToPath]);
+
+  const displayRoot = scopedNode ?? root;
+
+  const effectiveTreeRootPath = scopeToPath ?? '.';
+
+  useEffect(() => {
+    if (!root || !scopeToPath) return;
+    if (!scopedNode || !scopedNode.directory || !scopedNode.subprojectType) {
+      onScopeInvalidated?.();
+    }
+  }, [root, scopeToPath, scopedNode, onScopeInvalidated]);
+
+  useEffect(() => {
+    if (!root) return;
+    if (scopeToPath && findNodeByPath(root, scopeToPath)) {
+      setExpanded(new Set([scopeToPath]));
+    } else if (!scopeToPath) {
+      setExpanded(new Set(['.']));
+    }
+  }, [scopeToPath, root]);
 
   const toggle = useCallback((path: string) => {
     setExpanded((prev) => {
@@ -337,7 +383,9 @@ export function FileTreeOutliner({
         if (!cancelled) {
           setRoot(tree);
           setLoadError(null);
-          setExpanded(new Set(['.']));
+          const expandKey =
+            scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
+          setExpanded(new Set([expandKey]));
         }
       })
       .catch((e) => {
@@ -346,7 +394,7 @@ export function FileTreeOutliner({
     return () => {
       cancelled = true;
     };
-  }, [projectPath, refreshNonce]);
+  }, [projectPath, refreshNonce, scopeToPath]);
 
   const refreshAfterMutation = useCallback(() => {
     setMenu(null);
@@ -456,7 +504,7 @@ export function FileTreeOutliner({
   };
 
   const showCreate = menu?.directory === true;
-  const showRenameDelete = menu != null && menu.path !== '.';
+  const showRenameDelete = menu != null && menu.path !== effectiveTreeRootPath;
   const showSubproject =
     menu?.directory === true && Boolean(menu.subprojectType || onConfigureSubproject);
   const showSepBeforeSubproject = Boolean(menu && showSubproject && (showCreate || showRenameDelete));
@@ -471,12 +519,22 @@ export function FileTreeOutliner({
           </button>
         )}
       </div>
+      {scopeToPath && scopedNode && onClearOutlinerScope && (
+        <div className="file-tree-scope-banner">
+          <span className="file-tree-scope-banner-label" title={scopeToPath}>
+            Nur: {scopedNode.name}
+          </span>
+          <button type="button" className="file-tree-scope-banner-clear" onClick={onClearOutlinerScope}>
+            Gesamtes Projekt
+          </button>
+        </div>
+      )}
       <div className="file-tree-scroll outliner-content">
         {loadError && <div className="file-tree-error">{loadError}</div>}
         {!root && !loadError && projectPath && <div className="file-tree-loading">Laden…</div>}
-        {root && (
+        {displayRoot && (
           <TreeNodeRow
-            node={root}
+            node={displayRoot}
             depth={0}
             expanded={expanded}
             toggle={toggle}
@@ -531,6 +589,18 @@ export function FileTreeOutliner({
           {showSepBeforeSubproject && <div className="file-tree-context-separator" role="separator" />}
           {menu.directory && menu.subprojectType ? (
             <>
+              {onSetOutlinerScope && scopeToPath !== menu.path && (
+                <button
+                  type="button"
+                  className="file-tree-context-item"
+                  onClick={() => {
+                    onSetOutlinerScope(menu.path);
+                    setMenu(null);
+                  }}
+                >
+                  Ansicht hierdrauf beschränken
+                </button>
+              )}
               {onOpenBookMeta && (
                 <button
                   type="button"

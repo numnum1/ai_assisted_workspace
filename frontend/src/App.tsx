@@ -28,6 +28,7 @@ import { useChatHistory } from './hooks/useChatHistory.ts';
 import { useWiki } from './hooks/useWiki.ts';
 import { useWorkspaceMode } from './hooks/useWorkspaceMode.ts';
 import { useWorkspaceLevelConfigMap } from './hooks/useWorkspaceLevelConfigMap.ts';
+import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
 import { useFileEditor } from './hooks/useFileEditor.ts';
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [inlineChaptersNonce, setInlineChaptersNonce] = useState(0);
   const [subprojectDialog, setSubprojectDialog] = useState<{ path: string; initialType?: string | null } | null>(null);
+  const outlinerScope = useOutlinerScope(project.projectPath ? project.projectPath : null);
 
   // Project root changes: reset structure and editor state
   useEffect(() => {
@@ -378,6 +380,10 @@ function App() {
                 onConfigureSubproject={(path, existingType) => {
                   setSubprojectDialog({ path, initialType: existingType ?? undefined });
                 }}
+                scopeToPath={outlinerScope.scopePath}
+                onClearOutlinerScope={outlinerScope.clearScopePath}
+                onSetOutlinerScope={outlinerScope.setScopePath}
+                onScopeInvalidated={outlinerScope.clearScopePath}
               />
             </div>
 
