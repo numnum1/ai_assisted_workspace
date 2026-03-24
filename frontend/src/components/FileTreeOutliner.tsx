@@ -158,10 +158,19 @@ function TreeNodeRow({
     <>
       <button
         type="button"
-        className={`file-tree-row${isSelected ? ' file-tree-row--active' : ''}${isSubproject ? ' file-tree-row--subproject' : ''}`}
+        className={`file-tree-row${isSelected ? ' file-tree-row--active' : ''}${isSubproject ? ' file-tree-row--subproject' : ''}${!isDir ? ' file-tree-row--draggable' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
         onClick={handleClick}
         onContextMenu={(e) => onContextMenu(e, node)}
+        draggable={!isDir}
+        onDragStart={
+          !isDir
+            ? (e) => {
+                e.dataTransfer.setData('text/plain', node.path);
+                e.dataTransfer.effectAllowed = 'copy';
+              }
+            : undefined
+        }
       >
         <span className="file-tree-chevron">
           {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}

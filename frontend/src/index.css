@@ -308,6 +308,14 @@ body {
   color: var(--accent);
 }
 
+.file-tree-row--draggable {
+  cursor: grab;
+}
+
+.file-tree-row--draggable:active {
+  cursor: grabbing;
+}
+
 .file-tree-icon--subproject {
   color: var(--accent);
 }
