@@ -344,7 +344,13 @@ function App() {
                   chapter.closeChapter();
                   setSelectedMeta(null);
                   setMetaExpanded(false);
-                  fileEditor.openFile(path);
+                  void fileEditor.openFile(path);
+                }}
+              onOpenFileMeta={(path) => {
+                  chapter.closeChapter();
+                  setSelectedMeta(null);
+                  setMetaExpanded(false);
+                  void fileEditor.openFileMeta(path);
                 }}
                 onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
                 refreshNonce={treeRefreshKey}
@@ -424,6 +430,18 @@ function App() {
               onChange={fileEditor.setContent}
               onSave={() => { void fileEditor.save(); fetchGitState(); }}
               onClearError={fileEditor.clearError}
+              shadowContent={fileEditor.shadowContent}
+              shadowDirty={fileEditor.shadowDirty}
+              shadowExists={fileEditor.shadowExists}
+              shadowLoading={fileEditor.shadowLoading}
+              shadowError={fileEditor.shadowError}
+              shadowPanelOpen={fileEditor.shadowPanelOpen}
+              onShadowChange={fileEditor.setShadowContent}
+              onShadowSave={() => { void fileEditor.saveShadow(); }}
+              onShadowDelete={() => { void fileEditor.deleteShadow(); }}
+              onOpenShadowPanel={() => { void fileEditor.openShadowPanel(); }}
+              onCloseShadowPanel={fileEditor.closeShadowPanel}
+              onClearShadowError={fileEditor.clearShadowError}
             />
           ) : proseEditorMode === 'prose' ? (
             <ChapterView

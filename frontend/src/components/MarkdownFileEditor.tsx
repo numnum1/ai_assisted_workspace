@@ -1,9 +1,9 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { Save, FileText } from 'lucide-react';
+import { Save, FileText, NotebookPen, Trash2 } from 'lucide-react';
 
 interface MarkdownFileEditorProps {
   path: string | null;
@@ -14,6 +14,19 @@ interface MarkdownFileEditorProps {
   onChange: (value: string) => void;
   onSave: () => void;
   onClearError?: () => void;
+  // Shadow (meta-note) props
+  shadowContent: string;
+  shadowDirty: boolean;
+  shadowExists: boolean;
+  shadowLoading: boolean;
+  shadowError: string | null;
+  shadowPanelOpen: boolean;
+  onShadowChange: (value: string) => void;
+  onShadowSave: () => void;
+  onShadowDelete: () => void;
+  onOpenShadowPanel: () => void;
+  onCloseShadowPanel: () => void;
+  onClearShadowError?: () => void;
 }
 
 export function MarkdownFileEditor({
@@ -25,6 +38,18 @@ export function MarkdownFileEditor({
   onChange,
   onSave,
   onClearError,
+  shadowContent,
+  shadowDirty,
+  shadowExists,
+  shadowLoading,
+  shadowError,
+  shadowPanelOpen,
+  onShadowChange,
+  onShadowSave,
+  onShadowDelete,
+  onOpenShadowPanel,
+  onCloseShadowPanel,
+  onClearShadowError,
 }: MarkdownFileEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -34,6 +59,18 @@ export function MarkdownFileEditor({
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+
+  const [shadowText, setShadowText] = useState(shadowContent);
+
+  // Sync shadow textarea when content changes externally (on file open)
+  useEffect(() => {
+    setShadowText(shadowContent);
+  }, [shadowContent]);
+
+  const handleShadowTextChange = useCallback((v: string) => {
+    setShadowText(v);
+    onShadowChange(v);
+  }, [onShadowChange]);
 
   const buildTheme = useCallback(
     () =>
@@ -134,6 +171,15 @@ export function MarkdownFileEditor({
         )}
         <button
           type="button"
+          className={`markdown-file-editor-shadow-btn${shadowPanelOpen ? ' active' : ''}${shadowExists ? ' has-shadow' : ''}`}
+          onClick={shadowPanelOpen ? onCloseShadowPanel : onOpenShadowPanel}
+          title={shadowPanelOpen ? 'Meta-Notiz schließen' : (shadowExists ? 'Meta-Notiz bearbeiten' : 'Meta-Notiz anlegen')}
+        >
+          <NotebookPen size={14} />
+          {shadowExists && !shadowPanelOpen && <span className="markdown-file-editor-shadow-dot" />}
+        </button>
+        <button
+          type="button"
           className="markdown-file-editor-save"
           onClick={() => onSave()}
           disabled={loading || !dirty}
@@ -143,7 +189,66 @@ export function MarkdownFileEditor({
           Speichern
         </button>
       </div>
-      <div ref={editorRef} className="markdown-file-editor-cm" />
+
+      <div className={`markdown-file-editor-body${shadowPanelOpen ? ' with-shadow' : ''}`}>
+        <div ref={editorRef} className="markdown-file-editor-cm" />
+
+        {shadowPanelOpen && (
+          <div className="shadow-panel">
+            <div className="shadow-panel-toolbar">
+              <span className="shadow-panel-title">
+                <NotebookPen size={13} />
+                Meta-Notiz
+                {shadowDirty ? ' •' : ''}
+              </span>
+              {shadowError && (
+                <span className="shadow-panel-error" role="alert">
+                  {shadowError}
+                  {onClearShadowError && (
+                    <button type="button" className="markdown-file-editor-error-dismiss" onClick={onClearShadowError}>
+                      ×
+                    </button>
+                  )}
+                </span>
+              )}
+              {shadowExists && (
+                <button
+                  type="button"
+                  className="shadow-panel-delete-btn"
+                  onClick={onShadowDelete}
+                  title="Meta-Notiz löschen"
+                  disabled={shadowLoading}
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="markdown-file-editor-save"
+                onClick={onShadowSave}
+                disabled={shadowLoading || !shadowDirty}
+                title="Meta-Notiz speichern (Strg+S im Textfeld)"
+              >
+                <Save size={14} />
+                Speichern
+              </button>
+            </div>
+            <textarea
+              className="shadow-panel-textarea"
+              value={shadowText}
+              onChange={(e) => handleShadowTextChange(e.target.value)}
+              placeholder="Notizen, Status, Querverweise zu dieser Datei…"
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                  e.preventDefault();
+                  onShadowSave();
+                }
+              }}
+              disabled={shadowLoading}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

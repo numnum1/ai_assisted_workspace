@@ -223,6 +223,15 @@ export const wikiApi = {
     del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
 };
 
+export const shadowApi = {
+  get: (path: string) =>
+    get<{ exists: boolean; content: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
+  save: (path: string, content: string) =>
+    put<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`, { content }),
+  delete: (path: string) =>
+    del<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
+};
+
 export const chatApi = {
   previewContext: (body: ChatRequest) =>
     post<{ includedFiles: string[]; estimatedTokens: number }>('/chat/context-preview', body),

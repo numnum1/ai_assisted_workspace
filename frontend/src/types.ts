@@ -5,6 +5,8 @@ export interface FileNode {
   children: FileNode[] | null;
   /** Workspace mode id from `.subproject.json` when this directory is a subproject */
   subprojectType?: string | null;
+  /** True if a shadow meta-note file exists under `.wiki/files/` for this file */
+  hasShadow?: boolean;
 }
 
 export interface Mode {
