@@ -77,7 +77,7 @@ export interface ProjectConfig {
   globalRules: string[];
   /** Mode id; empty means client uses review or first available mode */
   defaultMode?: string;
-  /** Built-in workspace mode: book, game, music (classpath workspace-modes) */
+  /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
   workspaceMode?: string;
 }
 
@@ -86,7 +86,7 @@ export interface WorkspaceEntry {
   id: string;
   path: string;
   name: string;
-  /** Mirrors last known project workspaceMode (book, game, music) */
+  /** Mirrors last known project workspaceMode (e.g. book, music) */
   mode: string;
 }
 

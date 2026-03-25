@@ -10,7 +10,7 @@ public class ProjectConfig {
     private List<String> alwaysInclude = new ArrayList<>();
     private List<String> globalRules = new ArrayList<>();
     private String defaultMode = "";
-    /** Built-in workspace mode id: book, game, music, ... (classpath: workspace-modes/{id}.yaml) */
+    /** Built-in workspace mode id: book, music, default, ... (classpath: workspace-modes/{id}.yaml) */
     private String workspaceMode = "default";
 
     public String getName() { return name; }

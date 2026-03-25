@@ -476,7 +476,7 @@ export function ProjectSettingsModal({
                       className="ps-input"
                       value={modeForm.id}
                       onChange={e => setModeForm(p => p && ({ ...p, id: e.target.value }))}
-                      placeholder="e.g. game-design"
+                      placeholder="e.g. technical-review"
                       disabled={editingModeId !== null}
                     />
 
