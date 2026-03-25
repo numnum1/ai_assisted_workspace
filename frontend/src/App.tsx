@@ -330,12 +330,6 @@ function App() {
       <Group orientation="horizontal" className="app-panels">
         <Panel defaultSize="18%" minSize="10%" maxSize="50%">
           <div className="left-column">
-            <div className="workspace-toolbar">
-              <button type="button" onClick={() => { void browseAndOpenProject(); }} title="Projekt-Ordner öffnen">
-                <FolderOpen size={16} />
-                <span>Ordner</span>
-              </button>
-            </div>
             <div className={`outliner-slot${showMetaChrome ? ' split' : ''}`}>
               <FileTreeOutliner
                 projectPath={project.projectPath ?? null}
