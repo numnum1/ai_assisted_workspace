@@ -112,6 +112,10 @@ export const projectConfigApi = {
       ? get<WorkspaceModeSchema>(`/project-config/workspace-mode?id=${encodeURIComponent(modeId)}`)
       : get<WorkspaceModeSchema>('/project-config/workspace-mode'),
   listWorkspaceModes: () => get<WorkspaceModeInfo[]>('/project-config/workspace-modes'),
+  getWorkspaceModesDataDir: () =>
+    get<{ path: string; exists: boolean }>('/project-config/workspace-modes/data-dir'),
+  revealWorkspaceModesDataDir: () =>
+    post<{ status: string }>('/project-config/workspace-modes/reveal-data-dir', {}),
   get: () => get<ProjectConfig>('/project-config'),
   init: () => post<ProjectConfig>('/project-config/init', {}),
   update: (config: ProjectConfig) => put<ProjectConfig>('/project-config', config),

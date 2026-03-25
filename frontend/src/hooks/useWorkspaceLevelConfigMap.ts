@@ -6,9 +6,12 @@ import { buildOutlinerLevelConfig } from '../meta/outlinerLabels.ts';
 const FALLBACK = buildOutlinerLevelConfig(null);
 
 /**
- * Loads workspace mode YAMLs once per open project and maps mode id → outliner labels/icons.
+ * Loads workspace mode YAMLs when the project opens (or refreshNonce bumps) and maps mode id → outliner labels/icons.
  */
-export function useWorkspaceLevelConfigMap(projectPath: string | null): Record<string, OutlinerLevelConfig> {
+export function useWorkspaceLevelConfigMap(
+  projectPath: string | null,
+  refreshNonce: number = 0,
+): Record<string, OutlinerLevelConfig> {
   const [map, setMap] = useState<Record<string, OutlinerLevelConfig>>({});
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export function useWorkspaceLevelConfigMap(projectPath: string | null): Record<s
     return () => {
       cancelled = true;
     };
-  }, [projectPath]);
+  }, [projectPath, refreshNonce]);
 
   return map;
 }

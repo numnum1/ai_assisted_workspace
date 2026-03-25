@@ -1,5 +1,7 @@
 id: music
 name: Musik
+icon: disc
+mediaType: true
 editorMode: none
 rootMetaLabel: Album-Metadaten
 rootMetaIcon: disc

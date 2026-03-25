@@ -115,6 +115,10 @@ export interface WorkspaceMetaTypeSchema {
 export interface WorkspaceModeSchema {
   id: string;
   name: string;
+  /** Lucide icon name for subproject folder in the file tree */
+  icon?: string;
+  /** When true, the mode can be chosen when creating a media subproject */
+  mediaType?: boolean;
   /** 'prose' | 'standard' | 'none' | future modes */
   editorMode: string;
   rootMetaLabel: string;
@@ -128,6 +132,8 @@ export interface WorkspaceModeInfo {
   id: string;
   name: string;
   source: 'builtin' | 'user';
+  icon: string;
+  mediaType: boolean;
 }
 
 /** Resolved labels/icons for the three structure levels + root meta button */
@@ -137,6 +143,8 @@ export interface OutlinerLevelConfig {
   action: { label: string; labelNew: string; icon: string };
   rootMetaLabel: string;
   rootMetaIcon: string;
+  /** Icon for subproject folder rows in the file tree */
+  folderIcon: string;
 }
 
 export interface NodeMeta {

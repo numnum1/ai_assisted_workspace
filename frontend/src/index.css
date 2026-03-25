@@ -1420,6 +1420,14 @@ body {
   color: var(--text-muted);
 }
 
+.editor-mode-placeholder-hint {
+  font-size: 0.85rem;
+  max-width: 28rem;
+  text-align: center;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
 /* ==================== Chat Panel ==================== */
 
 .chat-panel {
@@ -3706,6 +3714,114 @@ body {
 
 .ps-save-btn:hover:not(:disabled) { opacity: 0.85; }
 .ps-save-btn:disabled { opacity: 0.5; cursor: default; }
+
+.ps-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ps-secondary-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.ps-secondary-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ps-wp-tab .ps-hint code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-hover);
+}
+
+.ps-wp-path-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ps-wp-path {
+  display: block;
+  font-size: 11px;
+  line-height: 1.45;
+  word-break: break-all;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+}
+
+.ps-wp-path-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ps-wp-refresh-btn {
+  margin-left: auto;
+}
+
+.ps-wp-missing {
+  color: var(--amber, #e0a030);
+}
+
+.ps-wp-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+}
+
+.ps-wp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ps-wp-table th,
+.ps-wp-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.ps-wp-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.ps-wp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ps-wp-table code {
+  font-size: 11px;
+}
+
+.ps-wp-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 16px !important;
+}
 
 .ps-add-btn {
   display: flex;

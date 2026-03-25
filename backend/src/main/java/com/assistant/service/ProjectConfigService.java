@@ -410,6 +410,13 @@ public class ProjectConfigService {
         return list;
     }
 
+    /**
+     * Directory for user workspace-mode YAML plugins: {@code <appData>/workspace-modes}.
+     */
+    public Path getUserWorkspaceModesDirectory() {
+        return resolveAppDataDir().resolve(USER_WORKSPACE_MODES_DIR);
+    }
+
     private Path resolveAppDataDir() {
         String configured = appConfig.getData().getDataDir();
         if (configured != null && !configured.isBlank()) {
@@ -481,17 +488,20 @@ public class ProjectConfigService {
             data = yaml.load(is);
         } catch (Exception e) {
             log.warn("Invalid workspace mode YAML ({}): {}", fallbackId, e.getMessage());
-            return new WorkspaceModeInfo(fallbackId, fallbackId, source);
+            return new WorkspaceModeInfo(fallbackId, fallbackId, source, "folder", false);
         }
         if (data == null) {
-            return new WorkspaceModeInfo(fallbackId, fallbackId, source);
+            return new WorkspaceModeInfo(fallbackId, fallbackId, source, "folder", false);
         }
         String id = stringVal(data.get("id"), fallbackId);
         if (!isValidWorkspaceModeId(id)) {
             id = fallbackId;
         }
         String name = stringVal(data.get("name"), id);
-        return new WorkspaceModeInfo(id, name, source);
+        String rootMetaIcon = stringVal(data.get("rootMetaIcon"), "folder");
+        String icon = stringVal(data.get("icon"), rootMetaIcon);
+        boolean mediaType = booleanVal(data.get("mediaType"), false);
+        return new WorkspaceModeInfo(id, name, source, icon, mediaType);
     }
 
     @SuppressWarnings("unchecked")
@@ -502,6 +512,8 @@ public class ProjectConfigService {
         schema.setEditorMode(stringVal(data.get("editorMode"), "prose"));
         schema.setRootMetaLabel(stringVal(data.get("rootMetaLabel"), ""));
         schema.setRootMetaIcon(stringVal(data.get("rootMetaIcon"), "book"));
+        schema.setIcon(stringVal(data.get("icon"), schema.getRootMetaIcon()));
+        schema.setMediaType(booleanVal(data.get("mediaType"), false));
 
         Object levelsObj = data.get("levels");
         if (levelsObj instanceof List<?> list) {
@@ -570,6 +582,24 @@ public class ProjectConfigService {
         }
         String s = o.toString();
         return s.isEmpty() ? fallback : s;
+    }
+
+    private static boolean booleanVal(Object o, boolean fallback) {
+        if (o == null) {
+            return fallback;
+        }
+        if (o instanceof Boolean b) {
+            return b;
+        }
+        if (o instanceof String s) {
+            if ("true".equalsIgnoreCase(s)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(s)) {
+                return false;
+            }
+        }
+        return fallback;
     }
 
     private String serializeMode(Mode mode) {

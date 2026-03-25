@@ -6,14 +6,6 @@ import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
 import { resolveLevelConfig } from '../hooks/useWorkspaceLevelConfigMap.ts';
 
-function folderIconForSubprojectType(type: string | null | undefined): string {
-  if (!type) return 'folder';
-  if (type === 'music') return 'disc';
-  if (type === 'game') return 'sword';
-  if (type === 'book') return 'book';
-  return 'book';
-}
-
 function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
   if (root.path === targetPath) return root;
   if (!root.children) return null;
@@ -201,7 +193,11 @@ function TreeNodeRow({
         </span>
         {isDir ? (
           isSubproject ? (
-            <OutlinerIcon name={folderIconForSubprojectType(node.subprojectType)} size={14} className="file-tree-icon file-tree-icon--subproject" />
+            <OutlinerIcon
+              name={subLevelConfig.folderIcon}
+              size={14}
+              className="file-tree-icon file-tree-icon--subproject"
+            />
           ) : (
             <Folder size={14} className="file-tree-icon" />
           )

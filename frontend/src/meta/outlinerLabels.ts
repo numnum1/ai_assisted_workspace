@@ -6,6 +6,7 @@ const FALLBACK: OutlinerLevelConfig = {
   action: { label: 'Handlungseinheit', labelNew: 'Neue Handlungseinheit', icon: 'align-left' },
   rootMetaLabel: 'Buch-Metadaten',
   rootMetaIcon: 'book',
+  folderIcon: 'folder',
 };
 
 function pick(ws: WorkspaceModeSchema, key: 'chapter' | 'scene' | 'action') {
@@ -19,11 +20,13 @@ function pick(ws: WorkspaceModeSchema, key: 'chapter' | 'scene' | 'action') {
 
 export function buildOutlinerLevelConfig(ws: WorkspaceModeSchema | null): OutlinerLevelConfig {
   if (!ws?.levels?.length) return FALLBACK;
+  const rootIcon = ws.rootMetaIcon?.trim() || FALLBACK.rootMetaIcon;
   return {
     chapter: pick(ws, 'chapter'),
     scene: pick(ws, 'scene'),
     action: pick(ws, 'action'),
     rootMetaLabel: ws.rootMetaLabel?.trim() || FALLBACK.rootMetaLabel,
-    rootMetaIcon: ws.rootMetaIcon?.trim() || FALLBACK.rootMetaIcon,
+    rootMetaIcon: rootIcon,
+    folderIcon: ws.icon?.trim() || rootIcon || FALLBACK.folderIcon,
   };
 }

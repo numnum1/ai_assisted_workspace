@@ -1,5 +1,7 @@
 id: book
 name: Buch
+icon: book
+mediaType: true
 editorMode: prose
 rootMetaLabel: Buch-Metadaten
 rootMetaIcon: book

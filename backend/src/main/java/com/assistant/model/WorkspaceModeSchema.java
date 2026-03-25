@@ -13,6 +13,10 @@ public class WorkspaceModeSchema {
 
     private String id = "book";
     private String name = "";
+    /** Lucide icon name for subproject folder in the file tree */
+    private String icon = "folder";
+    /** When true, the mode appears as an option for media subprojects */
+    private boolean mediaType = false;
     /** e.g. prose, none — controls which editor UI the frontend shows */
     private String editorMode = "prose";
     private String rootMetaLabel = "";
@@ -35,6 +39,22 @@ public class WorkspaceModeSchema {
 
     public void setName(String name) {
         this.name = name != null ? name : "";
+    }
+
+    public String getIcon() {
+        return icon;
+    }
+
+    public void setIcon(String icon) {
+        this.icon = icon != null ? icon : "folder";
+    }
+
+    public boolean isMediaType() {
+        return mediaType;
+    }
+
+    public void setMediaType(boolean mediaType) {
+        this.mediaType = mediaType;
     }
 
     public String getEditorMode() {

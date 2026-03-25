@@ -1,5 +1,7 @@
 id: game
 name: Spiel-Planung
+icon: sword
+mediaType: true
 editorMode: none
 rootMetaLabel: Projekt-Metadaten
 rootMetaIcon: sword
