@@ -40,10 +40,11 @@ function mapSchema(s: WorkspaceMetaTypeSchema | undefined, fallback: MetaTypeSch
  */
 export function buildMetaSchemasFromWorkspace(ws: WorkspaceModeSchema): Record<MetaNodeType, MetaTypeSchema> {
   const m = ws.metaSchemas ?? {};
+  const sceneSchema = mapSchema(m.scene, defaultMetaSchemas.scene);
   return {
     book: mapSchema(m.root, defaultMetaSchemas.book),
     chapter: mapSchema(m.chapter, defaultMetaSchemas.chapter),
-    scene: mapSchema(m.scene, defaultMetaSchemas.scene),
-    action: mapSchema(m.action, defaultMetaSchemas.action),
+    scene: sceneSchema,
+    action: ws.proseLeafLevel === 'scene' ? sceneSchema : mapSchema(m.action, defaultMetaSchemas.action),
   };
 }

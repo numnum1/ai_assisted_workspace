@@ -2,120 +2,72 @@ id: music
 name: Musik
 icon: disc
 mediaType: true
-editorMode: none
-rootMetaLabel: Album-Metadaten
-rootMetaIcon: disc
+editorMode: prose
+# Prose-Text pro Strophe (Szene); die Handlungseinheit-Ebene bleibt nur technisch (ein automatischer Block).
+proseLeafLevel: scene
+rootMetaLabel: Lied-Metadaten
+rootMetaIcon: music
 levels:
   - key: chapter
-    label: Album
-    labelNew: Neues Album
-    icon: disc
-  - key: scene
-    label: Track
-    labelNew: Neuer Track
+    label: Lied
+    labelNew: Neues Lied
     icon: music
-  - key: action
-    label: Abschnitt
-    labelNew: Neuer Abschnitt
+  - key: scene
+    label: Strophe
+    labelNew: Neue Strophe
     icon: align-left
 metaSchemas:
   root:
-    filename: album.json
+    filename: musik-projekt.json
     fields:
       - key: title
         label: Titel
         type: input
-        placeholder: Album- oder Projektname...
+        placeholder: Projekt- oder Sammlungsname...
         defaultValue: ""
       - key: description
         label: Kurzbeschreibung
         type: input
         placeholder: Ein Satz...
         defaultValue: ""
-      - key: synopsis
-        label: Konzept (für KI)
-        type: largetextarea
-        placeholder: Stil, Referenzen, Stimmung...
-        defaultValue: ""
       - key: tone
-        label: Genre / Stimmung
+        label: Stil
         type: input
-        placeholder: z.B. Synthwave, ballad...
+        placeholder: z.B. Ballade, Rap, Singer-Songwriter...
         defaultValue: ""
   chapter:
-    filename: album-meta.json
+    filename: lied.json
     fields:
       - key: title
         label: Titel
         type: input
-        placeholder: Track- oder Release-Titel...
+        placeholder: Liedtitel...
         defaultValue: ""
       - key: description
         label: Beschreibung
         type: textarea
-        placeholder: Notizen...
+        placeholder: Notizen zum Lied...
+        defaultValue: ""
+      - key: synopsis
+        label: Thema
+        type: textarea
+        placeholder: Inhalt, Botschaft, Referenzen...
         defaultValue: ""
   scene:
-    filename: track.json
+    filename: strophe.json
     fields:
       - key: title
         label: Titel
         type: input
-        placeholder: Track-Titel...
+        placeholder: z.B. Strophe 1, Refrain...
+        defaultValue: ""
+      - key: tone
+        label: Typ
+        type: input
+        placeholder: Strophe, Refrain, Bridge, Intro...
         defaultValue: ""
       - key: description
         label: Beschreibung
         type: textarea
-        placeholder: Arrangement, Hooks...
-        defaultValue: ""
-      - key: location
-        label: BPM / Key
-        type: input
-        placeholder: z.B. 120 BPM, Am...
-        defaultValue: ""
-      - key: time
-        label: Länge
-        type: input
-        placeholder: z.B. 3:24...
-        defaultValue: ""
-      - key: characters
-        label: Features / Samples
-        type: textarea
-        placeholder: ...
-        defaultValue: ""
-      - key: initial_situation
-        label: Einstieg
-        type: textarea
-        placeholder: Intro-Idee...
-        defaultValue: ""
-      - key: goal
-        label: Kern-Idee
-        type: textarea
-        placeholder: Chorus / Hook...
-        defaultValue: ""
-      - key: outcome
-        label: Outro / Ende
-        type: textarea
-        placeholder: ...
-        defaultValue: ""
-      - key: pov
-        label: Stimme / Rolle
-        type: input
-        defaultValue: ""
-      - key: tone
-        label: Stimmung
-        type: input
-        defaultValue: ""
-  action:
-    filename: section.json
-    fields:
-      - key: title
-        label: Titel
-        type: input
-        placeholder: z.B. Verse, Chorus...
-        defaultValue: ""
-      - key: description
-        label: Lyrics / Notizen
-        type: textarea
-        placeholder: Text oder Produktionsnotizen...
+        placeholder: Hinweise zu dieser Strophe...
         defaultValue: ""

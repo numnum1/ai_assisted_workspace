@@ -456,6 +456,7 @@ function App() {
           ) : (
             <MediaProjectEditor
               editorMode={proseEditorMode}
+              proseLeafAtScene={workspaceModeSchema?.proseLeafLevel === 'scene'}
               chapter={chapter.activeChapter}
               actionContents={chapter.actionContents}
               scrollTarget={chapter.scrollTarget}

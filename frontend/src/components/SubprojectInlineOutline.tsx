@@ -387,6 +387,7 @@ export function SubprojectInlineOutline({
                   const sceneKey = `${chapter.id}-${scene.id}`;
                   const isActiveScene = isOpenChapter && activeSceneId === scene.id;
                   const isSceneExpanded = expandedScenes.has(sceneKey);
+                  const proseLeafAtScene = levelConfig.proseLeafAtScene;
 
                   return (
                     <div key={scene.id}>
@@ -395,6 +396,9 @@ export function SubprojectInlineOutline({
                         style={{ paddingLeft: padLeft(baseDepth + 2) }}
                         onContextMenu={(e) => openCtx(e, { type: 'scene', chapterId: chapter.id, sceneId: scene.id })}
                       >
+                        {proseLeafAtScene ? (
+                          <span className="outliner-arrow" style={{ width: 13 }} />
+                        ) : (
                         <span
                           className="outliner-arrow outliner-arrow-btn"
                           onClick={(e) => {
@@ -404,6 +408,7 @@ export function SubprojectInlineOutline({
                         >
                           {isSceneExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                         </span>
+                        )}
                         <span
                           className="outliner-type-icon outliner-clickable"
                           onClick={() => {
@@ -448,7 +453,8 @@ export function SubprojectInlineOutline({
                         )}
                       </div>
 
-                      {isSceneExpanded &&
+                      {!levelConfig.proseLeafAtScene &&
+                        isSceneExpanded &&
                         scene.actions.map((action) => {
                           const isActiveAction =
                             isOpenChapter && activeSceneId === scene.id && activeActionId === action.id;
@@ -561,6 +567,7 @@ export function SubprojectInlineOutline({
               )}
               {ctx.type === 'scene' && (
                 <>
+                  {!levelConfig.proseLeafAtScene && (
                   <button
                     type="button"
                     className="file-tree-context-item"
@@ -568,6 +575,7 @@ export function SubprojectInlineOutline({
                   >
                     {levelConfig.action.labelNew}
                   </button>
+                  )}
                   <button
                     type="button"
                     className="file-tree-context-item"

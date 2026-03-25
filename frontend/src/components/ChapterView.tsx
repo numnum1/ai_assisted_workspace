@@ -26,6 +26,8 @@ const NIGHT_COLORS: ActionEditorColors = {
 };
 
 interface ChapterViewProps {
+  /** Reading view: one prose block per scene (e.g. Musik-Strophen). */
+  proseLeafAtScene?: boolean;
   chapter: ChapterNode;
   actionContents: Map<string, { content: string; dirty: boolean }>;
   scrollTarget: ScrollTarget | null;
@@ -43,6 +45,7 @@ function actionKey(chapterId: string, sceneId: string, actionId: string): string
 }
 
 export function ChapterView({
+  proseLeafAtScene = false,
   chapter,
   actionContents,
   scrollTarget,
@@ -237,7 +240,15 @@ export function ChapterView({
                 tabIndex={0}
                 onClick={() => toggleSceneCollapsed(scene.id)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSceneCollapsed(scene.id); } }}
-                title={isCollapsed ? 'Szene einblenden' : 'Szene ausblenden'}
+                title={
+                  isCollapsed
+                    ? proseLeafAtScene
+                      ? 'Strophe einblenden'
+                      : 'Szene einblenden'
+                    : proseLeafAtScene
+                      ? 'Strophe ausblenden'
+                      : 'Szene ausblenden'
+                }
               >
                 <span className="scene-heading-chevron" style={{ color: mutedText }}>
                   {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}

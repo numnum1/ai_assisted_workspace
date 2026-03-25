@@ -7,6 +7,7 @@ import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
  */
 export function DefaultMediaProjectEditor({
   editorMode,
+  proseLeafAtScene,
   chapter,
   actionContents,
   scrollTarget,
@@ -21,6 +22,7 @@ export function DefaultMediaProjectEditor({
   if (editorMode === 'prose') {
     return (
       <ChapterView
+        proseLeafAtScene={proseLeafAtScene}
         chapter={chapter}
         actionContents={actionContents}
         scrollTarget={scrollTarget}

@@ -19,6 +19,11 @@ public class WorkspaceModeSchema {
     private boolean mediaType = false;
     /** e.g. prose, none — controls which editor UI the frontend shows */
     private String editorMode = "prose";
+    /**
+     * When {@code scene}, prose body lives on the scene row only (one implicit action per scene);
+     * the outliner hides the action level. Empty or {@code action} = default three-level UI.
+     */
+    private String proseLeafLevel = "action";
     private String rootMetaLabel = "";
     private String rootMetaIcon = "book";
     private List<WorkspaceLevelConfig> levels = new ArrayList<>();
@@ -63,6 +68,14 @@ public class WorkspaceModeSchema {
 
     public void setEditorMode(String editorMode) {
         this.editorMode = editorMode != null ? editorMode : "prose";
+    }
+
+    public String getProseLeafLevel() {
+        return proseLeafLevel;
+    }
+
+    public void setProseLeafLevel(String proseLeafLevel) {
+        this.proseLeafLevel = proseLeafLevel != null && !proseLeafLevel.isBlank() ? proseLeafLevel : "action";
     }
 
     public String getRootMetaLabel() {

@@ -510,6 +510,7 @@ public class ProjectConfigService {
         schema.setId(stringVal(data.get("id"), "book"));
         schema.setName(stringVal(data.get("name"), ""));
         schema.setEditorMode(stringVal(data.get("editorMode"), "prose"));
+        schema.setProseLeafLevel(stringVal(data.get("proseLeafLevel"), "action"));
         schema.setRootMetaLabel(stringVal(data.get("rootMetaLabel"), ""));
         schema.setRootMetaIcon(stringVal(data.get("rootMetaIcon"), "book"));
         schema.setIcon(stringVal(data.get("icon"), schema.getRootMetaIcon()));

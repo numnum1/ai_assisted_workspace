@@ -4,6 +4,7 @@ const FALLBACK: OutlinerLevelConfig = {
   chapter: { label: 'Kapitel', labelNew: 'Neues Kapitel', icon: 'book' },
   scene: { label: 'Szene', labelNew: 'Neue Szene', icon: 'layers' },
   action: { label: 'Handlungseinheit', labelNew: 'Neue Handlungseinheit', icon: 'align-left' },
+  proseLeafAtScene: false,
   rootMetaLabel: 'Buch-Metadaten',
   rootMetaIcon: 'book',
   folderIcon: 'folder',
@@ -21,10 +22,13 @@ function pick(ws: WorkspaceModeSchema, key: 'chapter' | 'scene' | 'action') {
 export function buildOutlinerLevelConfig(ws: WorkspaceModeSchema | null): OutlinerLevelConfig {
   if (!ws?.levels?.length) return FALLBACK;
   const rootIcon = ws.rootMetaIcon?.trim() || FALLBACK.rootMetaIcon;
+  const proseLeafAtScene = ws.proseLeafLevel === 'scene';
+  const sceneCfg = pick(ws, 'scene');
   return {
     chapter: pick(ws, 'chapter'),
-    scene: pick(ws, 'scene'),
-    action: pick(ws, 'action'),
+    scene: sceneCfg,
+    action: proseLeafAtScene ? sceneCfg : pick(ws, 'action'),
+    proseLeafAtScene,
     rootMetaLabel: ws.rootMetaLabel?.trim() || FALLBACK.rootMetaLabel,
     rootMetaIcon: rootIcon,
     folderIcon: ws.icon?.trim() || rootIcon || FALLBACK.folderIcon,

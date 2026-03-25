@@ -121,6 +121,8 @@ export interface WorkspaceModeSchema {
   mediaType?: boolean;
   /** 'prose' | 'standard' | 'none' | future modes */
   editorMode: string;
+  /** When `scene`, prose body is edited per scene; outliner hides the action level. */
+  proseLeafLevel?: 'scene' | 'action' | string;
   rootMetaLabel: string;
   rootMetaIcon?: string;
   levels: WorkspaceLevelConfig[];
@@ -141,6 +143,8 @@ export interface OutlinerLevelConfig {
   chapter: { label: string; labelNew: string; icon: string };
   scene: { label: string; labelNew: string; icon: string };
   action: { label: string; labelNew: string; icon: string };
+  /** True when workspace mode stores prose on scenes only (no visible action tier). */
+  proseLeafAtScene: boolean;
   rootMetaLabel: string;
   rootMetaIcon: string;
   /** Icon for subproject folder rows in the file tree */

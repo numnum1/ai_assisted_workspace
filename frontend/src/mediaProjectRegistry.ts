@@ -4,6 +4,8 @@ import type { ChapterNode, ScrollTarget } from './types.ts';
 /** Props for the main editor area when a chapter is open in a media subproject */
 export interface MediaProjectEditorProps {
   editorMode: string;
+  /** Prose body is one block per scene (no visible action tier in the tree). */
+  proseLeafAtScene?: boolean;
   chapter: ChapterNode;
   actionContents: Map<string, { content: string; dirty: boolean }>;
   scrollTarget: ScrollTarget | null;
