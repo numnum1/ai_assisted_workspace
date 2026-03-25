@@ -224,6 +224,7 @@ export const wikiApi = {
 };
 
 export const shadowApi = {
+  list: () => get<{ paths: string[] }>('/shadow/list'),
   get: (path: string) =>
     get<{ exists: boolean; content: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
   save: (path: string, content: string) =>

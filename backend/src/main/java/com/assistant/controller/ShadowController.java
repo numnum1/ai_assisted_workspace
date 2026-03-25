@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,6 +23,12 @@ public class ShadowController {
 
     public ShadowController(ShadowWikiService shadowWikiService) {
         this.shadowWikiService = shadowWikiService;
+    }
+
+    /** Lists all project-relative paths that have a shadow file under {@code .wiki/files/}. */
+    @GetMapping("/list")
+    public ResponseEntity<Map<String, List<String>>> listShadowPaths() throws IOException {
+        return ResponseEntity.ok(Map.of("paths", shadowWikiService.listAll()));
     }
 
     /** Returns the shadow file content for a project file, or {@code exists: false} if none exists. */

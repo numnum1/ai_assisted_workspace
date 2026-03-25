@@ -7,6 +7,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Manages shadow files stored under {@code .wiki/files/} in the project root.
@@ -76,6 +81,29 @@ public class ShadowWikiService {
         if (!exists(projectRelativePath)) return;
         Path file = resolveAndValidate(projectRelativePath);
         Files.delete(file);
+    }
+
+    /**
+     * Lists all shadow files as project-relative paths (same paths as the corresponding project files).
+     * Returns an empty list if {@code .wiki/files/} does not exist.
+     */
+    public List<String> listAll() throws IOException {
+        Path root = shadowRoot();
+        if (!Files.isDirectory(root)) {
+            return Collections.emptyList();
+        }
+        List<String> result = new ArrayList<>();
+        try (Stream<Path> paths = Files.walk(root)) {
+            List<Path> files = paths
+                    .filter(Files::isRegularFile)
+                    .sorted(Comparator.comparing(p -> root.relativize(p).toString()))
+                    .toList();
+            for (Path p : files) {
+                String rel = root.relativize(p).toString().replace('\\', '/');
+                result.add(rel);
+            }
+        }
+        return result;
     }
 
     /** Called when a project file is renamed. Renames the shadow file if it exists. */

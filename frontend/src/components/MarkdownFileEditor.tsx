@@ -4,6 +4,7 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Save, FileText, NotebookPen, Trash2 } from 'lucide-react';
+import { ShadowTextarea } from './ShadowTextarea.tsx';
 
 interface MarkdownFileEditorProps {
   path: string | null;
@@ -59,18 +60,6 @@ export function MarkdownFileEditor({
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
-
-  const [shadowText, setShadowText] = useState(shadowContent);
-
-  // Sync shadow textarea when content changes externally (on file open)
-  useEffect(() => {
-    setShadowText(shadowContent);
-  }, [shadowContent]);
-
-  const handleShadowTextChange = useCallback((v: string) => {
-    setShadowText(v);
-    onShadowChange(v);
-  }, [onShadowChange]);
 
   const buildTheme = useCallback(
     () =>
@@ -233,18 +222,13 @@ export function MarkdownFileEditor({
                 Speichern
               </button>
             </div>
-            <textarea
-              className="shadow-panel-textarea"
-              value={shadowText}
-              onChange={(e) => handleShadowTextChange(e.target.value)}
-              placeholder="Notizen, Status, Querverweise zu dieser Datei…"
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                  e.preventDefault();
-                  onShadowSave();
-                }
-              }}
+            <ShadowTextarea
+              value={shadowContent}
+              onChange={onShadowChange}
+              onSave={onShadowSave}
+              placeholder="Notizen, Status, Querverweise (@ für Wiki & Meta-Notizen)…"
               disabled={shadowLoading}
+              excludeShadowPath={path}
             />
           </div>
         )}
