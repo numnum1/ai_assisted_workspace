@@ -63,17 +63,4 @@ public class AiProviderController {
         }
     }
 
-    /** Set this LLM entry as the currently active one. */
-    @PostMapping("/{id}/activate")
-    public ResponseEntity<?> activate(@PathVariable String id) {
-        try {
-            aiProviderService.activate(id);
-            return ResponseEntity.ok(Map.of("status", "ok"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
-        }
-    }
 }

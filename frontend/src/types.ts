@@ -98,7 +98,6 @@ export interface LlmPublic {
 }
 
 export interface LlmsListResponse {
-  activeId: string | null;
   providers: LlmPublic[];
 }
 

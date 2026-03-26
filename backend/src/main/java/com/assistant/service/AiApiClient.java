@@ -57,7 +57,7 @@ public class AiApiClient {
      * @param useReasoning when true the provider's reasoning model is used instead of the fast model
      */
     public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools, boolean useReasoning) {
-        return streamChat(messages, tools, null, useReasoning);
+        return streamChat(messages, tools, (String) null, useReasoning);
     }
 
     /** Streams chat completions with a specific LLM entry and reasoning selection. */

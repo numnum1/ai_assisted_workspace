@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft, FolderOpen, RefreshCw, Copy } from 'lucide-react';
 import { projectConfigApi, llmApi } from '../api.ts';
-import type { ProjectConfig, Mode, WorkspaceModeInfo, LlmPublic } from '../types.ts';
+import type { ProjectConfig, Mode, WorkspaceModeInfo, LlmPublic, LlmsListResponse } from '../types.ts';
 
 interface ProjectSettingsModalProps {
   onClose: () => void;
@@ -138,14 +138,10 @@ export function ProjectSettingsModal({
   const [revealingWorkspaceDir, setRevealingWorkspaceDir] = useState(false);
 
   // LLMs (AppData ai-providers.json)
-  const [llmsState, setLlmsState] = useState<{
-    activeId: string | null;
-    providers: LlmPublic[];
-  } | null>(null);
+  const [llmsState, setLlmsState] = useState<LlmsListResponse | null>(null);
   const [loadingLlms, setLoadingLlms] = useState(false);
   const [savingLlm, setSavingLlm] = useState(false);
   const [deletingLlmId, setDeletingLlmId] = useState<string | null>(null);
-  const [activatingLlmId, setActivatingLlmId] = useState<string | null>(null);
   const [llmForm, setLlmForm] = useState<LlmFormState | null>(null);
 
   const loadLlms = useCallback(async () => {
@@ -447,18 +443,6 @@ export function ProjectSettingsModal({
     }
   };
 
-  const handleActivateLlm = async (id: string) => {
-    setActivatingLlmId(id);
-    setError(null);
-    try {
-      await llmApi.activate(id);
-      await loadLlms();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to activate LLM');
-    } finally {
-      setActivatingLlmId(null);
-    }
-  };
 
   const handleDeleteRule = async (rulePath: string) => {
     const name = rulePath.replace(/^rules\//, '').replace(/\.md$/, '');
@@ -877,9 +861,9 @@ export function ProjectSettingsModal({
               <div className="ps-tab-content">
                 <p className="ps-hint">
                   Jeder Eintrag hat eine <strong>Fast</strong>- und optional eine <strong>⚡ Reasoning</strong>-Konfiguration —
-                  jeweils mit eigenem API-URL, Key und Modell (z. B. unterschiedliche Anbieter).
-                  Der aktive Eintrag wird für alle Chats genutzt; der ⚡-Toggle im Chatfenster wählt die Variante.
-                  Bei leerer Liste nutzt der Server die Defaults aus <code>application.yml</code> / env.
+                  jeweils mit eigenem API-URL, Key und Modell. Welcher Eintrag genutzt wird, legst du pro Modus
+                  im Tab <em>Modes</em> fest. Kein Eintrag zugewiesen? Der erste in der Liste wird als Fallback verwendet.
+                  Bei leerer Liste greift der Server auf <code>application.yml</code> / env zurück.
                 </p>
                 {llmForm ? (
                   <div className="ps-mode-form">
@@ -991,13 +975,12 @@ export function ProjectSettingsModal({
                         </div>
                       )}
                       {llmsState?.providers?.map(p => {
-                        const isActive = llmsState?.activeId === p.id;
                         const hasFast = !!(p.fastModel);
                         const hasReasoning = !!(p.reasoningModel);
                         return (
                           <div
                             key={p.id}
-                            className={`ps-list-item ps-ai-provider-row${isActive ? ' ps-ai-active' : ''}`}
+                            className="ps-list-item ps-ai-provider-row"
                           >
                             <div
                               className="ps-ai-provider-main"
@@ -1011,10 +994,7 @@ export function ProjectSettingsModal({
                                 }
                               }}
                             >
-                              <span className="ps-list-item-name">
-                                {p.name}
-                                {isActive && <span className="ps-ai-active-badge">Aktiv</span>}
-                              </span>
+                              <span className="ps-list-item-name">{p.name}</span>
                               <span className="ps-list-item-id">
                                 {hasFast && <>Fast: {p.fastModel} · {p.fastApiUrl}</>}
                                 {hasFast && hasReasoning && ' — '}
@@ -1025,20 +1005,6 @@ export function ProjectSettingsModal({
                               )}
                             </div>
                             <div className="ps-ai-provider-actions">
-                              <button
-                                type="button"
-                                className={`ps-secondary-btn${isActive ? ' ps-btn-active' : ''}`}
-                                title="Als aktives LLM setzen"
-                                disabled={isActive || activatingLlmId === p.id}
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  void handleActivateLlm(p.id);
-                                }}
-                              >
-                                {activatingLlmId === p.id
-                                  ? <Loader size={12} className="ps-spinner" />
-                                  : 'Aktiv setzen'}
-                              </button>
                               <button
                                 type="button"
                                 className="ps-secondary-btn"

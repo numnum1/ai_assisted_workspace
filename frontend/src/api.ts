@@ -154,7 +154,6 @@ export const llmApi = {
   update: (id: string, body: LlmUpdateRequest) =>
     put<LlmPublic>(`/llms/${encodeURIComponent(id)}`, body),
   remove: (id: string) => del<{ status: string }>(`/llms/${encodeURIComponent(id)}`),
-  activate: (id: string) => post<{ status: string }>(`/llms/${encodeURIComponent(id)}/activate`, {}),
 };
 
 export const gitApi = {

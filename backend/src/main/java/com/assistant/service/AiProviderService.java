@@ -40,43 +40,25 @@ public class AiProviderService {
         return projectConfigService.getAppDataDirectory().resolve(FILE_NAME);
     }
 
+    // ─── Credential resolution ────────────────────────────────────────────────────
+
     /**
-     * Credentials for AI HTTP calls from the active LLM entry.
-     * If {@code useReasoning} is true the reasoning sub-config is used;
-     * falls back to the fast sub-config when the reasoning fields are blank.
-     * Falls back to {@link AppConfig.Ai} when no entries are configured.
+     * Resolve credentials for a specific LLM entry by ID.
+     * Falls back to the first entry in the list when {@code llmId} is blank or not found.
+     * Falls back to {@link AppConfig.Ai} when the list is empty.
      */
-    public ResolvedAiCredentials getActiveResolved(boolean useReasoning) {
+    public ResolvedAiCredentials getResolved(String llmId, boolean useReasoning) {
         AiProvidersState state = loadState();
         if (state.getProviders() == null || state.getProviders().isEmpty()) {
             return credentialsFromAppConfig();
         }
-        AiProvider chosen = resolveActive(state);
-        if (chosen == null) {
-            return credentialsFromAppConfig();
+        AiProvider p = null;
+        if (llmId != null && !llmId.isBlank()) {
+            p = findById(state, llmId);
         }
-        if (useReasoning) {
-            ResolvedAiCredentials reasoning = extractReasoning(chosen);
-            if (reasoning != null) return reasoning;
+        if (p == null) {
+            p = state.getProviders().get(0);
         }
-        ResolvedAiCredentials fast = extractFast(chosen);
-        return fast != null ? fast : credentialsFromAppConfig();
-    }
-
-    /** Convenience overload — defaults to fast sub-config. */
-    public ResolvedAiCredentials getActiveResolved() {
-        return getActiveResolved(false);
-    }
-
-    /**
-     * Resolve credentials for a specific LLM entry by ID.
-     * Falls back to {@link #getActiveResolved(boolean)} when {@code llmId} is blank or not found.
-     */
-    public ResolvedAiCredentials getResolved(String llmId, boolean useReasoning) {
-        if (llmId == null || llmId.isBlank()) return getActiveResolved(useReasoning);
-        AiProvidersState state = loadState();
-        AiProvider p = findById(state, llmId);
-        if (p == null) return getActiveResolved(useReasoning);
         if (useReasoning) {
             ResolvedAiCredentials reasoning = extractReasoning(p);
             if (reasoning != null) return reasoning;
@@ -85,31 +67,9 @@ public class AiProviderService {
         return fast != null ? fast : credentialsFromAppConfig();
     }
 
-    private ResolvedAiCredentials extractFast(AiProvider p) {
-        String url = normalizeBaseUrl(p.getFastApiUrl());
-        String model = nullToEmpty(p.getFastModel());
-        if (url.isBlank() && model.isBlank()) return null;
-        return new ResolvedAiCredentials(url, nullToEmpty(p.getFastApiKey()), model);
-    }
-
-    private ResolvedAiCredentials extractReasoning(AiProvider p) {
-        String url = normalizeBaseUrl(p.getReasoningApiUrl());
-        String model = nullToEmpty(p.getReasoningModel());
-        if (url.isBlank() && model.isBlank()) return null;
-        // use fast URL/key if reasoning URL is absent but model is set
-        String effectiveUrl = url.isBlank() ? normalizeBaseUrl(p.getFastApiUrl()) : url;
-        String key = (p.getReasoningApiKey() != null && !p.getReasoningApiKey().isBlank())
-                ? p.getReasoningApiKey()
-                : nullToEmpty(p.getFastApiKey());
-        return new ResolvedAiCredentials(effectiveUrl, key, model);
-    }
-
-    private ResolvedAiCredentials credentialsFromAppConfig() {
-        AppConfig.Ai ai = appConfig.getAi();
-        return new ResolvedAiCredentials(
-                normalizeBaseUrl(ai.getApiUrl()),
-                nullToEmpty(ai.getApiKey()),
-                nullToEmpty(ai.getModel()));
+    /** Convenience: no specific LLM, fast sub-config. */
+    public ResolvedAiCredentials getResolved() {
+        return getResolved(null, false);
     }
 
     // ─── CRUD ────────────────────────────────────────────────────────────────────
@@ -117,7 +77,6 @@ public class AiProviderService {
     public AiProvidersListResponse listPublic() {
         AiProvidersState state = loadState();
         AiProvidersListResponse out = new AiProvidersListResponse();
-        out.setActiveId(state.getActiveId());
         List<AiProviderPublic> rows = new ArrayList<>();
         for (AiProvider p : state.getProviders()) {
             rows.add(toPublic(p));
@@ -134,9 +93,6 @@ public class AiProviderService {
             p.setId(UUID.randomUUID().toString());
             applyRequest(req, p, true);
             state.getProviders().add(p);
-            if (state.getActiveId() == null || state.getActiveId().isBlank()) {
-                state.setActiveId(p.getId());
-            }
             saveState(state);
             return toPublic(p);
         }
@@ -160,30 +116,42 @@ public class AiProviderService {
             AiProvidersState state = loadState();
             boolean removed = state.getProviders().removeIf(p -> id.equals(p.getId()));
             if (!removed) throw new IllegalArgumentException("Unknown LLM id: " + id);
-            if (id.equals(state.getActiveId())) {
-                state.setActiveId(state.getProviders().isEmpty() ? null : state.getProviders().get(0).getId());
-            }
-            saveState(state);
-        }
-    }
-
-    public void activate(String id) throws IOException {
-        if (id == null || id.isBlank()) throw new IllegalArgumentException("id required");
-        synchronized (lock) {
-            AiProvidersState state = loadState();
-            if (findById(state, id) == null) throw new IllegalArgumentException("Unknown LLM id: " + id);
-            state.setActiveId(id);
             saveState(state);
         }
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+    private ResolvedAiCredentials extractFast(AiProvider p) {
+        String url = normalizeBaseUrl(p.getFastApiUrl());
+        String model = nullToEmpty(p.getFastModel());
+        if (url.isBlank() && model.isBlank()) return null;
+        return new ResolvedAiCredentials(url, nullToEmpty(p.getFastApiKey()), model);
+    }
+
+    private ResolvedAiCredentials extractReasoning(AiProvider p) {
+        String url = normalizeBaseUrl(p.getReasoningApiUrl());
+        String model = nullToEmpty(p.getReasoningModel());
+        if (url.isBlank() && model.isBlank()) return null;
+        String effectiveUrl = url.isBlank() ? normalizeBaseUrl(p.getFastApiUrl()) : url;
+        String key = (p.getReasoningApiKey() != null && !p.getReasoningApiKey().isBlank())
+                ? p.getReasoningApiKey()
+                : nullToEmpty(p.getFastApiKey());
+        return new ResolvedAiCredentials(effectiveUrl, key, model);
+    }
+
+    private ResolvedAiCredentials credentialsFromAppConfig() {
+        AppConfig.Ai ai = appConfig.getAi();
+        return new ResolvedAiCredentials(
+                normalizeBaseUrl(ai.getApiUrl()),
+                nullToEmpty(ai.getApiKey()),
+                nullToEmpty(ai.getModel()));
+    }
+
     private void applyRequest(AiProviderRequest req, AiProvider p, boolean isCreate) {
         if (req.getName() != null && !req.getName().isBlank()) {
             p.setName(req.getName().trim());
         }
-        // fast sub-config
         if (req.getFastApiUrl() != null) p.setFastApiUrl(req.getFastApiUrl().trim());
         if (req.getFastModel() != null) p.setFastModel(req.getFastModel().trim());
         if (req.getFastApiKey() != null && !req.getFastApiKey().isBlank()) {
@@ -191,7 +159,6 @@ public class AiProviderService {
         } else if (isCreate) {
             p.setFastApiKey("");
         }
-        // reasoning sub-config
         if (req.getReasoningApiUrl() != null) p.setReasoningApiUrl(req.getReasoningApiUrl().trim());
         if (req.getReasoningModel() != null) p.setReasoningModel(req.getReasoningModel().trim());
         if (req.getReasoningApiKey() != null && !req.getReasoningApiKey().isBlank()) {
@@ -207,15 +174,6 @@ public class AiProviderService {
         boolean hasFast = (req.getFastApiUrl() != null && !req.getFastApiUrl().isBlank())
                 || (req.getFastModel() != null && !req.getFastModel().isBlank());
         if (!hasFast) throw new IllegalArgumentException("fastApiUrl and fastModel are required");
-    }
-
-    private AiProvider resolveActive(AiProvidersState state) {
-        String activeId = state.getActiveId();
-        if (activeId != null && !activeId.isBlank()) {
-            AiProvider byActive = findById(state, activeId);
-            if (byActive != null) return byActive;
-        }
-        return state.getProviders().isEmpty() ? null : state.getProviders().get(0);
     }
 
     private AiProvider findById(AiProvidersState state, String id) {
