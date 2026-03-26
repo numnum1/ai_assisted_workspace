@@ -749,22 +749,12 @@ body {
   font-size: 12px;
 }
 
-.outliner-drag-handle {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  color: var(--text-muted);
-  opacity: 0;
+.outliner-scene[draggable="true"] {
   cursor: grab;
-  transition: opacity 0.1s;
 }
 
-.outliner-node:hover .outliner-drag-handle {
-  opacity: 0.5;
-}
-
-.outliner-drag-handle:hover {
-  opacity: 1 !important;
+.outliner-scene[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .outliner-scene-dragging {
@@ -1515,11 +1505,6 @@ body {
 
 .song-verse-block {
   margin-bottom: 0;
-  border-top: 1px solid transparent;
-}
-
-.song-verse-block + .song-verse-block {
-  border-top: 1px solid;
 }
 
 .song-verse-metatags {

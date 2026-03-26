@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, MoveHorizontal, X, Music } from 'lucide-react';
+import { Save, Moon, Sun, MoveHorizontal, X, Music, Eye, EyeOff } from 'lucide-react';
 import { ActionEditor } from '../components/ActionEditor.tsx';
 import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
 import type { ActionEditorColors } from '../components/ActionEditor.tsx';
@@ -7,6 +7,7 @@ import type { ActionEditorColors } from '../components/ActionEditor.tsx';
 const FONT_SIZE_KEY = 'music-font-size';
 const PADDING_KEY = 'music-padding';
 const NIGHT_MODE_KEY = 'music-night-mode';
+const HIDE_METATAGS_KEY = 'music-hide-metatags';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 48;
 
@@ -52,6 +53,9 @@ export function MusicProjectEditor({
   const [nightMode, setNightMode] = useState<boolean>(() =>
     localStorage.getItem(NIGHT_MODE_KEY) === 'true'
   );
+  const [hideMetatags, setHideMetatags] = useState<boolean>(() =>
+    localStorage.getItem(HIDE_METATAGS_KEY) === 'true'
+  );
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -68,6 +72,7 @@ export function MusicProjectEditor({
   useEffect(() => { localStorage.setItem(FONT_SIZE_KEY, String(fontSize)); }, [fontSize]);
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
+  useEffect(() => { localStorage.setItem(HIDE_METATAGS_KEY, String(hideMetatags)); }, [hideMetatags]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -124,7 +129,6 @@ export function MusicProjectEditor({
   const accentColor = nightMode ? '#c8a870' : '#2c2a25';
   const mutedColor = nightMode ? '#9a7d50' : '#6b6560';
   const metatagColor = nightMode ? '#c89846' : '#8b7355';
-  const separatorColor = nightMode ? 'rgba(223,201,156,0.15)' : 'rgba(44,42,37,0.12)';
 
   return (
     <div
@@ -154,6 +158,14 @@ export function MusicProjectEditor({
               onChange={e => setPadding(Number(e.target.value))}
             />
           </div>
+          <button
+            className={`song-view-btn${hideMetatags ? ' active' : ''}`}
+            onClick={() => setHideMetatags(prev => !prev)}
+            title={hideMetatags ? 'Metatags anzeigen' : 'Metatags verstecken'}
+            style={{ color: mutedColor, borderColor: toolbarBorder }}
+          >
+            {hideMetatags ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
           <button
             className={`song-view-btn${nightMode ? ' active' : ''}`}
             onClick={() => setNightMode(prev => !prev)}
@@ -206,10 +218,9 @@ export function MusicProjectEditor({
               key={scene.id}
               ref={el => registerRef(`verse-${scene.id}`, el)}
               className="song-verse-block"
-              style={index > 0 ? { borderTopColor: separatorColor } : undefined}
             >
-              {/* Metatags line — only shown if set */}
-              {metatags && (
+              {/* Metatags line — only shown if set and not hidden */}
+              {metatags && !hideMetatags && (
                 <div
                   className="song-verse-metatags"
                   style={{

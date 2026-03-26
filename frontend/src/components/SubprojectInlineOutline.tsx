@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type MouseEvent, type DragEvent } from 'react';
-import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 import type { ChapterSummary, ChapterNode, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../types.ts';
 import { chapterApi } from '../api.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
@@ -452,9 +452,6 @@ export function SubprojectInlineOutline({
                         onDragEnd={handleSceneDragEnd}
                         onContextMenu={(e) => openCtx(e, { type: 'scene', chapterId: chapter.id, sceneId: scene.id })}
                       >
-                        <span className="outliner-drag-handle" title="Ziehen zum Verschieben">
-                          <GripVertical size={11} />
-                        </span>
                         {proseLeafAtScene ? (
                           <span className="outliner-arrow" style={{ width: 13 }} />
                         ) : (
