@@ -39,6 +39,9 @@ function App() {
   const wiki = useWiki();
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
+  const [useReasoning, setUseReasoning] = useState(false);
+
+  const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
 
   const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages);
@@ -280,9 +283,9 @@ function App() {
       const mode = modes.find((m) => m.id === selectedMode);
       // TODO: reconnect to chapter structure — pass active chapter/scene/action metadata as context
       // Currently sending null as activeFile; replace with chapter context when ContextService is updated
-      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color);
+      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning);
     },
-    [chat, selectedMode, modes, refs.referencedFiles],
+    [chat, selectedMode, modes, refs.referencedFiles, useReasoning],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
@@ -478,6 +481,8 @@ function App() {
             referencedFiles={refs.referencedFiles}
             conversations={history.conversations}
             activeConversationId={history.activeId}
+            useReasoning={useReasoning}
+            onToggleReasoning={handleToggleReasoning}
             onModeChange={setSelectedMode}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}

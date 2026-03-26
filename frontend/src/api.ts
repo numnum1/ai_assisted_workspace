@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse } from './types.ts';
 
 const BASE = '/api';
 
@@ -126,6 +126,35 @@ export const projectConfigApi = {
   getRuleContent: (name: string) => get<{ name: string; content: string }>(`/project-config/rules/${name}`),
   saveRule: (name: string, content: string) => put<{ status: string; name: string }>(`/project-config/rules/${name}`, { content }),
   deleteRule: (name: string) => fetch(`/api/project-config/rules/${name}`, { method: 'DELETE' }).then(r => r.json()),
+};
+
+export interface LlmCreateRequest {
+  name: string;
+  fastApiUrl: string;
+  fastModel: string;
+  fastApiKey: string;
+  reasoningApiUrl?: string;
+  reasoningModel?: string;
+  reasoningApiKey?: string;
+}
+
+export interface LlmUpdateRequest {
+  name?: string;
+  fastApiUrl?: string;
+  fastModel?: string;
+  fastApiKey?: string;
+  reasoningApiUrl?: string;
+  reasoningModel?: string;
+  reasoningApiKey?: string;
+}
+
+export const llmApi = {
+  list: () => get<LlmsListResponse>('/llms'),
+  create: (body: LlmCreateRequest) => post<LlmPublic>('/llms', body),
+  update: (id: string, body: LlmUpdateRequest) =>
+    put<LlmPublic>(`/llms/${encodeURIComponent(id)}`, body),
+  remove: (id: string) => del<{ status: string }>(`/llms/${encodeURIComponent(id)}`),
+  activate: (id: string) => post<{ status: string }>(`/llms/${encodeURIComponent(id)}/activate`, {}),
 };
 
 export const gitApi = {

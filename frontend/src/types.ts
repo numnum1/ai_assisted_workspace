@@ -31,6 +31,7 @@ export interface ChatRequest {
   mode: string;
   referencedFiles: string[];
   history: ChatMessage[];
+  useReasoning?: boolean;
 }
 
 export interface ContextInfo {
@@ -79,6 +80,23 @@ export interface ProjectConfig {
   defaultMode?: string;
   /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
   workspaceMode?: string;
+}
+
+/** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */
+export interface LlmPublic {
+  id: string;
+  name: string;
+  fastApiUrl: string;
+  fastModel: string;
+  fastApiKeySet: boolean;
+  reasoningApiUrl: string;
+  reasoningModel: string;
+  reasoningApiKeySet: boolean;
+}
+
+export interface LlmsListResponse {
+  activeId: string | null;
+  providers: LlmPublic[];
 }
 
 /** Persisted browser tab: folder + display metadata */

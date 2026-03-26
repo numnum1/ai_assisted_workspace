@@ -18,6 +18,8 @@ interface ChatPanelProps {
   referencedFiles: string[];
   conversations: Conversation[];
   activeConversationId: string;
+  useReasoning: boolean;
+  onToggleReasoning: () => void;
   onModeChange: (mode: string) => void;
   onSend: (message: string) => void;
   onStop: () => void;
@@ -52,6 +54,8 @@ export function ChatPanel({
   referencedFiles,
   conversations,
   activeConversationId,
+  useReasoning,
+  onToggleReasoning,
   onModeChange,
   onSend,
   onStop,
@@ -228,6 +232,8 @@ export function ChatPanel({
         onAddFile={onAddFile}
         onRemoveFile={onRemoveFile}
         structureRoot={structureRoot}
+        useReasoning={useReasoning}
+        onToggleReasoning={onToggleReasoning}
       />
     </div>
   );

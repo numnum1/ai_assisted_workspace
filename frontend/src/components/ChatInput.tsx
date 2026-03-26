@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Sparkles } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap } from 'lucide-react';
 import { FileChip } from './FileChip.tsx';
 import type { ChapterNode, WikiType, WikiEntry } from '../types.ts';
 
@@ -33,6 +33,9 @@ interface ChatInputProps {
   placeholder?: string;
   /** Active subproject root path — scopes chapter/scene autocomplete to that folder */
   structureRoot?: string | null;
+  /** Whether the reasoning model should be used for this message */
+  useReasoning?: boolean;
+  onToggleReasoning?: () => void;
 }
 
 export function ChatInput({
@@ -45,6 +48,8 @@ export function ChatInput({
   hideFileChips = false,
   placeholder: placeholderProp,
   structureRoot = null,
+  useReasoning = false,
+  onToggleReasoning,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [ac, setAc] = useState<{
@@ -344,6 +349,17 @@ export function ChatInput({
           disabled={streaming}
           rows={1}
         />
+        {onToggleReasoning && (
+          <button
+            type="button"
+            className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+            onClick={onToggleReasoning}
+            title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+            disabled={streaming}
+          >
+            <Zap size={15} />
+          </button>
+        )}
         {streaming ? (
           <button className="chat-send-btn stop" onClick={onStop} title="Stop">
             <Square size={16} />

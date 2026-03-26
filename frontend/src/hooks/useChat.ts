@@ -41,6 +41,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       referencedFiles: string[],
       modeName?: string,
       modeColor?: string,
+      useReasoning?: boolean,
     ) => {
       syncEnabledRef.current = true;
       setError(null);
@@ -59,6 +60,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
           mode,
           referencedFiles,
           history: newMessages.slice(0, -1),
+          useReasoning: useReasoning ?? false,
         },
         (token) => {
           setToolActivity(null);

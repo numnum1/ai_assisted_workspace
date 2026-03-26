@@ -2397,6 +2397,37 @@ body {
   background: var(--red);
 }
 
+.chat-reasoning-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chat-reasoning-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.chat-reasoning-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-tertiary);
+}
+
+.chat-reasoning-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* ==================== Chat Autocomplete ==================== */
 
 .ac-dropdown {
@@ -3563,6 +3594,15 @@ body {
   border-bottom-color: var(--accent);
 }
 
+.ps-tab:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ps-tab:disabled:hover {
+  color: var(--text-muted);
+}
+
 .ps-error {
   font-size: 12px;
   color: var(--red);
@@ -3949,6 +3989,72 @@ body {
 
 .ps-list-item:hover .ps-list-item-delete { opacity: 1; }
 .ps-list-item-delete:hover { color: var(--red); }
+
+/* AI provider rows (settings) */
+.ps-list-item.ps-ai-provider-row {
+  cursor: default;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ps-ai-provider-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ps-ai-provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ps-list-item.ps-ai-active {
+  outline: 1px solid var(--accent);
+  background: var(--bg-hover);
+}
+
+.ps-ai-active-badge {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ps-ai-badge-reasoning {
+  color: var(--yellow, #f9e2af);
+}
+
+.ps-btn-active {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+.ps-llm-section-header {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.ps-ai-no-key {
+  font-size: 11px;
+}
+
+.ps-list-item.ps-ai-provider-row:hover .ps-list-item-delete {
+  opacity: 1;
+}
 
 .ps-empty {
   font-size: 12px;

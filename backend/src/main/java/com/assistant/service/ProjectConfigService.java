@@ -417,6 +417,13 @@ public class ProjectConfigService {
         return resolveAppDataDir().resolve(USER_WORKSPACE_MODES_DIR);
     }
 
+    /**
+     * Application data root ({@code %APPDATA%/markdown-project} or {@code app.data.data-dir}).
+     */
+    public Path getAppDataDirectory() {
+        return resolveAppDataDir();
+    }
+
     private Path resolveAppDataDir() {
         String configured = appConfig.getData().getDataDir();
         if (configured != null && !configured.isBlank()) {

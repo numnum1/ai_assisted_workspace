@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft, FolderOpen, RefreshCw, Copy } from 'lucide-react';
-import { projectConfigApi } from '../api.ts';
-import type { ProjectConfig, Mode, WorkspaceModeInfo } from '../types.ts';
+import { projectConfigApi, llmApi } from '../api.ts';
+import type { ProjectConfig, Mode, WorkspaceModeInfo, LlmPublic } from '../types.ts';
 
 interface ProjectSettingsModalProps {
   onClose: () => void;
@@ -11,7 +11,18 @@ interface ProjectSettingsModalProps {
   onWorkspacePluginsChanged?: () => void;
 }
 
-type Tab = 'general' | 'modes' | 'workspacePlugins' | 'rules';
+type Tab = 'general' | 'modes' | 'workspacePlugins' | 'rules' | 'aiProviders';
+
+interface LlmFormState {
+  editingId: string | null;
+  name: string;
+  fastApiUrl: string;
+  fastModel: string;
+  fastApiKey: string;
+  reasoningApiUrl: string;
+  reasoningModel: string;
+  reasoningApiKey: string;
+}
 
 interface ModeForm {
   id: string;
@@ -124,6 +135,30 @@ export function ProjectSettingsModal({
   const [loadingWorkspacePlugins, setLoadingWorkspacePlugins] = useState(false);
   const [revealingWorkspaceDir, setRevealingWorkspaceDir] = useState(false);
 
+  // LLMs (AppData ai-providers.json)
+  const [llmsState, setLlmsState] = useState<{
+    activeId: string | null;
+    providers: LlmPublic[];
+  } | null>(null);
+  const [loadingLlms, setLoadingLlms] = useState(false);
+  const [savingLlm, setSavingLlm] = useState(false);
+  const [deletingLlmId, setDeletingLlmId] = useState<string | null>(null);
+  const [activatingLlmId, setActivatingLlmId] = useState<string | null>(null);
+  const [llmForm, setLlmForm] = useState<LlmFormState | null>(null);
+
+  const loadLlms = useCallback(async () => {
+    setLoadingLlms(true);
+    setError(null);
+    try {
+      const data = await llmApi.list();
+      setLlmsState(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load LLMs');
+    } finally {
+      setLoadingLlms(false);
+    }
+  }, []);
+
   const loadWorkspacePlugins = useCallback(
     async (syncApp: boolean) => {
       setLoadingWorkspacePlugins(true);
@@ -150,6 +185,12 @@ export function ProjectSettingsModal({
       void loadWorkspacePlugins(false);
     }
   }, [initialized, tab, loadWorkspacePlugins]);
+
+  useEffect(() => {
+    if (!loading && tab === 'aiProviders') {
+      void loadLlms();
+    }
+  }, [loading, tab, loadLlms]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -318,6 +359,101 @@ export function ProjectSettingsModal({
     }
   };
 
+  const emptyLlmForm = (): LlmFormState => ({
+    editingId: null,
+    name: '',
+    fastApiUrl: '',
+    fastModel: '',
+    fastApiKey: '',
+    reasoningApiUrl: '',
+    reasoningModel: '',
+    reasoningApiKey: '',
+  });
+
+  const openNewLlm = () => setLlmForm(emptyLlmForm());
+
+  const openEditLlm = (p: LlmPublic) => {
+    setLlmForm({
+      editingId: p.id,
+      name: p.name,
+      fastApiUrl: p.fastApiUrl ?? '',
+      fastModel: p.fastModel ?? '',
+      fastApiKey: '',
+      reasoningApiUrl: p.reasoningApiUrl ?? '',
+      reasoningModel: p.reasoningModel ?? '',
+      reasoningApiKey: '',
+    });
+  };
+
+  const handleSaveLlm = async () => {
+    if (!llmForm) return;
+    const { editingId, name, fastApiUrl, fastModel, fastApiKey,
+            reasoningApiUrl, reasoningModel, reasoningApiKey } = llmForm;
+    if (!name.trim() || !fastApiUrl.trim() || !fastModel.trim()) return;
+    if (!editingId && !fastApiKey.trim()) {
+      setError('Fast-API-Key ist für einen neuen Eintrag erforderlich');
+      return;
+    }
+    setSavingLlm(true);
+    setError(null);
+    try {
+      if (editingId) {
+        await llmApi.update(editingId, {
+          name: name.trim(),
+          fastApiUrl: fastApiUrl.trim(),
+          fastModel: fastModel.trim(),
+          ...(fastApiKey.trim() ? { fastApiKey: fastApiKey.trim() } : {}),
+          reasoningApiUrl: reasoningApiUrl.trim(),
+          reasoningModel: reasoningModel.trim(),
+          ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
+        });
+      } else {
+        await llmApi.create({
+          name: name.trim(),
+          fastApiUrl: fastApiUrl.trim(),
+          fastModel: fastModel.trim(),
+          fastApiKey: fastApiKey.trim(),
+          reasoningApiUrl: reasoningApiUrl.trim(),
+          reasoningModel: reasoningModel.trim(),
+          ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
+        });
+      }
+      setLlmForm(null);
+      await loadLlms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save LLM');
+    } finally {
+      setSavingLlm(false);
+    }
+  };
+
+  const handleDeleteLlm = async (id: string) => {
+    setDeletingLlmId(id);
+    setError(null);
+    try {
+      await llmApi.remove(id);
+      if (llmForm?.editingId === id) setLlmForm(null);
+      await loadLlms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete LLM');
+    } finally {
+      setDeletingLlmId(null);
+    }
+  };
+
+  const handleActivateLlm = async (id: string) => {
+    setActivatingLlmId(id);
+    setError(null);
+    try {
+      await llmApi.activate(id);
+      await loadLlms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to activate LLM');
+    } finally {
+      setActivatingLlmId(null);
+    }
+  };
+
   const handleDeleteRule = async (rulePath: string) => {
     const name = rulePath.replace(/^rules\//, '').replace(/\.md$/, '');
     setDeletingRule(rulePath);
@@ -353,30 +489,20 @@ export function ProjectSettingsModal({
             <Loader size={18} className="ps-spinner" />
             <span>Loading...</span>
           </div>
-        ) : !initialized ? (
-          <div className="ps-uninit">
-            <p className="ps-uninit-text">
-              This project has no <code>.assistant/</code> configuration yet.
-              Initialize it to create project-specific modes, rules, and settings
-              that will be committed with your project via Git.
-            </p>
-            {error && <div className="ps-error">{error}</div>}
-            <button className="ps-init-btn" onClick={handleInit} disabled={initializing}>
-              {initializing
-                ? <><Loader size={13} className="ps-spinner" /> Initializing...</>
-                : <><Plus size={13} /> Initialize .assistant/</>
-              }
-            </button>
-          </div>
         ) : (
           <>
-            {/* Tabs */}
             <div className="ps-tabs">
-              {(['general', 'modes', 'workspacePlugins', 'rules'] as Tab[]).map(t => (
+              {(['general', 'modes', 'workspacePlugins', 'aiProviders', 'rules'] as Tab[]).map(t => (
                 <button
                   key={t}
+                  type="button"
                   className={`ps-tab ${tab === t ? 'active' : ''}`}
-                  onClick={() => { setTab(t); setError(null); }}
+                  disabled={!initialized && t !== 'aiProviders'}
+                  onClick={() => {
+                    if (!initialized && t !== 'aiProviders') return;
+                    setTab(t);
+                    setError(null);
+                  }}
                 >
                   {t === 'general'
                     ? 'General'
@@ -384,15 +510,36 @@ export function ProjectSettingsModal({
                       ? `Modes (${modes.length})`
                       : t === 'workspacePlugins'
                         ? 'Workspace plugins'
-                        : `Rules (${rules.length})`}
+                        : t === 'aiProviders'
+                          ? `LLMs (${llmsState?.providers?.length ?? 0})`
+                          : `Rules (${rules.length})`}
                 </button>
               ))}
             </div>
 
             {error && <div className="ps-error">{error}</div>}
 
+            {!initialized && tab !== 'aiProviders' && (
+              <div className="ps-uninit">
+                <p className="ps-uninit-text">
+                  This project has no <code>.assistant/</code> configuration yet.
+                  Initialize it to create project-specific modes, rules, and settings
+                  that will be committed with your project via Git.
+                </p>
+                <p className="ps-hint" style={{ marginTop: '0.75rem' }}>
+                  You can still configure <strong>AI providers</strong> (AppData) via the tab above — they apply globally.
+                </p>
+                <button className="ps-init-btn" onClick={handleInit} disabled={initializing}>
+                  {initializing
+                    ? <><Loader size={13} className="ps-spinner" /> Initializing...</>
+                    : <><Plus size={13} /> Initialize .assistant/</>
+                  }
+                </button>
+              </div>
+            )}
+
             {/* General tab */}
-            {tab === 'general' && (
+            {initialized && tab === 'general' && (
               <div className="ps-tab-content">
                 <label className="ps-label">Project Name</label>
                 <input
@@ -459,7 +606,7 @@ export function ProjectSettingsModal({
             )}
 
             {/* Modes tab */}
-            {tab === 'modes' && (
+            {initialized && tab === 'modes' && (
               <div className="ps-tab-content">
                 {modeForm ? (
                   <div className="ps-mode-form">
@@ -583,7 +730,7 @@ export function ProjectSettingsModal({
             )}
 
             {/* Workspace plugins (user YAML under app data) */}
-            {tab === 'workspacePlugins' && (
+            {initialized && tab === 'workspacePlugins' && (
               <div className="ps-tab-content ps-wp-tab">
                 <p className="ps-hint">
                   Lege hier eigene Medien-Projekt-Typen ab: eine YAML-Datei pro Modus (Dateiname = id, z. B.{' '}
@@ -694,8 +841,215 @@ export function ProjectSettingsModal({
               </div>
             )}
 
+            {/* LLMs (AppData ai-providers.json) */}
+            {tab === 'aiProviders' && (
+              <div className="ps-tab-content">
+                <p className="ps-hint">
+                  Jeder Eintrag hat eine <strong>Fast</strong>- und optional eine <strong>⚡ Reasoning</strong>-Konfiguration —
+                  jeweils mit eigenem API-URL, Key und Modell (z. B. unterschiedliche Anbieter).
+                  Der aktive Eintrag wird für alle Chats genutzt; der ⚡-Toggle im Chatfenster wählt die Variante.
+                  Bei leerer Liste nutzt der Server die Defaults aus <code>application.yml</code> / env.
+                </p>
+                {llmForm ? (
+                  <div className="ps-mode-form">
+                    <div className="ps-form-nav">
+                      <button type="button" className="ps-back-btn" onClick={() => setLlmForm(null)}>
+                        <ChevronLeft size={14} />
+                        Back
+                      </button>
+                      <span className="ps-form-title">
+                        {llmForm.editingId ? 'LLM bearbeiten' : 'Neues LLM'}
+                      </span>
+                    </div>
+
+                    <label className="ps-label">Name</label>
+                    <input
+                      className="ps-input"
+                      value={llmForm.name}
+                      onChange={e => setLlmForm(p => p && ({ ...p, name: e.target.value }))}
+                      placeholder="z. B. eecc.ai"
+                    />
+
+                    <p className="ps-label ps-llm-section-header">Fast-Konfiguration</p>
+
+                    <label className="ps-label">API base URL</label>
+                    <input
+                      className="ps-input"
+                      value={llmForm.fastApiUrl}
+                      onChange={e => setLlmForm(p => p && ({ ...p, fastApiUrl: e.target.value }))}
+                      placeholder="https://api.eecc.ai"
+                    />
+                    <label className="ps-label">Modell</label>
+                    <input
+                      className="ps-input"
+                      value={llmForm.fastModel}
+                      onChange={e => setLlmForm(p => p && ({ ...p, fastModel: e.target.value }))}
+                      placeholder="z. B. gpt-4o-mini"
+                    />
+                    <label className="ps-label">API key</label>
+                    <p className="ps-hint">
+                      {llmForm.editingId ? 'Leer = gespeicherten Key behalten.' : 'Pflichtfeld.'}
+                    </p>
+                    <input
+                      type="password"
+                      className="ps-input"
+                      value={llmForm.fastApiKey}
+                      onChange={e => setLlmForm(p => p && ({ ...p, fastApiKey: e.target.value }))}
+                      placeholder={llmForm.editingId ? '(unverändert)' : 'sk-...'}
+                      autoComplete="off"
+                    />
+
+                    <p className="ps-label ps-llm-section-header">⚡ Reasoning-Konfiguration <span className="ps-label-hint">(optional)</span></p>
+                    <p className="ps-hint">Wenn leer, werden URL und Key der Fast-Konfiguration verwendet.</p>
+
+                    <label className="ps-label">API base URL <span className="ps-label-hint">(optional)</span></label>
+                    <input
+                      className="ps-input"
+                      value={llmForm.reasoningApiUrl}
+                      onChange={e => setLlmForm(p => p && ({ ...p, reasoningApiUrl: e.target.value }))}
+                      placeholder="z. B. https://api.eecc.ai (oder leer = Fast-URL)"
+                    />
+                    <label className="ps-label">Modell</label>
+                    <input
+                      className="ps-input"
+                      value={llmForm.reasoningModel}
+                      onChange={e => setLlmForm(p => p && ({ ...p, reasoningModel: e.target.value }))}
+                      placeholder="z. B. grok-4.20-0309-reasoning"
+                    />
+                    <label className="ps-label">API key <span className="ps-label-hint">(optional)</span></label>
+                    <p className="ps-hint">Leer = Fast-Key wird genutzt.</p>
+                    <input
+                      type="password"
+                      className="ps-input"
+                      value={llmForm.reasoningApiKey}
+                      onChange={e => setLlmForm(p => p && ({ ...p, reasoningApiKey: e.target.value }))}
+                      placeholder="(optional, Leer = Fast-Key)"
+                      autoComplete="off"
+                    />
+
+                    <div className="ps-actions">
+                      <button
+                        type="button"
+                        className="ps-save-btn"
+                        onClick={() => void handleSaveLlm()}
+                        disabled={
+                          savingLlm
+                          || !llmForm.name.trim()
+                          || !llmForm.fastApiUrl.trim()
+                          || !llmForm.fastModel.trim()
+                        }
+                      >
+                        {savingLlm
+                          ? <><Loader size={13} className="ps-spinner" /> Saving...</>
+                          : <><Save size={13} /> Save</>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                ) : loadingLlms ? (
+                  <div className="ps-loading">
+                    <Loader size={18} className="ps-spinner" />
+                    <span>Lade LLMs...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="ps-list">
+                      {(llmsState?.providers?.length ?? 0) === 0 && (
+                        <div className="ps-empty">
+                          Keine LLMs eingetragen — der Server nutzt application.yml / AI_API_KEY.
+                        </div>
+                      )}
+                      {llmsState?.providers?.map(p => {
+                        const isActive = llmsState?.activeId === p.id;
+                        const hasFast = !!(p.fastModel);
+                        const hasReasoning = !!(p.reasoningModel);
+                        return (
+                          <div
+                            key={p.id}
+                            className={`ps-list-item ps-ai-provider-row${isActive ? ' ps-ai-active' : ''}`}
+                          >
+                            <div
+                              className="ps-ai-provider-main"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openEditLlm(p)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  openEditLlm(p);
+                                }
+                              }}
+                            >
+                              <span className="ps-list-item-name">
+                                {p.name}
+                                {isActive && <span className="ps-ai-active-badge">Aktiv</span>}
+                              </span>
+                              <span className="ps-list-item-id">
+                                {hasFast && <>Fast: {p.fastModel} · {p.fastApiUrl}</>}
+                                {hasFast && hasReasoning && ' — '}
+                                {hasReasoning && <>⚡ {p.reasoningModel}{p.reasoningApiUrl ? ` · ${p.reasoningApiUrl}` : ''}</>}
+                              </span>
+                              {(!p.fastApiKeySet) && (
+                                <span className="ps-hint ps-ai-no-key">Kein Fast-Key gesetzt</span>
+                              )}
+                            </div>
+                            <div className="ps-ai-provider-actions">
+                              <button
+                                type="button"
+                                className={`ps-secondary-btn${isActive ? ' ps-btn-active' : ''}`}
+                                title="Als aktives LLM setzen"
+                                disabled={isActive || activatingLlmId === p.id}
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  void handleActivateLlm(p.id);
+                                }}
+                              >
+                                {activatingLlmId === p.id
+                                  ? <Loader size={12} className="ps-spinner" />
+                                  : 'Aktiv setzen'}
+                              </button>
+                              <button
+                                type="button"
+                                className="ps-secondary-btn"
+                                title="Bearbeiten"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  openEditLlm(p);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="ps-list-item-delete"
+                                title="LLM löschen"
+                                disabled={deletingLlmId === p.id}
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  void handleDeleteLlm(p.id);
+                                }}
+                              >
+                                {deletingLlmId === p.id
+                                  ? <Loader size={12} className="ps-spinner" />
+                                  : <Trash2 size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="ps-actions">
+                      <button type="button" className="ps-add-btn" onClick={openNewLlm}>
+                        <Plus size={13} /> Neues LLM
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Rules tab */}
-            {tab === 'rules' && (
+            {initialized && tab === 'rules' && (
               <div className="ps-tab-content">
                 {ruleEditor ? (
                   <div className="ps-rule-form">

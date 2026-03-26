@@ -1,9 +1,7 @@
 package com.assistant.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,16 +29,6 @@ public class AppConfig {
 
     public Data getData() {
         return data;
-    }
-
-    @Bean
-    public WebClient aiWebClient() {
-        return WebClient.builder()
-                .baseUrl(ai.getApiUrl())
-                .defaultHeader("Authorization", "Bearer " + ai.getApiKey())
-                .defaultHeader("Content-Type", "application/json")
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
-                .build();
     }
 
     public static class Ai {

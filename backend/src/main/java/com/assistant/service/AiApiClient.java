@@ -1,10 +1,11 @@
 package com.assistant.service;
 
-import com.assistant.config.AppConfig;
 import com.assistant.model.ChatMessage;
+import com.assistant.model.ResolvedAiCredentials;
 import com.assistant.model.ToolCall;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -17,28 +18,49 @@ public class AiApiClient {
 
     private static final Logger log = LoggerFactory.getLogger(AiApiClient.class);
 
-    private final WebClient webClient;
-    private final AppConfig appConfig;
+    private static final int MAX_IN_MEMORY = 16 * 1024 * 1024;
 
-    public AiApiClient(WebClient aiWebClient, AppConfig appConfig) {
-        this.webClient = aiWebClient;
-        this.appConfig = appConfig;
+    private final WebClient.Builder webClientBuilder;
+    private final AiProviderService aiProviderService;
+
+    public AiApiClient(WebClient.Builder webClientBuilder, AiProviderService aiProviderService) {
+        this.webClientBuilder = webClientBuilder;
+        this.aiProviderService = aiProviderService;
+    }
+
+    private WebClient clientFor(ResolvedAiCredentials cred) {
+        return webClientBuilder.clone()
+                .baseUrl(cred.apiUrl())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + cred.apiKey())
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(MAX_IN_MEMORY))
+                .build();
     }
 
     /**
      * Streams chat completions as text chunks from the OpenAI-compatible API.
      */
     public Flux<String> streamChat(List<ChatMessage> messages) {
-        return streamChat(messages, null);
+        return streamChat(messages, null, false);
     }
 
     /**
      * Streams chat completions with optional tool definitions.
      */
     public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools) {
-        Map<String, Object> requestBody = buildRequestBody(messages, tools, true);
+        return streamChat(messages, tools, false);
+    }
 
-        return webClient.post()
+    /**
+     * Streams chat completions with optional tool definitions and reasoning model selection.
+     *
+     * @param useReasoning when true the provider's reasoning model is used instead of the fast model
+     */
+    public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools, boolean useReasoning) {
+        ResolvedAiCredentials cred = aiProviderService.getActiveResolved(useReasoning);
+        Map<String, Object> requestBody = buildRequestBody(messages, tools, true, cred.model());
+
+        return clientFor(cred).post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
@@ -58,9 +80,18 @@ public class AiApiClient {
      * Returns a ChatCompletionResult which contains either content or tool calls.
      */
     public ChatCompletionResult chatWithTools(List<ChatMessage> messages, List<Map<String, Object>> tools) {
-        Map<String, Object> requestBody = buildRequestBody(messages, tools, false);
+        return chatWithTools(messages, tools, false);
+    }
 
-        String responseBody = webClient.post()
+    /**
+     * Non-streaming chat completion with reasoning model selection.
+     */
+    public ChatCompletionResult chatWithTools(List<ChatMessage> messages, List<Map<String, Object>> tools,
+                                              boolean useReasoning) {
+        ResolvedAiCredentials cred = aiProviderService.getActiveResolved(useReasoning);
+        Map<String, Object> requestBody = buildRequestBody(messages, tools, false, cred.model());
+
+        String responseBody = clientFor(cred).post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
@@ -80,19 +111,20 @@ public class AiApiClient {
      * Non-streaming chat completion.
      */
     public String chat(List<ChatMessage> messages) {
-        ChatCompletionResult result = chatWithTools(messages, null);
+        ChatCompletionResult result = chatWithTools(messages, null, false);
         return result.content() != null ? result.content() : "";
     }
 
     private Map<String, Object> buildRequestBody(List<ChatMessage> messages,
                                                   List<Map<String, Object>> tools,
-                                                  boolean stream) {
+                                                  boolean stream,
+                                                  String model) {
         List<Map<String, Object>> apiMessages = messages.stream()
                 .map(ChatMessage::toApiMap)
                 .toList();
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", appConfig.getAi().getModel());
+        body.put("model", model);
         body.put("messages", apiMessages);
         body.put("stream", stream);
         if (tools != null && !tools.isEmpty()) {

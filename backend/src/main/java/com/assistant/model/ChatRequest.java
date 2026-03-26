@@ -10,6 +10,8 @@ public class ChatRequest {
     private String mode;
     private List<String> referencedFiles = new ArrayList<>();
     private List<ChatMessage> history = new ArrayList<>();
+    /** When true the provider's reasoning model is used instead of the fast model. */
+    private boolean useReasoning = false;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
@@ -21,4 +23,6 @@ public class ChatRequest {
     public void setReferencedFiles(List<String> referencedFiles) { this.referencedFiles = referencedFiles; }
     public List<ChatMessage> getHistory() { return history; }
     public void setHistory(List<ChatMessage> history) { this.history = history; }
+    public boolean isUseReasoning() { return useReasoning; }
+    public void setUseReasoning(boolean useReasoning) { this.useReasoning = useReasoning; }
 }
