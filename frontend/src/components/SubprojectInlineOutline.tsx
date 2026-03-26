@@ -387,6 +387,7 @@ export function SubprojectInlineOutline({
                   const sceneKey = `${chapter.id}-${scene.id}`;
                   const isActiveScene = isOpenChapter && activeSceneId === scene.id;
                   const isSceneExpanded = expandedScenes.has(sceneKey);
+                  const proseLeafAtScene = levelConfig.proseLeafAtScene;
 
                   return (
                     <div key={scene.id}>
@@ -395,6 +396,9 @@ export function SubprojectInlineOutline({
                         style={{ paddingLeft: padLeft(baseDepth + 2) }}
                         onContextMenu={(e) => openCtx(e, { type: 'scene', chapterId: chapter.id, sceneId: scene.id })}
                       >
+                        {proseLeafAtScene ? (
+                          <span className="outliner-arrow" style={{ width: 13 }} />
+                        ) : (
                         <span
                           className="outliner-arrow outliner-arrow-btn"
                           onClick={(e) => {
@@ -404,6 +408,7 @@ export function SubprojectInlineOutline({
                         >
                           {isSceneExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                         </span>
+                        )}
                         <span
                           className="outliner-type-icon outliner-clickable"
                           onClick={() => {
@@ -448,7 +453,8 @@ export function SubprojectInlineOutline({
                         )}
                       </div>
 
-                      {isSceneExpanded &&
+                      {!levelConfig.proseLeafAtScene &&
+                        isSceneExpanded &&
                         scene.actions.map((action) => {
                           const isActiveAction =
                             isOpenChapter && activeSceneId === scene.id && activeActionId === action.id;
@@ -509,171 +515,172 @@ export function SubprojectInlineOutline({
         );
       })}
 
-      {menu && (
-        <div
-          className="file-tree-context-menu file-tree-subproject-outline-menu"
-          style={{ left: menu.x, top: menu.y }}
-          onClick={(ev) => ev.stopPropagation()}
-          onMouseDown={(ev) => ev.stopPropagation()}
-        >
-          {menu.ctx.type === 'root' && (
-            <button type="button" className="file-tree-context-item" onClick={() => void promptCreate('chapter')}>
-              {levelConfig.chapter.labelNew}
-            </button>
-          )}
-          {menu.ctx.type === 'chapter' && (
-            <>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => void promptCreate('scene', menu.ctx.chapterId)}
-              >
-                {levelConfig.scene.labelNew}
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => {
-                  const ch = chapterSummaries.find((c) => c.id === menu.ctx.chapterId);
-                  startRename({ kind: 'chapter', chapterId: menu.ctx.chapterId, currentTitle: ch?.meta.title ?? '' });
-                }}
-              >
-                Umbenennen…
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item file-tree-context-item--danger"
-                onClick={() => {
-                  setMenu(null);
-                  if (window.confirm(`${levelConfig.chapter.label} und alle Inhalte löschen?`)) {
-                    void runWithRoot(async () => {
-                      await chapterApi.delete(menu.ctx.chapterId, subprojectPath);
-                    }).then(() => onStructureMutated());
-                  }
-                }}
-              >
-                {levelConfig.chapter.label} löschen
-              </button>
-            </>
-          )}
-          {menu.ctx.type === 'scene' && (
-            <>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => void promptCreate('action', menu.ctx.chapterId, menu.ctx.sceneId)}
-              >
-                {levelConfig.action.labelNew}
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => {
-                  const data = structures.get(menu.ctx.chapterId);
-                  const sc = data?.scenes.find((s) => s.id === menu.ctx.sceneId);
-                  startRename({
-                    kind: 'scene',
-                    chapterId: menu.ctx.chapterId,
-                    sceneId: menu.ctx.sceneId,
-                    currentTitle: sc?.meta.title ?? '',
-                  });
-                }}
-              >
-                Umbenennen…
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => void handleMoveScene(menu.ctx.chapterId, menu.ctx.sceneId, 'up')}
-              >
-                Nach oben
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => void handleMoveScene(menu.ctx.chapterId, menu.ctx.sceneId, 'down')}
-              >
-                Nach unten
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item file-tree-context-item--danger"
-                onClick={() => {
-                  setMenu(null);
-                  if (window.confirm(`${levelConfig.scene.label} mit allen Inhalten löschen?`)) {
-                    void runWithRoot(async () => {
-                      await chapterApi.deleteScene(menu.ctx.chapterId, menu.ctx.sceneId, subprojectPath);
-                    }).then(() => {
-                      void loadStructure(menu.ctx.chapterId);
-                      onStructureMutated();
-                    });
-                  }
-                }}
-              >
-                {levelConfig.scene.label} löschen
-              </button>
-            </>
-          )}
-          {menu.ctx.type === 'action' && (
-            <>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => {
-                  const data = structures.get(menu.ctx.chapterId);
-                  const sc = data?.scenes.find((s) => s.id === menu.ctx.sceneId);
-                  const ac = sc?.actions.find((a) => a.id === menu.ctx.actionId);
-                  startRename({
-                    kind: 'action',
-                    chapterId: menu.ctx.chapterId,
-                    sceneId: menu.ctx.sceneId,
-                    actionId: menu.ctx.actionId,
-                    currentTitle: ac?.meta.title ?? '',
-                  });
-                }}
-              >
-                Umbenennen…
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => void handleMoveAction(menu.ctx.chapterId, menu.ctx.sceneId, menu.ctx.actionId, 'up')}
-              >
-                Nach oben
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => void handleMoveAction(menu.ctx.chapterId, menu.ctx.sceneId, menu.ctx.actionId, 'down')}
-              >
-                Nach unten
-              </button>
-              <button
-                type="button"
-                className="file-tree-context-item file-tree-context-item--danger"
-                onClick={() => {
-                  setMenu(null);
-                  if (window.confirm(`${levelConfig.action.label} löschen?`)) {
-                    void runWithRoot(async () => {
-                      await chapterApi.deleteAction(
-                        menu.ctx.chapterId,
-                        menu.ctx.sceneId,
-                        menu.ctx.actionId,
-                        subprojectPath,
-                      );
-                    }).then(() => {
-                      void loadStructure(menu.ctx.chapterId);
-                      onStructureMutated();
-                    });
-                  }
-                }}
-              >
-                {levelConfig.action.label} löschen
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {menu &&
+        (() => {
+          const { x, y, ctx } = menu;
+          return (
+            <div
+              className="file-tree-context-menu file-tree-subproject-outline-menu"
+              style={{ left: x, top: y }}
+              onClick={(ev) => ev.stopPropagation()}
+              onMouseDown={(ev) => ev.stopPropagation()}
+            >
+              {ctx.type === 'root' && (
+                <button type="button" className="file-tree-context-item" onClick={() => void promptCreate('chapter')}>
+                  {levelConfig.chapter.labelNew}
+                </button>
+              )}
+              {ctx.type === 'chapter' && (
+                <>
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => void promptCreate('scene', ctx.chapterId)}
+                  >
+                    {levelConfig.scene.labelNew}
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => {
+                      const ch = chapterSummaries.find((c) => c.id === ctx.chapterId);
+                      startRename({ kind: 'chapter', chapterId: ctx.chapterId, currentTitle: ch?.meta.title ?? '' });
+                    }}
+                  >
+                    Umbenennen…
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item file-tree-context-item--danger"
+                    onClick={() => {
+                      setMenu(null);
+                      if (window.confirm(`${levelConfig.chapter.label} und alle Inhalte löschen?`)) {
+                        void runWithRoot(async () => {
+                          await chapterApi.delete(ctx.chapterId, subprojectPath);
+                        }).then(() => onStructureMutated());
+                      }
+                    }}
+                  >
+                    {levelConfig.chapter.label} löschen
+                  </button>
+                </>
+              )}
+              {ctx.type === 'scene' && (
+                <>
+                  {!levelConfig.proseLeafAtScene && (
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => void promptCreate('action', ctx.chapterId, ctx.sceneId)}
+                  >
+                    {levelConfig.action.labelNew}
+                  </button>
+                  )}
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => {
+                      const data = structures.get(ctx.chapterId);
+                      const sc = data?.scenes.find((s) => s.id === ctx.sceneId);
+                      startRename({
+                        kind: 'scene',
+                        chapterId: ctx.chapterId,
+                        sceneId: ctx.sceneId,
+                        currentTitle: sc?.meta.title ?? '',
+                      });
+                    }}
+                  >
+                    Umbenennen…
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => void handleMoveScene(ctx.chapterId, ctx.sceneId, 'up')}
+                  >
+                    Nach oben
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => void handleMoveScene(ctx.chapterId, ctx.sceneId, 'down')}
+                  >
+                    Nach unten
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item file-tree-context-item--danger"
+                    onClick={() => {
+                      setMenu(null);
+                      if (window.confirm(`${levelConfig.scene.label} mit allen Inhalten löschen?`)) {
+                        void runWithRoot(async () => {
+                          await chapterApi.deleteScene(ctx.chapterId, ctx.sceneId, subprojectPath);
+                        }).then(() => {
+                          void loadStructure(ctx.chapterId);
+                          onStructureMutated();
+                        });
+                      }
+                    }}
+                  >
+                    {levelConfig.scene.label} löschen
+                  </button>
+                </>
+              )}
+              {ctx.type === 'action' && (
+                <>
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => {
+                      const data = structures.get(ctx.chapterId);
+                      const sc = data?.scenes.find((s) => s.id === ctx.sceneId);
+                      const ac = sc?.actions.find((a) => a.id === ctx.actionId);
+                      startRename({
+                        kind: 'action',
+                        chapterId: ctx.chapterId,
+                        sceneId: ctx.sceneId,
+                        actionId: ctx.actionId,
+                        currentTitle: ac?.meta.title ?? '',
+                      });
+                    }}
+                  >
+                    Umbenennen…
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => void handleMoveAction(ctx.chapterId, ctx.sceneId, ctx.actionId, 'up')}
+                  >
+                    Nach oben
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item"
+                    onClick={() => void handleMoveAction(ctx.chapterId, ctx.sceneId, ctx.actionId, 'down')}
+                  >
+                    Nach unten
+                  </button>
+                  <button
+                    type="button"
+                    className="file-tree-context-item file-tree-context-item--danger"
+                    onClick={() => {
+                      setMenu(null);
+                      if (window.confirm(`${levelConfig.action.label} löschen?`)) {
+                        void runWithRoot(async () => {
+                          await chapterApi.deleteAction(ctx.chapterId, ctx.sceneId, ctx.actionId, subprojectPath);
+                        }).then(() => {
+                          void loadStructure(ctx.chapterId);
+                          onStructureMutated();
+                        });
+                      }
+                    }}
+                  >
+                    {levelConfig.action.label} löschen
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })()}
     </div>
   );
 }

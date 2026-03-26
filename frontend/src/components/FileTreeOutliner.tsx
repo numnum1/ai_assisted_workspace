@@ -6,14 +6,6 @@ import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
 import { resolveLevelConfig } from '../hooks/useWorkspaceLevelConfigMap.ts';
 
-function folderIconForSubprojectType(type: string | null | undefined): string {
-  if (!type) return 'folder';
-  if (type === 'music') return 'disc';
-  if (type === 'game') return 'sword';
-  if (type === 'book') return 'book';
-  return 'book';
-}
-
 function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
   if (root.path === targetPath) return root;
   if (!root.children) return null;
@@ -74,6 +66,8 @@ export interface FileTreeOutlinerProps {
   onSetOutlinerScope?: (relativeSubprojectPath: string) => void;
   /** Called when saved scope no longer exists or is not a subproject */
   onScopeInvalidated?: () => void;
+  /** Called when user wants to open a file and immediately show its shadow meta-note panel */
+  onOpenFileMeta?: (path: string) => void;
 }
 
 interface ContextMenuState {
@@ -82,6 +76,7 @@ interface ContextMenuState {
   path: string;
   directory: boolean;
   subprojectType: string | null | undefined;
+  hasShadow: boolean;
 }
 
 function TreeNodeRow({
@@ -198,7 +193,11 @@ function TreeNodeRow({
         </span>
         {isDir ? (
           isSubproject ? (
-            <OutlinerIcon name={folderIconForSubprojectType(node.subprojectType)} size={14} className="file-tree-icon file-tree-icon--subproject" />
+            <OutlinerIcon
+              name={subLevelConfig.folderIcon}
+              size={14}
+              className="file-tree-icon file-tree-icon--subproject"
+            />
           ) : (
             <Folder size={14} className="file-tree-icon" />
           )
@@ -206,6 +205,9 @@ function TreeNodeRow({
           <File size={14} className="file-tree-icon" />
         )}
         <span className="file-tree-name">{node.name}</span>
+        {!isDir && node.hasShadow && (
+          <span className="file-tree-shadow-dot" title="Hat Meta-Notiz" />
+        )}
         {isSubproject && onOpenBookMeta && (
           <button
             type="button"
@@ -329,6 +331,7 @@ export function FileTreeOutliner({
   onClearOutlinerScope,
   onSetOutlinerScope,
   onScopeInvalidated,
+  onOpenFileMeta,
 }: FileTreeOutlinerProps) {
   const [root, setRoot] = useState<FileNode | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -431,6 +434,7 @@ export function FileTreeOutliner({
       path: node.path,
       directory: node.directory,
       subprojectType: node.subprojectType,
+      hasShadow: node.hasShadow ?? false,
     });
   }, []);
 
@@ -583,6 +587,21 @@ export function FileTreeOutliner({
                 onClick={() => handleDelete(menu.path, menu.directory)}
               >
                 Löschen…
+              </button>
+            </>
+          )}
+          {!menu.directory && onOpenFileMeta && (
+            <>
+              <div className="file-tree-context-separator" role="separator" />
+              <button
+                type="button"
+                className="file-tree-context-item"
+                onClick={() => {
+                  onOpenFileMeta(menu.path);
+                  setMenu(null);
+                }}
+              >
+                {menu.hasShadow ? 'Meta-Notiz bearbeiten' : 'Meta-Notiz anlegen'}
               </button>
             </>
           )}

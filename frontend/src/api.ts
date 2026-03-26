@@ -112,6 +112,10 @@ export const projectConfigApi = {
       ? get<WorkspaceModeSchema>(`/project-config/workspace-mode?id=${encodeURIComponent(modeId)}`)
       : get<WorkspaceModeSchema>('/project-config/workspace-mode'),
   listWorkspaceModes: () => get<WorkspaceModeInfo[]>('/project-config/workspace-modes'),
+  getWorkspaceModesDataDir: () =>
+    get<{ path: string; exists: boolean }>('/project-config/workspace-modes/data-dir'),
+  revealWorkspaceModesDataDir: () =>
+    post<{ status: string }>('/project-config/workspace-modes/reveal-data-dir', {}),
   get: () => get<ProjectConfig>('/project-config'),
   init: () => post<ProjectConfig>('/project-config/init', {}),
   update: (config: ProjectConfig) => put<ProjectConfig>('/project-config', config),
@@ -221,6 +225,16 @@ export const wikiApi = {
     put<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`, { values }),
   deleteEntry: (typeId: string, entryId: string) =>
     del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
+};
+
+export const shadowApi = {
+  list: () => get<{ paths: string[] }>('/shadow/list'),
+  get: (path: string) =>
+    get<{ exists: boolean; content: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
+  save: (path: string, content: string) =>
+    put<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`, { content }),
+  delete: (path: string) =>
+    del<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
 };
 
 export const chatApi = {

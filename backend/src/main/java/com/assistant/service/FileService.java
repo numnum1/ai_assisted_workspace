@@ -20,10 +20,12 @@ public class FileService {
 
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
+    private final ShadowWikiService shadowWikiService;
 
-    public FileService(AppConfig appConfig, ObjectMapper objectMapper) {
+    public FileService(AppConfig appConfig, ObjectMapper objectMapper, ShadowWikiService shadowWikiService) {
         this.appConfig = appConfig;
         this.objectMapper = objectMapper;
+        this.shadowWikiService = shadowWikiService;
     }
 
     public Path getProjectRoot() {
@@ -69,6 +71,10 @@ public class FileService {
         }
 
         FileNode node = new FileNode(current.getFileName().toString(), relativePath, Files.isDirectory(current));
+
+        if (!Files.isDirectory(current) && !".".equals(relativePath)) {
+            node.setHasShadow(shadowWikiService.exists(relativePath));
+        }
 
         if (Files.isDirectory(current)) {
             Path marker = current.resolve(".subproject.json");
@@ -131,6 +137,7 @@ public class FileService {
         } else {
             Files.delete(file);
         }
+        shadowWikiService.deleteIfExists(relativePath);
     }
 
     private void deleteRecursively(Path path) throws IOException {
@@ -195,7 +202,13 @@ public class FileService {
             throw new IOException("Target already exists: " + newName);
         }
         Files.move(source, target);
-        return root.relativize(target).toString().replace('\\', '/');
+        String newRelativePath = root.relativize(target).toString().replace('\\', '/');
+        if (Files.isDirectory(target)) {
+            shadowWikiService.renameDirIfExists(relativePath, newName);
+        } else {
+            shadowWikiService.renameFileIfExists(relativePath, newName);
+        }
+        return newRelativePath;
     }
 
     private String joinPath(String parent, String name) {

@@ -13,8 +13,17 @@ public class WorkspaceModeSchema {
 
     private String id = "book";
     private String name = "";
+    /** Lucide icon name for subproject folder in the file tree */
+    private String icon = "folder";
+    /** When true, the mode appears as an option for media subprojects */
+    private boolean mediaType = false;
     /** e.g. prose, none — controls which editor UI the frontend shows */
     private String editorMode = "prose";
+    /**
+     * When {@code scene}, prose body lives on the scene row only (one implicit action per scene);
+     * the outliner hides the action level. Empty or {@code action} = default three-level UI.
+     */
+    private String proseLeafLevel = "action";
     private String rootMetaLabel = "";
     private String rootMetaIcon = "book";
     private List<WorkspaceLevelConfig> levels = new ArrayList<>();
@@ -37,12 +46,36 @@ public class WorkspaceModeSchema {
         this.name = name != null ? name : "";
     }
 
+    public String getIcon() {
+        return icon;
+    }
+
+    public void setIcon(String icon) {
+        this.icon = icon != null ? icon : "folder";
+    }
+
+    public boolean isMediaType() {
+        return mediaType;
+    }
+
+    public void setMediaType(boolean mediaType) {
+        this.mediaType = mediaType;
+    }
+
     public String getEditorMode() {
         return editorMode;
     }
 
     public void setEditorMode(String editorMode) {
         this.editorMode = editorMode != null ? editorMode : "prose";
+    }
+
+    public String getProseLeafLevel() {
+        return proseLeafLevel;
+    }
+
+    public void setProseLeafLevel(String proseLeafLevel) {
+        this.proseLeafLevel = proseLeafLevel != null && !proseLeafLevel.isBlank() ? proseLeafLevel : "action";
     }
 
     public String getRootMetaLabel() {

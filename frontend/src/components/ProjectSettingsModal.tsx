@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft } from 'lucide-react';
+import { Settings, X, Loader, Plus, Trash2, Save, Check, ChevronLeft, FolderOpen, RefreshCw, Copy } from 'lucide-react';
 import { projectConfigApi } from '../api.ts';
-import type { ProjectConfig, Mode } from '../types.ts';
+import type { ProjectConfig, Mode, WorkspaceModeInfo } from '../types.ts';
 
 interface ProjectSettingsModalProps {
   onClose: () => void;
   onModesChanged: () => void;
   onGeneralConfigSaved?: () => void;
+  /** Bumps workspace mode cache in the app (file tree labels, subproject dialog) after plugin list refresh */
+  onWorkspacePluginsChanged?: () => void;
 }
 
-type Tab = 'general' | 'modes' | 'rules';
+type Tab = 'general' | 'modes' | 'workspacePlugins' | 'rules';
 
 interface ModeForm {
   id: string;
@@ -77,7 +79,12 @@ function TagListEditor({
   );
 }
 
-export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigSaved }: ProjectSettingsModalProps) {
+export function ProjectSettingsModal({
+  onClose,
+  onModesChanged,
+  onGeneralConfigSaved,
+  onWorkspacePluginsChanged,
+}: ProjectSettingsModalProps) {
   const [tab, setTab] = useState<Tab>('general');
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
@@ -110,6 +117,39 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
   const [savingRule, setSavingRule] = useState(false);
   const [deletingRule, setDeletingRule] = useState<string | null>(null);
   const [ruleSaved, setRuleSaved] = useState(false);
+
+  // Workspace mode plugins (YAML under app data)
+  const [workspaceModesList, setWorkspaceModesList] = useState<WorkspaceModeInfo[]>([]);
+  const [workspaceModesDir, setWorkspaceModesDir] = useState<{ path: string; exists: boolean } | null>(null);
+  const [loadingWorkspacePlugins, setLoadingWorkspacePlugins] = useState(false);
+  const [revealingWorkspaceDir, setRevealingWorkspaceDir] = useState(false);
+
+  const loadWorkspacePlugins = useCallback(
+    async (syncApp: boolean) => {
+      setLoadingWorkspacePlugins(true);
+      setError(null);
+      try {
+        const [dir, list] = await Promise.all([
+          projectConfigApi.getWorkspaceModesDataDir(),
+          projectConfigApi.listWorkspaceModes(),
+        ]);
+        setWorkspaceModesDir(dir);
+        setWorkspaceModesList(list);
+        if (syncApp) onWorkspacePluginsChanged?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Workspace-Plugins konnten nicht geladen werden');
+      } finally {
+        setLoadingWorkspacePlugins(false);
+      }
+    },
+    [onWorkspacePluginsChanged],
+  );
+
+  useEffect(() => {
+    if (initialized && tab === 'workspacePlugins') {
+      void loadWorkspacePlugins(false);
+    }
+  }, [initialized, tab, loadWorkspacePlugins]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -332,13 +372,19 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
           <>
             {/* Tabs */}
             <div className="ps-tabs">
-              {(['general', 'modes', 'rules'] as Tab[]).map(t => (
+              {(['general', 'modes', 'workspacePlugins', 'rules'] as Tab[]).map(t => (
                 <button
                   key={t}
                   className={`ps-tab ${tab === t ? 'active' : ''}`}
                   onClick={() => { setTab(t); setError(null); }}
                 >
-                  {t === 'general' ? 'General' : t === 'modes' ? `Modes (${modes.length})` : `Rules (${rules.length})`}
+                  {t === 'general'
+                    ? 'General'
+                    : t === 'modes'
+                      ? `Modes (${modes.length})`
+                      : t === 'workspacePlugins'
+                        ? 'Workspace plugins'
+                        : `Rules (${rules.length})`}
                 </button>
               ))}
             </div>
@@ -378,7 +424,7 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
                 </select>
 
                 <p className="ps-hint">
-                  Der Datei-Browser nutzt immer den Standard-Modus. Medien-Projekte (Buch, Musik, …) legst du per Rechtsklick auf einen Ordner im Dateibaum an.
+                  Der Datei-Browser nutzt immer den Standard-Modus. Medien-Projekte (Buch, Musik, …) legst du per Rechtsklick auf einen Ordner an. Eigene Typen als YAML-Plugins findest du unter <strong>Workspace plugins</strong>.
                 </p>
 
                 <label className="ps-label">Always Include Files</label>
@@ -430,7 +476,7 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
                       className="ps-input"
                       value={modeForm.id}
                       onChange={e => setModeForm(p => p && ({ ...p, id: e.target.value }))}
-                      placeholder="e.g. game-design"
+                      placeholder="e.g. technical-review"
                       disabled={editingModeId !== null}
                     />
 
@@ -533,6 +579,118 @@ export function ProjectSettingsModal({ onClose, onModesChanged, onGeneralConfigS
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Workspace plugins (user YAML under app data) */}
+            {tab === 'workspacePlugins' && (
+              <div className="ps-tab-content ps-wp-tab">
+                <p className="ps-hint">
+                  Lege hier eigene Medien-Projekt-Typen ab: eine YAML-Datei pro Modus (Dateiname = id, z. B.{' '}
+                  <code>my-mode.yaml</code>). Mit <code>mediaType: true</code> erscheint der Typ im Kontextmenü
+                  „Als Medien-Projekt einrichten“. Nach Änderungen auf der Festplatte unten auf „App neu laden“ klicken.
+                </p>
+
+                <label className="ps-label">Plugin-Ordner</label>
+                <div className="ps-wp-path-row">
+                  <code className="ps-wp-path" title={workspaceModesDir?.path}>
+                    {workspaceModesDir?.path ?? '—'}
+                  </code>
+                  <div className="ps-wp-path-actions">
+                    <button
+                      type="button"
+                      className="ps-secondary-btn"
+                      disabled={!workspaceModesDir?.path}
+                      title="Pfad kopieren"
+                      onClick={() => {
+                        if (workspaceModesDir?.path) {
+                          void navigator.clipboard.writeText(workspaceModesDir.path);
+                        }
+                      }}
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="ps-secondary-btn"
+                      disabled={revealingWorkspaceDir}
+                      title="Ordner im Explorer öffnen (wird bei Bedarf angelegt)"
+                      onClick={() => {
+                        setRevealingWorkspaceDir(true);
+                        setError(null);
+                        projectConfigApi
+                          .revealWorkspaceModesDataDir()
+                          .then(() => loadWorkspacePlugins(false))
+                          .catch((err: unknown) =>
+                            setError(err instanceof Error ? err.message : 'Ordner konnte nicht geöffnet werden'),
+                          )
+                          .finally(() => setRevealingWorkspaceDir(false));
+                      }}
+                    >
+                      {revealingWorkspaceDir ? (
+                        <Loader size={14} className="ps-spinner" />
+                      ) : (
+                        <FolderOpen size={14} />
+                      )}
+                      <span>Ordner öffnen</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="ps-save-btn ps-wp-refresh-btn"
+                      disabled={loadingWorkspacePlugins}
+                      title="Liste neu laden und Ansicht im Dateibaum aktualisieren"
+                      onClick={() => void loadWorkspacePlugins(true)}
+                    >
+                      {loadingWorkspacePlugins ? (
+                        <Loader size={13} className="ps-spinner" />
+                      ) : (
+                        <RefreshCw size={13} />
+                      )}
+                      App neu laden
+                    </button>
+                  </div>
+                </div>
+                {!workspaceModesDir?.exists && workspaceModesDir?.path && (
+                  <p className="ps-hint ps-wp-missing">Der Ordner existiert noch nicht — „Ordner öffnen“ legt ihn an.</p>
+                )}
+
+                <label className="ps-label">Erkannte Workspace-Modi</label>
+                <p className="ps-hint">Eingebaut (classpath) und Benutzer (AppData). Überschreibt ein User-YAML dieselbe id, zählt die Quelle als „user“.</p>
+                <div className="ps-wp-table-wrap">
+                  <table className="ps-wp-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>id</th>
+                        <th>Quelle</th>
+                        <th>Medien-Typ</th>
+                        <th>Icon</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workspaceModesList.length === 0 && !loadingWorkspacePlugins && (
+                        <tr>
+                          <td colSpan={5} className="ps-wp-empty">
+                            Keine Modi geladen.
+                          </td>
+                        </tr>
+                      )}
+                      {workspaceModesList.map((m) => (
+                        <tr key={m.id}>
+                          <td>{m.name}</td>
+                          <td>
+                            <code>{m.id}</code>
+                          </td>
+                          <td>{m.source === 'user' ? 'user (AppData)' : 'builtin'}</td>
+                          <td>{m.mediaType ? 'ja' : 'nein'}</td>
+                          <td>
+                            <code>{m.icon}</code>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 

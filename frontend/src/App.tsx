@@ -5,7 +5,6 @@ import { FileTreeOutliner } from './components/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/SubprojectTypeDialog.tsx';
 import { MetaPanel } from './components/MetaPanel.tsx';
-import { ChapterView } from './components/ChapterView.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
 import { PromptPackModal } from './components/PromptPackModal.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
@@ -30,6 +29,8 @@ import { useWorkspaceMode } from './hooks/useWorkspaceMode.ts';
 import { useWorkspaceLevelConfigMap } from './hooks/useWorkspaceLevelConfigMap.ts';
 import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
 import { useFileEditor } from './hooks/useFileEditor.ts';
+import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
+import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 
 function App() {
   const project = useProject();
@@ -43,6 +44,7 @@ function App() {
   const chat = useChat(history.updateMessages);
 
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+  const [workspaceModesRefreshNonce, setWorkspaceModesRefreshNonce] = useState(0);
   const [inlineChaptersNonce, setInlineChaptersNonce] = useState(0);
   const [subprojectDialog, setSubprojectDialog] = useState<{ path: string; initialType?: string | null } | null>(null);
   const outlinerScope = useOutlinerScope(project.projectPath ? project.projectPath : null);
@@ -244,7 +246,7 @@ function App() {
   }, [handleOpenProject]);
 
   const workspaceModeId = chapter.activeSubprojectType ?? 'default';
-  const levelConfigByModeId = useWorkspaceLevelConfigMap(project.projectPath ?? null);
+  const levelConfigByModeId = useWorkspaceLevelConfigMap(project.projectPath ?? null, workspaceModesRefreshNonce);
   const {
     schema: workspaceModeSchema,
     metaSchemas: workspaceMetaSchemas,
@@ -255,6 +257,9 @@ function App() {
     ? (workspaceModeSchema?.editorMode ?? 'prose')
     : 'standard';
 
+  const MediaProjectEditor =
+    getMediaProjectPlugin(workspaceModeId)?.ViewComponent ?? DefaultMediaProjectEditor;
+
   const fileEditor = useFileEditor(project.projectPath ?? null);
 
   const showMetaChrome =
@@ -264,6 +269,11 @@ function App() {
     loadModes();
     void refreshWorkspaceModeSchema();
   }, [loadModes, refreshWorkspaceModeSchema]);
+
+  const onWorkspacePluginsChanged = useCallback(() => {
+    setWorkspaceModesRefreshNonce((n) => n + 1);
+    void refreshWorkspaceModeSchema();
+  }, [refreshWorkspaceModeSchema]);
 
   const handleSendMessage = useCallback(
     (message: string) => {
@@ -338,7 +348,13 @@ function App() {
                   chapter.closeChapter();
                   setSelectedMeta(null);
                   setMetaExpanded(false);
-                  fileEditor.openFile(path);
+                  void fileEditor.openFile(path);
+                }}
+              onOpenFileMeta={(path) => {
+                  chapter.closeChapter();
+                  setSelectedMeta(null);
+                  setMetaExpanded(false);
+                  void fileEditor.openFileMeta(path);
                 }}
                 onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
                 refreshNonce={treeRefreshKey}
@@ -418,9 +434,23 @@ function App() {
               onChange={fileEditor.setContent}
               onSave={() => { void fileEditor.save(); fetchGitState(); }}
               onClearError={fileEditor.clearError}
+              shadowContent={fileEditor.shadowContent}
+              shadowDirty={fileEditor.shadowDirty}
+              shadowExists={fileEditor.shadowExists}
+              shadowLoading={fileEditor.shadowLoading}
+              shadowError={fileEditor.shadowError}
+              shadowPanelOpen={fileEditor.shadowPanelOpen}
+              onShadowChange={fileEditor.setShadowContent}
+              onShadowSave={() => { void fileEditor.saveShadow(); }}
+              onShadowDelete={() => { void fileEditor.deleteShadow(); }}
+              onOpenShadowPanel={() => { void fileEditor.openShadowPanel(); }}
+              onCloseShadowPanel={fileEditor.closeShadowPanel}
+              onClearShadowError={fileEditor.clearShadowError}
             />
-          ) : proseEditorMode === 'prose' ? (
-            <ChapterView
+          ) : (
+            <MediaProjectEditor
+              editorMode={proseEditorMode}
+              proseLeafAtScene={workspaceModeSchema?.proseLeafLevel === 'scene'}
               chapter={chapter.activeChapter}
               actionContents={chapter.actionContents}
               scrollTarget={chapter.scrollTarget}
@@ -432,10 +462,6 @@ function App() {
               onScrollTargetConsumed={chapter.clearScrollTarget}
               onEditorFocus={chapter.updateEditorPosition}
             />
-          ) : (
-            <div className="editor-mode-placeholder editor-empty">
-              <p>Kein Editor für diesen Modus</p>
-            </div>
           )}
         </Panel>
 
@@ -494,6 +520,7 @@ function App() {
           onClose={() => setSettingsOpen(false)}
           onModesChanged={loadModes}
           onGeneralConfigSaved={onProjectGeneralSaved}
+          onWorkspacePluginsChanged={onWorkspacePluginsChanged}
         />
       )}
 

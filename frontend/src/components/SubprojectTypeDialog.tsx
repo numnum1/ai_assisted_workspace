@@ -35,7 +35,7 @@ export function SubprojectTypeDialog({
       .listWorkspaceModes()
       .then((list) => {
         if (!cancelled) {
-          const usable = list.filter((m) => m.id !== 'default');
+          const usable = list.filter((m) => m.mediaType === true);
           setModes(usable);
           if (!initialTypeId && usable.length > 0) {
             setTypeId((t) => (t ? t : usable[0].id));

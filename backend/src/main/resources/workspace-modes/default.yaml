@@ -1,5 +1,7 @@
 id: default
 name: Standard
+icon: folder
+mediaType: false
 editorMode: standard
 rootMetaLabel: Projekt-Metadaten
 rootMetaIcon: folder

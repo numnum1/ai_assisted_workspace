@@ -5,6 +5,8 @@ export interface FileNode {
   children: FileNode[] | null;
   /** Workspace mode id from `.subproject.json` when this directory is a subproject */
   subprojectType?: string | null;
+  /** True if a shadow meta-note file exists under `.wiki/files/` for this file */
+  hasShadow?: boolean;
 }
 
 export interface Mode {
@@ -75,7 +77,7 @@ export interface ProjectConfig {
   globalRules: string[];
   /** Mode id; empty means client uses review or first available mode */
   defaultMode?: string;
-  /** Built-in workspace mode: book, game, music (classpath workspace-modes) */
+  /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
   workspaceMode?: string;
 }
 
@@ -84,7 +86,7 @@ export interface WorkspaceEntry {
   id: string;
   path: string;
   name: string;
-  /** Mirrors last known project workspaceMode (book, game, music) */
+  /** Mirrors last known project workspaceMode (e.g. book, music) */
   mode: string;
 }
 
@@ -113,8 +115,14 @@ export interface WorkspaceMetaTypeSchema {
 export interface WorkspaceModeSchema {
   id: string;
   name: string;
+  /** Lucide icon name for subproject folder in the file tree */
+  icon?: string;
+  /** When true, the mode can be chosen when creating a media subproject */
+  mediaType?: boolean;
   /** 'prose' | 'standard' | 'none' | future modes */
   editorMode: string;
+  /** When `scene`, prose body is edited per scene; outliner hides the action level. */
+  proseLeafLevel?: 'scene' | 'action' | string;
   rootMetaLabel: string;
   rootMetaIcon?: string;
   levels: WorkspaceLevelConfig[];
@@ -126,6 +134,8 @@ export interface WorkspaceModeInfo {
   id: string;
   name: string;
   source: 'builtin' | 'user';
+  icon: string;
+  mediaType: boolean;
 }
 
 /** Resolved labels/icons for the three structure levels + root meta button */
@@ -133,8 +143,12 @@ export interface OutlinerLevelConfig {
   chapter: { label: string; labelNew: string; icon: string };
   scene: { label: string; labelNew: string; icon: string };
   action: { label: string; labelNew: string; icon: string };
+  /** True when workspace mode stores prose on scenes only (no visible action tier). */
+  proseLeafAtScene: boolean;
   rootMetaLabel: string;
   rootMetaIcon: string;
+  /** Icon for subproject folder rows in the file tree */
+  folderIcon: string;
 }
 
 export interface NodeMeta {
