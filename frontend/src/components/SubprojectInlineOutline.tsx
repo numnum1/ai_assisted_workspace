@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, type MouseEvent, type DragEvent } from 'react';
+import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import type { ChapterSummary, ChapterNode, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../types.ts';
 import { chapterApi } from '../api.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
@@ -59,6 +59,10 @@ export function SubprojectInlineOutline({
   const [renameState, setRenameState] = useState<RenameState | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag-and-drop state (scenes only)
+  const [dragScene, setDragScene] = useState<{ chapterId: string; sceneId: string } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ chapterId: string; sceneId: string } | null>(null);
 
   const rootActive = activeStructureRoot === subprojectPath;
   const activeSceneId = editorPosition?.sceneId;
@@ -284,6 +288,50 @@ export function SubprojectInlineOutline({
     [structures, runWithRoot, subprojectPath, loadStructure, onStructureMutated],
   );
 
+  const handleSceneDragStart = useCallback((e: DragEvent, chapterId: string, sceneId: string) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `scene:${chapterId}:${sceneId}`);
+    setDragScene({ chapterId, sceneId });
+  }, []);
+
+  const handleSceneDragOver = useCallback((e: DragEvent, chapterId: string, sceneId: string) => {
+    if (!dragScene || dragScene.chapterId !== chapterId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTarget({ chapterId, sceneId });
+  }, [dragScene]);
+
+  const handleSceneDrop = useCallback(async (e: DragEvent, chapterId: string, targetSceneId: string) => {
+    e.preventDefault();
+    if (!dragScene || dragScene.chapterId !== chapterId || dragScene.sceneId === targetSceneId) {
+      setDragScene(null);
+      setDropTarget(null);
+      return;
+    }
+    const data = structures.get(chapterId);
+    if (!data) return;
+    const ids = data.scenes.map((s) => s.id);
+    const fromIdx = ids.indexOf(dragScene.sceneId);
+    const toIdx = ids.indexOf(targetSceneId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const newIds = [...ids];
+    newIds.splice(fromIdx, 1);
+    const insertAt = fromIdx < toIdx ? toIdx : toIdx;
+    newIds.splice(insertAt, 0, dragScene.sceneId);
+    setDragScene(null);
+    setDropTarget(null);
+    await runWithRoot(async () => {
+      await chapterApi.reorderScenes(chapterId, newIds, subprojectPath);
+    });
+    await loadStructure(chapterId);
+    onStructureMutated();
+  }, [dragScene, structures, runWithRoot, subprojectPath, loadStructure, onStructureMutated]);
+
+  const handleSceneDragEnd = useCallback(() => {
+    setDragScene(null);
+    setDropTarget(null);
+  }, []);
+
   const onChapterChevron = useCallback(
     (e: MouseEvent, chapterId: string) => {
       e.stopPropagation();
@@ -389,13 +437,24 @@ export function SubprojectInlineOutline({
                   const isSceneExpanded = expandedScenes.has(sceneKey);
                   const proseLeafAtScene = levelConfig.proseLeafAtScene;
 
+                  const isDragging = dragScene?.chapterId === chapter.id && dragScene?.sceneId === scene.id;
+                  const isDropTarget = dropTarget?.chapterId === chapter.id && dropTarget?.sceneId === scene.id && !isDragging;
+
                   return (
                     <div key={scene.id}>
                       <div
-                        className={`outliner-node outliner-scene file-tree-subproject-outline-node${isActiveScene ? ' active' : ''}`}
+                        className={`outliner-node outliner-scene file-tree-subproject-outline-node${isActiveScene ? ' active' : ''}${isDragging ? ' outliner-scene-dragging' : ''}${isDropTarget ? ' outliner-scene-droptarget' : ''}`}
                         style={{ paddingLeft: padLeft(baseDepth + 2) }}
+                        draggable
+                        onDragStart={(e) => handleSceneDragStart(e, chapter.id, scene.id)}
+                        onDragOver={(e) => handleSceneDragOver(e, chapter.id, scene.id)}
+                        onDrop={(e) => void handleSceneDrop(e, chapter.id, scene.id)}
+                        onDragEnd={handleSceneDragEnd}
                         onContextMenu={(e) => openCtx(e, { type: 'scene', chapterId: chapter.id, sceneId: scene.id })}
                       >
+                        <span className="outliner-drag-handle" title="Ziehen zum Verschieben">
+                          <GripVertical size={11} />
+                        </span>
                         {proseLeafAtScene ? (
                           <span className="outliner-arrow" style={{ width: 13 }} />
                         ) : (

@@ -749,6 +749,32 @@ body {
   font-size: 12px;
 }
 
+.outliner-drag-handle {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.1s;
+}
+
+.outliner-node:hover .outliner-drag-handle {
+  opacity: 0.5;
+}
+
+.outliner-drag-handle:hover {
+  opacity: 1 !important;
+}
+
+.outliner-scene-dragging {
+  opacity: 0.4;
+}
+
+.outliner-scene-droptarget {
+  border-top: 2px solid var(--accent);
+}
+
 .outliner-action {
   font-size: 11px;
   color: var(--text-muted);

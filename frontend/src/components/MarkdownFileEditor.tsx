@@ -1,9 +1,10 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { EditorView, keymap, drawSelection } from '@codemirror/view';
-import { EditorState, Compartment } from '@codemirror/state';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { EditorView, keymap, drawSelection, ViewPlugin, Decoration } from '@codemirror/view';
+import type { DecorationSet, ViewUpdate } from '@codemirror/view';
+import { EditorState, Compartment, RangeSetBuilder } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { Save, FileText, NotebookPen, Trash2 } from 'lucide-react';
+import { Save, FileText, NotebookPen, Trash2, Eye, EyeOff } from 'lucide-react';
 import { ShadowTextarea } from './ShadowTextarea.tsx';
 
 interface MarkdownFileEditorProps {
@@ -30,6 +31,52 @@ interface MarkdownFileEditorProps {
   onClearShadowError?: () => void;
 }
 
+// ── Frontmatter-hiding CodeMirror plugin ─────────────────────────────────────
+
+const hiddenLineDeco = Decoration.line({ class: 'cm-frontmatter-hidden' });
+
+function buildFrontmatterDecos(view: EditorView): DecorationSet {
+  const doc = view.state.doc;
+  const builder = new RangeSetBuilder<Decoration>();
+  if (doc.lines < 2) return builder.finish();
+  const firstLine = doc.line(1);
+  if (firstLine.text.trim() !== '---') return builder.finish();
+  let closingLine = -1;
+  for (let i = 2; i <= doc.lines; i++) {
+    if (doc.line(i).text.trim() === '---') {
+      closingLine = i;
+      break;
+    }
+  }
+  if (closingLine === -1) return builder.finish();
+  for (let i = 1; i <= closingLine; i++) {
+    const line = doc.line(i);
+    builder.add(line.from, line.from, hiddenLineDeco);
+  }
+  return builder.finish();
+}
+
+const frontmatterPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = buildFrontmatterDecos(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = buildFrontmatterDecos(update.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+// ── localStorage key ─────────────────────────────────────────────────────────
+
+const HIDE_META_KEY = (path: string) => `editor-hide-meta:${path}`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function MarkdownFileEditor({
   path,
   content,
@@ -55,11 +102,31 @@ export function MarkdownFileEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const themeCompartment = useRef(new Compartment());
+  const hideMetaCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+
+  // ── Hide-meta state (per file, persisted in localStorage) ──────────────────
+  const [hideMeta, setHideMeta] = useState(false);
+
+  useEffect(() => {
+    if (!path) { setHideMeta(false); return; }
+    setHideMeta(localStorage.getItem(HIDE_META_KEY(path)) === 'true');
+  }, [path]);
+
+  const toggleHideMeta = useCallback(() => {
+    if (!path) return;
+    setHideMeta((prev) => {
+      const next = !prev;
+      localStorage.setItem(HIDE_META_KEY(path), String(next));
+      return next;
+    });
+  }, [path]);
+
+  // ── CodeMirror setup ───────────────────────────────────────────────────────
 
   const buildTheme = useCallback(
     () =>
@@ -78,12 +145,15 @@ export function MarkdownFileEditor({
           borderRight: '1px solid var(--border, #313244)',
         },
         '.cm-activeLineGutter': { backgroundColor: 'rgba(137, 180, 250, 0.12)' },
+        '.cm-frontmatter-hidden': { display: 'none' },
       }),
     [],
   );
 
   useEffect(() => {
     if (!path || !editorRef.current) return;
+
+    const initialHide = localStorage.getItem(HIDE_META_KEY(path)) === 'true';
 
     const state = EditorState.create({
       doc: content,
@@ -109,6 +179,7 @@ export function MarkdownFileEditor({
           }
         }),
         themeCompartment.current.of(buildTheme()),
+        hideMetaCompartment.current.of(initialHide ? frontmatterPlugin : []),
       ],
     });
 
@@ -129,6 +200,17 @@ export function MarkdownFileEditor({
       effects: themeCompartment.current.reconfigure(buildTheme()),
     });
   }, [buildTheme]);
+
+  // Reconfigure hide-meta extension when state changes
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: hideMetaCompartment.current.reconfigure(hideMeta ? frontmatterPlugin : []),
+    });
+  }, [hideMeta]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (!path) {
     return (
@@ -158,6 +240,14 @@ export function MarkdownFileEditor({
             )}
           </span>
         )}
+        <button
+          type="button"
+          className={`markdown-file-editor-shadow-btn${hideMeta ? ' active' : ''}`}
+          onClick={toggleHideMeta}
+          title={hideMeta ? 'Metatags anzeigen' : 'Metatags verstecken'}
+        >
+          {hideMeta ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
         <button
           type="button"
           className={`markdown-file-editor-shadow-btn${shadowPanelOpen ? ' active' : ''}${shadowExists ? ' has-shadow' : ''}`}
