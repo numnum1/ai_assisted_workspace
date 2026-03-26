@@ -16,6 +16,8 @@ export interface Mode {
   autoIncludes: string[];
   color: string;
   rules?: string[];
+  useReasoning?: boolean;
+  llmId?: string;
 }
 
 export interface ChatMessage {
@@ -32,6 +34,7 @@ export interface ChatRequest {
   referencedFiles: string[];
   history: ChatMessage[];
   useReasoning?: boolean;
+  llmId?: string;
 }
 
 export interface ContextInfo {

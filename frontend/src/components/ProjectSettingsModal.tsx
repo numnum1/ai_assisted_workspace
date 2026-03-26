@@ -31,6 +31,8 @@ interface ModeForm {
   systemPrompt: string;
   autoIncludes: string;
   rules: string;
+  useReasoning: boolean;
+  llmId: string;
 }
 
 interface RuleEditor {
@@ -187,7 +189,7 @@ export function ProjectSettingsModal({
   }, [initialized, tab, loadWorkspacePlugins]);
 
   useEffect(() => {
-    if (!loading && tab === 'aiProviders') {
+    if (!loading && (tab === 'aiProviders' || tab === 'modes')) {
       void loadLlms();
     }
   }, [loading, tab, loadLlms]);
@@ -265,7 +267,7 @@ export function ProjectSettingsModal({
 
   const openNewMode = () => {
     setEditingModeId(null);
-    setModeForm({ id: '', name: '', color: '#89b4fa', systemPrompt: '', autoIncludes: '', rules: '' });
+    setModeForm({ id: '', name: '', color: '#89b4fa', systemPrompt: '', autoIncludes: '', rules: '', useReasoning: false, llmId: '' });
   };
 
   const openEditMode = (mode: Mode) => {
@@ -277,6 +279,8 @@ export function ProjectSettingsModal({
       systemPrompt: mode.systemPrompt || '',
       autoIncludes: (mode.autoIncludes || []).join('\n'),
       rules: (mode.rules || []).join('\n'),
+      useReasoning: mode.useReasoning ?? false,
+      llmId: mode.llmId ?? '',
     });
   };
 
@@ -292,6 +296,8 @@ export function ProjectSettingsModal({
         systemPrompt: modeForm.systemPrompt,
         autoIncludes: modeForm.autoIncludes.split('\n').map(s => s.trim()).filter(Boolean),
         rules: modeForm.rules.split('\n').map(s => s.trim()).filter(Boolean),
+        useReasoning: modeForm.useReasoning,
+        llmId: modeForm.llmId.trim() || undefined,
       };
       await projectConfigApi.saveMode(mode.id, mode);
       const updated = await projectConfigApi.getModes();
@@ -677,6 +683,31 @@ export function ProjectSettingsModal({
                       placeholder="rules/review-checklist.md"
                       rows={2}
                     />
+
+                    <label className="ps-label">LLM <span className="ps-label-hint">(optional — leer = globaler aktiver Eintrag)</span></label>
+                    <select
+                      className="ps-input"
+                      value={modeForm.llmId}
+                      onChange={e => setModeForm(p => p && ({ ...p, llmId: e.target.value }))}
+                    >
+                      <option value="">— globaler aktiver Eintrag —</option>
+                      {(llmsState?.providers ?? []).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+
+                    <label className="ps-label">⚡ Reasoning Standard</label>
+                    <div className="ps-toggle-row">
+                      <input
+                        type="checkbox"
+                        id="modeUseReasoning"
+                        checked={modeForm.useReasoning}
+                        onChange={e => setModeForm(p => p && ({ ...p, useReasoning: e.target.checked }))}
+                      />
+                      <label htmlFor="modeUseReasoning" className="ps-toggle-label">
+                        Reasoning-Modus standardmäßig aktiv für diesen Modus
+                      </label>
+                    </div>
 
                     <div className="ps-actions">
                       <button

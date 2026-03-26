@@ -48,14 +48,15 @@ public class ChatController {
         List<Map<String, Object>> tools = toolExecutor.getToolDefinitions();
 
         boolean useReasoning = request.isUseReasoning();
+        String llmId = request.getLlmId();
         return Flux.concat(
                 Flux.just(ServerSentEvent.<String>builder()
                         .event("context").data(toContextJson(context)).build()),
-                Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), tools, useReasoning))
+                Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), tools, llmId, useReasoning))
                         .flatMapMany(resolved -> {
                             Flux<ServerSentEvent<String>> toolEvents = Flux.fromIterable(resolved.toolCallEvents());
                             Flux<ServerSentEvent<String>> tokenStream = aiApiClient
-                                    .streamChat(resolved.messages(), tools, useReasoning)
+                                    .streamChat(resolved.messages(), tools, llmId, useReasoning)
                                     .map(chunk -> ServerSentEvent.<String>builder()
                                             .event("token").data(escapeForSse(chunk)).build());
                             return Flux.concat(toolEvents, tokenStream);
@@ -76,12 +77,13 @@ public class ChatController {
      */
     private ToolResolutionResult resolveToolCalls(List<ChatMessage> messages,
                                                   List<Map<String, Object>> tools,
+                                                  String llmId,
                                                   boolean useReasoning) {
         List<ChatMessage> currentMessages = new ArrayList<>(messages);
         List<ServerSentEvent<String>> toolCallEvents = new ArrayList<>();
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
-            ChatCompletionResult result = aiApiClient.chatWithTools(currentMessages, tools, useReasoning);
+            ChatCompletionResult result = aiApiClient.chatWithTools(currentMessages, tools, llmId, useReasoning);
 
             if (!result.hasToolCalls()) {
                 // Don't add the content here — the streaming call that follows

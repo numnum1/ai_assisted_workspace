@@ -12,6 +12,8 @@ public class ChatRequest {
     private List<ChatMessage> history = new ArrayList<>();
     /** When true the provider's reasoning model is used instead of the fast model. */
     private boolean useReasoning = false;
+    /** Optional: ID of a specific LLM entry to use. Overrides the globally active LLM. */
+    private String llmId;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
@@ -25,4 +27,6 @@ public class ChatRequest {
     public void setHistory(List<ChatMessage> history) { this.history = history; }
     public boolean isUseReasoning() { return useReasoning; }
     public void setUseReasoning(boolean useReasoning) { this.useReasoning = useReasoning; }
+    public String getLlmId() { return llmId; }
+    public void setLlmId(String llmId) { this.llmId = llmId; }
 }

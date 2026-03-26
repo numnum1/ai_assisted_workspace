@@ -57,7 +57,13 @@ public class AiApiClient {
      * @param useReasoning when true the provider's reasoning model is used instead of the fast model
      */
     public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools, boolean useReasoning) {
-        ResolvedAiCredentials cred = aiProviderService.getActiveResolved(useReasoning);
+        return streamChat(messages, tools, null, useReasoning);
+    }
+
+    /** Streams chat completions with a specific LLM entry and reasoning selection. */
+    public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools,
+                                   String llmId, boolean useReasoning) {
+        ResolvedAiCredentials cred = aiProviderService.getResolved(llmId, useReasoning);
         Map<String, Object> requestBody = buildRequestBody(messages, tools, true, cred.model());
 
         return clientFor(cred).post()
@@ -88,7 +94,13 @@ public class AiApiClient {
      */
     public ChatCompletionResult chatWithTools(List<ChatMessage> messages, List<Map<String, Object>> tools,
                                               boolean useReasoning) {
-        ResolvedAiCredentials cred = aiProviderService.getActiveResolved(useReasoning);
+        return chatWithTools(messages, tools, null, useReasoning);
+    }
+
+    /** Non-streaming chat completion with a specific LLM entry and reasoning selection. */
+    public ChatCompletionResult chatWithTools(List<ChatMessage> messages, List<Map<String, Object>> tools,
+                                              String llmId, boolean useReasoning) {
+        ResolvedAiCredentials cred = aiProviderService.getResolved(llmId, useReasoning);
         Map<String, Object> requestBody = buildRequestBody(messages, tools, false, cred.model());
 
         String responseBody = clientFor(cred).post()

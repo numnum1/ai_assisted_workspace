@@ -68,6 +68,23 @@ public class AiProviderService {
         return getActiveResolved(false);
     }
 
+    /**
+     * Resolve credentials for a specific LLM entry by ID.
+     * Falls back to {@link #getActiveResolved(boolean)} when {@code llmId} is blank or not found.
+     */
+    public ResolvedAiCredentials getResolved(String llmId, boolean useReasoning) {
+        if (llmId == null || llmId.isBlank()) return getActiveResolved(useReasoning);
+        AiProvidersState state = loadState();
+        AiProvider p = findById(state, llmId);
+        if (p == null) return getActiveResolved(useReasoning);
+        if (useReasoning) {
+            ResolvedAiCredentials reasoning = extractReasoning(p);
+            if (reasoning != null) return reasoning;
+        }
+        ResolvedAiCredentials fast = extractFast(p);
+        return fast != null ? fast : credentialsFromAppConfig();
+    }
+
     private ResolvedAiCredentials extractFast(AiProvider p) {
         String url = normalizeBaseUrl(p.getFastApiUrl());
         String model = nullToEmpty(p.getFastModel());

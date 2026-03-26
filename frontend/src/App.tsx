@@ -40,8 +40,17 @@ function App() {
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
+  const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
+
+  const handleModeChange = useCallback((modeId: string, modeList?: typeof modes) => {
+    setSelectedMode(modeId);
+    const list = modeList ?? modes;
+    const m = list.find(x => x.id === modeId);
+    setUseReasoning(m?.useReasoning ?? false);
+    setModeLlmId(m?.llmId ?? undefined);
+  }, [modes]);
 
   const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages);
@@ -93,7 +102,11 @@ function App() {
         }
       }
       if (configured === 'prompt-pack') configured = undefined;
-      setSelectedMode(resolveDefaultModeId(chatModes, configured));
+      const resolvedId = resolveDefaultModeId(chatModes, configured);
+      const resolvedMode = chatModes.find(m => m.id === resolvedId);
+      setSelectedMode(resolvedId);
+      setUseReasoning(resolvedMode?.useReasoning ?? false);
+      setModeLlmId(resolvedMode?.llmId ?? undefined);
     } catch (e) {
       console.error(e);
     }
@@ -283,9 +296,9 @@ function App() {
       const mode = modes.find((m) => m.id === selectedMode);
       // TODO: reconnect to chapter structure — pass active chapter/scene/action metadata as context
       // Currently sending null as activeFile; replace with chapter context when ContextService is updated
-      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning);
+      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId);
     },
-    [chat, selectedMode, modes, refs.referencedFiles, useReasoning],
+    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
@@ -310,9 +323,10 @@ function App() {
     if (!modes.length) return;
     if (selectedMode === 'prompt-pack') {
       const chatModes = modes.filter(x => x.id !== 'prompt-pack');
-      setSelectedMode(resolveDefaultModeId(chatModes, undefined));
+      const fallbackId = resolveDefaultModeId(chatModes, undefined);
+      handleModeChange(fallbackId, chatModes);
     }
-  }, [modes, selectedMode]);
+  }, [modes, selectedMode, handleModeChange]);
 
   const handleNewChat = useCallback(() => {
     history.createConversation(selectedMode);
@@ -483,7 +497,7 @@ function App() {
             activeConversationId={history.activeId}
             useReasoning={useReasoning}
             onToggleReasoning={handleToggleReasoning}
-            onModeChange={setSelectedMode}
+            onModeChange={handleModeChange}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}
             onClear={handleClearChat}
