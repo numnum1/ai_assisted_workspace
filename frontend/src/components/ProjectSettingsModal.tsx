@@ -194,8 +194,12 @@ export function ProjectSettingsModal({
     setLoading(true);
     setError(null);
     try {
-      const status = await projectConfigApi.status();
+      const [status, llmsData] = await Promise.all([
+        projectConfigApi.status(),
+        llmApi.list().catch(() => null),
+      ]);
       setInitialized(status.initialized);
+      if (llmsData) setLlmsState(llmsData);
       if (status.initialized) {
         const [cfg, mds, ruleList] = await Promise.all([
           projectConfigApi.get(),
