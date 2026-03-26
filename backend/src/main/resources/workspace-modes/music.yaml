@@ -43,6 +43,11 @@ metaSchemas:
         type: input
         placeholder: Liedtitel...
         defaultValue: ""
+      - key: metatags
+        label: Metatags
+        type: input
+        placeholder: z.B. pop, electric guitar, 120bpm, female vocals...
+        defaultValue: ""
       - key: description
         label: Beschreibung
         type: textarea
@@ -65,6 +70,11 @@ metaSchemas:
         label: Typ
         type: input
         placeholder: Strophe, Refrain, Bridge, Intro...
+        defaultValue: ""
+      - key: metatags
+        label: Metatags
+        type: input
+        placeholder: z.B. upbeat, guitar, piano, 120bpm, energetic...
         defaultValue: ""
       - key: description
         label: Beschreibung
