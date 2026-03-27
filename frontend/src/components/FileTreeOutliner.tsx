@@ -501,7 +501,8 @@ export function FileTreeOutliner({
   };
 
   const handleNewChapterInSubproject = (path: string, type: string) => {
-    const title = window.prompt('Titel des neuen Kapitels:', 'Neues Kapitel');
+    const { chapter } = resolveLevelConfig(levelConfigByModeId, type);
+    const title = window.prompt(`Titel (${chapter.label}):`, chapter.labelNew);
     if (!title?.trim()) return;
     void onCreateChapterInSubproject?.(path, type, title.trim());
     setMenu(null);
@@ -638,7 +639,7 @@ export function FileTreeOutliner({
                   className="file-tree-context-item"
                   onClick={() => handleNewChapterInSubproject(menu.path, menu.subprojectType!)}
                 >
-                  Neues Kapitel…
+                  {resolveLevelConfig(levelConfigByModeId, menu.subprojectType).chapter.labelNew}…
                 </button>
               )}
               {onConfigureSubproject && (
