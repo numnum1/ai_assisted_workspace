@@ -175,7 +175,10 @@ export function ChatPanel({
                 }
               >
                 {msg.role === 'assistant' ? (
-                  <ChatMessageMarkdown content={msg.content} />
+                  <ChatMessageMarkdown
+                    content={msg.content}
+                    streamingCursor={streaming && i === messages.length - 1}
+                  />
                 ) : (
                   msg.content
                 )}

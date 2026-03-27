@@ -1737,6 +1737,17 @@ body {
   margin-bottom: 0;
 }
 
+.chat-streaming-cursor {
+  display: inline-block;
+  margin-left: 1px;
+  animation: chat-cursor-blink 0.8s step-end infinite;
+  color: var(--accent, #a78bfa);
+}
+
+@keyframes chat-cursor-blink {
+  50% { opacity: 0; }
+}
+
 .chat-md p {
   margin: 0.45em 0;
 }

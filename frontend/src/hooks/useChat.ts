@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import type { ChatMessage, ContextInfo } from '../types.ts';
 import { streamChat } from '../api.ts';
 
@@ -65,12 +66,14 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
           llmId: llmId,
         },
         (token) => {
-          setToolActivity(null);
           assistantContent += token;
-          setMessages([
-            ...newMessages,
-            { role: 'assistant', content: assistantContent },
-          ]);
+          flushSync(() => {
+            setMessages([
+              ...newMessages,
+              { role: 'assistant', content: assistantContent },
+            ]);
+            setToolActivity(null);
+          });
         },
         (info) => {
           setContextInfo(info);

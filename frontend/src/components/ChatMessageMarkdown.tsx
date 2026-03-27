@@ -12,14 +12,16 @@ const mdComponents: Components = {
 
 interface ChatMessageMarkdownProps {
   content: string;
+  streamingCursor?: boolean;
 }
 
-export function ChatMessageMarkdown({ content }: ChatMessageMarkdownProps) {
+export function ChatMessageMarkdown({ content, streamingCursor }: ChatMessageMarkdownProps) {
   return (
     <div className="chat-md">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
         {content}
       </ReactMarkdown>
+      {streamingCursor && <span className="chat-streaming-cursor" aria-hidden="true">▌</span>}
     </div>
   );
 }
