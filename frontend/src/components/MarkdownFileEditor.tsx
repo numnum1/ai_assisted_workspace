@@ -136,23 +136,30 @@ export function MarkdownFileEditor({
 
   const buildTheme = useCallback(
     () =>
-      EditorView.theme({
-        '&': {
-          height: '100%',
-          fontSize: '14px',
-          backgroundColor: 'var(--bg-secondary, #1e1e2e)',
-          color: 'var(--text-primary, #cdd6f4)',
+      EditorView.theme(
+        {
+          '&': {
+            height: '100%',
+            fontSize: '14px',
+            backgroundColor: 'var(--bg-secondary, #1e1e2e)',
+            color: 'var(--text-primary, #cdd6f4)',
+          },
+          '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, monospace' },
+          '.cm-content': { minHeight: '200px', padding: '12px 16px' },
+          '.cm-gutters': {
+            backgroundColor: 'var(--bg-tertiary, #181825)',
+            color: 'var(--text-muted, #6c7086)',
+            borderRight: '1px solid var(--border, #313244)',
+          },
+          '.cm-activeLineGutter': { backgroundColor: 'rgba(137, 180, 250, 0.12)' },
+          '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
+            background: 'rgba(137, 180, 250, 0.35)',
+          },
+          '.cm-selectionMatch': { backgroundColor: 'rgba(137, 180, 250, 0.15)' },
+          '.cm-frontmatter-hidden': { display: 'none' },
         },
-        '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, monospace' },
-        '.cm-content': { minHeight: '200px', padding: '12px 16px' },
-        '.cm-gutters': {
-          backgroundColor: 'var(--bg-tertiary, #181825)',
-          color: 'var(--text-muted, #6c7086)',
-          borderRight: '1px solid var(--border, #313244)',
-        },
-        '.cm-activeLineGutter': { backgroundColor: 'rgba(137, 180, 250, 0.12)' },
-        '.cm-frontmatter-hidden': { display: 'none' },
-      }),
+        { dark: true },
+      ),
     [],
   );
 

@@ -1,3 +1,8 @@
+::selection {
+  background-color: rgba(137, 180, 250, 0.3);
+  color: inherit;
+}
+
 :root {
   --bg-primary: #1e1e2e;
   --bg-secondary: #181825;
