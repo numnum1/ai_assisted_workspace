@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap, FileText, X } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap, FileText, File, X } from 'lucide-react';
 import { FileChip } from './FileChip.tsx';
-import { shadowApi } from '../api.ts';
-import type { ChapterNode, WikiType, WikiEntry, SelectionContext } from '../types.ts';
+import { shadowApi, filesApi } from '../api.ts';
+import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../types.ts';
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'wiki' | 'alias' | 'shadow';
+  type: 'chapter' | 'scene' | 'wiki' | 'alias' | 'shadow' | 'file';
   title: string;
   path: string;
   breadcrumb: string;
@@ -19,7 +19,25 @@ function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem
   const limit = 20;
   if (!query) return items.slice(0, limit);
   const q = query.toLowerCase();
-  return items.filter(item => item.title.toLowerCase().includes(q)).slice(0, limit);
+  return items.filter(item =>
+    item.title.toLowerCase().includes(q) || item.path.toLowerCase().includes(q)
+  ).slice(0, limit);
+}
+
+function flattenFileTree(node: FileNode): AutocompleteItem[] {
+  const results: AutocompleteItem[] = [];
+  if (!node.directory && node.path !== '.') {
+    const dir = node.path.includes('/')
+      ? node.path.slice(0, node.path.lastIndexOf('/'))
+      : '';
+    results.push({ type: 'file', title: node.name, path: node.path, breadcrumb: dir });
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      results.push(...flattenFileTree(child));
+    }
+  }
+  return results;
 }
 
 interface ChatInputProps {
@@ -118,10 +136,11 @@ export function ChatInput({
 
     const rootParam = structureRoot ? `?root=${encodeURIComponent(structureRoot)}` : '';
 
-    const [summaries, wikiTypes, shadowResult] = await Promise.all([
+    const [summaries, wikiTypes, shadowResult, fileTree] = await Promise.all([
       fetch(`/api/chapters${rootParam}`).then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
       fetch('/api/wiki/types').then(r => r.json()) as Promise<WikiType[]>,
       shadowApi.list().catch(() => ({ paths: [] as string[] })),
+      filesApi.getTree().catch(() => null as FileNode | null),
     ]);
 
     const details = await Promise.all(
@@ -183,6 +202,11 @@ export function ChatInput({
         path: `.wiki/files/${p}`,
         breadcrumb: 'Meta-Notiz',
       });
+    }
+
+    // Project files (regular files visible in the file tree)
+    if (fileTree) {
+      items.push(...flattenFileTree(fileTree));
     }
 
     // Fixed aliases always at the top
@@ -349,6 +373,8 @@ export function ChatInput({
                   <Layers size={13} />
                 ) : item.type === 'shadow' ? (
                   <FileText size={13} />
+                ) : item.type === 'file' ? (
+                  <File size={13} />
                 ) : (
                   <Library size={13} />
                 )}
