@@ -416,7 +416,7 @@ export function ChatInput({
             streaming
               ? 'AI is responding...'
               : (placeholderProp ??
-                'Nachricht... (Enter senden, Shift+Enter neue Zeile, @ für Kapitel/Szenen/Wiki)')
+                'Nachricht...')
           }
           disabled={streaming}
           rows={1}
