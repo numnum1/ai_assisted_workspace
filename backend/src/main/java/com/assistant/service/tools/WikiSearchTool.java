@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -146,10 +147,42 @@ public class WikiSearchTool extends AbstractTool {
     }
 
     private boolean matchesQuery(WikiEntry entry, String lowerQuery) {
-        if (entry.getId().toLowerCase().contains(lowerQuery)) return true;
+        String entryId = entry.getId();
+
+        // 1. Direct substring match on id and field values
+        if (entryId.toLowerCase().contains(lowerQuery)) return true;
+        if (fieldValuesContain(entry, lowerQuery)) return true;
+
+        // 2. Normalized match: strip all separators (spaces, hyphens, underscores) from both sides
+        //    "vanilla sloth" → "vanillasloth" matches "vanillaSloth" → "vanillasloth"
+        String normalizedQuery = lowerQuery.replaceAll("[\\s\\-_]", "");
+        if (!normalizedQuery.isEmpty()) {
+            String normalizedId = entryId.toLowerCase().replaceAll("[\\s\\-_]", "");
+            if (normalizedId.contains(normalizedQuery)) return true;
+        }
+
+        // 3. Token-based match: split query into words and check that every token appears
+        //    somewhere in the camelCase-split id or in any field value.
+        //    "Vanilla Sloth" → ["vanilla","sloth"]; "vanillaSloth" splits to "vanilla sloth"
+        String[] queryTokens = lowerQuery.trim().split("[\\s\\-_]+");
+        if (queryTokens.length > 1) {
+            // expand camelCase id to space-separated lowercase words
+            String expandedId = entryId
+                    .replaceAll("([a-z])([A-Z])", "$1 $2")
+                    .replaceAll("[\\-_]", " ")
+                    .toLowerCase();
+            boolean allTokensMatch = Arrays.stream(queryTokens)
+                    .allMatch(token -> expandedId.contains(token) || fieldValuesContain(entry, token));
+            if (allTokensMatch) return true;
+        }
+
+        return false;
+    }
+
+    private boolean fieldValuesContain(WikiEntry entry, String lowerToken) {
         if (entry.getValues() == null) return false;
         for (String value : entry.getValues().values()) {
-            if (value != null && value.toLowerCase().contains(lowerQuery)) return true;
+            if (value != null && value.toLowerCase().contains(lowerToken)) return true;
         }
         return false;
     }
