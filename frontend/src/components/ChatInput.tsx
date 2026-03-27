@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap, FileText } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap, FileText, X } from 'lucide-react';
 import { FileChip } from './FileChip.tsx';
 import { shadowApi } from '../api.ts';
-import type { ChapterNode, WikiType, WikiEntry } from '../types.ts';
+import type { ChapterNode, WikiType, WikiEntry, SelectionContext } from '../types.ts';
 
 type AutocompleteItem = {
   type: 'chapter' | 'scene' | 'wiki' | 'alias' | 'shadow';
@@ -37,6 +37,11 @@ interface ChatInputProps {
   /** Whether the reasoning model should be used for this message */
   useReasoning?: boolean;
   onToggleReasoning?: () => void;
+  /** Active editor selection captured via Ctrl+L */
+  activeSelection?: SelectionContext | null;
+  onDismissSelection?: () => void;
+  /** Ref that, when set, allows App to focus the textarea (e.g. on Ctrl+L) */
+  focusTriggerRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export function ChatInput({
@@ -51,6 +56,9 @@ export function ChatInput({
   structureRoot = null,
   useReasoning = false,
   onToggleReasoning,
+  activeSelection = null,
+  onDismissSelection,
+  focusTriggerRef,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [ac, setAc] = useState<{
@@ -64,6 +72,13 @@ export function ChatInput({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const itemsCacheRef = useRef<AutocompleteItem[] | null>(null);
   const loadingRef = useRef(false);
+
+  // Register focus trigger so App can focus the textarea on Ctrl+L
+  useEffect(() => {
+    if (!focusTriggerRef) return;
+    focusTriggerRef.current = () => textareaRef.current?.focus();
+    return () => { if (focusTriggerRef) focusTriggerRef.current = null; };
+  }, [focusTriggerRef]);
 
   // Close on outside click
   useEffect(() => {
@@ -179,13 +194,18 @@ export function ChatInput({
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
-    onSend(trimmed);
+    let finalMessage = trimmed;
+    if (activeSelection) {
+      const lines = activeSelection.text.split('\n').map(l => `> ${l}`).join('\n');
+      finalMessage = `${lines}\n\n${trimmed}`;
+    }
+    onSend(finalMessage);
     setText('');
     setAc(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [text, streaming, onSend]);
+  }, [text, streaming, onSend, activeSelection]);
 
   const selectItem = useCallback(
     (item: AutocompleteItem) => {
@@ -339,6 +359,22 @@ export function ChatInput({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {activeSelection && (
+        <div className="chat-selection-chip">
+          <span className="chat-selection-chip-text">
+            &ldquo;{activeSelection.text.length > 80 ? activeSelection.text.slice(0, 80) + '…' : activeSelection.text}&rdquo;
+          </span>
+          <button
+            type="button"
+            className="chat-selection-chip-dismiss"
+            onClick={onDismissSelection}
+            title="Auswahl entfernen"
+          >
+            <X size={12} />
+          </button>
         </div>
       )}
 

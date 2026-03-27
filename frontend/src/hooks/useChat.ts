@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { flushSync } from 'react-dom';
-import type { ChatMessage, ContextInfo } from '../types.ts';
+import type { ChatMessage, ContextInfo, SelectionContext } from '../types.ts';
 import { streamChat } from '../api.ts';
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
@@ -44,6 +44,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       modeColor?: string,
       useReasoning?: boolean,
       llmId?: string,
+      selectionContext?: SelectionContext,
     ) => {
       syncEnabledRef.current = true;
       setError(null);
@@ -70,7 +71,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
           flushSync(() => {
             setMessages([
               ...newMessages,
-              { role: 'assistant', content: assistantContent },
+              { role: 'assistant', content: assistantContent, selectionContext },
             ]);
             setToolActivity(null);
           });

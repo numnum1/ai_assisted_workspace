@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { ChapterNode, ScrollTarget } from './types.ts';
+import type { ChapterNode, ScrollTarget, SelectionContext } from './types.ts';
 
 /** Props for the main editor area when a chapter is open in a media subproject */
 export interface MediaProjectEditorProps {
@@ -16,6 +16,7 @@ export interface MediaProjectEditorProps {
   onClose: () => void;
   onScrollTargetConsumed: () => void;
   onEditorFocus?: (sceneId: string, actionId: string) => void;
+  onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
 }
 
 export interface MediaProjectPlugin {

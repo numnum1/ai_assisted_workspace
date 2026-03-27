@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Save, Moon, Sun, MoveHorizontal, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
-import type { ChapterNode, ScrollTarget } from '../types.ts';
+import type { ChapterNode, ScrollTarget, SelectionContext } from '../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
 
 const FONT_SIZE_KEY = 'reading-font-size';
@@ -38,6 +38,7 @@ interface ChapterViewProps {
   onClose: () => void;
   onScrollTargetConsumed: () => void;
   onEditorFocus?: (sceneId: string, actionId: string) => void;
+  onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
 }
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
@@ -56,6 +57,7 @@ export function ChapterView({
   onClose,
   onScrollTargetConsumed,
   onEditorFocus,
+  onCtrlL,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -279,6 +281,7 @@ export function ChapterView({
                       padding={padding}
                       onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}
+                      onCtrlL={onCtrlL}
                     />
                   </div>
                 )

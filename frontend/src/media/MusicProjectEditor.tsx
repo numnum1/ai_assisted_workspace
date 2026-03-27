@@ -41,6 +41,7 @@ export function MusicProjectEditor({
   onClose,
   onScrollTargetConsumed,
   onEditorFocus,
+  onCtrlL,
 }: MediaProjectEditorProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -253,6 +254,7 @@ export function MusicProjectEditor({
                       padding={padding}
                       onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}
+                      onCtrlL={onCtrlL}
                     />
                   </div>
                 );

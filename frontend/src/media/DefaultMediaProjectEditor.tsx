@@ -18,6 +18,7 @@ export function DefaultMediaProjectEditor({
   onClose,
   onScrollTargetConsumed,
   onEditorFocus,
+  onCtrlL,
 }: MediaProjectEditorProps) {
   if (editorMode === 'prose') {
     return (
@@ -33,6 +34,7 @@ export function DefaultMediaProjectEditor({
         onClose={onClose}
         onScrollTargetConsumed={onScrollTargetConsumed}
         onEditorFocus={onEditorFocus}
+        onCtrlL={onCtrlL}
       />
     );
   }

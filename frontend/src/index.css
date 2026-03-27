@@ -1831,6 +1831,79 @@ body {
   color: var(--text-primary);
 }
 
+/* ── Ctrl+L: selection chip in chat input ─────────────────────────────────── */
+
+.chat-selection-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  max-width: 100%;
+}
+
+.chat-selection-chip-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+  color: var(--text-primary);
+  opacity: 0.85;
+}
+
+.chat-selection-chip-dismiss {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.chat-selection-chip-dismiss:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* ── Ctrl+L: code block wrapper with Replace button ──────────────────────── */
+
+.chat-code-block {
+  position: relative;
+}
+
+.chat-replace-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 5px;
+  color: var(--accent);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chat-replace-btn:hover {
+  background: color-mix(in srgb, var(--accent) 25%, var(--bg-tertiary));
+  border-color: var(--accent);
+}
+
 .chat-md hr {
   margin: 0.75em 0;
   border: none;

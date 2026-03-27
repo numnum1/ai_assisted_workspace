@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
 import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw } from 'lucide-react';
 import { FileTreeOutliner } from './components/FileTreeOutliner.tsx';
@@ -16,7 +16,7 @@ import { WikiEntryPopup } from './components/WikiEntryPopup.tsx';
 import { WikiTypeEditor } from './components/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta } from './types.ts';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
@@ -60,6 +60,29 @@ function App() {
   const [inlineChaptersNonce, setInlineChaptersNonce] = useState(0);
   const [subprojectDialog, setSubprojectDialog] = useState<{ path: string; initialType?: string | null } | null>(null);
   const outlinerScope = useOutlinerScope(project.projectPath ? project.projectPath : null);
+
+  // Ctrl+L: capture editor selection for chat
+  const [activeSelection, setActiveSelection] = useState<SelectionContext | null>(null);
+  const activeSelectionReplaceFnRef = useRef<((from: number, to: number, text: string) => void) | null>(null);
+  const chatFocusTriggerRef = useRef<(() => void) | null>(null);
+
+  const handleCtrlL = useCallback((sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => {
+    setActiveSelection(sel);
+    activeSelectionReplaceFnRef.current = replaceFn;
+    chatFocusTriggerRef.current?.();
+  }, []);
+
+  const handleReplaceSelection = useCallback((replacement: string) => {
+    if (!activeSelection || !activeSelectionReplaceFnRef.current) return;
+    activeSelectionReplaceFnRef.current(activeSelection.from, activeSelection.to, replacement);
+    setActiveSelection(null);
+    activeSelectionReplaceFnRef.current = null;
+  }, [activeSelection]);
+
+  const handleDismissSelection = useCallback(() => {
+    setActiveSelection(null);
+    activeSelectionReplaceFnRef.current = null;
+  }, []);
 
   // Project root changes: reset structure and editor state
   useEffect(() => {
@@ -296,9 +319,11 @@ function App() {
       const mode = modes.find((m) => m.id === selectedMode);
       // TODO: reconnect to chapter structure — pass active chapter/scene/action metadata as context
       // Currently sending null as activeFile; replace with chapter context when ContextService is updated
-      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId);
+      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined);
+      // Clear active selection after sending — the Replace button will use stored selectionContext on the message
+      setActiveSelection(null);
     },
-    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId],
+    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
@@ -463,6 +488,7 @@ function App() {
               onOpenShadowPanel={() => { void fileEditor.openShadowPanel(); }}
               onCloseShadowPanel={fileEditor.closeShadowPanel}
               onClearShadowError={fileEditor.clearShadowError}
+              onCtrlL={handleCtrlL}
             />
           ) : (
             <MediaProjectEditor
@@ -478,6 +504,7 @@ function App() {
               onClose={chapter.closeChapter}
               onScrollTargetConsumed={chapter.clearScrollTarget}
               onEditorFocus={chapter.updateEditorPosition}
+              onCtrlL={handleCtrlL}
             />
           )}
         </Panel>
@@ -510,6 +537,10 @@ function App() {
             onRenameChat={history.renameConversation}
             onOpenPromptPack={() => setPromptPackOpen(true)}
             structureRoot={chapter.structureRoot}
+            activeSelection={activeSelection}
+            onDismissSelection={handleDismissSelection}
+            onReplaceSelection={handleReplaceSelection}
+            chatFocusTriggerRef={chatFocusTriggerRef}
           />
         </Panel>
       </Group>

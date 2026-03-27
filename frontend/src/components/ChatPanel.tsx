@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Trash2, Search, Scissors, History, Copy, Check, Wand2 } from 'lucide-react';
-import type { ChatMessage, Mode, Conversation } from '../types.ts';
+import type { ChatMessage, Mode, Conversation, SelectionContext } from '../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
@@ -33,6 +33,10 @@ interface ChatPanelProps {
   onRenameChat: (id: string, title: string) => void;
   onOpenPromptPack?: () => void;
   structureRoot?: string | null;
+  activeSelection?: SelectionContext | null;
+  onDismissSelection?: () => void;
+  onReplaceSelection?: (text: string) => void;
+  chatFocusTriggerRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -69,6 +73,10 @@ export function ChatPanel({
   onRenameChat,
   onOpenPromptPack,
   structureRoot = null,
+  activeSelection = null,
+  onDismissSelection,
+  onReplaceSelection,
+  chatFocusTriggerRef,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -178,6 +186,8 @@ export function ChatPanel({
                   <ChatMessageMarkdown
                     content={msg.content}
                     streamingCursor={streaming && i === messages.length - 1}
+                    selectionContext={msg.selectionContext}
+                    onReplace={onReplaceSelection}
                   />
                 ) : (
                   msg.content
@@ -237,6 +247,9 @@ export function ChatPanel({
         structureRoot={structureRoot}
         useReasoning={useReasoning}
         onToggleReasoning={onToggleReasoning}
+        activeSelection={activeSelection}
+        onDismissSelection={onDismissSelection}
+        focusTriggerRef={chatFocusTriggerRef}
       />
     </div>
   );

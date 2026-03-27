@@ -20,11 +20,21 @@ export interface Mode {
   llmId?: string;
 }
 
+export interface SelectionContext {
+  text: string;
+  from: number;
+  to: number;
+  /** Which editor the selection came from */
+  editorId: 'file' | 'chapter';
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   mode?: string;
   modeColor?: string;
+  /** Present on assistant messages when the user sent this via Ctrl+L selection */
+  selectionContext?: SelectionContext;
 }
 
 export interface ChatRequest {

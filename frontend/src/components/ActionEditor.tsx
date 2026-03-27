@@ -5,6 +5,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { createReadingTheme } from './readingTheme';
 import { hideMarksExtension } from './hideMarksExtension';
+import type { SelectionContext } from '../types.ts';
 
 export interface ActionEditorColors {
   bg: string;
@@ -21,17 +22,21 @@ interface ActionEditorProps {
   padding: number;
   onChange: (content: string) => void;
   onSave: () => void;
+  /** Called on Ctrl+L with the selected text and a function to apply a replacement */
+  onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
 }
 
-export function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave }: ActionEditorProps) {
+export function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL }: ActionEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const themeCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  const onCtrlLRef = useRef(onCtrlL);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  onCtrlLRef.current = onCtrlL;
 
   const buildThemeExtensions = useCallback(() => {
     return [
@@ -64,6 +69,20 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
             key: 'Mod-s',
             run: () => {
               onSaveRef.current();
+              return true;
+            },
+          },
+          {
+            key: 'Mod-l',
+            run: (view) => {
+              const sel = view.state.selection.main;
+              if (!sel.empty && onCtrlLRef.current) {
+                const text = view.state.doc.sliceString(sel.from, sel.to);
+                onCtrlLRef.current(
+                  { text, from: sel.from, to: sel.to, editorId: 'chapter' },
+                  (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
+                );
+              }
               return true;
             },
           },

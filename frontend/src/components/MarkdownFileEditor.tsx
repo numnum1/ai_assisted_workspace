@@ -6,6 +6,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Save, FileText, NotebookPen, Trash2, Eye, EyeOff } from 'lucide-react';
 import { ShadowTextarea } from './ShadowTextarea.tsx';
+import type { SelectionContext } from '../types.ts';
 
 interface MarkdownFileEditorProps {
   path: string | null;
@@ -29,6 +30,8 @@ interface MarkdownFileEditorProps {
   onOpenShadowPanel: () => void;
   onCloseShadowPanel: () => void;
   onClearShadowError?: () => void;
+  /** Called on Ctrl+L with the selected text and a function to apply a replacement */
+  onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
 }
 
 // ── Frontmatter-hiding CodeMirror plugin ─────────────────────────────────────
@@ -98,6 +101,7 @@ export function MarkdownFileEditor({
   onOpenShadowPanel,
   onCloseShadowPanel,
   onClearShadowError,
+  onCtrlL,
 }: MarkdownFileEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -105,9 +109,11 @@ export function MarkdownFileEditor({
   const hideMetaCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  const onCtrlLRef = useRef(onCtrlL);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  onCtrlLRef.current = onCtrlL;
 
   // ── Hide-meta state (per file, persisted in localStorage) ──────────────────
   const [hideMeta, setHideMeta] = useState(false);
@@ -168,6 +174,20 @@ export function MarkdownFileEditor({
             key: 'Mod-s',
             run: () => {
               onSaveRef.current();
+              return true;
+            },
+          },
+          {
+            key: 'Mod-l',
+            run: (view) => {
+              const sel = view.state.selection.main;
+              if (!sel.empty && onCtrlLRef.current) {
+                const text = view.state.doc.sliceString(sel.from, sel.to);
+                onCtrlLRef.current(
+                  { text, from: sel.from, to: sel.to, editorId: 'file' },
+                  (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
+                );
+              }
               return true;
             },
           },
