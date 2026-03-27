@@ -220,8 +220,7 @@ export function ChatInput({
     if (!trimmed || streaming) return;
     let finalMessage = trimmed;
     if (activeSelection) {
-      const lines = activeSelection.text.split('\n').map(l => `> ${l}`).join('\n');
-      finalMessage = `${lines}\n\n${trimmed}`;
+      finalMessage = `[REFERENCED SELECTION]\n${activeSelection.text}\n[END SELECTION]\n\n${trimmed}`;
     }
     onSend(finalMessage);
     setText('');

@@ -72,12 +72,11 @@ function App() {
     chatFocusTriggerRef.current?.();
   }, []);
 
-  const handleReplaceSelection = useCallback((replacement: string) => {
-    if (!activeSelection || !activeSelectionReplaceFnRef.current) return;
-    activeSelectionReplaceFnRef.current(activeSelection.from, activeSelection.to, replacement);
-    setActiveSelection(null);
+  const handleReplaceSelection = useCallback((replacement: string, ctx: SelectionContext) => {
+    if (!activeSelectionReplaceFnRef.current) return;
+    activeSelectionReplaceFnRef.current(ctx.from, ctx.to, replacement);
     activeSelectionReplaceFnRef.current = null;
-  }, [activeSelection]);
+  }, []);
 
   const handleDismissSelection = useCallback(() => {
     setActiveSelection(null);

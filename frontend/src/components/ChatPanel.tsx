@@ -35,7 +35,7 @@ interface ChatPanelProps {
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
-  onReplaceSelection?: (text: string) => void;
+  onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   chatFocusTriggerRef?: React.MutableRefObject<(() => void) | null>;
 }
 
@@ -187,7 +187,9 @@ export function ChatPanel({
                     content={msg.content}
                     streamingCursor={streaming && i === messages.length - 1}
                     selectionContext={msg.selectionContext}
-                    onReplace={onReplaceSelection}
+                    onReplace={msg.selectionContext && onReplaceSelection
+                      ? (text) => onReplaceSelection(text, msg.selectionContext!)
+                      : undefined}
                   />
                 ) : (
                   msg.content

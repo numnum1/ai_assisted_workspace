@@ -137,6 +137,18 @@ public class ContextService {
                 "of all actions in a scene (if scene_id given) or an entire chapter. " +
                 "Use this to read what has actually been written in the story.\n\n");
 
+        // Editor selection replacement capability
+        systemPrompt.append("=== Editor Selection Replacement ===\n");
+        systemPrompt.append("If the user's message contains a [REFERENCED SELECTION] ... [END SELECTION] block, ");
+        systemPrompt.append("they have highlighted text in their editor and may want you to propose a replacement.\n");
+        systemPrompt.append("To offer a replacement, include a fenced code block with the language tag `replace`:\n\n");
+        systemPrompt.append("```replace\n");
+        systemPrompt.append("your proposed replacement text here\n");
+        systemPrompt.append("```\n\n");
+        systemPrompt.append("Only use a `replace` block when you are explicitly proposing a text replacement for the ");
+        systemPrompt.append("highlighted selection. The user will see a one-click 'Replace' button in the chat.\n");
+        systemPrompt.append("You may include multiple `replace` blocks if you want to offer alternatives.\n\n");
+
         messages.add(new ChatMessage("system", systemPrompt.toString()));
 
         // 5. Add conversation history
