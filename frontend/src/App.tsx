@@ -486,6 +486,7 @@ function App() {
               onShadowDelete={() => { void fileEditor.deleteShadow(); }}
               onOpenShadowPanel={() => { void fileEditor.openShadowPanel(); }}
               onCloseShadowPanel={fileEditor.closeShadowPanel}
+              onCloseFile={fileEditor.closeFile}
               onClearShadowError={fileEditor.clearShadowError}
               onCtrlL={handleCtrlL}
             />

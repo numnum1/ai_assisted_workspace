@@ -3,7 +3,7 @@ import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { Save, FileText, NotebookPen, Trash2 } from 'lucide-react';
+import { Save, FileText, NotebookPen, Trash2, X } from 'lucide-react';
 import { ShadowTextarea } from './ShadowTextarea.tsx';
 import { scrollLineWithoutCursorKeymap } from './codemirrorScrollLineKeymap.ts';
 import type { SelectionContext } from '../types.ts';
@@ -29,6 +29,7 @@ interface MarkdownFileEditorProps {
   onShadowDelete: () => void;
   onOpenShadowPanel: () => void;
   onCloseShadowPanel: () => void;
+  onCloseFile: () => void;
   onClearShadowError?: () => void;
   /** Called on Ctrl+L with the selected text and a function to apply a replacement */
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
@@ -54,6 +55,7 @@ export function MarkdownFileEditor({
   onShadowDelete,
   onOpenShadowPanel,
   onCloseShadowPanel,
+  onCloseFile,
   onClearShadowError,
   onCtrlL,
 }: MarkdownFileEditorProps) {
@@ -209,6 +211,14 @@ export function MarkdownFileEditor({
         >
           <Save size={16} />
           Speichern
+        </button>
+        <button
+          type="button"
+          className="markdown-file-editor-close-btn"
+          onClick={onCloseFile}
+          title="Datei schließen"
+        >
+          <X size={14} />
         </button>
       </div>
 

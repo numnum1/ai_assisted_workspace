@@ -115,6 +115,22 @@ export function useFileEditor(projectPath: string | null) {
     setShadowPanelOpen(false);
   }, []);
 
+  const closeFile = useCallback(() => {
+    if (!selectedPath) return;
+    if (dirty || shadowDirty) {
+      if (!window.confirm('Ungespeicherte Änderungen verwerfen?')) return;
+    }
+    setSelectedPath(null);
+    setContentState('');
+    setDirty(false);
+    setError(null);
+    setShadowContentState('');
+    setShadowDirty(false);
+    setShadowExists(false);
+    setShadowPanelOpen(false);
+    setShadowError(null);
+  }, [selectedPath, dirty, shadowDirty]);
+
   const setContent = useCallback((next: string) => {
     setContentState(next);
     setDirty(true);
@@ -208,6 +224,7 @@ export function useFileEditor(projectPath: string | null) {
     error,
     openFile,
     openFileMeta,
+    closeFile,
     save,
     setContent,
     clearError: () => setError(null),

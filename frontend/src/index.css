@@ -614,6 +614,25 @@ body {
   color: var(--accent);
 }
 
+.markdown-file-editor-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.markdown-file-editor-close-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
 .markdown-file-editor-shadow-dot {
   position: absolute;
   top: 4px;
