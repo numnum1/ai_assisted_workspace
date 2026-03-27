@@ -1929,11 +1929,16 @@ body {
   line-height: 1.55;
 }
 
+.chat-replace-proposal-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+
 .chat-replace-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 0 10px 8px;
   padding: 3px 8px;
   background: color-mix(in srgb, var(--accent) 15%, var(--bg-tertiary));
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
@@ -1948,6 +1953,18 @@ body {
 .chat-replace-btn:hover {
   background: color-mix(in srgb, var(--accent) 25%, var(--bg-tertiary));
   border-color: var(--accent);
+}
+
+.chat-replace-btn.secondary {
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-tertiary));
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.chat-replace-btn.secondary:hover {
+  background: color-mix(in srgb, var(--text-muted) 18%, var(--bg-tertiary));
+  border-color: color-mix(in srgb, var(--text-muted) 50%, var(--border));
+  color: var(--text-primary);
 }
 
 .chat-md hr {

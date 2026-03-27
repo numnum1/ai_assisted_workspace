@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Replace } from 'lucide-react';
+import { Replace, Copy, Check } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../types.ts';
 
@@ -14,6 +14,14 @@ interface ChatMessageMarkdownProps {
 
 export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace }: ChatMessageMarkdownProps) {
   const canReplace = !!(selectionContext && onReplace);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopy = useCallback((text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    }).catch(() => { /* ignore */ });
+  }, []);
 
   const mdComponents = useMemo<Components>(() => ({
     a: ({ href, children, ...props }) => (
@@ -33,6 +41,9 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
 
       if (isReplaceBlock) {
         const replaceText = String(children ?? '').replace(/\n$/, '');
+        // Use first 40 chars as a stable key for the copied-state indicator
+        const blockKey = replaceText.slice(0, 40);
+        const isCopied = copiedKey === blockKey;
         return (
           <div className="chat-replace-proposal">
             <div className="chat-replace-proposal-label">
@@ -40,17 +51,28 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
               <span>Vorgeschlagene Ersetzung</span>
             </div>
             <div className="chat-replace-proposal-content">{replaceText}</div>
-            {canReplace && (
+            <div className="chat-replace-proposal-actions">
+              {canReplace && (
+                <button
+                  type="button"
+                  className="chat-replace-btn"
+                  onClick={() => onReplace!(replaceText)}
+                  title="Auswahl im Editor ersetzen"
+                >
+                  <Replace size={13} />
+                  <span>Ersetzen</span>
+                </button>
+              )}
               <button
                 type="button"
-                className="chat-replace-btn"
-                onClick={() => onReplace!(replaceText)}
-                title="Auswahl im Editor ersetzen"
+                className="chat-replace-btn secondary"
+                onClick={() => handleCopy(replaceText, blockKey)}
+                title="In Zwischenablage kopieren"
               >
-                <Replace size={13} />
-                <span>Ersetzen</span>
+                {isCopied ? <Check size={13} /> : <Copy size={13} />}
+                <span>{isCopied ? 'Kopiert' : 'Kopieren'}</span>
               </button>
-            )}
+            </div>
           </div>
         );
       }
@@ -69,7 +91,7 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
         </div>
       );
     },
-  }), [canReplace, onReplace]);
+  }), [canReplace, onReplace, copiedKey, handleCopy]);
 
   return (
     <div className="chat-md">
