@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Replace, Copy, Check } from 'lucide-react';
+import { Replace, Copy, Check, HelpCircle } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../types.ts';
 
@@ -10,9 +10,11 @@ interface ChatMessageMarkdownProps {
   streamingCursor?: boolean;
   selectionContext?: SelectionContext;
   onReplace?: (text: string) => void;
+  onSelectOption?: (option: string) => void;
+  isAnswered?: boolean;
 }
 
-export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace }: ChatMessageMarkdownProps) {
+export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace, onSelectOption, isAnswered }: ChatMessageMarkdownProps) {
   const canReplace = !!(selectionContext && onReplace);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -33,11 +35,13 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
     // Without this, react-markdown wraps our custom divs in <pre>, inheriting
     // white-space:pre and font-family:monospace which breaks the replace card layout.
     pre: ({ children }) => <>{children}</>,
-    code: ({ className, children, ...props }: { className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    code: ({ className, children, node, ...props }) => {
       // In react-markdown v10 the `inline` prop no longer exists.
       // Block code fences have a language-* className; inline code does not.
       const isReplaceBlock = className === 'language-replace';
-      const isCodeBlock = !isReplaceBlock && /language-/.test(className ?? '');
+      const isClarificationBlock = className === 'language-clarification';
+      const isCodeBlock = !isReplaceBlock && !isClarificationBlock && /language-/.test(className ?? '');
 
       if (isReplaceBlock) {
         const replaceText = String(children ?? '').replace(/\n$/, '');
@@ -77,6 +81,47 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
         );
       }
 
+      if (isClarificationBlock) {
+        const raw = String(children ?? '').trim();
+        let question = '';
+        let options: string[] = [];
+        try {
+          const parsed = JSON.parse(raw);
+          question = parsed.question ?? '';
+          options = Array.isArray(parsed.options) ? parsed.options : [];
+        } catch {
+          // Malformed JSON — render as plain code block so the raw content is still visible
+          return (
+            <div className="chat-code-block">
+              <pre><code>{raw}</code></pre>
+            </div>
+          );
+        }
+        const disabled = streamingCursor || isAnswered;
+        return (
+          <div className={`chat-clarification${disabled ? ' answered' : ''}`}>
+            <div className="chat-clarification-label">
+              <HelpCircle size={13} />
+              <span>Rückfrage</span>
+            </div>
+            <p className="chat-clarification-question">{question}</p>
+            <div className="chat-clarification-options">
+              {options.map((opt, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="chat-clarification-btn"
+                  disabled={!!disabled}
+                  onClick={() => onSelectOption?.(opt)}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
       if (!isCodeBlock) {
         // inline code
         return <code className={className} {...props}>{children}</code>;
@@ -91,7 +136,7 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
         </div>
       );
     },
-  }), [canReplace, onReplace, copiedKey, handleCopy]);
+  }), [canReplace, onReplace, copiedKey, handleCopy, streamingCursor, isAnswered, onSelectOption]);
 
   return (
     <div className="chat-md">

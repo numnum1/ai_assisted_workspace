@@ -190,6 +190,8 @@ export function ChatPanel({
                     onReplace={msg.selectionContext && onReplaceSelection
                       ? (text) => onReplaceSelection(text, msg.selectionContext!)
                       : undefined}
+                    onSelectOption={onSend}
+                    isAnswered={i < messages.length - 1 && messages[i + 1]?.role === 'user'}
                   />
                 ) : (
                   msg.content
