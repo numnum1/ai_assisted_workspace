@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Replace } from 'lucide-react';
@@ -14,17 +15,20 @@ interface ChatMessageMarkdownProps {
 export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace }: ChatMessageMarkdownProps) {
   const canReplace = !!(selectionContext && onReplace);
 
-  const mdComponents: Components = {
+  const mdComponents = useMemo<Components>(() => ({
     a: ({ href, children, ...props }) => (
       <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
         {children}
       </a>
     ),
-    code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
-      const codeText = String(children ?? '').replace(/\n$/, '');
-      if (inline) {
+    code: ({ className, children, ...props }: { className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
+      // In react-markdown v10 the `inline` prop no longer exists.
+      // Block code fences always have a language-* className; inline code does not.
+      const isBlock = /language-/.test(className ?? '');
+      if (!isBlock) {
         return <code className={className} {...props}>{children}</code>;
       }
+      const codeText = String(children ?? '').replace(/\n$/, '');
       return (
         <div className="chat-code-block">
           <pre>
@@ -34,7 +38,7 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
             <button
               type="button"
               className="chat-replace-btn"
-              onClick={() => onReplace(codeText)}
+              onClick={() => onReplace!(codeText)}
               title="Auswahl im Editor ersetzen"
             >
               <Replace size={13} />
@@ -44,7 +48,7 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
         </div>
       );
     },
-  };
+  }), [canReplace, onReplace]);
 
   return (
     <div className="chat-md">
