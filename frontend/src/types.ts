@@ -177,6 +177,8 @@ export interface OutlinerLevelConfig {
   proseLeafAtScene: boolean;
   rootMetaLabel: string;
   rootMetaIcon: string;
+  /** Path from media-project root, e.g. `.project/book.json` (for drag-to-chat). */
+  rootMetaRelativePath: string;
   /** Icon for subproject folder rows in the file tree */
   folderIcon: string;
 }

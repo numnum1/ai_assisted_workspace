@@ -308,6 +308,17 @@ body {
   font-size: 12px;
 }
 
+.file-tree-subproject-row-wrap {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.file-tree-subproject-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .file-tree-row--subproject .file-tree-name {
   font-weight: 600;
   color: var(--accent);

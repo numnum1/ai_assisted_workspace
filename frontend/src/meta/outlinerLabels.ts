@@ -7,6 +7,7 @@ const FALLBACK: OutlinerLevelConfig = {
   proseLeafAtScene: false,
   rootMetaLabel: 'Buch-Metadaten',
   rootMetaIcon: 'book',
+  rootMetaRelativePath: '.project/book.json',
   folderIcon: 'folder',
 };
 
@@ -24,6 +25,7 @@ export function buildOutlinerLevelConfig(ws: WorkspaceModeSchema | null): Outlin
   const rootIcon = ws.rootMetaIcon?.trim() || FALLBACK.rootMetaIcon;
   const proseLeafAtScene = ws.proseLeafLevel === 'scene';
   const sceneCfg = pick(ws, 'scene');
+  const rootFilename = ws.metaSchemas?.root?.filename?.trim() || 'book.json';
   return {
     chapter: pick(ws, 'chapter'),
     scene: sceneCfg,
@@ -31,6 +33,7 @@ export function buildOutlinerLevelConfig(ws: WorkspaceModeSchema | null): Outlin
     proseLeafAtScene,
     rootMetaLabel: ws.rootMetaLabel?.trim() || FALLBACK.rootMetaLabel,
     rootMetaIcon: rootIcon,
+    rootMetaRelativePath: `.project/${rootFilename}`,
     folderIcon: ws.icon?.trim() || rootIcon || FALLBACK.folderIcon,
   };
 }

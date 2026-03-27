@@ -1,19 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap, FileText, File, X } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X } from 'lucide-react';
 import { FileChip } from './FileChip.tsx';
 import { shadowApi, filesApi } from '../api.ts';
 import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../types.ts';
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'wiki' | 'alias' | 'shadow' | 'file';
+  type: 'chapter' | 'scene' | 'wiki' | 'shadow' | 'file';
   title: string;
   path: string;
   breadcrumb: string;
 };
-
-const FIXED_ITEMS: AutocompleteItem[] = [
-  { type: 'alias', title: 'Story', path: 'Story', breadcrumb: 'Buch-Metadaten' },
-];
 
 function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem[] {
   const limit = 20;
@@ -209,10 +205,8 @@ export function ChatInput({
       items.push(...flattenFileTree(fileTree));
     }
 
-    // Fixed aliases always at the top
-    const allItems = [...FIXED_ITEMS, ...items];
-    itemsCacheRef.current = allItems;
-    return allItems;
+    itemsCacheRef.current = items;
+    return items;
   }, [structureRoot]);
 
   const handleSend = useCallback(() => {
@@ -364,9 +358,7 @@ export function ChatInput({
               }
             >
               <span className="ac-item-icon">
-                {item.type === 'alias' ? (
-                  <Sparkles size={13} />
-                ) : item.type === 'chapter' ? (
+                {item.type === 'chapter' ? (
                   <BookOpen size={13} />
                 ) : item.type === 'scene' ? (
                   <Layers size={13} />
@@ -418,6 +410,8 @@ export function ChatInput({
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
           placeholder={
             streaming
               ? 'AI is responding...'

@@ -26,6 +26,13 @@ function normalizeTreeItemName(raw: string): string | null {
   return t;
 }
 
+/** Project-relative path to root meta JSON (e.g. `mybook/.project/book.json`). */
+function projectRelativeRootMetaPath(subprojectPath: string, rootMetaRelativePath: string): string {
+  const base = subprojectPath.replace(/\/+$/, '');
+  if (!base || base === '.') return rootMetaRelativePath;
+  return `${base}/${rootMetaRelativePath}`;
+}
+
 export interface FileTreeOutlinerProps {
   projectPath: string | null;
   selectedPath: string | null;
@@ -170,59 +177,90 @@ function TreeNodeRow({
   const dragPayload =
     !canDragToChat ? '' : isDir ? `${node.path.replace(/\/+$/, '')}/` : node.path;
 
+  const rowClass =
+    `file-tree-row${isSelected ? ' file-tree-row--active' : ''}${isSubproject ? ' file-tree-row--subproject' : ''}${canDragToChat ? ' file-tree-row--draggable' : ''}`;
+  const rowPad = { paddingLeft: 8 + depth * 14 };
+  /** Nested <button> breaks drag + is invalid HTML; meta handle is a sibling row. */
+  const splitSubprojectMeta = isSubproject && onOpenBookMeta;
+
+  const rootMetaDragPath = projectRelativeRootMetaPath(node.path, subLevelConfig.rootMetaRelativePath);
+
   return (
     <>
-      <button
-        type="button"
-        className={`file-tree-row${isSelected ? ' file-tree-row--active' : ''}${isSubproject ? ' file-tree-row--subproject' : ''}${canDragToChat ? ' file-tree-row--draggable' : ''}`}
-        style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={handleClick}
-        onContextMenu={(e) => onContextMenu(e, node)}
-        draggable={canDragToChat}
-        onDragStart={
-          canDragToChat
-            ? (e) => {
-                e.dataTransfer.setData('text/plain', dragPayload);
-                e.dataTransfer.effectAllowed = 'copy';
-              }
-            : undefined
-        }
-      >
-        <span className="file-tree-chevron">
-          {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}
-        </span>
-        {isDir ? (
-          isSubproject ? (
+      {splitSubprojectMeta ? (
+        <div className="file-tree-subproject-row-wrap">
+          <button
+            type="button"
+            className={`${rowClass} file-tree-subproject-row-main`}
+            style={rowPad}
+            onClick={handleClick}
+            onContextMenu={(e) => onContextMenu(e, node)}
+          >
+            <span className="file-tree-chevron">
+              {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}
+            </span>
             <OutlinerIcon
               name={subLevelConfig.folderIcon}
               size={14}
               className="file-tree-icon file-tree-icon--subproject"
             />
-          ) : (
-            <Folder size={14} className="file-tree-icon" />
-          )
-        ) : (
-          <File size={14} className="file-tree-icon" />
-        )}
-        <span className="file-tree-name">{node.name}</span>
-        {!isDir && node.hasShadow && (
-          <span className="file-tree-shadow-dot" title="Hat Meta-Notiz" />
-        )}
-        {isSubproject && onOpenBookMeta && (
+            <span className="file-tree-name">{node.name}</span>
+            <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>
+          </button>
           <button
             type="button"
-            className="file-tree-subproject-meta-btn outliner-reveal-btn"
-            title={subLevelConfig.rootMetaLabel}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenBookMeta(node.path, spType);
+            className="file-tree-subproject-meta-btn outliner-reveal-btn file-tree-row--draggable"
+            title={`${subLevelConfig.rootMetaLabel} — in Chat ablegen (ziehen)`}
+            onClick={() => onOpenBookMeta(node.path, spType)}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/plain', rootMetaDragPath);
+              e.dataTransfer.effectAllowed = 'copy';
             }}
           >
             <OutlinerIcon name={subLevelConfig.rootMetaIcon} size={13} />
           </button>
-        )}
-        {isSubproject && <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>}
-      </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={rowClass}
+          style={rowPad}
+          onClick={handleClick}
+          onContextMenu={(e) => onContextMenu(e, node)}
+          draggable={canDragToChat}
+          onDragStart={
+            canDragToChat
+              ? (e) => {
+                  e.dataTransfer.setData('text/plain', dragPayload);
+                  e.dataTransfer.effectAllowed = 'copy';
+                }
+              : undefined
+          }
+        >
+          <span className="file-tree-chevron">
+            {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}
+          </span>
+          {isDir ? (
+            isSubproject ? (
+              <OutlinerIcon
+                name={subLevelConfig.folderIcon}
+                size={14}
+                className="file-tree-icon file-tree-icon--subproject"
+              />
+            ) : (
+              <Folder size={14} className="file-tree-icon" />
+            )
+          ) : (
+            <File size={14} className="file-tree-icon" />
+          )}
+          <span className="file-tree-name">{node.name}</span>
+          {!isDir && node.hasShadow && (
+            <span className="file-tree-shadow-dot" title="Hat Meta-Notiz" />
+          )}
+          {isSubproject && <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>}
+        </button>
+      )}
       {isDir && isOpen && !isSubproject && node.children?.map((ch) => (
         <TreeNodeRow
           key={ch.path}
@@ -517,7 +555,7 @@ export function FileTreeOutliner({
   return (
     <div className="file-tree-outliner outliner">
       <div className="outliner-header">
-        <span className="outliner-header-title">Dateien</span>
+        <span className="outliner-header-title">Workspace</span>
         {onRevealInExplorer && (
           <button type="button" className="outliner-reveal-btn" onClick={onRevealInExplorer} title="Im Explorer öffnen">
             <FolderOpen size={13} />
