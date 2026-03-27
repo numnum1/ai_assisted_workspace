@@ -6,6 +6,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Save, FileText, NotebookPen, Trash2, Eye, EyeOff } from 'lucide-react';
 import { ShadowTextarea } from './ShadowTextarea.tsx';
+import { scrollLineWithoutCursorKeymap } from './codemirrorScrollLineKeymap.ts';
 import type { SelectionContext } from '../types.ts';
 
 interface MarkdownFileEditorProps {
@@ -174,6 +175,7 @@ export function MarkdownFileEditor({
         drawSelection(),
         history(),
         markdown(),
+        scrollLineWithoutCursorKeymap,
         keymap.of([
           ...defaultKeymap,
           ...historyKeymap,

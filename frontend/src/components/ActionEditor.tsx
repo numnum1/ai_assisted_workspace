@@ -5,6 +5,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { createReadingTheme } from './readingTheme';
 import { hideMarksExtension } from './hideMarksExtension';
+import { scrollLineWithoutCursorKeymap } from './codemirrorScrollLineKeymap.ts';
 import type { SelectionContext } from '../types.ts';
 
 export interface ActionEditorColors {
@@ -62,6 +63,7 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
         drawSelection(),
         history(),
         markdown(),
+        scrollLineWithoutCursorKeymap,
         keymap.of([
           ...defaultKeymap,
           ...historyKeymap,
