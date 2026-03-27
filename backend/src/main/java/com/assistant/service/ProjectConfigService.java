@@ -264,6 +264,11 @@ public class ProjectConfigService {
             if (rules instanceof List<?> list) {
                 mode.setRules(list.stream().map(Object::toString).toList());
             }
+            mode.setUseReasoning(booleanVal(data.get("useReasoning"), false));
+            Object llmId = data.get("llmId");
+            if (llmId instanceof String s && !s.isBlank()) {
+                mode.setLlmId(s);
+            }
             return mode;
         }
     }
@@ -617,6 +622,10 @@ public class ProjectConfigService {
         data.put("systemPrompt", mode.getSystemPrompt() != null ? mode.getSystemPrompt() : "");
         data.put("autoIncludes", mode.getAutoIncludes() != null ? mode.getAutoIncludes() : List.of());
         data.put("rules", mode.getRules() != null ? mode.getRules() : List.of());
+        data.put("useReasoning", mode.isUseReasoning());
+        if (mode.getLlmId() != null && !mode.getLlmId().isBlank()) {
+            data.put("llmId", mode.getLlmId());
+        }
         return buildYaml().dump(data);
     }
 

@@ -12,6 +12,7 @@ public class Mode {
     private List<String> rules = new ArrayList<>();
     private String color;
     private boolean useReasoning = false;
+    private String llmId;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -27,4 +28,6 @@ public class Mode {
     public void setColor(String color) { this.color = color; }
     public boolean isUseReasoning() { return useReasoning; }
     public void setUseReasoning(boolean useReasoning) { this.useReasoning = useReasoning; }
+    public String getLlmId() { return llmId; }
+    public void setLlmId(String llmId) { this.llmId = llmId; }
 }
