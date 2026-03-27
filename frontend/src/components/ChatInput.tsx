@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Sparkles, Zap, FileText } from 'lucide-react';
 import { FileChip } from './FileChip.tsx';
+import { shadowApi } from '../api.ts';
 import type { ChapterNode, WikiType, WikiEntry } from '../types.ts';
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'wiki' | 'alias';
+  type: 'chapter' | 'scene' | 'wiki' | 'alias' | 'shadow';
   title: string;
   path: string;
   breadcrumb: string;
@@ -102,9 +103,10 @@ export function ChatInput({
 
     const rootParam = structureRoot ? `?root=${encodeURIComponent(structureRoot)}` : '';
 
-    const [summaries, wikiTypes] = await Promise.all([
+    const [summaries, wikiTypes, shadowResult] = await Promise.all([
       fetch(`/api/chapters${rootParam}`).then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
       fetch('/api/wiki/types').then(r => r.json()) as Promise<WikiType[]>,
+      shadowApi.list().catch(() => ({ paths: [] as string[] })),
     ]);
 
     const details = await Promise.all(
@@ -153,6 +155,19 @@ export function ChatInput({
           breadcrumb: wType.name,
         });
       }
+    }
+
+    // Shadow / meta-note files
+    for (const p of shadowResult.paths) {
+      const base = p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p;
+      const dot = base.lastIndexOf('.');
+      const displayName = dot > 0 ? base.slice(0, dot) : base;
+      items.push({
+        type: 'shadow',
+        title: displayName,
+        path: `.wiki/files/${p}`,
+        breadcrumb: 'Meta-Notiz',
+      });
     }
 
     // Fixed aliases always at the top
@@ -312,6 +327,8 @@ export function ChatInput({
                   <BookOpen size={13} />
                 ) : item.type === 'scene' ? (
                   <Layers size={13} />
+                ) : item.type === 'shadow' ? (
+                  <FileText size={13} />
                 ) : (
                   <Library size={13} />
                 )}
