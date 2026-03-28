@@ -107,6 +107,11 @@ metaSchemas:
         type: input
         placeholder: ""
         defaultValue: ""
+      - key: aiHint
+        label: Hinweise für KI
+        type: textarea
+        placeholder: ""
+        defaultValue: ""
   action:
     filename: akt.json
     fields:
