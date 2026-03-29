@@ -29,6 +29,8 @@ public class WorkspaceModeSchema {
     private List<WorkspaceLevelConfig> levels = new ArrayList<>();
     /** Keys: root, chapter, scene, action */
     private Map<String, MetaTypeSchemaPayload> metaSchemas = new LinkedHashMap<>();
+    /** Optional text appended to the LLM system prompt when this workspace mode is active */
+    private String systemPromptAddition = "";
 
     public String getId() {
         return id;
@@ -108,6 +110,14 @@ public class WorkspaceModeSchema {
 
     public void setMetaSchemas(Map<String, MetaTypeSchemaPayload> metaSchemas) {
         this.metaSchemas = metaSchemas != null ? metaSchemas : new LinkedHashMap<>();
+    }
+
+    public String getSystemPromptAddition() {
+        return systemPromptAddition;
+    }
+
+    public void setSystemPromptAddition(String systemPromptAddition) {
+        this.systemPromptAddition = systemPromptAddition != null ? systemPromptAddition : "";
     }
 
     public static class WorkspaceLevelConfig {

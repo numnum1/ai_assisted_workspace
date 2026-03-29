@@ -527,6 +527,7 @@ public class ProjectConfigService {
         schema.setRootMetaIcon(stringVal(data.get("rootMetaIcon"), "book"));
         schema.setIcon(stringVal(data.get("icon"), schema.getRootMetaIcon()));
         schema.setMediaType(booleanVal(data.get("mediaType"), false));
+        schema.setSystemPromptAddition(stringVal(data.get("systemPromptAddition"), ""));
 
         Object levelsObj = data.get("levels");
         if (levelsObj instanceof List<?> list) {

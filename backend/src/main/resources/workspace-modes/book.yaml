@@ -5,6 +5,8 @@ mediaType: true
 editorMode: prose
 rootMetaLabel: Buch-Metadaten
 rootMetaIcon: book
+systemPromptAddition: |
+  Du arbeitest in einem Buchprojekt. Wenn du an einer Szene, einem Kapitel oder einer Handlungseinheit arbeitest, lies automatisch alle relevanten Metadateien (kapitel.json, szene.json, akt.json) aus demselben Kapitel mit read_file, um den vollständigen Kontext des Kapitels zu erhalten.
 levels:
   - key: chapter
     label: Kapitel

@@ -51,6 +51,15 @@ public class ContextService {
         // 2. Inject rules (global + per-mode) right after the mode system prompt
         appendRules(systemPrompt, mode);
 
+        // 2b. Inject workspace mode system prompt addition
+        if (projectConfigService.hasProjectConfig()) {
+            com.assistant.model.WorkspaceModeSchema wsMode = projectConfigService.getWorkspaceModeSchema();
+            String addition = wsMode.getSystemPromptAddition();
+            if (addition != null && !addition.isBlank()) {
+                systemPrompt.append(addition).append("\n\n");
+            }
+        }
+
         // 3. Determine "always include" files: prefer project config, fall back to application.yml
         List<String> alwaysInclude;
         if (projectConfigService.hasProjectConfig()) {
