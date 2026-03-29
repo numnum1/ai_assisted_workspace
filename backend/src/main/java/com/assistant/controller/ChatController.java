@@ -55,11 +55,17 @@ public class ChatController {
                 Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), tools, llmId, useReasoning))
                         .flatMapMany(resolved -> {
                             Flux<ServerSentEvent<String>> toolEvents = Flux.fromIterable(resolved.toolCallEvents());
+                            Flux<ServerSentEvent<String>> contextUpdateEvent = resolved.toolCallEvents().isEmpty()
+                                    ? Flux.empty()
+                                    : Flux.just(ServerSentEvent.<String>builder()
+                                            .event("context_update")
+                                            .data("{\"estimatedTokens\":" + contextService.estimateTokensForMessages(resolved.messages()) + "}")
+                                            .build());
                             Flux<ServerSentEvent<String>> tokenStream = aiApiClient
                                     .streamChat(resolved.messages(), tools, llmId, useReasoning)
                                     .map(chunk -> ServerSentEvent.<String>builder()
                                             .event("token").data(escapeForSse(chunk)).build());
-                            return Flux.concat(toolEvents, tokenStream);
+                            return Flux.concat(toolEvents, contextUpdateEvent, tokenStream);
                         })
                         .onErrorResume(e -> {
                             log.error("AI API error", e);

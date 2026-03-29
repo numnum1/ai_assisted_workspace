@@ -280,6 +280,7 @@ export function streamChat(
   onDone: () => void,
   onError: (err: Error) => void,
   onToolCall?: (description: string) => void,
+  onContextUpdate?: (estimatedTokens: number) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -332,6 +333,11 @@ export function streamChat(
             } else if (currentEvent === 'tool_call') {
               const unescaped = data.replace(/\\n/g, '\n');
               onToolCall?.(unescaped);
+            } else if (currentEvent === 'context_update') {
+              try {
+                const parsed = JSON.parse(data);
+                onContextUpdate?.(parsed.estimatedTokens);
+              } catch { /* ignore malformed update */ }
             } else if (currentEvent === 'token') {
               const unescaped = data.replace(/\\n/g, '\n');
               onToken(unescaped);

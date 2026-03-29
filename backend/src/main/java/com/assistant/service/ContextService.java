@@ -312,6 +312,10 @@ public class ContextService {
         }
     }
 
+    public int estimateTokensForMessages(List<ChatMessage> messages) {
+        return estimateTokens(messages);
+    }
+
     private int estimateTokens(List<ChatMessage> messages) {
         int totalChars = messages.stream()
                 .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)

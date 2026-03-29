@@ -90,6 +90,11 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         (description) => {
           setToolActivity(description);
         },
+        (updatedTokens) => {
+          setContextInfo(prev =>
+            prev ? { ...prev, estimatedTokens: updatedTokens } : prev
+          );
+        },
       );
 
       abortRef.current = controller;
