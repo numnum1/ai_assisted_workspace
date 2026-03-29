@@ -120,6 +120,30 @@ public class ContextService {
             }
         }
 
+        // Focused field — tells the AI which single field the user is actively editing
+        String activeFieldKey = request.getActiveFieldKey();
+        if (activeFieldKey != null && !activeFieldKey.isBlank()) {
+            systemPrompt.append("=== Focused Field ===\n");
+            systemPrompt.append("The user has opened the dedicated editor for the field `").append(activeFieldKey)
+                    .append("`. They are working EXCLUSIVELY on this field.\n\n");
+            systemPrompt.append("**Your job:** Help the user write, rewrite, or improve the content for `")
+                    .append(activeFieldKey).append("` only.\n\n");
+            systemPrompt.append("**How to propose a value:** You MUST use a `field-update` fenced code block — the language tag must be exactly `field-update`. No exceptions:\n\n");
+            systemPrompt.append("```field-update\n");
+            systemPrompt.append("{\"field\": \"").append(activeFieldKey).append("\", \"value\": \"your proposed text here\"}\n");
+            systemPrompt.append("```\n\n");
+            systemPrompt.append("⚠️ CRITICAL: The language tag on the code fence must be `field-update` (not `json`, not blank, not anything else). ");
+            systemPrompt.append("If you write the JSON as plain text, inline code, or a code block with any other tag, ");
+            systemPrompt.append("the user will see the raw text but will have NO button to apply it — they cannot insert it into their document. ");
+            systemPrompt.append("The `field-update` code block is the ONLY way to give the user an interactive 'Anwenden' (Apply) button.\n\n");
+            systemPrompt.append("Rules:\n");
+            systemPrompt.append("- The entire JSON must be on a single line inside the code block (one line = one JSON object).\n");
+            systemPrompt.append("- Use `\\n` for line breaks inside the JSON string value (e.g. `\"value\": \"Line 1\\nLine 2\\nLine 3\"`).\n");
+            systemPrompt.append("- Do NOT use pretty-printed / multi-line JSON — keep the whole object on one line.\n");
+            systemPrompt.append("- Do NOT use `replace` blocks or propose changes to any other field.\n");
+            systemPrompt.append("- You may discuss, ask questions, or offer alternatives in plain text before or after the block.\n\n");
+        }
+
         // Tool usage instructions
         systemPrompt.append("=== Available Tools ===\n");
         systemPrompt.append("You have access to tools for project files and the project wiki:\n\n");
@@ -246,7 +270,7 @@ public class ContextService {
         systemPrompt.append("```field-update\n");
         systemPrompt.append("{\"field\": \"FIELD_KEY\", \"value\": \"proposed value\"}\n");
         systemPrompt.append("```\n\n");
-        systemPrompt.append("Available field keys and their meaning:\n");
+        systemPrompt.append("Standard field keys:\n");
         systemPrompt.append("- title: Titel der Szene\n");
         systemPrompt.append("- description: Kurzbeschreibung\n");
         systemPrompt.append("- location: Ort / Schauplatz\n");
@@ -256,8 +280,15 @@ public class ContextService {
         systemPrompt.append("- goal: Ziel der Szene — was will der Protagonist erreichen?\n");
         systemPrompt.append("- outcome: Ergebnis — wie endet die Szene?\n");
         systemPrompt.append("- pov: POV-Charakter (Erzählperspektive)\n");
-        systemPrompt.append("- tone: Stimmung / Atmosphäre\n\n");
+        systemPrompt.append("- tone: Stimmung / Atmosphäre\n");
+        systemPrompt.append("Any key found under `extras` in the JSON above (e.g. beats, conflict, subtext, …) ");
+        systemPrompt.append("is also a valid field key — use it exactly as it appears in the JSON.\n\n");
         systemPrompt.append("Only use `field-update` blocks when you are explicitly proposing a value to be saved. ");
+        systemPrompt.append("The language tag must be exactly `field-update` — not `json`, not blank. ");
+        systemPrompt.append("Use `\\n` for line breaks inside the JSON string value. ");
+        systemPrompt.append("Keep the JSON on a single line inside the block. ");
+        systemPrompt.append("If you write JSON as plain text or with any other code-block tag, ");
+        systemPrompt.append("the user gets no Apply button and cannot insert the value. ");
         systemPrompt.append("For discussion or multiple alternatives, use plain text.\n\n");
     }
 

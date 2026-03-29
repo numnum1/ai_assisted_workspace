@@ -7,6 +7,7 @@ public class ChatRequest {
 
     private String message;
     private String activeFile;
+    private String activeFieldKey;
     private String mode;
     private List<String> referencedFiles = new ArrayList<>();
     private List<ChatMessage> history = new ArrayList<>();
@@ -19,6 +20,8 @@ public class ChatRequest {
     public void setMessage(String message) { this.message = message; }
     public String getActiveFile() { return activeFile; }
     public void setActiveFile(String activeFile) { this.activeFile = activeFile; }
+    public String getActiveFieldKey() { return activeFieldKey; }
+    public void setActiveFieldKey(String activeFieldKey) { this.activeFieldKey = activeFieldKey; }
     public String getMode() { return mode; }
     public void setMode(String mode) { this.mode = mode; }
     public List<String> getReferencedFiles() { return referencedFiles; }

@@ -352,11 +352,11 @@ function App() {
       const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
-      chat.sendMessage(message, activeFile, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined);
+      chat.sendMessage(message, activeFile, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined, focusedField?.fieldKey ?? null);
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
     },
-    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection, selectedMeta, chapter.structureRoot, fileEditor.selectedPath],
+    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection, selectedMeta, chapter.structureRoot, fileEditor.selectedPath, focusedField],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);

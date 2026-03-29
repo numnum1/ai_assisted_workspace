@@ -44,6 +44,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       useReasoning?: boolean,
       llmId?: string,
       selectionContext?: SelectionContext,
+      activeFieldKey?: string | null,
     ) => {
       syncEnabledRef.current = true;
       setError(null);
@@ -59,6 +60,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         {
           message: text,
           activeFile,
+          activeFieldKey: activeFieldKey ?? null,
           mode,
           referencedFiles,
           history: newMessages.slice(0, -1),

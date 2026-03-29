@@ -16,8 +16,34 @@ interface ChatMessageMarkdownProps {
   isAnswered?: boolean;
 }
 
+/**
+ * Converts misformatted field-update blocks to the correct format.
+ * Handles cases where the AI uses ```json or ``` instead of ```field-update.
+ */
+function fixFieldUpdateBlocks(content: string): string {
+  return content.replace(
+    /```(?:json)?\n([\s\S]*?)\n```/g,
+    (match, body) => {
+      const trimmed = body.trim();
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed.field === 'string' && 'value' in parsed) {
+          return '```field-update\n' + trimmed + '\n```';
+        }
+      } catch {
+        // Not a field-update shape — leave unchanged
+      }
+      return match;
+    },
+  );
+}
+
 export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace, onApplyFieldUpdate, fieldLabels, onSelectOption, isAnswered }: ChatMessageMarkdownProps) {
   const canReplace = !!(selectionContext && onReplace);
+  const processedContent = useMemo(
+    () => onApplyFieldUpdate ? fixFieldUpdateBlocks(content) : content,
+    [content, onApplyFieldUpdate],
+  );
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = useCallback((text: string, key: string) => {
@@ -197,7 +223,7 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
   return (
     <div className="chat-md">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-        {content}
+        {processedContent}
       </ReactMarkdown>
       {streamingCursor && <span className="chat-streaming-cursor" aria-hidden="true">▌</span>}
     </div>
