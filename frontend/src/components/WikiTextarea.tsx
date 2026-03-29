@@ -1,6 +1,21 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { wikiApi } from '../api.ts';
 import type { WikiType, WikiEntry } from '../types.ts';
+
+function renderMentionPreview(value: string, placeholder?: string): ReactNode {
+  if (!value) return <span className="wiki-mention-preview-placeholder">{placeholder ?? ''}</span>;
+  const re = /@\[([^\]]+)\]\([^)]+\)/g;
+  const parts: ReactNode[] = [];
+  let last = 0, key = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(value)) !== null) {
+    if (m.index > last) parts.push(<span key={key++}>{value.slice(last, m.index)}</span>);
+    parts.push(<span key={key++} className="wiki-mention-token">{m[1]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < value.length) parts.push(<span key={key++}>{value.slice(last)}</span>);
+  return parts;
+}
 
 interface MentionEntry {
   typeId: string;
@@ -79,6 +94,14 @@ export function WikiTextarea({
   const textareaRef = externalRef ?? internalRef;
   const mirrorRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [editing, textareaRef]);
 
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState<number>(0);
@@ -252,17 +275,27 @@ export function WikiTextarea({
 
   return (
     <div ref={wrapRef} className="wiki-mention-wrap">
-      <textarea
-        ref={textareaRef}
-        className={className ?? 'meta-field-textarea'}
-        value={value}
-        onChange={handleInput}
-        onKeyDown={handleKeyDown}
-        onBlur={onCommit}
-        placeholder={placeholder}
-        rows={rows}
-        autoFocus={autoFocus}
-      />
+      {editing ? (
+        <textarea
+          ref={textareaRef}
+          className={className ?? 'meta-field-textarea'}
+          value={value}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          onBlur={() => { onCommit?.(); setEditing(false); }}
+          placeholder={placeholder}
+          rows={rows}
+          autoFocus={autoFocus}
+        />
+      ) : (
+        <div
+          className={`wiki-mention-preview ${className ?? 'meta-field-textarea'}`}
+          style={{ '--preview-rows': rows } as React.CSSProperties}
+          onClick={() => setEditing(true)}
+        >
+          {renderMentionPreview(value, placeholder)}
+        </div>
+      )}
 
       <div ref={mirrorRef} aria-hidden className="wiki-mention-mirror" />
 

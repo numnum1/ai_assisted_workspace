@@ -5149,6 +5149,31 @@ body {
   position: relative;
 }
 
+.wiki-mention-preview {
+  cursor: text;
+  user-select: none;
+}
+
+.wiki-mention-preview.meta-field-input {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wiki-mention-preview.meta-field-textarea {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+}
+
+.wiki-mention-token {
+  color: var(--accent);
+}
+
+.wiki-mention-preview-placeholder {
+  color: var(--text-muted);
+}
+
 .wiki-mention-mirror {
   position: absolute;
   top: 0;

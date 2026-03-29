@@ -1,7 +1,22 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import type { FieldRendererProps } from '../metaSchema.ts';
 import { wikiApi } from '../../api.ts';
 import type { WikiType, WikiEntry } from '../../types.ts';
+
+function renderMentionPreview(value: string, placeholder?: string): ReactNode {
+  if (!value) return <span className="wiki-mention-preview-placeholder">{placeholder ?? ''}</span>;
+  const re = /@\[([^\]]+)\]\([^)]+\)/g;
+  const parts: ReactNode[] = [];
+  let last = 0, key = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(value)) !== null) {
+    if (m.index > last) parts.push(<span key={key++}>{value.slice(last, m.index)}</span>);
+    parts.push(<span key={key++} className="wiki-mention-token">{m[1]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < value.length) parts.push(<span key={key++}>{value.slice(last)}</span>);
+  return parts;
+}
 
 interface MentionEntry {
   typeId: string;
@@ -57,6 +72,14 @@ export function wikiInputRenderer({ field, value, onChange, onCommit }: FieldRen
   const inputRef = useRef<HTMLInputElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [editing]);
 
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState<number>(0);
@@ -230,16 +253,28 @@ export function wikiInputRenderer({ field, value, onChange, onCommit }: FieldRen
   let flatIdx = 0;
 
   return (
-    <div ref={wrapRef} className="wiki-mention-wrap">
-      <input
-        ref={inputRef}
-        className="meta-field-input"
-        value={value}
-        onChange={handleInput}
-        onKeyDown={handleKeyDown}
-        onBlur={onCommit}
-        placeholder={field.placeholder}
-      />
+    <div
+      ref={wrapRef}
+      className="wiki-mention-wrap"
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="meta-field-input"
+          value={value}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          onBlur={() => { onCommit?.(); setEditing(false); }}
+          placeholder={field.placeholder}
+        />
+      ) : (
+        <div
+          className="wiki-mention-preview meta-field-input"
+          onClick={() => setEditing(true)}
+        >
+          {renderMentionPreview(value, field.placeholder)}
+        </div>
+      )}
 
       <div ref={mirrorRef} aria-hidden className="wiki-mention-mirror" />
 
