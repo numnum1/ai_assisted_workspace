@@ -538,6 +538,18 @@ export function FileTreeOutliner({
     }
   };
 
+  const handleRandomizeIds = async (path: string) => {
+    if (!window.confirm('Alle Dateinamen (Kapitel, Szenen, Handlungseinheiten) in diesem Projekt auf zufällige UUIDs umbenennen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+    try {
+      const result = await chapterApi.randomizeIds(path);
+      setMenu(null);
+      refreshAfterMutation();
+      window.alert(`${result.renamed} Dateien erfolgreich umbenannt.`);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Umbenennung fehlgeschlagen');
+    }
+  };
+
   const handleNewChapterInSubproject = (path: string, type: string) => {
     const { chapter } = resolveLevelConfig(levelConfigByModeId, type);
     const title = window.prompt(`Titel (${chapter.label}):`, chapter.labelNew);
@@ -671,6 +683,13 @@ export function FileTreeOutliner({
                   Root-Metadaten…
                 </button>
               )}
+              <button
+                type="button"
+                className="file-tree-context-item"
+                onClick={() => void handleRandomizeIds(menu.path)}
+              >
+                Dateinamen randomisieren…
+              </button>
               {onCreateChapterInSubproject && (
                 <button
                   type="button"

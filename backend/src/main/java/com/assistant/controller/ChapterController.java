@@ -152,6 +152,15 @@ public class ChapterController {
         return ResponseEntity.ok(Map.of("status", "saved"));
     }
 
+    // ─── Utilities ────────────────────────────────────────────────────────────
+
+    @PostMapping("/randomize-ids")
+    public ResponseEntity<Map<String, Integer>> randomizeIds(
+            @RequestParam(value = "root", required = false) String root) throws IOException {
+        int renamed = chapterService.randomizeIds(normalizeRoot(root));
+        return ResponseEntity.ok(Map.of("renamed", renamed));
+    }
+
     // ─── Reorder ──────────────────────────────────────────────────────────────
 
     @PutMapping("/{chapterId}/reorder")

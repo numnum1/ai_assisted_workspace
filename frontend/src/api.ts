@@ -212,6 +212,9 @@ export const chapterApi = {
     put<{ status: string }>(`/chapters/${chapterId}/reorder${structureRootQuery(structureRoot)}`, { ids }),
   reorderActions: (chapterId: string, sceneId: string, ids: string[], structureRoot?: string | null) =>
     put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/reorder${structureRootQuery(structureRoot)}`, { ids }),
+
+  randomizeIds: (structureRoot?: string | null) =>
+    post<{ renamed: number }>(`/chapters/randomize-ids${structureRootQuery(structureRoot)}`),
 };
 
 export const bookApi = {

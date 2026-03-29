@@ -489,12 +489,68 @@ public class ChapterService {
         }
     }
 
-    private String generateId(String prefix, Path dir, String extension) throws IOException {
-        int counter = 1;
-        while (Files.exists(dir.resolve(prefix + "_" + counter + extension))) {
-            counter++;
+    private String generateId(String prefix, Path dir, String extension) {
+        return UUID.randomUUID().toString();
+    }
+
+    public int randomizeIds(String workspaceRoot) throws IOException {
+        Path cr = chaptersRoot(workspaceRoot);
+        if (!Files.isDirectory(cr)) return 0;
+        int count = 0;
+        List<Path> chapterJsons = new ArrayList<>();
+        try (Stream<Path> entries = Files.list(cr)) {
+            entries.filter(p -> {
+                String n = p.getFileName().toString();
+                return n.endsWith(".json") && n.matches("chapter_\\d+\\.json");
+            }).forEach(chapterJsons::add);
         }
-        return prefix + "_" + counter;
+        for (Path cJson : chapterJsons) {
+            String oldCid = stripExtension(cJson.getFileName().toString());
+            String newCid = UUID.randomUUID().toString();
+            Path oldCdir = cr.resolve(oldCid);
+            Path newCdir = cr.resolve(newCid);
+            if (oldCdir.isAbsolute() && Files.isDirectory(oldCdir)) {
+                List<Path> sceneJsons = new ArrayList<>();
+                try (Stream<Path> entries = Files.list(oldCdir)) {
+                    entries.filter(p -> {
+                        String n = p.getFileName().toString();
+                        return n.endsWith(".json") && n.matches("scene_\\d+\\.json");
+                    }).forEach(sceneJsons::add);
+                }
+                for (Path sJson : sceneJsons) {
+                    String oldSid = stripExtension(sJson.getFileName().toString());
+                    String newSid = UUID.randomUUID().toString();
+                    Path oldSdir = oldCdir.resolve(oldSid);
+                    Path newSdir = oldCdir.resolve(newSid);
+                    if (Files.isDirectory(oldSdir)) {
+                        List<Path> actionJsons = new ArrayList<>();
+                        try (Stream<Path> entries = Files.list(oldSdir)) {
+                            entries.filter(p -> {
+                                String n = p.getFileName().toString();
+                                return n.endsWith(".json") && n.matches("action_\\d+\\.json");
+                            }).forEach(actionJsons::add);
+                        }
+                        for (Path aJson : actionJsons) {
+                            String oldAid = stripExtension(aJson.getFileName().toString());
+                            String newAid = UUID.randomUUID().toString();
+                            Files.move(aJson, oldSdir.resolve(newAid + ".json"));
+                            Path aMd = oldSdir.resolve(oldAid + ".md");
+                            if (Files.exists(aMd)) {
+                                Files.move(aMd, oldSdir.resolve(newAid + ".md"));
+                            }
+                            count++;
+                        }
+                        Files.move(oldSdir, newSdir);
+                    }
+                    Files.move(sJson, oldCdir.resolve(newSid + ".json"));
+                    count++;
+                }
+                Files.move(oldCdir, newCdir);
+            }
+            Files.move(cJson, cr.resolve(newCid + ".json"));
+            count++;
+        }
+        return count;
     }
 
     private void deleteIfExists(Path path) throws IOException {
