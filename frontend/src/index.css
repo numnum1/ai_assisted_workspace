@@ -1228,6 +1228,20 @@ body {
   padding: 12px;
 }
 
+.field-editor-body .wiki-mention-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.field-editor-body .wiki-mention-wrap .field-editor-textarea {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
 .field-editor-textarea {
   flex: 1;
   resize: none;

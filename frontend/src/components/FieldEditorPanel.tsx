@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Save, X } from 'lucide-react';
+import { WikiTextarea } from './WikiTextarea.tsx';
 
 interface FieldEditorPanelProps {
   fieldLabel: string;
@@ -24,8 +25,8 @@ export function FieldEditorPanel({ fieldLabel, sceneTitle, value: externalValue,
     textareaRef.current?.focus();
   }, []);
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value);
+  const handleChange = useCallback((newValue: string) => {
+    setValue(newValue);
     setDirty(true);
   }, []);
 
@@ -34,7 +35,7 @@ export function FieldEditorPanel({ fieldLabel, sceneTitle, value: externalValue,
     setDirty(false);
   }, [onSave, value]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       handleSave();
@@ -80,14 +81,15 @@ export function FieldEditorPanel({ fieldLabel, sceneTitle, value: externalValue,
       </div>
 
       <div className="field-editor-body">
-        <textarea
-          ref={textareaRef}
-          className="field-editor-textarea"
+        <WikiTextarea
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={`${fieldLabel} eingeben…`}
-          spellCheck
+          className="field-editor-textarea"
+          rows={4}
+          autoFocus
+          textareaRef={textareaRef}
         />
       </div>
     </div>
