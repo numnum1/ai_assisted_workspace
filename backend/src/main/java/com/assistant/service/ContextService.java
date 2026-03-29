@@ -102,6 +102,24 @@ public class ContextService {
             }
         }
 
+        // Include active file — always read fresh from disk so the AI sees the current state
+        String activeFile = request.getActiveFile();
+        if (activeFile != null && !activeFile.isBlank() && !seen.contains(activeFile)) {
+            try {
+                if (fileService.fileExists(activeFile)) {
+                    String content = fileService.readFile(activeFile);
+                    systemPrompt.append("=== Active File: ").append(activeFile).append(" ===\n");
+                    systemPrompt.append(content).append("\n\n");
+                    includedFiles.add(activeFile);
+                    if (activeFile.endsWith(".json") && activeFile.contains(".project/chapter/")) {
+                        appendFieldUpdateInstructions(systemPrompt);
+                    }
+                }
+            } catch (IOException e) {
+                systemPrompt.append("=== Active File: ").append(activeFile).append(" [read error] ===\n\n");
+            }
+        }
+
         // Tool usage instructions
         systemPrompt.append("=== Available Tools ===\n");
         systemPrompt.append("You have access to tools for project files and the project wiki:\n\n");
@@ -219,6 +237,28 @@ public class ContextService {
             systemPrompt.append("--- ").append(ruleName).append(" ---\n");
             systemPrompt.append(entry.getValue()).append("\n\n");
         }
+    }
+
+    private void appendFieldUpdateInstructions(StringBuilder systemPrompt) {
+        systemPrompt.append("=== Scene Field Updates ===\n");
+        systemPrompt.append("The active file above is a scene meta file (szene.json). ");
+        systemPrompt.append("When you want to propose a value for a specific scene field, use a `field-update` code block:\n\n");
+        systemPrompt.append("```field-update\n");
+        systemPrompt.append("{\"field\": \"FIELD_KEY\", \"value\": \"proposed value\"}\n");
+        systemPrompt.append("```\n\n");
+        systemPrompt.append("Available field keys and their meaning:\n");
+        systemPrompt.append("- title: Titel der Szene\n");
+        systemPrompt.append("- description: Kurzbeschreibung\n");
+        systemPrompt.append("- location: Ort / Schauplatz\n");
+        systemPrompt.append("- time: Zeitpunkt oder Tageszeit\n");
+        systemPrompt.append("- characters: Beteiligte Charaktere\n");
+        systemPrompt.append("- initial_situation: Ausgangssituation — was ist die Lage zu Beginn der Szene?\n");
+        systemPrompt.append("- goal: Ziel der Szene — was will der Protagonist erreichen?\n");
+        systemPrompt.append("- outcome: Ergebnis — wie endet die Szene?\n");
+        systemPrompt.append("- pov: POV-Charakter (Erzählperspektive)\n");
+        systemPrompt.append("- tone: Stimmung / Atmosphäre\n\n");
+        systemPrompt.append("Only use `field-update` blocks when you are explicitly proposing a value to be saved. ");
+        systemPrompt.append("For discussion or multiple alternatives, use plain text.\n\n");
     }
 
     private void appendTreeListing(StringBuilder sb, com.assistant.model.FileNode node, String indent) {

@@ -9,6 +9,7 @@ interface MetaPanelProps {
   onClose: () => void;
   onExpand?: () => void;
   expanded?: boolean;
+  onFocusField?: (fieldKey: string, fieldLabel: string, value: string) => void;
 }
 
 function buildInitialValues(selection: MetaSelection, metaSchemas: Record<MetaNodeType, MetaTypeSchema>): Record<string, string> {
@@ -26,7 +27,7 @@ function buildInitialValues(selection: MetaSelection, metaSchemas: Record<MetaNo
   return values;
 }
 
-export function MetaPanel({ selection, metaSchemas, onSave, onClose, onExpand, expanded }: MetaPanelProps) {
+export function MetaPanel({ selection, metaSchemas, onSave, onClose, onExpand, expanded, onFocusField }: MetaPanelProps) {
   const schema = metaSchemas[selection.type];
   const initialValues = buildInitialValues(selection, metaSchemas);
 
@@ -59,6 +60,7 @@ export function MetaPanel({ selection, metaSchemas, onSave, onClose, onExpand, e
       onClose={onClose}
       onExpand={onExpand}
       expanded={expanded}
+      onFocusField={onFocusField}
     />
   );
 }

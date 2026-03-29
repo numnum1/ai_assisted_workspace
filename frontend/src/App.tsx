@@ -6,6 +6,7 @@ import { MarkdownFileEditor } from './components/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/SubprojectTypeDialog.tsx';
 import { MetaPanel } from './components/MetaPanel.tsx';
 import { ChatPanel } from './components/ChatPanel.tsx';
+import { FieldEditorPanel } from './components/FieldEditorPanel.tsx';
 import { PromptPackModal } from './components/PromptPackModal.tsx';
 import { ContextBar } from './components/ContextBar.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
@@ -90,6 +91,7 @@ function App() {
     chapter.closeChapter();
     setSelectedMeta(null);
     setMetaExpanded(false);
+    setFocusedField(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
 
@@ -140,6 +142,7 @@ function App() {
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
+  const [focusedField, setFocusedField] = useState<{ fieldKey: string; fieldLabel: string; value: string } | null>(null);
 
   const handleSaveMeta = useCallback(async (
     type: MetaNodeType,
@@ -162,6 +165,29 @@ function App() {
       setSelectedMeta(prev => prev ? { ...prev, meta } : null);
     }
   }, [chapter]);
+
+  const handleApplyFieldUpdate = useCallback(async (field: string, value: string) => {
+    if (!selectedMeta || selectedMeta.type !== 'scene' || !selectedMeta.sceneId) return;
+    const curr = selectedMeta.meta;
+    const newMeta: NodeMeta = field === 'title'
+      ? { ...curr, title: value }
+      : field === 'description'
+        ? { ...curr, description: value }
+        : { ...curr, extras: { ...(curr.extras ?? {}), [field]: value } };
+    await handleSaveMeta('scene', newMeta, selectedMeta.chapterId, selectedMeta.sceneId);
+    // Keep field editor in sync when the AI applies a suggestion via chat
+    setFocusedField(prev => prev?.fieldKey === field ? { ...prev, value } : prev);
+  }, [selectedMeta, handleSaveMeta]);
+
+  const handleOpenFieldEditor = useCallback((fieldKey: string, fieldLabel: string, value: string) => {
+    setFocusedField({ fieldKey, fieldLabel, value });
+    setMetaExpanded(false);
+  }, []);
+
+  const handleFieldEditorSave = useCallback(async (value: string) => {
+    if (!focusedField) return;
+    await handleApplyFieldUpdate(focusedField.fieldKey, value);
+  }, [focusedField, handleApplyFieldUpdate]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -295,6 +321,12 @@ function App() {
     ? (workspaceModeSchema?.editorMode ?? 'prose')
     : 'standard';
 
+  const fieldLabels = useMemo(() => {
+    const schema = workspaceMetaSchemas?.['scene'];
+    if (!schema) return {} as Record<string, string>;
+    return Object.fromEntries(schema.fields.map(f => [f.key, f.label])) as Record<string, string>;
+  }, [workspaceMetaSchemas]);
+
   const MediaProjectEditor =
     getMediaProjectPlugin(workspaceModeId)?.ViewComponent ?? DefaultMediaProjectEditor;
 
@@ -316,13 +348,15 @@ function App() {
   const handleSendMessage = useCallback(
     (message: string) => {
       const mode = modes.find((m) => m.id === selectedMode);
-      // TODO: reconnect to chapter structure — pass active chapter/scene/action metadata as context
-      // Currently sending null as activeFile; replace with chapter context when ContextService is updated
-      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined);
+      // Derive activeFile: scene JSON when a scene is selected, otherwise the open file
+      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
+        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+        : (fileEditor.selectedPath ?? null);
+      chat.sendMessage(message, activeFile, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined);
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
     },
-    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection],
+    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection, selectedMeta, chapter.structureRoot, fileEditor.selectedPath],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
@@ -389,12 +423,14 @@ function App() {
                   chapter.closeChapter();
                   setSelectedMeta(null);
                   setMetaExpanded(false);
+                  setFocusedField(null);
                   void fileEditor.openFile(path);
                 }}
               onOpenFileMeta={(path) => {
                   chapter.closeChapter();
                   setSelectedMeta(null);
                   setMetaExpanded(false);
+                  setFocusedField(null);
                   void fileEditor.openFileMeta(path);
                 }}
                 onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
@@ -409,6 +445,7 @@ function App() {
                 onActivateSubprojectStructure={async (subPath, subType, chapterId, scroll, selection) => {
                   chapter.setStructureRoot(subPath, subType);
                   setMetaExpanded(false);
+                  setFocusedField(null);
                   await chapter.openChapter(chapterId, scroll ?? null);
                   setSelectedMeta(selection);
                 }}
@@ -444,8 +481,9 @@ function App() {
                   selection={selectedMeta}
                   metaSchemas={workspaceMetaSchemas}
                   onSave={handleSaveMeta}
-                  onClose={() => { setSelectedMeta(null); setMetaExpanded(false); }}
+                  onClose={() => { setSelectedMeta(null); setMetaExpanded(false); setFocusedField(null); }}
                   onExpand={() => setMetaExpanded(true)}
+                  onFocusField={handleOpenFieldEditor}
                 />
               </div>
             )}
@@ -455,7 +493,17 @@ function App() {
         <Separator className="resize-handle" />
 
         <Panel defaultSize="45%" minSize="15%">
-          {metaExpanded && showMetaChrome ? (
+          {focusedField && showMetaChrome ? (
+            <div className="field-editor-center">
+              <FieldEditorPanel
+                fieldLabel={focusedField.fieldLabel}
+                sceneTitle={selectedMeta?.meta.title || undefined}
+                value={focusedField.value}
+                onSave={handleFieldEditorSave}
+                onClose={() => setFocusedField(null)}
+              />
+            </div>
+          ) : metaExpanded && showMetaChrome ? (
             <div className="meta-panel-center">
               <MetaPanel
                 selection={selectedMeta!}
@@ -463,6 +511,7 @@ function App() {
                 onSave={handleSaveMeta}
                 onClose={() => setMetaExpanded(false)}
                 expanded={true}
+                onFocusField={handleOpenFieldEditor}
               />
             </div>
           ) : !chapter.activeChapter ? (
@@ -540,6 +589,8 @@ function App() {
             activeSelection={activeSelection}
             onDismissSelection={handleDismissSelection}
             onReplaceSelection={handleReplaceSelection}
+            onApplyFieldUpdate={handleApplyFieldUpdate}
+            fieldLabels={fieldLabels}
             chatFocusTriggerRef={chatFocusTriggerRef}
           />
         </Panel>

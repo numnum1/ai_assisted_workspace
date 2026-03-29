@@ -112,6 +112,11 @@ metaSchemas:
         type: textarea
         placeholder: ""
         defaultValue: ""
+      - key: beats
+        label: Beats
+        type: textarea
+        placeholder: ""
+        defaultValue: ""
   action:
     filename: akt.json
     fields:

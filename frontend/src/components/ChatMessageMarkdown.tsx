@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Replace, Copy, Check, HelpCircle } from 'lucide-react';
+import { Replace, Copy, Check, HelpCircle, PenLine } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../types.ts';
 
@@ -10,11 +10,13 @@ interface ChatMessageMarkdownProps {
   streamingCursor?: boolean;
   selectionContext?: SelectionContext;
   onReplace?: (text: string) => void;
+  onApplyFieldUpdate?: (field: string, value: string) => void;
+  fieldLabels?: Record<string, string>;
   onSelectOption?: (option: string) => void;
   isAnswered?: boolean;
 }
 
-export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace, onSelectOption, isAnswered }: ChatMessageMarkdownProps) {
+export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace, onApplyFieldUpdate, fieldLabels, onSelectOption, isAnswered }: ChatMessageMarkdownProps) {
   const canReplace = !!(selectionContext && onReplace);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -41,7 +43,8 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
       // Block code fences have a language-* className; inline code does not.
       const isReplaceBlock = className === 'language-replace';
       const isClarificationBlock = className === 'language-clarification';
-      const isCodeBlock = !isReplaceBlock && !isClarificationBlock && /language-/.test(className ?? '');
+      const isFieldUpdateBlock = className === 'language-field-update';
+      const isCodeBlock = !isReplaceBlock && !isClarificationBlock && !isFieldUpdateBlock && /language-/.test(className ?? '');
 
       if (isReplaceBlock) {
         const replaceText = String(children ?? '').replace(/\n$/, '');
@@ -71,6 +74,59 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
                 type="button"
                 className="chat-replace-btn secondary"
                 onClick={() => handleCopy(replaceText, blockKey)}
+                title="In Zwischenablage kopieren"
+              >
+                {isCopied ? <Check size={13} /> : <Copy size={13} />}
+                <span>{isCopied ? 'Kopiert' : 'Kopieren'}</span>
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (isFieldUpdateBlock) {
+        const raw = String(children ?? '').trim();
+        let field = '';
+        let value = '';
+        try {
+          const parsed = JSON.parse(raw);
+          field = parsed.field ?? '';
+          value = parsed.value ?? '';
+        } catch {
+          return (
+            <div className="chat-code-block">
+              <pre><code>{raw}</code></pre>
+            </div>
+          );
+        }
+        if (!field) return null;
+        const label = fieldLabels?.[field] ?? field;
+        const blockKey = `fu-${field}-${value.slice(0, 30)}`;
+        const isCopied = copiedKey === blockKey;
+        return (
+          <div className="chat-field-update">
+            <div className="chat-field-update-label">
+              <PenLine size={13} />
+              <span>Feld-Vorschlag</span>
+              <span className="chat-field-update-fieldname">{label}</span>
+            </div>
+            <div className="chat-field-update-content">{value}</div>
+            <div className="chat-replace-proposal-actions">
+              {onApplyFieldUpdate && (
+                <button
+                  type="button"
+                  className="chat-replace-btn"
+                  onClick={() => onApplyFieldUpdate(field, value)}
+                  title={`„${label}" übernehmen`}
+                >
+                  <PenLine size={13} />
+                  <span>Anwenden</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="chat-replace-btn secondary"
+                onClick={() => handleCopy(value, blockKey)}
                 title="In Zwischenablage kopieren"
               >
                 {isCopied ? <Check size={13} /> : <Copy size={13} />}
@@ -136,7 +192,7 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
         </div>
       );
     },
-  }), [canReplace, onReplace, copiedKey, handleCopy, streamingCursor, isAnswered, onSelectOption]);
+  }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, isAnswered, onSelectOption]);
 
   return (
     <div className="chat-md">

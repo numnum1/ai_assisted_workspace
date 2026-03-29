@@ -991,6 +991,31 @@ body {
   min-width: 0;
 }
 
+.meta-field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-field-focus-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.meta-field-focus-btn:hover {
+  opacity: 1;
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  color: var(--accent);
+}
+
 .meta-field-label {
   font-size: 10px;
   font-weight: 600;
@@ -1087,6 +1112,143 @@ body {
   height: 100%;
   overflow: hidden;
 }
+
+/* ── Field Editor Panel ──────────────────────────────────────────────────── */
+
+.field-editor-center {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.field-editor-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.field-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.field-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.field-editor-scene-title {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.field-editor-title-sep {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.field-editor-field-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.field-editor-dirty {
+  color: var(--accent);
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.field-editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.field-editor-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.field-editor-save-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 25%, var(--bg-tertiary));
+}
+
+.field-editor-save-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.field-editor-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.field-editor-close-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.field-editor-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 12px;
+}
+
+.field-editor-textarea {
+  flex: 1;
+  resize: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+  outline: none;
+  width: 100%;
+}
+
+.field-editor-textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+
 
 .meta-panel--expanded {
   width: 100%;
@@ -1984,6 +2146,44 @@ body {
   background: color-mix(in srgb, var(--text-muted) 18%, var(--bg-tertiary));
   border-color: color-mix(in srgb, var(--text-muted) 50%, var(--border));
   color: var(--text-primary);
+}
+
+.chat-field-update {
+  margin: 0.5em 0;
+  border: 1px solid color-mix(in srgb, var(--success, #4ade80) 40%, var(--border));
+  border-radius: 6px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--success, #4ade80) 5%, var(--bg-secondary));
+}
+
+.chat-field-update-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--success, #4ade80) 10%, var(--bg-tertiary));
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--success, #4ade80) 80%, var(--text-primary));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chat-field-update-fieldname {
+  margin-left: 4px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.chat-field-update-content {
+  padding: 8px 12px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  border-bottom: 1px solid color-mix(in srgb, var(--success, #4ade80) 15%, var(--border));
 }
 
 .chat-clarification {

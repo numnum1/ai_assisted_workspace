@@ -36,6 +36,8 @@ interface ChatPanelProps {
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
+  onApplyFieldUpdate?: (field: string, value: string) => void;
+  fieldLabels?: Record<string, string>;
   chatFocusTriggerRef?: React.MutableRefObject<(() => void) | null>;
 }
 
@@ -76,6 +78,8 @@ export function ChatPanel({
   activeSelection = null,
   onDismissSelection,
   onReplaceSelection,
+  onApplyFieldUpdate,
+  fieldLabels,
   chatFocusTriggerRef,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -190,6 +194,8 @@ export function ChatPanel({
                     onReplace={msg.selectionContext && onReplaceSelection
                       ? (text) => onReplaceSelection(text, msg.selectionContext!)
                       : undefined}
+                    onApplyFieldUpdate={onApplyFieldUpdate}
+                    fieldLabels={fieldLabels}
                     onSelectOption={onSend}
                     isAnswered={i < messages.length - 1 && messages[i + 1]?.role === 'user'}
                   />
