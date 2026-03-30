@@ -1,11 +1,6 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { EditorView, keymap, drawSelection } from '@codemirror/view';
-import { EditorState, Compartment } from '@codemirror/state';
-import { markdown } from '@codemirror/lang-markdown';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { Save, FileText, NotebookPen, Trash2, X } from 'lucide-react';
 import { ShadowTextarea } from './ShadowTextarea.tsx';
-import { scrollLineWithoutCursorKeymap } from './codemirrorScrollLineKeymap.ts';
+import { UnifiedMarkdownEditor } from './UnifiedMarkdownEditor';
 import type { SelectionContext } from '../types.ts';
 
 interface MarkdownFileEditorProps {
@@ -59,110 +54,6 @@ export function MarkdownFileEditor({
   onClearShadowError,
   onCtrlL,
 }: MarkdownFileEditorProps) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
-  const themeCompartment = useRef(new Compartment());
-  const onChangeRef = useRef(onChange);
-  const onSaveRef = useRef(onSave);
-  const onCtrlLRef = useRef(onCtrlL);
-
-  onChangeRef.current = onChange;
-  onSaveRef.current = onSave;
-  onCtrlLRef.current = onCtrlL;
-
-  // ── CodeMirror setup ───────────────────────────────────────────────────────
-
-  const buildTheme = useCallback(
-    () =>
-      EditorView.theme(
-        {
-          '&': {
-            height: '100%',
-            fontSize: '14px',
-            backgroundColor: 'var(--bg-secondary, #1e1e2e)',
-            color: 'var(--text-primary, #cdd6f4)',
-          },
-          '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, monospace' },
-          '.cm-content': { minHeight: '200px', padding: '12px 16px' },
-          '.cm-gutters': {
-            backgroundColor: 'var(--bg-tertiary, #181825)',
-            color: 'var(--text-muted, #6c7086)',
-            borderRight: '1px solid var(--border, #313244)',
-          },
-          '.cm-activeLineGutter': { backgroundColor: 'rgba(137, 180, 250, 0.12)' },
-          '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-            background: 'rgba(137, 180, 250, 0.35)',
-          },
-          '.cm-selectionMatch': { backgroundColor: 'rgba(137, 180, 250, 0.15)' },
-        },
-        { dark: true },
-      ),
-    [],
-  );
-
-  useEffect(() => {
-    if (!path || !editorRef.current) return;
-
-    const state = EditorState.create({
-      doc: content,
-      extensions: [
-        drawSelection(),
-        history(),
-        markdown(),
-        scrollLineWithoutCursorKeymap,
-        keymap.of([
-          ...defaultKeymap,
-          ...historyKeymap,
-          {
-            key: 'Mod-s',
-            run: () => {
-              onSaveRef.current();
-              return true;
-            },
-          },
-          {
-            key: 'Mod-l',
-            run: (view) => {
-              const sel = view.state.selection.main;
-              if (!sel.empty && onCtrlLRef.current) {
-                const text = view.state.doc.sliceString(sel.from, sel.to);
-                onCtrlLRef.current(
-                  { text, from: sel.from, to: sel.to, editorId: 'file' },
-                  (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
-                );
-              }
-              return true;
-            },
-          },
-        ]),
-        EditorView.lineWrapping,
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            onChangeRef.current(update.state.doc.toString());
-          }
-        }),
-        themeCompartment.current.of(buildTheme()),
-      ],
-    });
-
-    const view = new EditorView({ state, parent: editorRef.current });
-    viewRef.current = view;
-
-    return () => {
-      view.destroy();
-      viewRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path]);
-
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view) return;
-    view.dispatch({
-      effects: themeCompartment.current.reconfigure(buildTheme()),
-    });
-  }, [buildTheme]);
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (!path) {
@@ -223,7 +114,19 @@ export function MarkdownFileEditor({
       </div>
 
       <div className={`markdown-file-editor-body${shadowPanelOpen ? ' with-shadow' : ''}`}>
-        <div ref={editorRef} className="markdown-file-editor-cm" />
+        <UnifiedMarkdownEditor
+          instanceKey={path}
+          content={content}
+          onChange={onChange}
+          onSave={onSave}
+          onCtrlL={onCtrlL}
+          theme="file"
+          layout="fixed"
+          editorId="file"
+          alwaysShowMarkdownStylingCharacters
+          alwaysShowHtmlComments
+          className="markdown-file-editor-cm"
+        />
 
         {shadowPanelOpen && (
           <div className="shadow-panel">

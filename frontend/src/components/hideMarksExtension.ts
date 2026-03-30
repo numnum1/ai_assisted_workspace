@@ -4,6 +4,13 @@ import { RangeSetBuilder } from '@codemirror/state';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 
+export interface HideMarksOptions {
+  /** Hide *, _, #, ` and ~ syntax marks. Default: true */
+  hideMarkdownMarks?: boolean;
+  /** Hide <!-- ... --> HTML comments. Default: true */
+  hideHtmlComments?: boolean;
+}
+
 const HIDDEN_MARKS = new Set([
   'EmphasisMark',
   'HeaderMark',
@@ -13,7 +20,7 @@ const HIDDEN_MARKS = new Set([
 
 const LINK_MARK_PARENTS = new Set(['Link', 'Image']);
 
-function buildMarkDecorations(view: EditorView): DecorationSet {
+function buildMarkDecorations(view: EditorView, options: Required<HideMarksOptions>): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const state = view.state;
   const cursorLine = view.hasFocus
@@ -30,13 +37,12 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         }
       }
 
-      if (HIDDEN_MARKS.has(node.name)) {
+      if (options.hideMarkdownMarks && HIDDEN_MARKS.has(node.name)) {
         builder.add(node.from, node.to, hidden);
         return;
       }
 
-      // Inside a Link or Image: hide bracket marks and the URL part
-      if (node.name === 'LinkMark' || node.name === 'ImageMark') {
+      if (options.hideMarkdownMarks && (node.name === 'LinkMark' || node.name === 'ImageMark')) {
         const parent = node.node.parent;
         if (parent && LINK_MARK_PARENTS.has(parent.name)) {
           builder.add(node.from, node.to, hidden);
@@ -44,7 +50,7 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         return;
       }
 
-      if (node.name === 'URL') {
+      if (options.hideMarkdownMarks && node.name === 'URL') {
         const parent = node.node.parent;
         if (parent && LINK_MARK_PARENTS.has(parent.name)) {
           // Extend range to include surrounding parentheses if present
@@ -57,8 +63,7 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         return;
       }
 
-      // HTML comments: <!-- ... --> block and inline
-      if (node.name === 'CommentBlock' || node.name === 'Comment') {
+      if (options.hideHtmlComments && (node.name === 'CommentBlock' || node.name === 'Comment')) {
         builder.add(node.from, node.to, hidden);
         return false;
       }
@@ -68,23 +73,34 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
-const hideMarksPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
+function createHideMarksPlugin(options: Required<HideMarksOptions>) {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
 
-    constructor(view: EditorView) {
-      this.decorations = buildMarkDecorations(view);
-    }
-
-    update(update: ViewUpdate) {
-      if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged) {
-        this.decorations = buildMarkDecorations(update.view);
+      constructor(view: EditorView) {
+        this.decorations = buildMarkDecorations(view, options);
       }
-    }
-  },
-  { decorations: (v) => v.decorations },
-);
 
-export function hideMarksExtension(): Extension {
-  return hideMarksPlugin;
+      update(update: ViewUpdate) {
+        if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged) {
+          this.decorations = buildMarkDecorations(update.view, options);
+        }
+      }
+    },
+    { decorations: (v) => v.decorations },
+  );
+}
+
+export function hideMarksExtension(options: HideMarksOptions = {}): Extension {
+  const resolved: Required<HideMarksOptions> = {
+    hideMarkdownMarks: options.hideMarkdownMarks ?? true,
+    hideHtmlComments: options.hideHtmlComments ?? true,
+  };
+
+  if (!resolved.hideMarkdownMarks && !resolved.hideHtmlComments) {
+    return [];
+  }
+
+  return createHideMarksPlugin(resolved);
 }
