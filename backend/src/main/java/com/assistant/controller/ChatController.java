@@ -8,6 +8,8 @@ import com.assistant.service.AiApiClient;
 import com.assistant.service.AiApiClient.ChatCompletionResult;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -31,11 +33,13 @@ public class ChatController {
     private final ContextService contextService;
     private final AiApiClient aiApiClient;
     private final ToolExecutor toolExecutor;
+    private final ObjectMapper objectMapper;
 
-    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor) {
+    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor, ObjectMapper objectMapper) {
         this.contextService = contextService;
         this.aiApiClient = aiApiClient;
         this.toolExecutor = toolExecutor;
+        this.objectMapper = objectMapper;
     }
 
     // TODO: reconnect to chapter structure
@@ -49,12 +53,26 @@ public class ChatController {
 
         boolean useReasoning = request.isUseReasoning();
         String llmId = request.getLlmId();
+
+        // The last message in the assembled context is the resolved user message (file contents prepended).
+        // We send it back so the frontend can store the expanded version for future history turns.
+        List<ChatMessage> assembledMessages = context.getMessages();
+        String resolvedUserContent = assembledMessages.isEmpty()
+                ? ""
+                : assembledMessages.get(assembledMessages.size() - 1).getContent();
+
         return Flux.concat(
                 Flux.just(ServerSentEvent.<String>builder()
                         .event("context").data(toContextJson(context)).build()),
-                Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), tools, llmId, useReasoning))
+                Flux.just(ServerSentEvent.<String>builder()
+                        .event("resolved_user_message").data(escapeForSse(resolvedUserContent != null ? resolvedUserContent : "")).build()),
+                Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning))
                         .flatMapMany(resolved -> {
                             Flux<ServerSentEvent<String>> toolEvents = Flux.fromIterable(resolved.toolCallEvents());
+                            Flux<ServerSentEvent<String>> toolHistoryEvent = resolved.toolHistoryJson() != null
+                                    ? Flux.just(ServerSentEvent.<String>builder()
+                                            .event("tool_history").data(escapeForSse(resolved.toolHistoryJson())).build())
+                                    : Flux.empty();
                             Flux<ServerSentEvent<String>> contextUpdateEvent = resolved.toolCallEvents().isEmpty()
                                     ? Flux.empty()
                                     : Flux.just(ServerSentEvent.<String>builder()
@@ -65,7 +83,7 @@ public class ChatController {
                                     .streamChat(resolved.messages(), tools, llmId, useReasoning)
                                     .map(chunk -> ServerSentEvent.<String>builder()
                                             .event("token").data(escapeForSse(chunk)).build());
-                            return Flux.concat(toolEvents, contextUpdateEvent, tokenStream);
+                            return Flux.concat(toolEvents, toolHistoryEvent, contextUpdateEvent, tokenStream);
                         })
                         .onErrorResume(e -> {
                             log.error("AI API error", e);
@@ -80,8 +98,12 @@ public class ChatController {
     /**
      * Handles the tool calling loop: makes non-streaming calls to resolve tool calls,
      * then returns the final messages list ready for streaming the final response.
+     *
+     * @param originalMessageCount size of the messages list before any tool rounds,
+     *                             used to extract only the new tool messages for tool_history
      */
     private ToolResolutionResult resolveToolCalls(List<ChatMessage> messages,
+                                                  int originalMessageCount,
                                                   List<Map<String, Object>> tools,
                                                   String llmId,
                                                   boolean useReasoning) {
@@ -116,7 +138,19 @@ public class ChatController {
             }
         }
 
-        return new ToolResolutionResult(currentMessages, toolCallEvents);
+        // Build tool_history JSON from the intermediate messages added during tool rounds.
+        // These are the messages between the original message list and the final list.
+        String toolHistoryJson = null;
+        if (currentMessages.size() > originalMessageCount) {
+            List<ChatMessage> toolMessages = currentMessages.subList(originalMessageCount, currentMessages.size());
+            try {
+                toolHistoryJson = objectMapper.writeValueAsString(toolMessages);
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to serialize tool_history messages", e);
+            }
+        }
+
+        return new ToolResolutionResult(currentMessages, toolCallEvents, toolHistoryJson);
     }
 
     @PostMapping("/sync")
@@ -141,7 +175,8 @@ public class ChatController {
 
     private record ToolResolutionResult(
             List<ChatMessage> messages,
-            List<ServerSentEvent<String>> toolCallEvents
+            List<ServerSentEvent<String>> toolCallEvents,
+            String toolHistoryJson
     ) {}
 
     private String toContextJson(AssembledContext context) {

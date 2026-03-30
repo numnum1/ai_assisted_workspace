@@ -281,6 +281,8 @@ export function streamChat(
   onError: (err: Error) => void,
   onToolCall?: (description: string) => void,
   onContextUpdate?: (estimatedTokens: number) => void,
+  onToolHistory?: (messages: import('./types.ts').ChatMessage[]) => void,
+  onResolvedUserMessage?: (content: string) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -333,6 +335,14 @@ export function streamChat(
             } else if (currentEvent === 'tool_call') {
               const unescaped = data.replace(/\\n/g, '\n');
               onToolCall?.(unescaped);
+            } else if (currentEvent === 'tool_history') {
+              try {
+                const unescaped = data.replace(/\\n/g, '\n');
+                onToolHistory?.(JSON.parse(unescaped));
+              } catch { /* ignore malformed tool_history */ }
+            } else if (currentEvent === 'resolved_user_message') {
+              const unescaped = data.replace(/\\n/g, '\n');
+              onResolvedUserMessage?.(unescaped);
             } else if (currentEvent === 'context_update') {
               try {
                 const parsed = JSON.parse(data);

@@ -28,13 +28,27 @@ export interface SelectionContext {
   editorId: 'file' | 'chapter';
 }
 
+export interface ToolCall {
+  id: string;
+  type: string;
+  function: { name: string; arguments: string };
+}
+
 export interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string;
   mode?: string;
   modeColor?: string;
   /** Present on assistant messages when the user sent this via Ctrl+L selection */
   selectionContext?: SelectionContext;
+  /** Present on assistant messages that preceded a tool call loop */
+  toolCalls?: ToolCall[];
+  /** Present on tool result messages */
+  toolCallId?: string;
+  /** When true, the message is a tool-chain message: stored in history but not shown in the UI */
+  hidden?: boolean;
+  /** Present on user messages: the expanded content with file data prepended, used as history content */
+  resolvedContent?: string;
 }
 
 export interface ChatRequest {

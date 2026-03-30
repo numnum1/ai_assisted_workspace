@@ -131,7 +131,7 @@ export function ChatPanel({
       )}
 
       <div className="chat-messages">
-        {messages.length === 0 && (
+        {messages.filter((m) => !m.hidden).length === 0 && (
           <div className="chat-empty">
             <p>Start a conversation with your AI assistant.</p>
             <p className="chat-empty-hint">
@@ -146,8 +146,11 @@ export function ChatPanel({
             </p>
           </div>
         )}
-        {messages.map((msg, i) => {
-          const prevUser = i > 0 ? messages[i - 1] : null;
+        {messages
+          .map((msg, originalIdx) => ({ msg, originalIdx }))
+          .filter(({ msg }) => !msg.hidden)
+          .map(({ msg, originalIdx }, visIdx, visArr) => {
+          const prevUser = visIdx > 0 ? visArr[visIdx - 1].msg : null;
           const showCopyForPromptPack =
             msg.role === 'assistant' &&
             msg.content.trim() &&
@@ -156,7 +159,7 @@ export function ChatPanel({
 
           return (
             <div
-              key={i}
+              key={originalIdx}
               className={`chat-message ${msg.role}`}
               style={msg.role === 'user' && msg.modeColor ? {
                 backgroundColor: msg.modeColor,
@@ -189,7 +192,7 @@ export function ChatPanel({
                 {msg.role === 'assistant' ? (
                   <ChatMessageMarkdown
                     content={msg.content}
-                    streamingCursor={streaming && i === messages.length - 1}
+                    streamingCursor={streaming && originalIdx === messages.length - 1}
                     selectionContext={msg.selectionContext}
                     onReplace={msg.selectionContext && onReplaceSelection
                       ? (text) => onReplaceSelection(text, msg.selectionContext!)
@@ -197,7 +200,7 @@ export function ChatPanel({
                     onApplyFieldUpdate={onApplyFieldUpdate}
                     fieldLabels={fieldLabels}
                     onSelectOption={onSend}
-                    isAnswered={i < messages.length - 1 && messages[i + 1]?.role === 'user'}
+                    isAnswered={visIdx < visArr.length - 1 && visArr[visIdx + 1]?.msg.role === 'user'}
                   />
                 ) : (
                   msg.content
@@ -211,20 +214,20 @@ export function ChatPanel({
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(msg.content);
-                      setCopiedIdx(i);
+                      setCopiedIdx(originalIdx);
                       setTimeout(() => setCopiedIdx(null), 2000);
                     } catch {
                       /* ignore */
                     }
                   }}
                 >
-                  {copiedIdx === i ? <Check size={14} /> : <Copy size={14} />}
+                  {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
                 </button>
               )}
-              {i > 0 && !streaming && (
+              {visIdx > 0 && !streaming && (
                 <button
                   className="chat-fork-btn"
-                  onClick={() => onForkFromMessage(i)}
+                  onClick={() => onForkFromMessage(originalIdx)}
                   title="Neuen Chat ab hier"
                 >
                   <Scissors size={12} />
