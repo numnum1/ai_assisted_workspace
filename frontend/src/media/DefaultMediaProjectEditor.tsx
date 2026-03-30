@@ -1,4 +1,4 @@
-import { ChapterView } from '../components/ChapterView.tsx';
+import { ChapterView } from '../components/editor/ChapterView.tsx';
 import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
 
 /**

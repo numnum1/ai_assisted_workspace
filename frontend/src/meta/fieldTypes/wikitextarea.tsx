@@ -1,5 +1,5 @@
 import type { FieldRendererProps } from '../metaSchema.ts';
-import { WikiTextarea } from '../../components/WikiTextarea.tsx';
+import { WikiTextarea } from '../../components/wiki/WikiTextarea.tsx';
 
 export function wikiTextareaRenderer({ field, value, onChange, onCommit }: FieldRendererProps) {
   return (

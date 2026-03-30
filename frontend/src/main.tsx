@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './builtinMediaProjects.ts'
 import App from './App.tsx'
-import { FileViewerPage } from './components/FileViewerPage.tsx'
+import { FileViewerPage } from './components/git/FileViewerPage.tsx'
 
 const isViewer = new URLSearchParams(window.location.search).get('viewer') === '1';
 
