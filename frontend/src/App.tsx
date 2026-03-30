@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Panel, Group, Separator } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw } from 'lucide-react';
+import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
@@ -66,6 +66,9 @@ function App() {
   const [activeSelection, setActiveSelection] = useState<SelectionContext | null>(null);
   const activeSelectionReplaceFnRef = useRef<((from: number, to: number, text: string) => void) | null>(null);
   const chatFocusTriggerRef = useRef<(() => void) | null>(null);
+
+  const leftPanelRef = usePanelRef();
+  const rightPanelRef = usePanelRef();
 
   const handleCtrlL = useCallback((sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => {
     setActiveSelection(sel);
@@ -239,6 +242,23 @@ function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const [centerPaneWide, setCenterPaneWide] = useState(false);
+
+  const handleToggleCenterPanels = useCallback(() => {
+    const left = leftPanelRef.current;
+    const right = rightPanelRef.current;
+    if (!left || !right) return;
+    if (left.isCollapsed() && right.isCollapsed()) {
+      left.expand();
+      right.expand();
+      setCenterPaneWide(false);
+    } else {
+      left.collapse();
+      right.collapse();
+      setCenterPaneWide(true);
+    }
   }, []);
 
   const syncBadge = useMemo(() => {
@@ -432,7 +452,15 @@ function App() {
       />
 
       <Group orientation="horizontal" className="app-panels">
-        <Panel defaultSize="18%" minSize="10%" maxSize="50%">
+        <Panel
+          id="outliner"
+          panelRef={leftPanelRef}
+          defaultSize="18%"
+          minSize="10%"
+          maxSize="50%"
+          collapsible
+          collapsedSize={0}
+        >
           <div className="left-column">
             <div className={`outliner-slot${showMetaChrome ? ' split' : ''}`}>
               <FileTreeOutliner
@@ -511,7 +539,17 @@ function App() {
 
         <Separator className="resize-handle" />
 
-        <Panel defaultSize="45%" minSize="15%">
+        <Panel id="editor" defaultSize="45%" minSize="15%">
+          <div className="center-editor-pane">
+          <button
+            type="button"
+            className="center-pane-wide-toggle"
+            onClick={handleToggleCenterPanels}
+            title={centerPaneWide ? 'Seitenleisten wieder anzeigen' : 'Seitenleisten ausblenden (breiter Editor)'}
+            aria-pressed={centerPaneWide}
+          >
+            {centerPaneWide ? <Minimize2 size={17} strokeWidth={2} /> : <Maximize2 size={17} strokeWidth={2} />}
+          </button>
           {focusedField && showMetaChrome ? (
             <div className="field-editor-center">
               <FieldEditorPanel
@@ -575,11 +613,19 @@ function App() {
               onCtrlL={handleCtrlL}
             />
           )}
+          </div>
         </Panel>
 
         <Separator className="resize-handle" />
 
-        <Panel defaultSize="37%" minSize="15%">
+        <Panel
+          id="chat"
+          panelRef={rightPanelRef}
+          defaultSize="37%"
+          minSize="15%"
+          collapsible
+          collapsedSize={0}
+        >
           <ChatPanel
             messages={chat.messages}
             streaming={chat.streaming}
