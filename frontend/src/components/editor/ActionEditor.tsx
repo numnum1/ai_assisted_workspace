@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { UnifiedMarkdownEditor } from './UnifiedMarkdownEditor';
 import type { SelectionContext } from '../../types.ts';
 
@@ -20,7 +21,18 @@ interface ActionEditorProps {
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
 }
 
-export function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL }: ActionEditorProps) {
+export const ActionEditor = memo(function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL }: ActionEditorProps) {
+  const readingThemeOverrides = useMemo(() => ({
+    fontSize: `${fontSize}px`,
+    padding: `16px ${padding}px`,
+    backgroundColor: colors.bg,
+    textColor: colors.text,
+    caretColor: colors.caretColor,
+    selectionColor: colors.selectionColor,
+  }), [fontSize, padding, colors.bg, colors.text, colors.caretColor, colors.selectionColor]);
+
+  const editorStyle = useMemo(() => ({ backgroundColor: colors.bg }), [colors.bg]);
+
   return (
     <UnifiedMarkdownEditor
       instanceKey={actionId}
@@ -29,14 +41,7 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
       onSave={onSave}
       onCtrlL={onCtrlL}
       theme="reading"
-      readingThemeOverrides={{
-        fontSize: `${fontSize}px`,
-        padding: `16px ${padding}px`,
-        backgroundColor: colors.bg,
-        textColor: colors.text,
-        caretColor: colors.caretColor,
-        selectionColor: colors.selectionColor,
-      }}
+      readingThemeOverrides={readingThemeOverrides}
       layout="auto"
       enableGermanQuotes
       editorId="chapter"
@@ -44,7 +49,7 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
       alwaysShowHtmlComments={false}
       showReferencesAsLinks
       className="action-editor-cm-wrap"
-      style={{ backgroundColor: colors.bg }}
+      style={editorStyle}
     />
   );
-}
+});

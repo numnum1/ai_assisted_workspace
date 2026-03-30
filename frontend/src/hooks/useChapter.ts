@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import type { ChapterSummary, ChapterNode, NodeMeta, ScrollTarget } from '../types.ts';
 import { chapterApi } from '../api.ts';
 
@@ -191,7 +191,10 @@ export function useChapter() {
     await Promise.all(saves);
   }, [activeChapter, actionContents, sr]);
 
-  const hasDirtyActions = Array.from(actionContents.values()).some(e => e.dirty);
+  const hasDirtyActions = useMemo(
+    () => Array.from(actionContents.values()).some(e => e.dirty),
+    [actionContents],
+  );
 
   // ─── Scroll ───────────────────────────────────────────────────────────────
 
