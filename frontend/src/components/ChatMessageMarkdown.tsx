@@ -18,10 +18,12 @@ interface ChatMessageMarkdownProps {
 
 /**
  * Converts misformatted field-update blocks to the correct format.
- * Handles cases where the AI uses ```json or ``` instead of ```field-update.
+ * Pass 1: handles ```json or ``` fences containing field-update JSON.
+ * Pass 2: handles bare JSON objects (no code fence at all) the AI emits directly.
  */
 function fixFieldUpdateBlocks(content: string): string {
-  return content.replace(
+  // Pass 1: fenced blocks tagged ```json or plain ```
+  const pass1 = content.replace(
     /```(?:json)?\n([\s\S]*?)\n```/g,
     (match, body) => {
       const trimmed = body.trim();
@@ -36,6 +38,69 @@ function fixFieldUpdateBlocks(content: string): string {
       return match;
     },
   );
+
+  // Pass 2: bare JSON objects not inside any code fence
+  // Process line-by-line, accumulating brace-balanced JSON when a line starts with '{'
+  const lines = pass1.split('\n');
+  const result: string[] = [];
+  let i = 0;
+  let insideFence = false;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Track code-fence open/close (any line starting with ```)
+    if (/^[ \t]*```/.test(line)) {
+      insideFence = !insideFence;
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    if (!insideFence && line.trimStart().startsWith('{')) {
+      // Accumulate lines until braces are balanced (respecting string literals)
+      let depth = 0;
+      let inStr = false;
+      let esc = false;
+      let accumulated = '';
+      let consumed = i;
+
+      for (let k = i; k < lines.length; k++) {
+        accumulated += (k > i ? '\n' : '') + lines[k];
+        for (const ch of lines[k]) {
+          if (esc) { esc = false; continue; }
+          if (ch === '\\') { esc = true; continue; }
+          if (ch === '"') { inStr = !inStr; continue; }
+          if (!inStr) {
+            if (ch === '{') depth++;
+            else if (ch === '}') { depth--; }
+          }
+        }
+        consumed = k + 1;
+        if (depth === 0) break;
+      }
+
+      if (depth === 0) {
+        try {
+          const parsed = JSON.parse(accumulated.trim());
+          if (parsed && typeof parsed.field === 'string' && 'value' in parsed) {
+            result.push('```field-update');
+            result.push(accumulated.trim());
+            result.push('```');
+            i = consumed;
+            continue;
+          }
+        } catch {
+          // Not valid JSON or not a field-update shape — fall through
+        }
+      }
+    }
+
+    result.push(line);
+    i++;
+  }
+
+  return result.join('\n');
 }
 
 export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace, onApplyFieldUpdate, fieldLabels, onSelectOption, isAnswered }: ChatMessageMarkdownProps) {
