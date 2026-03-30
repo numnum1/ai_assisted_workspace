@@ -337,8 +337,7 @@ export function streamChat(
               onToolCall?.(unescaped);
             } else if (currentEvent === 'tool_history') {
               try {
-                const unescaped = data.replace(/\\n/g, '\n');
-                onToolHistory?.(JSON.parse(unescaped));
+                onToolHistory?.(JSON.parse(data));
               } catch { /* ignore malformed tool_history */ }
             } else if (currentEvent === 'resolved_user_message') {
               const unescaped = data.replace(/\\n/g, '\n');

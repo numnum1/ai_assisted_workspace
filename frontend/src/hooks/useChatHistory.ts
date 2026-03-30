@@ -112,8 +112,12 @@ export function useChatHistory(currentMode: string) {
   );
 
   const createConversation = useCallback(
-    (mode?: string) => {
+    (mode?: string, initialMessages?: ChatMessage[]) => {
       const newConv = createEmptyConversation(mode ?? currentMode);
+      if (initialMessages && initialMessages.length > 0) {
+        newConv.messages = initialMessages;
+        newConv.title = generateTitle(initialMessages);
+      }
       setConversations((prev) => {
         const updated = [newConv, ...prev];
         if (updated.length > MAX_CONVERSATIONS) {

@@ -2293,11 +2293,21 @@ body {
   font-weight: 600;
 }
 
-.chat-fork-btn {
+.chat-fork-actions {
   position: absolute;
   top: 6px;
   right: 6px;
   display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.chat-message:hover .chat-fork-actions {
+  display: flex;
+}
+
+.chat-fork-btn {
+  display: flex;
   align-items: center;
   padding: 3px;
   background: var(--bg-hover);
@@ -2306,10 +2316,6 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s;
-}
-
-.chat-message:hover .chat-fork-btn {
-  display: flex;
 }
 
 .chat-fork-btn:hover {

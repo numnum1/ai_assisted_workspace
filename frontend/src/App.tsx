@@ -390,6 +390,11 @@ function App() {
     history.createConversation(selectedMode);
   }, [history, selectedMode]);
 
+  const handleForkToNewConversation = useCallback((index: number) => {
+    const forkedMessages = chat.messages.slice(0, index + 1);
+    history.createConversation(selectedMode, forkedMessages);
+  }, [chat.messages, history, selectedMode]);
+
   const handleSwitchChat = useCallback((id: string) => {
     history.switchConversation(id);
   }, [history]);
@@ -580,6 +585,7 @@ function App() {
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
+            onForkToNewConversation={handleForkToNewConversation}
             onNewChat={handleNewChat}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}

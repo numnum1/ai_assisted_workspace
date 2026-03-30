@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Trash2, Search, Scissors, History, Copy, Check, Wand2 } from 'lucide-react';
+import { Trash2, Search, Scissors, GitFork, History, Copy, Check, Wand2 } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -27,6 +27,7 @@ interface ChatPanelProps {
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
   onForkFromMessage: (index: number) => void;
+  onForkToNewConversation: (index: number) => void;
   onNewChat: () => void;
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
@@ -69,6 +70,7 @@ export function ChatPanel({
   onAddFile,
   onRemoveFile,
   onForkFromMessage,
+  onForkToNewConversation,
   onNewChat,
   onSwitchChat,
   onDeleteChat,
@@ -225,13 +227,22 @@ export function ChatPanel({
                 </button>
               )}
               {visIdx > 0 && !streaming && (
-                <button
-                  className="chat-fork-btn"
-                  onClick={() => onForkFromMessage(originalIdx)}
-                  title="Neuen Chat ab hier"
-                >
-                  <Scissors size={12} />
-                </button>
+                <div className="chat-fork-actions">
+                  <button
+                    className="chat-fork-btn"
+                    onClick={() => onForkFromMessage(originalIdx)}
+                    title="Hier abschneiden (in-place)"
+                  >
+                    <Scissors size={12} />
+                  </button>
+                  <button
+                    className="chat-fork-btn"
+                    onClick={() => onForkToNewConversation(originalIdx)}
+                    title="Als neuen Chat forken"
+                  >
+                    <GitFork size={12} />
+                  </button>
+                </div>
               )}
             </div>
           );
