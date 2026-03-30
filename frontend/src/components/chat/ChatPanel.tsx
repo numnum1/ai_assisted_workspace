@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Trash2, Search, Scissors, GitFork, History, Copy, Check, Wand2 } from 'lucide-react';
+import { Trash2, Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -87,10 +87,17 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    setRenamingTitle(false);
+  }, [activeConversationId]);
 
   return (
     <div className="chat-panel">
@@ -116,6 +123,30 @@ export function ChatPanel({
           </button>
           <button className="chat-clear-btn" onClick={onClear} title="Clear chat">
             <Trash2 size={14} />
+          </button>
+        </div>
+        <div className="chat-header-title-row">
+          {renamingTitle ? (
+            <input
+              className="chat-header-rename-input"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={() => { onRenameChat(activeConversationId, titleDraft); setRenamingTitle(false); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { onRenameChat(activeConversationId, titleDraft); setRenamingTitle(false); }
+                if (e.key === 'Escape') setRenamingTitle(false);
+              }}
+              autoFocus
+            />
+          ) : (
+            <span className="chat-header-title" title={activeTitle}>{activeTitle}</span>
+          )}
+          <button
+            className="chat-header-rename-btn"
+            onClick={() => { setTitleDraft(activeTitle); setRenamingTitle(true); }}
+            title="Chat umbenennen"
+          >
+            <Pencil size={11} />
           </button>
         </div>
       </div>

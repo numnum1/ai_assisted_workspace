@@ -392,7 +392,12 @@ function App() {
 
   const handleForkToNewConversation = useCallback((index: number) => {
     const forkedMessages = chat.messages.slice(0, index + 1);
-    history.createConversation(selectedMode, forkedMessages);
+    const baseTitle = history.activeConversation?.title ?? 'Chat';
+    const base = `${baseTitle}-fork`;
+    const existingTitles = new Set(history.conversations.map((c) => c.title));
+    let n = 1;
+    while (existingTitles.has(`${base} (${n})`)) n++;
+    history.createConversation(selectedMode, forkedMessages, `${base} (${n})`);
   }, [chat.messages, history, selectedMode]);
 
   const handleSwitchChat = useCallback((id: string) => {

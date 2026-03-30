@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, MessageSquare, X } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, X, Pencil } from 'lucide-react';
 import type { Conversation } from '../../types.ts';
 
 interface ChatHistoryProps {
@@ -26,6 +26,23 @@ function formatDate(timestamp: number): string {
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+function groupByDate(convs: Conversation[]): { label: string; items: Conversation[] }[] {
+  const now = Date.now();
+  const day = 86_400_000;
+  const groupDefs = [
+    { label: 'Heute',       test: (t: number) => now - t < day },
+    { label: 'Gestern',     test: (t: number) => now - t >= day && now - t < 2 * day },
+    { label: 'Diese Woche', test: (t: number) => now - t >= 2 * day && now - t < 7 * day },
+    { label: 'Älter',       test: (t: number) => now - t >= 7 * day },
+  ];
+  const result: { label: string; items: Conversation[] }[] = [];
+  for (const g of groupDefs) {
+    const matched = convs.filter((c) => g.test(c.updatedAt));
+    if (matched.length > 0) result.push({ label: g.label, items: matched });
+  }
+  return result;
+}
+
 export function ChatHistory({
   conversations,
   activeId,
@@ -37,6 +54,7 @@ export function ChatHistory({
 }: ChatHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [filterText, setFilterText] = useState('');
   const editRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,7 +64,8 @@ export function ChatHistory({
     }
   }, [editingId]);
 
-  const handleDoubleClick = (conv: Conversation) => {
+  const handleStartRename = (conv: Conversation, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setEditingId(conv.id);
     setEditTitle(conv.title);
   };
@@ -66,6 +85,12 @@ export function ChatHistory({
     }
   };
 
+  const filtered = filterText.trim()
+    ? conversations.filter((c) => c.title.toLowerCase().includes(filterText.toLowerCase()))
+    : conversations;
+
+  const groups = groupByDate(filtered);
+
   return (
     <div className="chat-history-panel">
       <div className="chat-history-header">
@@ -80,48 +105,75 @@ export function ChatHistory({
         </div>
       </div>
 
+      <div className="chat-history-search-row">
+        <input
+          className="chat-history-search"
+          placeholder="Suchen…"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+        />
+      </div>
+
       <div className="chat-history-list">
-        {conversations.map((conv) => (
-          <div
-            key={conv.id}
-            className={`chat-history-item ${conv.id === activeId ? 'active' : ''}`}
-            onClick={() => {
-              onSelect(conv.id);
-              onClose();
-            }}
-            onDoubleClick={() => handleDoubleClick(conv)}
-          >
-            <div className="chat-history-item-icon">
-              <MessageSquare size={14} />
-            </div>
-            <div className="chat-history-item-content">
-              {editingId === conv.id ? (
-                <input
-                  ref={editRef}
-                  className="chat-history-rename-input"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={handleKeyDown}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <div className="chat-history-item-title">{conv.title}</div>
-              )}
-              <div className="chat-history-item-meta">
-                {conv.messages.length} Nachrichten · {formatDate(conv.updatedAt)}
+        {groups.length === 0 && (
+          <div className="chat-history-empty">Keine Chats gefunden.</div>
+        )}
+        {groups.map((group) => (
+          <div key={group.label}>
+            <div className="chat-history-group-label">{group.label}</div>
+            {group.items.map((conv) => (
+              <div
+                key={conv.id}
+                className={`chat-history-item ${conv.id === activeId ? 'active' : ''}`}
+                onClick={() => {
+                  if (editingId === conv.id) return;
+                  onSelect(conv.id);
+                  onClose();
+                }}
+                onDoubleClick={(e) => handleStartRename(conv, e)}
+              >
+                <div className="chat-history-item-icon">
+                  <MessageSquare size={14} />
+                </div>
+                <div className="chat-history-item-content">
+                  {editingId === conv.id ? (
+                    <input
+                      ref={editRef}
+                      className="chat-history-rename-input"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={handleKeyDown}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <div className="chat-history-item-title">{conv.title}</div>
+                  )}
+                  <div className="chat-history-item-meta">
+                    {conv.messages.filter((m) => !m.hidden).length} Nachrichten · {formatDate(conv.updatedAt)}
+                  </div>
+                </div>
+                <div className="chat-history-item-actions">
+                  <button
+                    className="chat-history-action-btn"
+                    onClick={(e) => handleStartRename(conv, e)}
+                    title="Umbenennen"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                  <button
+                    className="chat-history-delete-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(conv.id);
+                    }}
+                    title="Chat loeschen"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               </div>
-            </div>
-            <button
-              className="chat-history-delete-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(conv.id);
-              }}
-              title="Chat loeschen"
-            >
-              <Trash2 size={12} />
-            </button>
+            ))}
           </div>
         ))}
       </div>

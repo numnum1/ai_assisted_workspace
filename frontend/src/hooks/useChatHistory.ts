@@ -112,11 +112,13 @@ export function useChatHistory(currentMode: string) {
   );
 
   const createConversation = useCallback(
-    (mode?: string, initialMessages?: ChatMessage[]) => {
+    (mode?: string, initialMessages?: ChatMessage[], title?: string) => {
       const newConv = createEmptyConversation(mode ?? currentMode);
       if (initialMessages && initialMessages.length > 0) {
         newConv.messages = initialMessages;
-        newConv.title = generateTitle(initialMessages);
+        newConv.title = title ?? generateTitle(initialMessages);
+      } else if (title) {
+        newConv.title = title;
       }
       setConversations((prev) => {
         const updated = [newConv, ...prev];
