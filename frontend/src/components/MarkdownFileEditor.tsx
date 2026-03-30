@@ -125,6 +125,7 @@ export function MarkdownFileEditor({
           editorId="file"
           alwaysShowMarkdownStylingCharacters
           alwaysShowHtmlComments
+          showReferencesAsLinks
           className="markdown-file-editor-cm"
         />
 

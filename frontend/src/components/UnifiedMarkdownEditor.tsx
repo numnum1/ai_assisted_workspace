@@ -6,6 +6,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { createReadingTheme } from './readingTheme';
 import { hideMarksExtension } from './hideMarksExtension';
+import { wikiReferenceDisplayExtension } from './wikiReferenceDisplayExtension';
 import { scrollLineWithoutCursorKeymap } from './codemirrorScrollLineKeymap.ts';
 import type { ReadingThemeConfig } from './readingTheme';
 import type { SelectionContext } from '../types.ts';
@@ -16,7 +17,7 @@ export interface MarkdownEditorConfig {
   alwaysShowMarkdownStylingCharacters?: boolean;
   /** Hide <!-- ... --> HTML comments on non-active lines. Default: false */
   alwaysShowHtmlComments?: boolean;
-  /** Render @[Name](id) wiki references as clickable links. Default: false (stub) */
+  /** On non-active lines, show only the display name as an underlined link; hide @, brackets, and path. Default: false */
   showReferencesAsLinks?: boolean;
   /** Visual theme. Default: 'file' */
   theme?: 'file' | 'reading';
@@ -77,7 +78,7 @@ export function UnifiedMarkdownEditor({
   onCtrlL,
   alwaysShowMarkdownStylingCharacters = false,
   alwaysShowHtmlComments = false,
-  showReferencesAsLinks: _showReferencesAsLinks = false, // eslint-disable-line @typescript-eslint/no-unused-vars
+  showReferencesAsLinks = false,
   theme = 'file',
   readingThemeOverrides,
   layout = 'fixed',
@@ -111,11 +112,23 @@ export function UnifiedMarkdownEditor({
       hideMarksExtension({
         hideMarkdownMarks: !alwaysShowMarkdownStylingCharacters,
         hideHtmlComments: !alwaysShowHtmlComments,
+        skipWikiPrefixedLinks: showReferencesAsLinks,
       }),
     );
 
+    if (showReferencesAsLinks) {
+      exts.push(...wikiReferenceDisplayExtension());
+    }
+
     return exts;
-  }, [theme, readingThemeOverrides, layout, alwaysShowMarkdownStylingCharacters, alwaysShowHtmlComments]);
+  }, [
+    theme,
+    readingThemeOverrides,
+    layout,
+    alwaysShowMarkdownStylingCharacters,
+    alwaysShowHtmlComments,
+    showReferencesAsLinks,
+  ]);
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -123,7 +136,7 @@ export function UnifiedMarkdownEditor({
     const germanQuotesRun = (view: EditorView) => {
       const { from, to } = view.state.selection.main;
       const selected = view.state.sliceDoc(from, to);
-      const insert = '„' + selected + '"';
+      const insert = '„' + selected + '\u201c';
       view.dispatch({
         changes: { from, to, insert },
         selection: { anchor: from + 1 + selected.length },

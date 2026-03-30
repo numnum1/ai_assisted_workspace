@@ -42,6 +42,7 @@ export function ActionEditor({ actionId, content, colors, fontSize, padding, onC
       editorId="chapter"
       alwaysShowMarkdownStylingCharacters={false}
       alwaysShowHtmlComments={false}
+      showReferencesAsLinks
       className="action-editor-cm-wrap"
       style={{ backgroundColor: colors.bg }}
     />
