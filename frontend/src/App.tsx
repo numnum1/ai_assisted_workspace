@@ -17,8 +17,8 @@ import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
 import { WikiTypeEditor } from './components/wiki/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/wiki/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext } from './types.ts';
-import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, AuthRequiredError } from './api.ts';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, NoteProposal } from './types.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -92,6 +92,7 @@ function App() {
     setSelectedMeta(null);
     setMetaExpanded(false);
     setFocusedField(null);
+    wiki.loadTypes().catch(() => { /* ignore if wiki not yet initialised */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
 
@@ -390,6 +391,14 @@ function App() {
     history.createConversation(selectedMode);
   }, [history, selectedMode]);
 
+  const handleSaveFreeNote = useCallback(async (note: NoteProposal) => {
+    await notesApi.saveFree(note);
+  }, []);
+
+  const handleAttachNoteToEntry = useCallback(async (note: NoteProposal, typeId: string, entryId: string) => {
+    await notesApi.attachToEntry(typeId, entryId, note);
+  }, []);
+
   const handleForkToNewConversation = useCallback((index: number) => {
     const forkedMessages = chat.messages.slice(0, index + 1);
     const baseTitle = history.activeConversation?.title ?? 'Chat';
@@ -603,6 +612,9 @@ function App() {
             onApplyFieldUpdate={handleApplyFieldUpdate}
             fieldLabels={fieldLabels}
             chatFocusTriggerRef={chatFocusTriggerRef}
+            wikiTypes={wiki.types}
+            onSaveFreeNote={handleSaveFreeNote}
+            onAttachNoteToEntry={handleAttachNoteToEntry}
           />
         </Panel>
       </Group>

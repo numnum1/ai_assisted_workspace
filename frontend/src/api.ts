@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal } from './types.ts';
 
 const BASE = '/api';
 
@@ -271,6 +271,21 @@ export const shadowApi = {
 export const chatApi = {
   previewContext: (body: ChatRequest) =>
     post<{ includedFiles: string[]; estimatedTokens: number }>('/chat/context-preview', body),
+};
+
+export const notesApi = {
+  saveFree: (note: NoteProposal) =>
+    post<NoteProposal>('/notes/free', note),
+  listFree: () =>
+    get<NoteProposal[]>('/notes/free'),
+  deleteFree: (id: string) =>
+    del<{ status: string; id: string }>(`/notes/free/${encodeURIComponent(id)}`),
+  attachToEntry: (typeId: string, entryId: string, note: NoteProposal) =>
+    post<NoteProposal>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`, note),
+  listForEntry: (typeId: string, entryId: string) =>
+    get<NoteProposal[]>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`),
+  deleteFromEntry: (typeId: string, entryId: string, id: string) =>
+    del<{ status: string; id: string }>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}/${encodeURIComponent(id)}`),
 };
 
 export function streamChat(

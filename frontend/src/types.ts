@@ -242,6 +242,16 @@ export interface MetaSelection {
   meta: NodeMeta;
 }
 
+// ─── Notes ────────────────────────────────────────────────────────────────────
+
+export interface NoteProposal {
+  id: string;
+  title: string;
+  content: string;
+  wikiHint?: string | null;
+  createdAt?: number;
+}
+
 // ─── Wiki ─────────────────────────────────────────────────────────────────────
 
 export interface WikiFieldDef {

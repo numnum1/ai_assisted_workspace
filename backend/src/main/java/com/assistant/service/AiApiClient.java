@@ -329,10 +329,44 @@ public class AiApiClient {
     }
 
     private String unescapeJson(String s) {
-        return s.replace("\\n", "\n")
-                .replace("\\t", "\t")
-                .replace("\\\"", "\"")
-                .replace("\\\\", "\\");
+        StringBuilder sb = new StringBuilder(s.length());
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                switch (next) {
+                    case '"'  -> { sb.append('"');  i += 2; }
+                    case '\\' -> { sb.append('\\'); i += 2; }
+                    case '/'  -> { sb.append('/');  i += 2; }
+                    case 'n'  -> { sb.append('\n'); i += 2; }
+                    case 'r'  -> { sb.append('\r'); i += 2; }
+                    case 't'  -> { sb.append('\t'); i += 2; }
+                    case 'b'  -> { sb.append('\b'); i += 2; }
+                    case 'f'  -> { sb.append('\f'); i += 2; }
+                    case 'u'  -> {
+                        if (i + 5 < s.length()) {
+                            try {
+                                int codePoint = Integer.parseInt(s.substring(i + 2, i + 6), 16);
+                                sb.appendCodePoint(codePoint);
+                                i += 6;
+                            } catch (NumberFormatException e) {
+                                sb.append(c);
+                                i++;
+                            }
+                        } else {
+                            sb.append(c);
+                            i++;
+                        }
+                    }
+                    default -> { sb.append(c); i++; }
+                }
+            } else {
+                sb.append(c);
+                i++;
+            }
+        }
+        return sb.toString();
     }
 
     public record ChatCompletionResult(String content, List<ToolCall> toolCalls) {

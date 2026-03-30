@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Trash2, Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
-import type { ChatMessage, Mode, Conversation, SelectionContext } from '../../types.ts';
+import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
+import { NoteCard } from './NoteCard.tsx';
+import { wikiApi } from '../../api.ts';
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
@@ -40,6 +42,9 @@ interface ChatPanelProps {
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
   chatFocusTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  wikiTypes?: WikiType[];
+  onSaveFreeNote?: (note: NoteProposal) => Promise<void>;
+  onAttachNoteToEntry?: (note: NoteProposal, typeId: string, entryId: string) => Promise<void>;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -49,6 +54,48 @@ function getContrastingTextColor(hexColor?: string): string | undefined {
   const b = parseInt(hexColor.slice(5, 7), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.6 ? '#1e1e2e' : '#f5f5ff';
+}
+
+/**
+ * Scans all messages (including hidden tool-chain messages) and returns a map from
+ * visible message index to the list of note proposals that should appear after it.
+ * A note proposal is a tool result from a "propose_note" tool call.
+ */
+function extractNoteProposals(messages: ChatMessage[]): Map<number, NoteProposal[]> {
+  // Build map: toolCallId → function name (from assistant messages with toolCalls)
+  const toolCallFnMap = new Map<string, string>();
+  messages.forEach((m) => {
+    if (m.role === 'assistant' && m.toolCalls) {
+      m.toolCalls.forEach((tc) => toolCallFnMap.set(tc.id, tc.function.name));
+    }
+  });
+
+  // Track the index of the last visible (non-hidden) message seen so far
+  const result = new Map<number, NoteProposal[]>();
+  let lastVisibleIdx = -1;
+
+  messages.forEach((m, idx) => {
+    if (!m.hidden) {
+      lastVisibleIdx = idx;
+    }
+    if (m.role === 'tool' && m.toolCallId) {
+      const fnName = toolCallFnMap.get(m.toolCallId);
+      if (fnName === 'propose_note') {
+        try {
+          const note = JSON.parse(m.content) as NoteProposal;
+          if (note.id && note.title && note.content) {
+            const key = lastVisibleIdx;
+            const existing = result.get(key) ?? [];
+            result.set(key, [...existing, note]);
+          }
+        } catch {
+          /* ignore malformed note JSON */
+        }
+      }
+    }
+  });
+
+  return result;
 }
 
 export function ChatPanel({
@@ -83,12 +130,18 @@ export function ChatPanel({
   onApplyFieldUpdate,
   fieldLabels,
   chatFocusTriggerRef,
+  wikiTypes = [],
+  onSaveFreeNote,
+  onAttachNoteToEntry,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [renamingTitle, setRenamingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
+  const [dismissedNoteIds, setDismissedNoteIds] = useState<Set<string>>(new Set());
+  const [wikiEntriesByType, setWikiEntriesByType] = useState<Record<string, WikiEntry[]>>({});
+
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
   useEffect(() => {
@@ -98,6 +151,25 @@ export function ChatPanel({
   useEffect(() => {
     setRenamingTitle(false);
   }, [activeConversationId]);
+
+  // Reset dismissed notes when chat is cleared
+  useEffect(() => {
+    if (messages.length === 0) {
+      setDismissedNoteIds(new Set());
+    }
+  }, [messages.length]);
+
+  const handleLoadEntries = useCallback(async (typeId: string) => {
+    if (wikiEntriesByType[typeId]) return;
+    try {
+      const entries = await wikiApi.listEntries(typeId);
+      setWikiEntriesByType((prev) => ({ ...prev, [typeId]: entries }));
+    } catch {
+      /* ignore */
+    }
+  }, [wikiEntriesByType]);
+
+  const noteProposalMap = extractNoteProposals(messages);
 
   return (
     <div className="chat-panel">
@@ -190,89 +262,109 @@ export function ChatPanel({
             prevUser?.role === 'user' &&
             prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
 
+          const noteProposalsForMsg = (noteProposalMap.get(originalIdx) ?? [])
+            .filter((n) => !dismissedNoteIds.has(n.id));
+
           return (
-            <div
-              key={originalIdx}
-              className={`chat-message ${msg.role}`}
-              style={msg.role === 'user' && msg.modeColor ? {
-                backgroundColor: msg.modeColor,
-                borderLeftColor: msg.modeColor,
-                color: getContrastingTextColor(msg.modeColor),
-              } : undefined}
-            >
+            <div key={originalIdx}>
               <div
-                className="chat-message-role"
-                style={msg.role === 'user' && msg.modeColor ? { color: getContrastingTextColor(msg.modeColor) } : undefined}
+                className={`chat-message ${msg.role}`}
+                style={msg.role === 'user' && msg.modeColor ? {
+                  backgroundColor: msg.modeColor,
+                  borderLeftColor: msg.modeColor,
+                  color: getContrastingTextColor(msg.modeColor),
+                } : undefined}
               >
-                {msg.role === 'user' ? (
-                  <span>
-                    You
-                    {msg.mode && (
-                      <span className="chat-message-mode" style={{ color: getContrastingTextColor(msg.modeColor) }}>
-                        {' · '}{msg.mode}
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  'Assistant'
-                )}
-              </div>
-              <div
-                className={
-                  msg.role === 'assistant' ? 'chat-message-content chat-message-md' : 'chat-message-content'
-                }
-              >
-                {msg.role === 'assistant' ? (
-                  <ChatMessageMarkdown
-                    content={msg.content}
-                    streamingCursor={streaming && originalIdx === messages.length - 1}
-                    selectionContext={msg.selectionContext}
-                    onReplace={msg.selectionContext && onReplaceSelection
-                      ? (text) => onReplaceSelection(text, msg.selectionContext!)
-                      : undefined}
-                    onApplyFieldUpdate={onApplyFieldUpdate}
-                    fieldLabels={fieldLabels}
-                    onSelectOption={onSend}
-                    isAnswered={visIdx < visArr.length - 1 && visArr[visIdx + 1]?.msg.role === 'user'}
-                  />
-                ) : (
-                  msg.content
-                )}
-              </div>
-              {showCopyForPromptPack && (
-                <button
-                  type="button"
-                  className="copy-msg-btn"
-                  title="In Zwischenablage kopieren"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(msg.content);
-                      setCopiedIdx(originalIdx);
-                      setTimeout(() => setCopiedIdx(null), 2000);
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
+                <div
+                  className="chat-message-role"
+                  style={msg.role === 'user' && msg.modeColor ? { color: getContrastingTextColor(msg.modeColor) } : undefined}
                 >
-                  {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-              )}
-              {visIdx > 0 && !streaming && (
-                <div className="chat-fork-actions">
+                  {msg.role === 'user' ? (
+                    <span>
+                      You
+                      {msg.mode && (
+                        <span className="chat-message-mode" style={{ color: getContrastingTextColor(msg.modeColor) }}>
+                          {' · '}{msg.mode}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    'Assistant'
+                  )}
+                </div>
+                <div
+                  className={
+                    msg.role === 'assistant' ? 'chat-message-content chat-message-md' : 'chat-message-content'
+                  }
+                >
+                  {msg.role === 'assistant' ? (
+                    <ChatMessageMarkdown
+                      content={msg.content}
+                      streamingCursor={streaming && originalIdx === messages.length - 1}
+                      selectionContext={msg.selectionContext}
+                      onReplace={msg.selectionContext && onReplaceSelection
+                        ? (text) => onReplaceSelection(text, msg.selectionContext!)
+                        : undefined}
+                      onApplyFieldUpdate={onApplyFieldUpdate}
+                      fieldLabels={fieldLabels}
+                      onSelectOption={onSend}
+                      isAnswered={visIdx < visArr.length - 1 && visArr[visIdx + 1]?.msg.role === 'user'}
+                    />
+                  ) : (
+                    msg.content
+                  )}
+                </div>
+                {showCopyForPromptPack && (
                   <button
-                    className="chat-fork-btn"
-                    onClick={() => onForkFromMessage(originalIdx)}
-                    title="Hier abschneiden (in-place)"
+                    type="button"
+                    className="copy-msg-btn"
+                    title="In Zwischenablage kopieren"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(msg.content);
+                        setCopiedIdx(originalIdx);
+                        setTimeout(() => setCopiedIdx(null), 2000);
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
                   >
-                    <Scissors size={12} />
+                    {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
                   </button>
-                  <button
-                    className="chat-fork-btn"
-                    onClick={() => onForkToNewConversation(originalIdx)}
-                    title="Als neuen Chat forken"
-                  >
-                    <GitFork size={12} />
-                  </button>
+                )}
+                {visIdx > 0 && !streaming && (
+                  <div className="chat-fork-actions">
+                    <button
+                      className="chat-fork-btn"
+                      onClick={() => onForkFromMessage(originalIdx)}
+                      title="Hier abschneiden (in-place)"
+                    >
+                      <Scissors size={12} />
+                    </button>
+                    <button
+                      className="chat-fork-btn"
+                      onClick={() => onForkToNewConversation(originalIdx)}
+                      title="Als neuen Chat forken"
+                    >
+                      <GitFork size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {noteProposalsForMsg.length > 0 && onSaveFreeNote && onAttachNoteToEntry && (
+                <div className="note-cards-container">
+                  {noteProposalsForMsg.map((note) => (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      wikiTypes={wikiTypes}
+                      wikiEntriesByType={wikiEntriesByType}
+                      onSaveFree={onSaveFreeNote}
+                      onAttachToEntry={onAttachNoteToEntry}
+                      onDismiss={(id) => setDismissedNoteIds((prev) => new Set([...prev, id]))}
+                      onLoadEntries={handleLoadEntries}
+                    />
+                  ))}
                 </div>
               )}
             </div>

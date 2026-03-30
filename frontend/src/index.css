@@ -2402,6 +2402,190 @@ body {
   color: var(--accent);
 }
 
+/* ==================== Note Cards Container ==================== */
+
+.note-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ==================== Note Card ==================== */
+
+.note-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--yellow);
+  border-left: 3px solid var(--yellow);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.note-card--saved {
+  border-color: var(--green);
+  border-left-color: var(--green);
+  opacity: 0.75;
+}
+
+.note-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.note-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.note-card-icon {
+  color: var(--yellow);
+  flex-shrink: 0;
+}
+
+.note-card-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--yellow);
+  flex: 1;
+}
+
+.note-card-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.note-card-dismiss:hover {
+  color: var(--red);
+  background: rgba(243, 139, 168, 0.1);
+}
+
+.note-card-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.note-card-wiki-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.note-card-content {
+  color: var(--text-secondary);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+.note-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.note-card-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.note-card-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.note-card-btn--free:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.note-card-btn--attach:hover,
+.note-card-btn--attach.active {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.note-card-btn--confirm {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.note-card-btn--confirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.note-card-attach-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.note-card-select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.note-card-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.note-card-saved-banner,
+.note-card-saving-banner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--green);
+}
+
+.note-card-saving-banner {
+  color: var(--text-muted);
+}
+
+@keyframes note-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.note-card-spinner {
+  animation: note-spin 1s linear infinite;
+}
+
 /* ==================== Prompt-Paket panel ==================== */
 
 .prompt-pack-panel {
@@ -5026,6 +5210,88 @@ body {
 .wiki-entry-popup .wiki-mention-wrap {
   width: 100%;
   box-sizing: border-box;
+}
+
+/* ==================== Wiki Entry Notes ==================== */
+
+.wiki-entry-notes {
+  border-top: 1px solid var(--border);
+  padding: 10px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wiki-entry-notes-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--yellow);
+}
+
+.wiki-entry-notes-loading {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.wiki-entry-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wiki-entry-note-item {
+  position: relative;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--yellow);
+  border-radius: 6px;
+  padding: 8px 32px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wiki-entry-note-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wiki-entry-note-content {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.wiki-entry-note-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+  opacity: 0;
+}
+
+.wiki-entry-note-item:hover .wiki-entry-note-delete {
+  opacity: 1;
+}
+
+.wiki-entry-note-delete:hover {
+  color: var(--red);
+  background: rgba(243, 139, 168, 0.1);
 }
 
 /* ==================== Wiki Type Editor ==================== */
