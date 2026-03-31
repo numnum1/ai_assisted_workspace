@@ -101,40 +101,50 @@ public class ChatController {
                                             .event("context_update")
                                             .data("{\"estimatedTokens\":" + contextService.estimateTokensForMessages(resolved.messages()) + "}")
                                             .build());
-                            AtomicInteger streamChunks = new AtomicInteger();
-                            AtomicInteger streamChars = new AtomicInteger();
-                            log.info(
-                                    "Starting assistant token stream after tool resolution: {} tool SSE events, messagesForApi={}",
-                                    resolved.toolCallEvents().size(),
-                                    resolved.messages().size());
-                            Flux<ServerSentEvent<String>> tokenStream = aiApiClient
-                                    .streamChat(resolved.messages(), tools, llmId, useReasoning)
-                                    .doOnNext(chunk -> {
-                                        streamChunks.incrementAndGet();
-                                        streamChars.addAndGet(chunk.length());
-                                    })
-                                    .doOnComplete(() -> {
-                                        int chunks = streamChunks.get();
-                                        int chars = streamChars.get();
-                                        if (chunks == 0) {
-                                            log.warn(
-                                                    "Assistant stream completed with 0 chunks and 0 characters — "
-                                                            + "model returned no content. Likely context overflow or content filter. "
-                                                            + "mode={}, llmId={}, messagesForApi={}",
-                                                    request.getMode(),
-                                                    llmId,
-                                                    resolved.messages().size());
-                                        } else {
-                                            log.info("Assistant stream finished: {} chunks, {} characters", chunks, chars);
-                                        }
-                                    })
-                                    .doOnError(e -> log.error(
-                                            "Assistant stream failed after {} chunks ({} chars so far)",
-                                            streamChunks.get(),
-                                            streamChars.get(),
-                                            e))
-                                    .map(chunk -> ServerSentEvent.<String>builder()
-                                            .event("token").data(escapeForSse(chunk)).build());
+
+                            Flux<ServerSentEvent<String>> tokenStream;
+                            if (resolved.preGeneratedContent() != null) {
+                                log.info(
+                                        "Emitting pre-generated content as token stream ({} chars), skipping second API call",
+                                        resolved.preGeneratedContent().length());
+                                tokenStream = Flux.just(ServerSentEvent.<String>builder()
+                                        .event("token").data(escapeForSse(resolved.preGeneratedContent())).build());
+                            } else {
+                                AtomicInteger streamChunks = new AtomicInteger();
+                                AtomicInteger streamChars = new AtomicInteger();
+                                log.info(
+                                        "Starting assistant token stream after tool resolution: {} tool SSE events, messagesForApi={}",
+                                        resolved.toolCallEvents().size(),
+                                        resolved.messages().size());
+                                tokenStream = aiApiClient
+                                        .streamChat(resolved.messages(), tools, llmId, useReasoning)
+                                        .doOnNext(chunk -> {
+                                            streamChunks.incrementAndGet();
+                                            streamChars.addAndGet(chunk.length());
+                                        })
+                                        .doOnComplete(() -> {
+                                            int chunks = streamChunks.get();
+                                            int chars = streamChars.get();
+                                            if (chunks == 0) {
+                                                log.warn(
+                                                        "Assistant stream completed with 0 chunks and 0 characters — "
+                                                                + "model returned no content. Likely context overflow or content filter. "
+                                                                + "mode={}, llmId={}, messagesForApi={}",
+                                                        request.getMode(),
+                                                        llmId,
+                                                        resolved.messages().size());
+                                            } else {
+                                                log.info("Assistant stream finished: {} chunks, {} characters", chunks, chars);
+                                            }
+                                        })
+                                        .doOnError(e -> log.error(
+                                                "Assistant stream failed after {} chunks ({} chars so far)",
+                                                streamChunks.get(),
+                                                streamChars.get(),
+                                                e))
+                                        .map(chunk -> ServerSentEvent.<String>builder()
+                                                .event("token").data(escapeForSse(chunk)).build());
+                            }
                             return Flux.concat(toolEvents, toolHistoryEvent, contextUpdateEvent, tokenStream);
                         })
                         .onErrorResume(e -> {
@@ -161,6 +171,7 @@ public class ChatController {
                                                   boolean useReasoning) {
         List<ChatMessage> currentMessages = new ArrayList<>(messages);
         List<ServerSentEvent<String>> toolCallEvents = new ArrayList<>();
+        String preGeneratedContent = null;
         log.info(
                 "Tool resolution: starting with {} messages (originalCount={}), {} tool definitions registered",
                 currentMessages.size(),
@@ -172,8 +183,9 @@ public class ChatController {
 
             if (!result.hasToolCalls()) {
                 if (result.content() != null && !result.content().isBlank()) {
+                    preGeneratedContent = result.content();
                     log.info(
-                            "Tool round {}: model returned text only (no tool_calls), {} chars — will stream final answer separately",
+                            "Tool round {}: model returned text only (no tool_calls), {} chars — reusing as pre-generated content",
                             round + 1,
                             result.content().length());
                 } else {
@@ -186,9 +198,6 @@ public class ChatController {
                                     .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)
                                     .sum());
                 }
-                // Don't add the content here — the streaming call that follows
-                // will generate the final response. Adding it would make the AI
-                // see its own answer and return an empty stream.
                 break;
             }
 
@@ -242,7 +251,7 @@ public class ChatController {
             }
         }
 
-        return new ToolResolutionResult(currentMessages, toolCallEvents, toolHistoryJson);
+        return new ToolResolutionResult(currentMessages, toolCallEvents, toolHistoryJson, preGeneratedContent);
     }
 
     @PostMapping("/sync")
@@ -280,7 +289,8 @@ public class ChatController {
     private record ToolResolutionResult(
             List<ChatMessage> messages,
             List<ServerSentEvent<String>> toolCallEvents,
-            String toolHistoryJson
+            String toolHistoryJson,
+            String preGeneratedContent
     ) {}
 
     private String toContextJson(AssembledContext context, String llmId) {
