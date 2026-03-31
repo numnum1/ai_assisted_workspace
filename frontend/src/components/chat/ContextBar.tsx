@@ -38,6 +38,7 @@ export function ContextBar({ contextInfo, activeFile, isDirty }: ContextBarProps
             </span>
             {hasMax ? (
               <span className="context-bar-tokens context-bar-tokens--with-bar" title={`${contextInfo!.estimatedTokens.toLocaleString()} / ${contextInfo!.maxContextTokens!.toLocaleString()} tokens`}>
+                <span className="context-bar-token-pct" style={{ color: tokenBarColor(pct) }}>{pct}%</span>
                 <span className="context-bar-token-bar" aria-hidden="true">
                   <span
                     className="context-bar-token-bar-fill"

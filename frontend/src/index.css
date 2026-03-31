@@ -3638,6 +3638,14 @@ body {
   color: var(--text-muted);
 }
 
+.context-bar-token-pct {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+  transition: color 0.3s ease;
+}
+
 .context-bar-token-bar {
   display: inline-block;
   width: 60px;
