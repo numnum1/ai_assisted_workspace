@@ -79,6 +79,8 @@ export interface FileTreeOutlinerProps {
   gitStatus?: GitStatus;
   /** Discard git changes for this file or folder (right-click) */
   onGitRevert?: (path: string, isDirectory: boolean) => void;
+  /** Open git file history modal for this file (right-click, files only) */
+  onShowFileHistory?: (path: string) => void;
 }
 
 interface ContextMenuState {
@@ -387,6 +389,7 @@ export function FileTreeOutliner({
   onOpenFileMeta,
   gitStatus,
   onGitRevert,
+  onShowFileHistory,
 }: FileTreeOutlinerProps) {
   const [root, setRoot] = useState<FileNode | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -699,6 +702,21 @@ export function FileTreeOutliner({
                 }}
               >
                 {menu.hasShadow ? 'Meta-Notiz bearbeiten' : 'Meta-Notiz anlegen'}
+              </button>
+            </>
+          )}
+          {!menu.directory && onShowFileHistory && gitStatus?.isRepo && (
+            <>
+              <div className="file-tree-context-separator" role="separator" />
+              <button
+                type="button"
+                className="file-tree-context-item"
+                onClick={() => {
+                  onShowFileHistory(menu.path);
+                  setMenu(null);
+                }}
+              >
+                Verlauf anzeigen
               </button>
             </>
           )}

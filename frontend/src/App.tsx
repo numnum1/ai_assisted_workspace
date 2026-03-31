@@ -11,6 +11,7 @@ import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
 import { ContextBar } from './components/chat/ContextBar.tsx';
 import { CommandPalette } from './components/git/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx';
+import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
 import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
 import { WikiBrowser } from './components/wiki/WikiBrowser.tsx';
 import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
@@ -201,6 +202,7 @@ function App() {
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
+  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
   const hasUncommitted = !gitStatus?.isClean;
 
   const showCredentialsDialog = useCallback((retry: () => void) => {
@@ -547,6 +549,7 @@ function App() {
                 onScopeInvalidated={outlinerScope.clearScopePath}
                 gitStatus={gitStatus ?? undefined}
                 onGitRevert={handleGitRevert}
+                onShowFileHistory={setFileHistoryPath}
               />
             </div>
 
@@ -771,6 +774,10 @@ function App() {
             setInlineChaptersNonce((n) => n + 1);
           }}
         />
+      )}
+
+      {fileHistoryPath && (
+        <FileHistoryModal filePath={fileHistoryPath} onClose={() => setFileHistoryPath(null)} />
       )}
     </div>
   );
