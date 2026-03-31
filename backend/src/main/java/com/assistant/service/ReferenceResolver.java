@@ -15,8 +15,11 @@ import java.util.regex.Pattern;
 public class ReferenceResolver {
 
     // Matches @path/to/file.md or @path/to/file.md:10-25
+    // Supports spaces in path segments (e.g. @Book 1/chapter.json).
+    // Non-greedy match anchored on a file extension, with a lookahead so the
+    // extension is not followed by more path characters.
     private static final Pattern REF_PATTERN = Pattern.compile(
-            "@([\\w./_-]+(?:\\.[\\w]+)?)(?::(\\d+)-(\\d+))?"
+            "@([\\w ./_\\-]+?\\.\\w{1,10})(?::(\\d+)-(\\d+))?(?=\\s|$|@)"
     );
 
     private final FileService fileService;
@@ -28,6 +31,7 @@ public class ReferenceResolver {
     public ResolvedReferences resolve(String message, List<String> explicitFiles) {
         Set<String> allFiles = new LinkedHashSet<>();
         Map<String, String> fileContents = new LinkedHashMap<>();
+
         StringBuilder cleanMessage = new StringBuilder(message);
 
         // Resolve inline @references

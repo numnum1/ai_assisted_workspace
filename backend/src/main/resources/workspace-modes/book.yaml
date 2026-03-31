@@ -1,0 +1,134 @@
+id: book
+name: Buch
+icon: book
+mediaType: true
+editorMode: prose
+rootMetaLabel: Buch-Metadaten
+rootMetaIcon: book
+systemPromptAddition: |
+  Du arbeitest in einem Buchprojekt. Wenn du an einer Szene, einem Kapitel oder einer Handlungseinheit arbeitest, lies automatisch alle relevanten Metadateien (kapitel.json, szene.json, akt.json) aus demselben Kapitel mit read_file, um den vollständigen Kontext des Kapitels zu erhalten.
+levels:
+  - key: chapter
+    label: Kapitel
+    labelNew: Neues Kapitel
+    icon: book
+  - key: scene
+    label: Szene
+    labelNew: Neue Szene
+    icon: layers
+  - key: action
+    label: Handlungseinheit
+    labelNew: Neue Handlungseinheit
+    icon: align-left
+metaSchemas:
+  root:
+    filename: book.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Buchtitel...
+        defaultValue: ""
+      - key: description
+        label: Kurzbeschreibung
+        type: input
+        placeholder: Ein Satz...
+        defaultValue: ""
+      - key: synopsis
+        label: Synopsis (für KI)
+        type: largetextarea
+        placeholder: Gesamte Story zusammenfassen...
+        defaultValue: ""
+      - key: tone
+        label: Ton
+        type: input
+        placeholder: Ernst, bedrückend, ...
+        defaultValue: ""
+  chapter:
+    filename: kapitel.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Titel...
+        defaultValue: ""
+      - key: description
+        label: Beschreibung
+        type: textarea
+        placeholder: Beschreibung...
+        defaultValue: ""
+  scene:
+    filename: szene.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Titel...
+        defaultValue: ""
+      - key: description
+        label: Beschreibung
+        type: textarea
+        placeholder: Beschreibung...
+        defaultValue: ""
+      - key: location
+        label: Lokation
+        type: input
+        placeholder: Lokation...
+        defaultValue: ""
+      - key: time
+        label: Zeit
+        type: input
+        placeholder: Zeit...
+        defaultValue: ""
+      - key: characters
+        label: Charaktere
+        type: textarea
+        placeholder: Charakter hinzufügen...
+        defaultValue: ""
+      - key: initial_situation
+        label: Ausgangssituation
+        type: textarea
+        placeholder: Was ist die Ausgangslage?
+        defaultValue: ""
+      - key: goal
+        label: Ziel der Szene
+        type: textarea
+        placeholder: Was will der Protagonist erreichen?
+        defaultValue: ""
+      - key: outcome
+        label: Ergebnis
+        type: textarea
+        placeholder: Wie endet die Szene?
+        defaultValue: ""
+      - key: pov
+        label: POV
+        type: input
+        defaultValue: ""
+      - key: tone
+        label: Stimmung
+        type: input
+        placeholder: ""
+        defaultValue: ""
+      - key: aiHint
+        label: Hinweise für KI
+        type: textarea
+        placeholder: ""
+        defaultValue: ""
+      - key: beats
+        label: Beats
+        type: textarea
+        placeholder: ""
+        defaultValue: ""
+  action:
+    filename: akt.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Titel...
+        defaultValue: ""
+      - key: description
+        label: Beschreibung
+        type: textarea
+        placeholder: Beschreibung...
+        defaultValue: ""

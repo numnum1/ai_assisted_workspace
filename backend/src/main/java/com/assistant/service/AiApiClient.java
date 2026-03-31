@@ -1,10 +1,11 @@
 package com.assistant.service;
 
-import com.assistant.config.AppConfig;
 import com.assistant.model.ChatMessage;
+import com.assistant.model.ResolvedAiCredentials;
 import com.assistant.model.ToolCall;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -17,28 +18,63 @@ public class AiApiClient {
 
     private static final Logger log = LoggerFactory.getLogger(AiApiClient.class);
 
-    private final WebClient webClient;
-    private final AppConfig appConfig;
+    private static final int MAX_IN_MEMORY = 16 * 1024 * 1024;
 
-    public AiApiClient(WebClient aiWebClient, AppConfig appConfig) {
-        this.webClient = aiWebClient;
-        this.appConfig = appConfig;
+    private final WebClient.Builder webClientBuilder;
+    private final AiProviderService aiProviderService;
+
+    public AiApiClient(WebClient.Builder webClientBuilder, AiProviderService aiProviderService) {
+        this.webClientBuilder = webClientBuilder;
+        this.aiProviderService = aiProviderService;
+    }
+
+    private WebClient clientFor(ResolvedAiCredentials cred) {
+        return webClientBuilder.clone()
+                .baseUrl(cred.apiUrl())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + cred.apiKey())
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(MAX_IN_MEMORY))
+                .build();
     }
 
     /**
      * Streams chat completions as text chunks from the OpenAI-compatible API.
      */
     public Flux<String> streamChat(List<ChatMessage> messages) {
-        return streamChat(messages, null);
+        return streamChat(messages, null, false);
     }
 
     /**
      * Streams chat completions with optional tool definitions.
      */
     public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools) {
-        Map<String, Object> requestBody = buildRequestBody(messages, tools, true);
+        return streamChat(messages, tools, false);
+    }
 
-        return webClient.post()
+    /**
+     * Streams chat completions with optional tool definitions and reasoning model selection.
+     *
+     * @param useReasoning when true the provider's reasoning model is used instead of the fast model
+     */
+    public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools, boolean useReasoning) {
+        return streamChat(messages, tools, (String) null, useReasoning);
+    }
+
+    /** Streams chat completions with a specific LLM entry and reasoning selection. */
+    public Flux<String> streamChat(List<ChatMessage> messages, List<Map<String, Object>> tools,
+                                   String llmId, boolean useReasoning) {
+        ResolvedAiCredentials cred = aiProviderService.getResolved(llmId, useReasoning);
+        Map<String, Object> requestBody = buildRequestBody(messages, tools, true, cred.model());
+
+        log.info(
+                "AI API stream: baseUrl={}, model={}, messages={}, tools={}, totalApproxChars={}",
+                cred.apiUrl(),
+                cred.model(),
+                messages.size(),
+                tools != null ? tools.size() : 0,
+                countApproxCharsInMessages(messages));
+
+        return clientFor(cred).post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
@@ -58,9 +94,32 @@ public class AiApiClient {
      * Returns a ChatCompletionResult which contains either content or tool calls.
      */
     public ChatCompletionResult chatWithTools(List<ChatMessage> messages, List<Map<String, Object>> tools) {
-        Map<String, Object> requestBody = buildRequestBody(messages, tools, false);
+        return chatWithTools(messages, tools, false);
+    }
 
-        String responseBody = webClient.post()
+    /**
+     * Non-streaming chat completion with reasoning model selection.
+     */
+    public ChatCompletionResult chatWithTools(List<ChatMessage> messages, List<Map<String, Object>> tools,
+                                              boolean useReasoning) {
+        return chatWithTools(messages, tools, null, useReasoning);
+    }
+
+    /** Non-streaming chat completion with a specific LLM entry and reasoning selection. */
+    public ChatCompletionResult chatWithTools(List<ChatMessage> messages, List<Map<String, Object>> tools,
+                                              String llmId, boolean useReasoning) {
+        ResolvedAiCredentials cred = aiProviderService.getResolved(llmId, useReasoning);
+        Map<String, Object> requestBody = buildRequestBody(messages, tools, false, cred.model());
+
+        log.info(
+                "AI API completion (tools): baseUrl={}, model={}, messages={}, tools={}, stream=false, totalApproxChars={}",
+                cred.apiUrl(),
+                cred.model(),
+                messages.size(),
+                tools != null ? tools.size() : 0,
+                countApproxCharsInMessages(messages));
+
+        String responseBody = clientFor(cred).post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
@@ -73,26 +132,62 @@ public class AiApiClient {
                 .bodyToMono(String.class)
                 .block();
 
-        return parseCompletionResult(responseBody);
+        if (responseBody != null) {
+            log.debug("AI API completion raw response length: {} chars", responseBody.length());
+        }
+
+        ChatCompletionResult parsed = parseCompletionResult(responseBody);
+        if (parsed.hasToolCalls()) {
+            log.info("AI API completion: {} tool call(s) in response", parsed.toolCalls().size());
+        } else {
+            String c = parsed.content();
+            log.info(
+                    "AI API completion: text reply, {} chars",
+                    c != null ? c.length() : 0);
+        }
+        return parsed;
     }
 
     /**
      * Non-streaming chat completion.
      */
     public String chat(List<ChatMessage> messages) {
-        ChatCompletionResult result = chatWithTools(messages, null);
+        ChatCompletionResult result = chatWithTools(messages, null, false);
         return result.content() != null ? result.content() : "";
+    }
+
+    private static int countApproxCharsInMessages(List<ChatMessage> messages) {
+        int n = 0;
+        for (ChatMessage m : messages) {
+            if (m.getContent() != null) {
+                n += m.getContent().length();
+            }
+            if (m.getToolCalls() != null) {
+                for (ToolCall tc : m.getToolCalls()) {
+                    if (tc.getFunction() != null) {
+                        if (tc.getFunction().getName() != null) {
+                            n += tc.getFunction().getName().length();
+                        }
+                        if (tc.getFunction().getArguments() != null) {
+                            n += tc.getFunction().getArguments().length();
+                        }
+                    }
+                }
+            }
+        }
+        return n;
     }
 
     private Map<String, Object> buildRequestBody(List<ChatMessage> messages,
                                                   List<Map<String, Object>> tools,
-                                                  boolean stream) {
+                                                  boolean stream,
+                                                  String model) {
         List<Map<String, Object>> apiMessages = messages.stream()
                 .map(ChatMessage::toApiMap)
                 .toList();
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", appConfig.getAi().getModel());
+        body.put("model", model);
         body.put("messages", apiMessages);
         body.put("stream", stream);
         if (tools != null && !tools.isEmpty()) {
@@ -285,10 +380,44 @@ public class AiApiClient {
     }
 
     private String unescapeJson(String s) {
-        return s.replace("\\n", "\n")
-                .replace("\\t", "\t")
-                .replace("\\\"", "\"")
-                .replace("\\\\", "\\");
+        StringBuilder sb = new StringBuilder(s.length());
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                switch (next) {
+                    case '"'  -> { sb.append('"');  i += 2; }
+                    case '\\' -> { sb.append('\\'); i += 2; }
+                    case '/'  -> { sb.append('/');  i += 2; }
+                    case 'n'  -> { sb.append('\n'); i += 2; }
+                    case 'r'  -> { sb.append('\r'); i += 2; }
+                    case 't'  -> { sb.append('\t'); i += 2; }
+                    case 'b'  -> { sb.append('\b'); i += 2; }
+                    case 'f'  -> { sb.append('\f'); i += 2; }
+                    case 'u'  -> {
+                        if (i + 5 < s.length()) {
+                            try {
+                                int codePoint = Integer.parseInt(s.substring(i + 2, i + 6), 16);
+                                sb.appendCodePoint(codePoint);
+                                i += 6;
+                            } catch (NumberFormatException e) {
+                                sb.append(c);
+                                i++;
+                            }
+                        } else {
+                            sb.append(c);
+                            i++;
+                        }
+                    }
+                    default -> { sb.append(c); i++; }
+                }
+            } else {
+                sb.append(c);
+                i++;
+            }
+        }
+        return sb.toString();
     }
 
     public record ChatCompletionResult(String content, List<ToolCall> toolCalls) {

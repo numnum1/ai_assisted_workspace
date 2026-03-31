@@ -2,16 +2,23 @@ server:
   port: 8080
 
 app:
+  data:
+    data-dir: ${APP_DATA_DIR:}
   ai:
     api-url: https://api.eecc.ai
     api-key: ${AI_API_KEY:your-api-key-here}
     model: gpt-5.2
   project:
     path: ${PROJECT_PATH:}
-    always-include:
-      - story.md
+    always-include: []
   git:
     token: ${GITHUB_TOKEN:}
+
+logging:
+  level:
+    com.assistant.controller.ChatController: DEBUG
+    com.assistant.service.AiApiClient: DEBUG
+    com.assistant.service.ToolExecutor: DEBUG
 
 spring:
   profiles:

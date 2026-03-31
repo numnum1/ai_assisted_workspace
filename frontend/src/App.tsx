@@ -1,87 +1,207 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Panel, Group, Separator } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, FolderTree, LayoutList, Settings } from 'lucide-react';
-import { FileTree } from './components/FileTree.tsx';
-import { OutlinerPanel } from './components/OutlinerPanel.tsx';
-import { Editor } from './components/Editor.tsx';
-import { FormRenderer } from './components/FormRenderer.tsx';
-import { ChatPanel } from './components/ChatPanel.tsx';
-import { ContextBar } from './components/ContextBar.tsx';
-import { CommandPalette } from './components/CommandPalette.tsx';
-import { FileHistoryModal } from './components/FileHistoryModal.tsx';
-import { GitCredentialsDialog } from './components/GitCredentialsDialog.tsx';
-import { ProjectSettingsModal } from './components/ProjectSettingsModal.tsx';
-import type { CommandAction } from './components/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus } from './types.ts';
-import { modesApi, gitApi, AuthRequiredError } from './api.ts';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
+import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
+import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
+import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
+import { MetaPanel } from './components/meta/MetaPanel.tsx';
+import { ChatPanel } from './components/chat/ChatPanel.tsx';
+import { FieldEditorPanel } from './components/editor/FieldEditorPanel.tsx';
+import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
+import { ContextBar } from './components/chat/ContextBar.tsx';
+import { CommandPalette } from './components/git/CommandPalette.tsx';
+import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx';
+import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
+import { WikiBrowser } from './components/wiki/WikiBrowser.tsx';
+import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
+import { WikiTypeEditor } from './components/wiki/WikiTypeEditor.tsx';
+import { WikiTypePickerDialog } from './components/wiki/WikiTypePickerDialog.tsx';
+import type { CommandAction } from './components/git/CommandPalette.tsx';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, NoteProposal } from './types.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, AuthRequiredError } from './api.ts';
+import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
+import { useChapter } from './hooks/useChapter.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
 import { useChatHistory } from './hooks/useChatHistory.ts';
-import { useOutliner } from './hooks/useOutliner.ts';
-import { useTypedFile } from './hooks/useTypedFile.ts';
-import { getBookmark } from './components/bookmarkExtension';
+import { useWiki } from './hooks/useWiki.ts';
+import { useWorkspaceMode } from './hooks/useWorkspaceMode.ts';
+import { useWorkspaceLevelConfigMap } from './hooks/useWorkspaceLevelConfigMap.ts';
+import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
+import { useFileEditor } from './hooks/useFileEditor.ts';
+import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
+import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 
 function App() {
   const project = useProject();
+  const chapter = useChapter();
   const refs = useReferencedFiles();
-  const outliner = useOutliner();
-  const typedFile = useTypedFile(project.openFilePath);
+  const wiki = useWiki();
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
-  const [sidebarTab, setSidebarTab] = useState<'files' | 'structure'>('files');
+  const [useReasoning, setUseReasoning] = useState(false);
+  const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
 
-  // True when the currently open file is a known typed file
-  const isTypedFile = typedFile.typeDef !== null;
+  const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
+
+  const handleModeChange = useCallback((modeId: string, modeList?: typeof modes) => {
+    setSelectedMode(modeId);
+    const list = modeList ?? modes;
+    const m = list.find(x => x.id === modeId);
+    setUseReasoning(m?.useReasoning ?? false);
+    setModeLlmId(m?.llmId ?? undefined);
+  }, [modes]);
 
   const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages);
+
+  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+  const [workspaceModesRefreshNonce, setWorkspaceModesRefreshNonce] = useState(0);
+  const [inlineChaptersNonce, setInlineChaptersNonce] = useState(0);
+  const [subprojectDialog, setSubprojectDialog] = useState<{ path: string; initialType?: string | null } | null>(null);
+  const outlinerScope = useOutlinerScope(project.projectPath ? project.projectPath : null);
+
+  // Ctrl+L: capture editor selection for chat
+  const [activeSelection, setActiveSelection] = useState<SelectionContext | null>(null);
+  const activeSelectionReplaceFnRef = useRef<((from: number, to: number, text: string) => void) | null>(null);
+  const chatFocusTriggerRef = useRef<(() => void) | null>(null);
+
+  const leftPanelRef = usePanelRef();
+  const rightPanelRef = usePanelRef();
+
+  const handleCtrlL = useCallback((sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => {
+    setActiveSelection(sel);
+    activeSelectionReplaceFnRef.current = replaceFn;
+    chatFocusTriggerRef.current?.();
+  }, []);
+
+  const handleReplaceSelection = useCallback((replacement: string, ctx: SelectionContext) => {
+    if (!activeSelectionReplaceFnRef.current) return;
+    activeSelectionReplaceFnRef.current(ctx.from, ctx.to, replacement);
+    activeSelectionReplaceFnRef.current = null;
+  }, []);
+
+  const handleDismissSelection = useCallback(() => {
+    setActiveSelection(null);
+    activeSelectionReplaceFnRef.current = null;
+  }, []);
+
+  // Project root changes: reset structure and editor state
+  useEffect(() => {
+    if (!project.projectPath) return;
+    chapter.setProjectPath(project.projectPath);
+    chapter.closeChapter();
+    setSelectedMeta(null);
+    setMetaExpanded(false);
+    setFocusedField(null);
+    wiki.loadTypes().catch(() => { /* ignore if wiki not yet initialised */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.projectPath]);
 
   // Load messages when switching conversations
   useEffect(() => {
     if (history.activeConversation) {
       chat.loadMessages(history.activeConversation.messages);
     }
-    // Only react to activeId changes, not the conversation object itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
 
-  const loadModes = useCallback(() => {
-    modesApi.getAll().then(setModes).catch(console.error);
+  function resolveDefaultModeId(mds: Mode[], configured: string | undefined): string {
+    const id = configured?.trim() ?? '';
+    if (id && mds.some((m) => m.id === id)) return id;
+    if (mds.some((m) => m.id === 'review')) return 'review';
+    if (mds.length > 0) return mds[0].id;
+    return 'review';
+  }
+
+  const loadModes = useCallback(async () => {
+    try {
+      const [mds, status] = await Promise.all([modesApi.getAll(), projectConfigApi.status()]);
+      setModes(mds);
+      const chatModes = mds.filter(m => m.id !== 'prompt-pack');
+      let configured: string | undefined;
+      if (status.initialized) {
+        try {
+          const cfg = await projectConfigApi.get();
+          configured = cfg.defaultMode;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (configured === 'prompt-pack') configured = undefined;
+      const resolvedId = resolveDefaultModeId(chatModes, configured);
+      const resolvedMode = chatModes.find(m => m.id === resolvedId);
+      setSelectedMode(resolvedId);
+      setUseReasoning(resolvedMode?.useReasoning ?? false);
+      setModeLlmId(resolvedMode?.llmId ?? undefined);
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
   useEffect(() => {
     loadModes();
-  }, [loadModes]);
+  }, [loadModes, project.projectPath]);
+
+  const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
+  const [metaExpanded, setMetaExpanded] = useState(false);
+  const [focusedField, setFocusedField] = useState<{ fieldKey: string; fieldLabel: string; value: string } | null>(null);
+
+  const handleSaveMeta = useCallback(async (
+    type: MetaNodeType,
+    meta: NodeMeta,
+    chapterId: string,
+    sceneId?: string,
+    actionId?: string,
+  ) => {
+    if (type === 'book') {
+      await bookApi.updateMeta(meta, chapter.structureRoot ?? undefined);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    } else if (type === 'chapter') {
+      await chapter.updateChapterMeta(chapterId, meta);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    } else if (type === 'scene' && sceneId) {
+      await chapter.updateSceneMeta(chapterId, sceneId, meta);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    } else if (type === 'action' && sceneId && actionId) {
+      await chapter.updateActionMeta(chapterId, sceneId, actionId, meta);
+      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
+    }
+  }, [chapter]);
+
+  const handleApplyFieldUpdate = useCallback(async (field: string, value: string) => {
+    if (!selectedMeta || selectedMeta.type !== 'scene' || !selectedMeta.sceneId) return;
+    const curr = selectedMeta.meta;
+    const newMeta: NodeMeta = field === 'title'
+      ? { ...curr, title: value }
+      : field === 'description'
+        ? { ...curr, description: value }
+        : { ...curr, extras: { ...(curr.extras ?? {}), [field]: value } };
+    await handleSaveMeta('scene', newMeta, selectedMeta.chapterId, selectedMeta.sceneId);
+    // Keep field editor in sync when the AI applies a suggestion via chat
+    setFocusedField(prev => prev?.fieldKey === field ? { ...prev, value } : prev);
+  }, [selectedMeta, handleSaveMeta]);
+
+  const handleOpenFieldEditor = useCallback((fieldKey: string, fieldLabel: string, value: string) => {
+    setFocusedField({ fieldKey, fieldLabel, value });
+    setMetaExpanded(false);
+  }, []);
+
+  const handleFieldEditorSave = useCallback(async (value: string) => {
+    if (!focusedField) return;
+    await handleApplyFieldUpdate(focusedField.fieldKey, value);
+  }, [focusedField, handleApplyFieldUpdate]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ path: string; x: number; y: number; isDirectory: boolean } | null>(null);
-  const [historyFile, setHistoryFile] = useState<string | null>(null);
+  const [wikiOpen, setWikiOpen] = useState(false);
+  const [promptPackOpen, setPromptPackOpen] = useState(false);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
-  const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
-  const [bookmarkJumpTarget, setBookmarkJumpTarget] = useState<{ filePath: string; line: number } | null>(null);
-
   const hasUncommitted = !gitStatus?.isClean;
-
-  const bookmark = project.projectPath ? getBookmark(project.projectPath) : null;
-
-  const handleJumpToBookmark = useCallback(() => {
-    if (!bookmark) return;
-    project.openFile(bookmark.filePath);
-    setBookmarkJumpTarget(bookmark);
-  }, [bookmark, project]);
-
-  const handleBookmarkJumpDone = useCallback(() => {
-    setBookmarkJumpTarget(null);
-  }, []);
-
-  const handleBookmarkChange = useCallback(() => {
-    setBookmarkRefresh((r) => r + 1);
-  }, []);
 
   const showCredentialsDialog = useCallback((retry: () => void) => {
     setPendingRetry(() => retry);
@@ -100,7 +220,6 @@ function App() {
       if (err instanceof AuthRequiredError) {
         showCredentialsDialog(fetchGitState);
       }
-      // silently ignore other errors (no repo, no remote)
     }
   }, [showCredentialsDialog]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -116,22 +235,31 @@ function App() {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
-      if (e.key === 'Escape') {
-        setContextMenu(null);
+      if (e.ctrlKey && e.shiftKey && e.key === ' ') {
+        e.preventDefault();
+        setWikiOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const changedPaths = useMemo(() => new Set([
-    ...(gitStatus?.modified ?? []),
-    ...(gitStatus?.added ?? []),
-    ...(gitStatus?.removed ?? []),
-    ...(gitStatus?.untracked ?? []),
-    ...(gitStatus?.changed ?? []),
-    ...(gitStatus?.missing ?? []),
-  ]), [gitStatus]);
+  const [centerPaneWide, setCenterPaneWide] = useState(false);
+
+  const handleToggleCenterPanels = useCallback(() => {
+    const left = leftPanelRef.current;
+    const right = rightPanelRef.current;
+    if (!left || !right) return;
+    if (left.isCollapsed() && right.isCollapsed()) {
+      left.expand();
+      right.expand();
+      setCenterPaneWide(false);
+    } else {
+      left.collapse();
+      right.collapse();
+      setCenterPaneWide(true);
+    }
+  }, []);
 
   const syncBadge = useMemo(() => {
     if (!syncStatus) return null;
@@ -188,28 +316,118 @@ function App() {
 
   const handleOpenProject = useCallback(async (path: string) => {
     await project.openProject(path);
+    await chapter.refreshChapters();
     loadModes();
-  }, [project, loadModes]);
+  }, [project, chapter, loadModes]);
 
-  const handleFileDragStart = useCallback((_path: string) => {
-    // Visual feedback could be added here
-  }, []);
+  const browseAndOpenProject = useCallback(async () => {
+    try {
+      const r = await projectApi.browse();
+      if (r.cancelled || !r.path) return;
+      await handleOpenProject(r.path);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [handleOpenProject]);
 
-  const handleFileContextMenu = useCallback((path: string, x: number, y: number, isDirectory: boolean) => {
-    setContextMenu({ path, x, y, isDirectory });
-  }, []);
+  const workspaceModeId = chapter.activeSubprojectType ?? 'default';
+  const levelConfigByModeId = useWorkspaceLevelConfigMap(project.projectPath ?? null, workspaceModesRefreshNonce);
+  const {
+    schema: workspaceModeSchema,
+    metaSchemas: workspaceMetaSchemas,
+    refresh: refreshWorkspaceModeSchema,
+  } = useWorkspaceMode(project.projectPath ?? '', workspaceModeId);
+
+  const proseEditorMode = chapter.activeChapter
+    ? (workspaceModeSchema?.editorMode ?? 'prose')
+    : 'standard';
+
+  const fieldLabels = useMemo(() => {
+    const schema = workspaceMetaSchemas?.['scene'];
+    if (!schema) return {} as Record<string, string>;
+    return Object.fromEntries(schema.fields.map(f => [f.key, f.label])) as Record<string, string>;
+  }, [workspaceMetaSchemas]);
+
+  const MediaProjectEditor =
+    getMediaProjectPlugin(workspaceModeId)?.ViewComponent ?? DefaultMediaProjectEditor;
+
+  const fileEditor = useFileEditor(project.projectPath ?? null);
+
+  const showMetaChrome =
+    selectedMeta != null && (chapter.activeChapter != null || selectedMeta.type === 'book');
+
+  const onProjectGeneralSaved = useCallback(() => {
+    loadModes();
+    void refreshWorkspaceModeSchema();
+  }, [loadModes, refreshWorkspaceModeSchema]);
+
+  const onWorkspacePluginsChanged = useCallback(() => {
+    setWorkspaceModesRefreshNonce((n) => n + 1);
+    void refreshWorkspaceModeSchema();
+  }, [refreshWorkspaceModeSchema]);
 
   const handleSendMessage = useCallback(
     (message: string) => {
       const mode = modes.find((m) => m.id === selectedMode);
-      chat.sendMessage(message, null, selectedMode, refs.referencedFiles, mode?.name, mode?.color);
+      // Derive activeFile: scene JSON when a scene is selected, otherwise the open file
+      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
+        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+        : (fileEditor.selectedPath ?? null);
+      chat.sendMessage(message, activeFile, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined, focusedField?.fieldKey ?? null);
+      // Clear active selection after sending — the Replace button will use stored selectionContext on the message
+      setActiveSelection(null);
     },
-    [chat, selectedMode, modes, refs.referencedFiles],
+    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection, selectedMeta, chapter.structureRoot, fileEditor.selectedPath, focusedField],
   );
+
+  const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
+
+  const handlePromptPackGenerate = useCallback(
+    (message: string, files: string[]) => {
+      const m = modes.find(x => x.id === 'prompt-pack');
+      chat.sendMessage(
+        message,
+        null,
+        'prompt-pack',
+        files,
+        m?.name ?? 'Prompt-Paket',
+        m?.color ?? '#f9e2af',
+      );
+      setPromptPackOpen(false);
+    },
+    [chat, modes],
+  );
+
+  useEffect(() => {
+    if (!modes.length) return;
+    if (selectedMode === 'prompt-pack') {
+      const chatModes = modes.filter(x => x.id !== 'prompt-pack');
+      const fallbackId = resolveDefaultModeId(chatModes, undefined);
+      handleModeChange(fallbackId, chatModes);
+    }
+  }, [modes, selectedMode, handleModeChange]);
 
   const handleNewChat = useCallback(() => {
     history.createConversation(selectedMode);
   }, [history, selectedMode]);
+
+  const handleSaveFreeNote = useCallback(async (note: NoteProposal) => {
+    await notesApi.saveFree(note);
+  }, []);
+
+  const handleAttachNoteToEntry = useCallback(async (note: NoteProposal, typeId: string, entryId: string) => {
+    await notesApi.attachToEntry(typeId, entryId, note);
+  }, []);
+
+  const handleForkToNewConversation = useCallback((index: number) => {
+    const forkedMessages = chat.messages.slice(0, index + 1);
+    const baseTitle = history.activeConversation?.title ?? 'Chat';
+    const base = `${baseTitle}-fork`;
+    const existingTitles = new Set(history.conversations.map((c) => c.title));
+    let n = 1;
+    while (existingTitles.has(`${base} (${n})`)) n++;
+    history.createConversation(selectedMode, forkedMessages, `${base} (${n})`);
+  }, [chat.messages, history, selectedMode]);
 
   const handleSwitchChat = useCallback((id: string) => {
     history.switchConversation(id);
@@ -219,279 +437,239 @@ function App() {
     chat.clearChat();
   }, [chat]);
 
+  const activeChapterTitle = chapter.activeChapter?.meta.title ?? null;
+
   return (
-    <div className="app" onClick={() => setContextMenu(null)}>
+    <div className="app">
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         actions={commandActions}
-        onOpenFolder={handleOpenProject}
+        onOpenFolder={browseAndOpenProject}
         onGitRefresh={fetchGitState}
         gitStatus={gitStatus ?? undefined}
         onAuthRequired={showCredentialsDialog}
       />
 
-      <Group direction="horizontal" className="app-panels">
-        <Panel defaultSize="18%" minSize="10%" maxSize="50%">
-          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)' }}>
-            <div className="sidebar-tabs">
-              <button
-                className={`sidebar-tab ${sidebarTab === 'files' ? 'active' : ''}`}
-                onClick={() => setSidebarTab('files')}
-                title="Dateibaum"
-              >
-                <FolderTree size={12} />
-                Dateien
-              </button>
-              <button
-                className={`sidebar-tab ${sidebarTab === 'structure' ? 'active' : ''}`}
-                onClick={() => { setSidebarTab('structure'); outliner.refresh(); }}
-                title="Buchstruktur"
-              >
-                <LayoutList size={12} />
-                Struktur
-              </button>
+      <Group orientation="horizontal" className="app-panels">
+        <Panel
+          id="outliner"
+          panelRef={leftPanelRef}
+          defaultSize="18%"
+          minSize="10%"
+          maxSize="50%"
+          collapsible
+          collapsedSize={0}
+        >
+          <div className="left-column">
+            <div className={`outliner-slot${showMetaChrome ? ' split' : ''}`}>
+              <FileTreeOutliner
+                projectPath={project.projectPath ?? null}
+                selectedPath={fileEditor.selectedPath}
+                onSelectFile={(path) => {
+                  chapter.closeChapter();
+                  setSelectedMeta(null);
+                  setMetaExpanded(false);
+                  setFocusedField(null);
+                  void fileEditor.openFile(path);
+                }}
+              onOpenFileMeta={(path) => {
+                  chapter.closeChapter();
+                  setSelectedMeta(null);
+                  setMetaExpanded(false);
+                  setFocusedField(null);
+                  void fileEditor.openFileMeta(path);
+                }}
+                onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
+                refreshNonce={treeRefreshKey}
+                onTreeMutated={() => setTreeRefreshKey((k) => k + 1)}
+                onFsChange={fileEditor.syncWithFilesystem}
+                inlineChaptersRefreshNonce={inlineChaptersNonce}
+                activeChapterId={chapter.activeChapter?.id ?? null}
+                activeStructureRoot={chapter.structureRoot}
+                editorPosition={chapter.editorPosition}
+                levelConfigByModeId={levelConfigByModeId}
+                onActivateSubprojectStructure={async (subPath, subType, chapterId, scroll, selection) => {
+                  chapter.setStructureRoot(subPath, subType);
+                  setMetaExpanded(false);
+                  setFocusedField(null);
+                  await chapter.openChapter(chapterId, scroll ?? null);
+                  setSelectedMeta(selection);
+                }}
+                runSubprojectMutation={async (subPath, subType, fn) => {
+                  chapter.setStructureRoot(subPath, subType);
+                  await fn();
+                }}
+                onSubprojectStructureChanged={() => setInlineChaptersNonce((n) => n + 1)}
+                onOpenBookMeta={async (subPath, subType) => {
+                  chapter.setStructureRoot(subPath, subType);
+                  const meta = await bookApi.getMeta(subPath);
+                  setSelectedMeta({ type: 'book', chapterId: '', meta });
+                  setMetaExpanded(false);
+                }}
+                onCreateChapterInSubproject={async (subPath, subType, title) => {
+                  chapter.setStructureRoot(subPath, subType);
+                  await chapter.createChapter(title);
+                  setInlineChaptersNonce((n) => n + 1);
+                }}
+                onConfigureSubproject={(path, existingType) => {
+                  setSubprojectDialog({ path, initialType: existingType ?? undefined });
+                }}
+                scopeToPath={outlinerScope.scopePath}
+                onClearOutlinerScope={outlinerScope.clearScopePath}
+                onSetOutlinerScope={outlinerScope.setScopePath}
+                onScopeInvalidated={outlinerScope.clearScopePath}
+              />
             </div>
-            {sidebarTab === 'files' ? (
-              <FileTree
-                tree={project.fileTree}
-                activeFile={project.openFilePath}
-                bookmark={bookmark}
-                onFileClick={project.openFile}
-                onFileDragStart={handleFileDragStart}
-                onJumpToBookmark={handleJumpToBookmark}
-                changedPaths={changedPaths}
-                onFileContextMenu={handleFileContextMenu}
-              />
-            ) : (
-              <OutlinerPanel
-                tree={outliner.tree}
-                loading={outliner.loading}
-                error={outliner.error}
-                activeFile={project.openFilePath}
-                onOpenText={project.openFile}
-                onOpenMeta={project.openFile}
-                onCreateChapter={outliner.createChapter}
-                onCreateScene={outliner.createScene}
-                onRefresh={outliner.refresh}
-              />
+
+            {showMetaChrome && selectedMeta && (
+              <div className="meta-panel-slot">
+                <MetaPanel
+                  selection={selectedMeta}
+                  metaSchemas={workspaceMetaSchemas}
+                  onSave={handleSaveMeta}
+                  onClose={() => { setSelectedMeta(null); setMetaExpanded(false); setFocusedField(null); }}
+                  onExpand={() => setMetaExpanded(true)}
+                  onFocusField={handleOpenFieldEditor}
+                />
+              </div>
             )}
           </div>
         </Panel>
 
         <Separator className="resize-handle" />
 
-        <Panel defaultSize="45%" minSize="15%">
-          {isTypedFile && project.openFilePath ? (
-            <FormRenderer
-              filePath={project.openFilePath}
-              typeDef={typedFile.typeDef!}
-              data={typedFile.data}
-              isDirty={typedFile.isDirty}
-              loading={typedFile.loading}
-              error={typedFile.error}
-              onChange={typedFile.updateData}
-              onSave={async () => { await typedFile.save(); fetchGitState(); }}
+        <Panel id="editor" defaultSize="45%" minSize="15%">
+          <div className="center-editor-pane">
+          <button
+            type="button"
+            className="center-pane-wide-toggle"
+            onClick={handleToggleCenterPanels}
+            title={centerPaneWide ? 'Seitenleisten wieder anzeigen' : 'Seitenleisten ausblenden (breiter Editor)'}
+            aria-pressed={centerPaneWide}
+          >
+            {centerPaneWide ? <Minimize2 size={17} strokeWidth={2} /> : <Maximize2 size={17} strokeWidth={2} />}
+          </button>
+          {focusedField && showMetaChrome ? (
+            <div className="field-editor-center">
+              <FieldEditorPanel
+                fieldLabel={focusedField.fieldLabel}
+                sceneTitle={selectedMeta?.meta.title || undefined}
+                value={focusedField.value}
+                onSave={handleFieldEditorSave}
+                onClose={() => setFocusedField(null)}
+              />
+            </div>
+          ) : metaExpanded && showMetaChrome ? (
+            <div className="meta-panel-center">
+              <MetaPanel
+                selection={selectedMeta!}
+                metaSchemas={workspaceMetaSchemas}
+                onSave={handleSaveMeta}
+                onClose={() => setMetaExpanded(false)}
+                expanded={true}
+                onFocusField={handleOpenFieldEditor}
+              />
+            </div>
+          ) : !chapter.activeChapter ? (
+            <MarkdownFileEditor
+              path={fileEditor.selectedPath}
+              content={fileEditor.content}
+              dirty={fileEditor.dirty}
+              loading={fileEditor.loading}
+              error={fileEditor.error}
+              onChange={fileEditor.setContent}
+              onSave={() => { void fileEditor.save(); fetchGitState(); }}
+              onClearError={fileEditor.clearError}
+              shadowContent={fileEditor.shadowContent}
+              shadowDirty={fileEditor.shadowDirty}
+              shadowExists={fileEditor.shadowExists}
+              shadowLoading={fileEditor.shadowLoading}
+              shadowError={fileEditor.shadowError}
+              shadowPanelOpen={fileEditor.shadowPanelOpen}
+              onShadowChange={fileEditor.setShadowContent}
+              onShadowSave={() => { void fileEditor.saveShadow(); }}
+              onShadowDelete={() => { void fileEditor.deleteShadow(); }}
+              onOpenShadowPanel={() => { void fileEditor.openShadowPanel(); }}
+              onCloseShadowPanel={fileEditor.closeShadowPanel}
+              onCloseFile={fileEditor.closeFile}
+              onClearShadowError={fileEditor.clearShadowError}
+              onCtrlL={handleCtrlL}
             />
           ) : (
-            <Editor
-              content={project.fileContent}
-              filePath={project.openFilePath}
-              projectPath={project.projectPath}
-              bookmarkJumpTarget={bookmarkJumpTarget}
-              onBookmarkJumpDone={handleBookmarkJumpDone}
-              onBookmarkChange={handleBookmarkChange}
-              isDirty={project.isDirty}
-              onChange={project.updateContent}
-              onSave={async () => { await project.saveFile(); fetchGitState(); }}
+            <MediaProjectEditor
+              editorMode={proseEditorMode}
+              proseLeafAtScene={workspaceModeSchema?.proseLeafLevel === 'scene'}
+              chapter={chapter.activeChapter}
+              actionContents={chapter.actionContents}
+              scrollTarget={chapter.scrollTarget}
+              hasDirtyActions={chapter.hasDirtyActions}
+              onActionChange={chapter.updateActionContent}
+              onActionSave={chapter.saveAction}
+              onSaveAll={() => { chapter.saveAllDirty(); fetchGitState(); }}
+              onClose={chapter.closeChapter}
+              onScrollTargetConsumed={chapter.clearScrollTarget}
+              onEditorFocus={chapter.updateEditorPosition}
+              onCtrlL={handleCtrlL}
             />
           )}
+          </div>
         </Panel>
 
         <Separator className="resize-handle" />
 
-        <Panel defaultSize="37%" minSize="15%">
+        <Panel
+          id="chat"
+          panelRef={rightPanelRef}
+          defaultSize="37%"
+          minSize="15%"
+          collapsible
+          collapsedSize={0}
+        >
           <ChatPanel
             messages={chat.messages}
             streaming={chat.streaming}
             error={chat.error}
             toolActivity={chat.toolActivity}
-            modes={modes}
+            modes={modesForChat}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}
             conversations={history.conversations}
             activeConversationId={history.activeId}
-            onModeChange={setSelectedMode}
+            useReasoning={useReasoning}
+            onToggleReasoning={handleToggleReasoning}
+            onModeChange={handleModeChange}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}
             onClear={handleClearChat}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
+            onForkToNewConversation={handleForkToNewConversation}
             onNewChat={handleNewChat}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
+            onOpenPromptPack={() => setPromptPackOpen(true)}
+            structureRoot={chapter.structureRoot}
+            activeSelection={activeSelection}
+            onDismissSelection={handleDismissSelection}
+            onReplaceSelection={handleReplaceSelection}
+            onApplyFieldUpdate={handleApplyFieldUpdate}
+            fieldLabels={fieldLabels}
+            chatFocusTriggerRef={chatFocusTriggerRef}
+            wikiTypes={wiki.types}
+            onSaveFreeNote={handleSaveFreeNote}
+            onAttachNoteToEntry={handleAttachNoteToEntry}
           />
         </Panel>
       </Group>
 
       <ContextBar
         contextInfo={chat.contextInfo}
-        activeFile={project.openFilePath}
-        isDirty={isTypedFile ? typedFile.isDirty : project.isDirty}
+        activeFile={activeChapterTitle}
+        isDirty={chapter.hasDirtyActions}
       />
-
-      {contextMenu && (
-        <div
-          className="tree-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {contextMenu.isDirectory ? (
-            <>
-              <div
-                className="tree-context-menu-item"
-                onClick={async () => {
-                  const parentPath = contextMenu.path;
-                  const name = window.prompt('Dateiname:');
-                  setContextMenu(null);
-                  if (name != null && name.trim() !== '') {
-                    try {
-                      const newPath = await project.createFile(parentPath, name.trim());
-                      project.openFile(newPath);
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Create file failed:', err);
-                      alert(err instanceof Error ? err.message : 'Datei konnte nicht erstellt werden.');
-                    }
-                  }
-                }}
-              >
-                Neue Datei
-              </div>
-              <div
-                className="tree-context-menu-item"
-                onClick={async () => {
-                  const parentPath = contextMenu.path;
-                  const name = window.prompt('Ordnername:');
-                  setContextMenu(null);
-                  if (name != null && name.trim() !== '') {
-                    try {
-                      await project.createFolder(parentPath, name.trim());
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Create folder failed:', err);
-                      alert(err instanceof Error ? err.message : 'Ordner konnte nicht erstellt werden.');
-                    }
-                  }
-                }}
-              >
-                Neuer Ordner
-              </div>
-              {contextMenu.path !== '.' && (
-                <div
-                  className="tree-context-menu-item"
-                  onClick={async () => {
-                    const path = contextMenu.path;
-                    const currentName = path.split('/').pop() ?? path;
-                    const newName = window.prompt('Neuer Ordnername:', currentName);
-                    setContextMenu(null);
-                    if (newName != null && newName.trim() !== '' && newName !== currentName) {
-                      try {
-                        await project.renamePath(path, newName.trim());
-                        fetchGitState();
-                      } catch (err) {
-                        console.error('Rename failed:', err);
-                        alert(err instanceof Error ? err.message : 'Ordner konnte nicht umbenannt werden.');
-                      }
-                    }
-                  }}
-                >
-                  Umbenennen
-                </div>
-              )}
-              {contextMenu.path !== '.' && (
-                <div
-                  className="tree-context-menu-item tree-context-menu-item-danger"
-                  onClick={async () => {
-                    const path = contextMenu.path;
-                    setContextMenu(null);
-                    if (window.confirm(`Ordner "${path}" und alle Inhalte wirklich löschen?`)) {
-                      try {
-                        await project.deleteFile(path);
-                        fetchGitState();
-                      } catch (err) {
-                        console.error('Delete failed:', err);
-                        alert(err instanceof Error ? err.message : 'Ordner konnte nicht gelöscht werden.');
-                      }
-                    }
-                  }}
-                >
-                  Löschen
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div
-                className="tree-context-menu-item"
-                onClick={() => {
-                  setHistoryFile(contextMenu.path);
-                  setContextMenu(null);
-                }}
-              >
-                Show History
-              </div>
-              <div
-                className="tree-context-menu-item"
-                onClick={async () => {
-                  const path = contextMenu.path;
-                  const currentName = path.split('/').pop() ?? path;
-                  const newName = window.prompt('Neuer Dateiname:', currentName);
-                  setContextMenu(null);
-                  if (newName != null && newName.trim() !== '' && newName !== currentName) {
-                    try {
-                      await project.renamePath(path, newName.trim());
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Rename failed:', err);
-                      alert(err instanceof Error ? err.message : 'Datei konnte nicht umbenannt werden.');
-                    }
-                  }
-                }}
-              >
-                Umbenennen
-              </div>
-              <div
-                className="tree-context-menu-item tree-context-menu-item-danger"
-                onClick={async () => {
-                  const path = contextMenu.path;
-                  setContextMenu(null);
-                  if (window.confirm(`Datei "${path}" wirklich löschen?`)) {
-                    try {
-                      await project.deleteFile(path);
-                      fetchGitState();
-                    } catch (err) {
-                      console.error('Delete failed:', err);
-                      alert(err instanceof Error ? err.message : 'Datei konnte nicht gelöscht werden.');
-                    }
-                  }
-                }}
-              >
-                Löschen
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {historyFile && (
-        <FileHistoryModal
-          filePath={historyFile}
-          onClose={() => setHistoryFile(null)}
-        />
-      )}
 
       {credDialogOpen && (
         <GitCredentialsDialog
@@ -511,6 +689,58 @@ function App() {
         <ProjectSettingsModal
           onClose={() => setSettingsOpen(false)}
           onModesChanged={loadModes}
+          onGeneralConfigSaved={onProjectGeneralSaved}
+          onWorkspacePluginsChanged={onWorkspacePluginsChanged}
+        />
+      )}
+
+      <PromptPackModal
+        open={promptPackOpen}
+        onClose={() => setPromptPackOpen(false)}
+        onGenerate={handlePromptPackGenerate}
+        streaming={chat.streaming}
+        hasPromptPackMode={modes.some(m => m.id === 'prompt-pack')}
+      />
+
+      {wikiOpen && (
+        <WikiBrowser
+          wiki={wiki}
+          onClose={() => setWikiOpen(false)}
+        />
+      )}
+
+      {wiki.editingEntry && (
+        <WikiEntryPopup
+          editing={wiki.editingEntry}
+          onSave={wiki.saveEntry}
+          onClose={wiki.closeEntry}
+        />
+      )}
+
+      {wiki.editingType && (
+        <WikiTypeEditor
+          type={wiki.editingType}
+          onSave={wiki.saveType}
+          onClose={wiki.closeTypeEditor}
+        />
+      )}
+
+      {wiki.typePickerOpen && (
+        <WikiTypePickerDialog
+          onConfirm={wiki.createType}
+          onClose={wiki.closeTypePicker}
+        />
+      )}
+
+      {subprojectDialog && (
+        <SubprojectTypeDialog
+          folderPath={subprojectDialog.path}
+          initialTypeId={subprojectDialog.initialType}
+          onClose={() => setSubprojectDialog(null)}
+          onSaved={() => {
+            setTreeRefreshKey((k) => k + 1);
+            setInlineChaptersNonce((n) => n + 1);
+          }}
         />
       )}
     </div>

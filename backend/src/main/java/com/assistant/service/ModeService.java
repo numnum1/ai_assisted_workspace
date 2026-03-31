@@ -73,6 +73,10 @@ public class ModeService {
                     if (rules instanceof List<?> list) {
                         mode.setRules(list.stream().map(Object::toString).toList());
                     }
+                    Object useReasoning = data.get("useReasoning");
+                    if (useReasoning instanceof Boolean b) {
+                        mode.setUseReasoning(b);
+                    }
                     modes.put(id, mode);
                 }
             }

@@ -1,4 +1,5 @@
 # Backend
+backend/src/main/java/com/assistant/testing_not_for_ai/
 backend/target/
 backend/src/main/resources/application-local.yml
 *.class

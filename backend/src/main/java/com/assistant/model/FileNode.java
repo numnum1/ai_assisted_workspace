@@ -9,6 +9,10 @@ public class FileNode {
     private String path;
     private boolean directory;
     private List<FileNode> children;
+    /** If this directory contains {@code .subproject.json}, the declared workspace mode id (e.g. book). */
+    private String subprojectType;
+    /** True if a shadow meta-note file exists under {@code .wiki/files/} for this file node. */
+    private boolean hasShadow;
 
     public FileNode() {}
 
@@ -27,4 +31,10 @@ public class FileNode {
     public void setDirectory(boolean directory) { this.directory = directory; }
     public List<FileNode> getChildren() { return children; }
     public void setChildren(List<FileNode> children) { this.children = children; }
+
+    public String getSubprojectType() { return subprojectType; }
+    public void setSubprojectType(String subprojectType) { this.subprojectType = subprojectType; }
+
+    public boolean isHasShadow() { return hasShadow; }
+    public void setHasShadow(boolean hasShadow) { this.hasShadow = hasShadow; }
 }

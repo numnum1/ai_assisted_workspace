@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.swing.*;
+import java.awt.Desktop;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -41,6 +43,35 @@ public class ProjectController {
                 "hasProject", hasProject,
                 "initialized", initialized
         ));
+    }
+
+    @PostMapping("/reveal")
+    public ResponseEntity<Map<String, String>> revealInExplorer() {
+        String path = appConfig.getProject().getPath();
+        if (path == null || path.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "No project open"));
+        }
+        File dir = new File(path);
+        if (!dir.isDirectory()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Path is not a directory"));
+        }
+        try {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        Desktop.getDesktop().open(dir);
+                    } catch (Exception e) {
+                        // best-effort
+                    }
+                });
+            } else {
+                // Fallback for Linux/headless environments
+                new ProcessBuilder("xdg-open", path).start();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+        return ResponseEntity.ok(Map.of("status", "ok"));
     }
 
     @PostMapping("/browse")

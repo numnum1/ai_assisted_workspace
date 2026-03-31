@@ -7,18 +7,29 @@ public class ChatRequest {
 
     private String message;
     private String activeFile;
+    private String activeFieldKey;
     private String mode;
     private List<String> referencedFiles = new ArrayList<>();
     private List<ChatMessage> history = new ArrayList<>();
+    /** When true the provider's reasoning model is used instead of the fast model. */
+    private boolean useReasoning = false;
+    /** Optional: ID of a specific LLM entry to use. Overrides the globally active LLM. */
+    private String llmId;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
     public String getActiveFile() { return activeFile; }
     public void setActiveFile(String activeFile) { this.activeFile = activeFile; }
+    public String getActiveFieldKey() { return activeFieldKey; }
+    public void setActiveFieldKey(String activeFieldKey) { this.activeFieldKey = activeFieldKey; }
     public String getMode() { return mode; }
     public void setMode(String mode) { this.mode = mode; }
     public List<String> getReferencedFiles() { return referencedFiles; }
     public void setReferencedFiles(List<String> referencedFiles) { this.referencedFiles = referencedFiles; }
     public List<ChatMessage> getHistory() { return history; }
     public void setHistory(List<ChatMessage> history) { this.history = history; }
+    public boolean isUseReasoning() { return useReasoning; }
+    public void setUseReasoning(boolean useReasoning) { this.useReasoning = useReasoning; }
+    public String getLlmId() { return llmId; }
+    public void setLlmId(String llmId) { this.llmId = llmId; }
 }

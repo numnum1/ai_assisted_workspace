@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, TypeDefinition, OutlinerTree } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal } from './types.ts';
 
 const BASE = '/api';
 
@@ -57,14 +57,25 @@ async function del<T>(path: string): Promise<T> {
   return res.json();
 }
 
+/** Encode each path segment for /api/files/content/... URLs */
+function encodeFilePathForApi(relativePath: string): string {
+  return relativePath.split('/').map(encodeURIComponent).join('/');
+}
+
+/** Optional chapter/book structure root (subfolder path relative to project) */
+function structureRootQuery(structureRoot?: string | null): string {
+  if (structureRoot == null || structureRoot === '' || structureRoot === '.') return '';
+  return `?root=${encodeURIComponent(structureRoot)}`;
+}
+
 export const filesApi = {
   getTree: () => get<FileNode>('/files'),
   getContent: (path: string) =>
-    get<{ path: string; content: string; lines: number }>(`/files/content/${path}`),
+    get<{ path: string; content: string; lines: number }>(`/files/content/${encodeFilePathForApi(path)}`),
   saveContent: (path: string, content: string) =>
-    put<{ status: string }>(`/files/content/${path}`, { content }),
+    put<{ status: string }>(`/files/content/${encodeFilePathForApi(path)}`, { content }),
   deleteContent: (path: string) =>
-    del<{ status: string; path: string }>(`/files/content/${path}`),
+    del<{ status: string; path: string }>(`/files/content/${encodeFilePathForApi(path)}`),
   createFile: (parentPath: string, name: string) =>
     post<{ status: string; path: string }>('/files/create-file', { parentPath, name }),
   createFolder: (parentPath: string, name: string) =>
@@ -79,6 +90,7 @@ export const modesApi = {
 
 export const projectApi = {
   current: () => get<{ path: string; hasProject: boolean; initialized: boolean }>('/project/current'),
+  reveal: () => post<{ status: string }>('/project/reveal', {}),
   browse: async (): Promise<{ cancelled: boolean; path?: string }> => {
     const res = await postRaw('/project/browse', {});
     const data = await res.json();
@@ -95,6 +107,15 @@ export const projectApi = {
 
 export const projectConfigApi = {
   status: () => get<{ initialized: boolean }>('/project-config/status'),
+  getWorkspaceMode: (modeId?: string | null) =>
+    modeId != null && modeId !== ''
+      ? get<WorkspaceModeSchema>(`/project-config/workspace-mode?id=${encodeURIComponent(modeId)}`)
+      : get<WorkspaceModeSchema>('/project-config/workspace-mode'),
+  listWorkspaceModes: () => get<WorkspaceModeInfo[]>('/project-config/workspace-modes'),
+  getWorkspaceModesDataDir: () =>
+    get<{ path: string; exists: boolean }>('/project-config/workspace-modes/data-dir'),
+  revealWorkspaceModesDataDir: () =>
+    post<{ status: string }>('/project-config/workspace-modes/reveal-data-dir', {}),
   get: () => get<ProjectConfig>('/project-config'),
   init: () => post<ProjectConfig>('/project-config/init', {}),
   update: (config: ProjectConfig) => put<ProjectConfig>('/project-config', config),
@@ -105,6 +126,34 @@ export const projectConfigApi = {
   getRuleContent: (name: string) => get<{ name: string; content: string }>(`/project-config/rules/${name}`),
   saveRule: (name: string, content: string) => put<{ status: string; name: string }>(`/project-config/rules/${name}`, { content }),
   deleteRule: (name: string) => fetch(`/api/project-config/rules/${name}`, { method: 'DELETE' }).then(r => r.json()),
+};
+
+export interface LlmCreateRequest {
+  name: string;
+  fastApiUrl: string;
+  fastModel: string;
+  fastApiKey: string;
+  reasoningApiUrl?: string;
+  reasoningModel?: string;
+  reasoningApiKey?: string;
+}
+
+export interface LlmUpdateRequest {
+  name?: string;
+  fastApiUrl?: string;
+  fastModel?: string;
+  fastApiKey?: string;
+  reasoningApiUrl?: string;
+  reasoningModel?: string;
+  reasoningApiKey?: string;
+}
+
+export const llmApi = {
+  list: () => get<LlmsListResponse>('/llms'),
+  create: (body: LlmCreateRequest) => post<LlmPublic>('/llms', body),
+  update: (id: string, body: LlmUpdateRequest) =>
+    put<LlmPublic>(`/llms/${encodeURIComponent(id)}`, body),
+  remove: (id: string) => del<{ status: string }>(`/llms/${encodeURIComponent(id)}`),
 };
 
 export const gitApi = {
@@ -128,29 +177,115 @@ export const gitApi = {
     ),
 };
 
-export const typesApi = {
-  getAll: () => get<TypeDefinition[]>('/types'),
-  getById: (id: string) => get<TypeDefinition>(`/types/${id}`),
+export const chapterApi = {
+  list: (structureRoot?: string | null) =>
+    get<ChapterSummary[]>(`/chapters${structureRootQuery(structureRoot)}`),
+  getStructure: (id: string, structureRoot?: string | null) =>
+    get<ChapterNode>(`/chapters/${id}${structureRootQuery(structureRoot)}`),
+  create: (title: string, structureRoot?: string | null) =>
+    post<ChapterSummary>(`/chapters${structureRootQuery(structureRoot)}`, { title }),
+  updateMeta: (chapterId: string, meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/meta${structureRootQuery(structureRoot)}`, meta),
+  delete: (chapterId: string, structureRoot?: string | null) =>
+    del<{ status: string }>(`/chapters/${chapterId}${structureRootQuery(structureRoot)}`),
+
+  createScene: (chapterId: string, title: string, structureRoot?: string | null) =>
+    post<SceneNode>(`/chapters/${chapterId}/scenes${structureRootQuery(structureRoot)}`, { title }),
+  updateSceneMeta: (chapterId: string, sceneId: string, meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/meta${structureRootQuery(structureRoot)}`, meta),
+  deleteScene: (chapterId: string, sceneId: string, structureRoot?: string | null) =>
+    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}${structureRootQuery(structureRoot)}`),
+
+  createAction: (chapterId: string, sceneId: string, title: string, structureRoot?: string | null) =>
+    post<ActionNode>(`/chapters/${chapterId}/scenes/${sceneId}/actions${structureRootQuery(structureRoot)}`, { title }),
+  updateActionMeta: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/meta${structureRootQuery(structureRoot)}`, meta),
+  deleteAction: (chapterId: string, sceneId: string, actionId: string, structureRoot?: string | null) =>
+    del<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}${structureRootQuery(structureRoot)}`),
+
+  getActionContent: (chapterId: string, sceneId: string, actionId: string, structureRoot?: string | null) =>
+    get<{ content: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`),
+  saveActionContent: (chapterId: string, sceneId: string, actionId: string, content: string, structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`, { content }),
+
+  reorderScenes: (chapterId: string, ids: string[], structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/reorder${structureRootQuery(structureRoot)}`, { ids }),
+  reorderActions: (chapterId: string, sceneId: string, ids: string[], structureRoot?: string | null) =>
+    put<{ status: string }>(`/chapters/${chapterId}/scenes/${sceneId}/reorder${structureRootQuery(structureRoot)}`, { ids }),
+
+  randomizeIds: (structureRoot?: string | null) =>
+    post<{ renamed: number }>(`/chapters/randomize-ids${structureRootQuery(structureRoot)}`, {}),
 };
 
-export const typedFilesApi = {
-  getContent: (path: string) =>
-    get<{ path: string; data: Record<string, unknown>; exists: boolean; typeId: string }>(
-      `/typed-files/content/${path}`
-    ),
-  saveContent: (path: string, data: Record<string, unknown>) =>
-    put<{ status: string; path: string }>(`/typed-files/content/${path}`, { data }),
+export const bookApi = {
+  getMeta: (structureRoot?: string | null) =>
+    get<NodeMeta>(`/book/meta${structureRootQuery(structureRoot)}`),
+  updateMeta: (meta: NodeMeta, structureRoot?: string | null) =>
+    put<{ status: string }>(`/book/meta${structureRootQuery(structureRoot)}`, meta),
 };
 
-export const outlinerApi = {
-  getTree: () => get<OutlinerTree>('/outliner'),
-  createChapter: (name: string) =>
-    post<{ status: string; path: string }>('/outliner/create-chapter', { name }),
-  createScene: (chapterPath: string, name: string, withMetadata: boolean) =>
-    post<{ status: string; textPath: string; metaPath: string }>(
-      '/outliner/create-scene',
-      { chapterPath, name, withMetadata }
+export const subprojectApi = {
+  info: (path: string) =>
+    get<{ subproject: boolean; type?: string; name?: string }>(
+      `/subproject/info?path=${encodeURIComponent(path)}`,
     ),
+  init: (path: string, type: string, name: string) =>
+    post<{ status: string }>('/subproject/init', { path, type, name }),
+  remove: (path: string) =>
+    del<{ status: string }>(`/subproject/remove?path=${encodeURIComponent(path)}`),
+};
+
+export const wikiApi = {
+  listTypes: () =>
+    get<WikiType[]>('/wiki/types'),
+  createType: (name: string, fields?: WikiType['fields']) =>
+    post<WikiType>('/wiki/types', fields ? { name, fields } : { name }),
+  getType: (typeId: string) =>
+    get<WikiType>(`/wiki/types/${typeId}`),
+  updateType: (typeId: string, type: WikiType) =>
+    put<WikiType>(`/wiki/types/${typeId}`, type),
+  deleteType: (typeId: string) =>
+    del<{ status: string }>(`/wiki/types/${typeId}`),
+  listEntries: (typeId: string) =>
+    get<WikiEntry[]>(`/wiki/types/${typeId}/entries`),
+  createEntry: (typeId: string, name: string) =>
+    post<WikiEntry>(`/wiki/types/${typeId}/entries`, { name }),
+  getEntry: (typeId: string, entryId: string) =>
+    get<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`),
+  updateEntry: (typeId: string, entryId: string, values: Record<string, string>) =>
+    put<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`, { values }),
+  deleteEntry: (typeId: string, entryId: string) =>
+    del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
+};
+
+export const shadowApi = {
+  list: () => get<{ paths: string[] }>('/shadow/list'),
+  get: (path: string) =>
+    get<{ exists: boolean; content: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
+  save: (path: string, content: string) =>
+    put<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`, { content }),
+  delete: (path: string) =>
+    del<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
+};
+
+export const chatApi = {
+  previewContext: (body: ChatRequest) =>
+    post<{ includedFiles: string[]; estimatedTokens: number }>('/chat/context-preview', body),
+};
+
+export const notesApi = {
+  saveFree: (note: NoteProposal) =>
+    post<NoteProposal>('/notes/free', note),
+  listFree: () =>
+    get<NoteProposal[]>('/notes/free'),
+  deleteFree: (id: string) =>
+    del<{ status: string; id: string }>(`/notes/free/${encodeURIComponent(id)}`),
+  attachToEntry: (typeId: string, entryId: string, note: NoteProposal) =>
+    post<NoteProposal>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`, note),
+  listForEntry: (typeId: string, entryId: string) =>
+    get<NoteProposal[]>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`),
+  deleteFromEntry: (typeId: string, entryId: string, id: string) =>
+    del<{ status: string; id: string }>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}/${encodeURIComponent(id)}`),
 };
 
 export function streamChat(
@@ -160,6 +295,9 @@ export function streamChat(
   onDone: () => void,
   onError: (err: Error) => void,
   onToolCall?: (description: string) => void,
+  onContextUpdate?: (estimatedTokens: number) => void,
+  onToolHistory?: (messages: import('./types.ts').ChatMessage[]) => void,
+  onResolvedUserMessage?: (content: string) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -212,6 +350,18 @@ export function streamChat(
             } else if (currentEvent === 'tool_call') {
               const unescaped = data.replace(/\\n/g, '\n');
               onToolCall?.(unescaped);
+            } else if (currentEvent === 'tool_history') {
+              try {
+                onToolHistory?.(JSON.parse(data));
+              } catch { /* ignore malformed tool_history */ }
+            } else if (currentEvent === 'resolved_user_message') {
+              const unescaped = data.replace(/\\n/g, '\n');
+              onResolvedUserMessage?.(unescaped);
+            } else if (currentEvent === 'context_update') {
+              try {
+                const parsed = JSON.parse(data);
+                onContextUpdate?.(parsed.estimatedTokens);
+              } catch { /* ignore malformed update */ }
             } else if (currentEvent === 'token') {
               const unescaped = data.replace(/\\n/g, '\n');
               onToken(unescaped);

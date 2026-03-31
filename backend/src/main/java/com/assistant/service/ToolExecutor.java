@@ -40,11 +40,22 @@ public class ToolExecutor {
     /** Executes the tool referenced by the given tool call. */
     public String execute(ToolCall toolCall) {
         String name = toolCall.getFunction().getName();
+        String args = toolCall.getFunction().getArguments();
+        log.debug("Executing tool: name={}, argsLength={}", name, args != null ? args.length() : 0);
         Tool tool = toolsByName.get(name);
         if (tool == null) {
+            log.warn("Unknown tool requested: {}", name);
             return "Unknown tool: " + name;
         }
-        return tool.execute(toolCall.getFunction().getArguments());
+        long t0 = System.nanoTime();
+        String out = tool.execute(args);
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
+        log.info(
+                "Tool executed: name={}, durationMs={}, resultChars={}",
+                name,
+                ms,
+                out != null ? out.length() : 0);
+        return out;
     }
 
     /** Returns a human-readable description of the tool call for the SSE event. */

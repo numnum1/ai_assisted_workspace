@@ -2,6 +2,8 @@ package com.assistant.service;
 
 import com.assistant.config.AppConfig;
 import com.assistant.model.FileNode;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,9 +19,13 @@ import java.util.stream.Stream;
 public class FileService {
 
     private final AppConfig appConfig;
+    private final ObjectMapper objectMapper;
+    private final ShadowWikiService shadowWikiService;
 
-    public FileService(AppConfig appConfig) {
+    public FileService(AppConfig appConfig, ObjectMapper objectMapper, ShadowWikiService shadowWikiService) {
         this.appConfig = appConfig;
+        this.objectMapper = objectMapper;
+        this.shadowWikiService = shadowWikiService;
     }
 
     public Path getProjectRoot() {
@@ -32,6 +38,25 @@ public class FileService {
             throw new IllegalStateException("Project path does not exist: " + root);
         }
         return root;
+    }
+
+    /**
+     * Resolves a path relative to the project root; must be an existing directory inside the project.
+     * {@code null}, blank, or "." means the project root.
+     */
+    public Path resolveRelativeDirectory(String relativePath) throws IOException {
+        Path root = getProjectRoot();
+        if (relativePath == null || relativePath.isBlank() || ".".equals(relativePath)) {
+            return root;
+        }
+        Path sub = root.resolve(relativePath.replace('\\', '/')).normalize();
+        if (!sub.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (!Files.exists(sub) || !Files.isDirectory(sub)) {
+            throw new IOException("Not a directory: " + relativePath);
+        }
+        return sub;
     }
 
     public FileNode getFileTree() throws IOException {
@@ -47,7 +72,22 @@ public class FileService {
 
         FileNode node = new FileNode(current.getFileName().toString(), relativePath, Files.isDirectory(current));
 
+        if (!Files.isDirectory(current) && !".".equals(relativePath)) {
+            node.setHasShadow(shadowWikiService.exists(relativePath));
+        }
+
         if (Files.isDirectory(current)) {
+            Path marker = current.resolve(".subproject.json");
+            if (Files.isRegularFile(marker)) {
+                try {
+                    JsonNode n = objectMapper.readTree(marker.toFile());
+                    if (n != null && n.hasNonNull("type")) {
+                        node.setSubprojectType(n.get("type").asText());
+                    }
+                } catch (Exception ignored) {
+                    // leave subprojectType null
+                }
+            }
             try (Stream<Path> entries = Files.list(current)) {
                 entries
                     .filter(p -> !isHidden(p))
@@ -69,7 +109,13 @@ public class FileService {
 
     private boolean isHidden(Path path) {
         String name = path.getFileName().toString();
-        return name.startsWith(".") || name.equals("node_modules") || name.equals("target");
+        if (name.equals("node_modules") || name.equals("target")) return true;
+        if (name.startsWith(".")) {
+            // .project and .wiki are project data directories that must remain visible
+            // to the file tree and search; everything else starting with . is hidden.
+            return !name.equals(".project") && !name.equals(".wiki");
+        }
+        return false;
     }
 
     public boolean isAssistantPath(String relativePath) {
@@ -88,12 +134,16 @@ public class FileService {
     }
 
     public void deleteFile(String relativePath) throws IOException {
+        if (relativePath == null || relativePath.isBlank() || ".".equals(relativePath.trim())) {
+            throw new IOException("Cannot delete project root");
+        }
         Path file = resolveAndValidate(relativePath);
         if (Files.isDirectory(file)) {
             deleteRecursively(file);
         } else {
             Files.delete(file);
         }
+        shadowWikiService.deleteIfExists(relativePath);
     }
 
     private void deleteRecursively(Path path) throws IOException {
@@ -158,7 +208,13 @@ public class FileService {
             throw new IOException("Target already exists: " + newName);
         }
         Files.move(source, target);
-        return root.relativize(target).toString().replace('\\', '/');
+        String newRelativePath = root.relativize(target).toString().replace('\\', '/');
+        if (Files.isDirectory(target)) {
+            shadowWikiService.renameDirIfExists(relativePath, newName);
+        } else {
+            shadowWikiService.renameFileIfExists(relativePath, newName);
+        }
+        return newRelativePath;
     }
 
     private String joinPath(String parent, String name) {

@@ -1,9 +1,7 @@
 package com.assistant.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +13,7 @@ public class AppConfig {
     private final Ai ai = new Ai();
     private final Project project = new Project();
     private final Git git = new Git();
+    private final Data data = new Data();
 
     public Ai getAi() {
         return ai;
@@ -28,14 +27,8 @@ public class AppConfig {
         return git;
     }
 
-    @Bean
-    public WebClient aiWebClient() {
-        return WebClient.builder()
-                .baseUrl(ai.getApiUrl())
-                .defaultHeader("Authorization", "Bearer " + ai.getApiKey())
-                .defaultHeader("Content-Type", "application/json")
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
-                .build();
+    public Data getData() {
+        return data;
     }
 
     public static class Ai {
@@ -69,5 +62,21 @@ public class AppConfig {
         public void setToken(String token) { this.token = token; }
         public String getUsername() { return username; }
         public void setUsername(String username) { this.username = username; }
+    }
+
+    /**
+     * Optional override for application data directory (workspace mode plugins, etc.).
+     * When empty, OS default is used: %APPDATA%/markdown-project (Windows) or ~/.config/markdown-project.
+     */
+    public static class Data {
+        private String dataDir = "";
+
+        public String getDataDir() {
+            return dataDir;
+        }
+
+        public void setDataDir(String dataDir) {
+            this.dataDir = dataDir != null ? dataDir : "";
+        }
     }
 }

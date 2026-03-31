@@ -1,0 +1,83 @@
+id: music
+name: Musik
+icon: disc
+mediaType: true
+editorMode: prose
+# Prose-Text pro Strophe (Szene); die Handlungseinheit-Ebene bleibt nur technisch (ein automatischer Block).
+proseLeafLevel: scene
+rootMetaLabel: Lied-Metadaten
+rootMetaIcon: music
+levels:
+  - key: chapter
+    label: Lied
+    labelNew: Neues Lied
+    icon: music
+  - key: scene
+    label: Strophe
+    labelNew: Neue Strophe
+    icon: align-left
+metaSchemas:
+  root:
+    filename: musik-projekt.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Projekt- oder Sammlungsname...
+        defaultValue: ""
+      - key: description
+        label: Kurzbeschreibung
+        type: input
+        placeholder: Ein Satz...
+        defaultValue: ""
+      - key: tone
+        label: Stil
+        type: input
+        placeholder: z.B. Ballade, Rap, Singer-Songwriter...
+        defaultValue: ""
+  chapter:
+    filename: lied.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: Liedtitel...
+        defaultValue: ""
+      - key: metatags
+        label: Metatags
+        type: input
+        placeholder: z.B. pop, electric guitar, 120bpm, female vocals...
+        defaultValue: ""
+      - key: description
+        label: Beschreibung
+        type: textarea
+        placeholder: Notizen zum Lied...
+        defaultValue: ""
+      - key: synopsis
+        label: Thema
+        type: textarea
+        placeholder: Inhalt, Botschaft, Referenzen...
+        defaultValue: ""
+  scene:
+    filename: strophe.json
+    fields:
+      - key: title
+        label: Titel
+        type: input
+        placeholder: z.B. Strophe 1, Refrain...
+        defaultValue: ""
+      - key: tone
+        label: Typ
+        type: input
+        placeholder: Strophe, Refrain, Bridge, Intro...
+        defaultValue: ""
+      - key: metatags
+        label: Metatags
+        type: input
+        placeholder: z.B. upbeat, guitar, piano, 120bpm, energetic...
+        defaultValue: ""
+      - key: description
+        label: Beschreibung
+        type: textarea
+        placeholder: Hinweise zu dieser Strophe...
+        defaultValue: ""
