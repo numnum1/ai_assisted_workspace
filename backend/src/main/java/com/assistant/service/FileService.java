@@ -114,11 +114,9 @@ public class FileService {
     private boolean isHidden(Path path) {
         String name = path.getFileName().toString();
         if (name.equals("node_modules") || name.equals("target")) return true;
-        if (name.startsWith(".")) {
-            // .project and .wiki are project data directories that must remain visible
-            // to the file tree and search; everything else starting with . is hidden.
-            return !name.equals(".project") && !name.equals(".wiki");
-        }
+        // Hide all dot-prefixed entries from the project browser / listing / search.
+        // Git still tracks them; read/write by explicit path (e.g. .assistant/, API) still works.
+        if (name.startsWith(".")) return true;
         return false;
     }
 
