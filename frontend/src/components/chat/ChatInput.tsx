@@ -53,6 +53,8 @@ interface ChatInputProps {
   onToggleReasoning?: () => void;
   /** False when the currently selected LLM has no reasoning configuration */
   reasoningAvailable?: boolean;
+  /** False when the currently selected LLM has no fast configuration (reasoning-only) */
+  fastAvailable?: boolean;
   /** Active editor selection captured via Ctrl+L */
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
@@ -73,6 +75,7 @@ export function ChatInput({
   useReasoning = false,
   onToggleReasoning,
   reasoningAvailable = true,
+  fastAvailable = true,
   activeSelection = null,
   onDismissSelection,
   focusTriggerRef,
@@ -428,15 +431,17 @@ export function ChatInput({
           <button
             type="button"
             className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
-            onClick={reasoningAvailable ? onToggleReasoning : undefined}
+            onClick={reasoningAvailable && fastAvailable ? onToggleReasoning : undefined}
             title={
               !reasoningAvailable
                 ? 'Dieses LLM unterstützt kein Reasoning'
-                : useReasoning
-                  ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren'
-                  : 'Reasoning-Modell aktivieren'
+                : !fastAvailable
+                  ? 'Dieses LLM unterstützt nur Reasoning'
+                  : useReasoning
+                    ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren'
+                    : 'Reasoning-Modell aktivieren'
             }
-            disabled={streaming || !reasoningAvailable}
+            disabled={streaming || !reasoningAvailable || !fastAvailable}
           >
             <Zap size={15} />
           </button>

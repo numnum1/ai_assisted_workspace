@@ -73,13 +73,35 @@ function App() {
     return !llm || !!llm.reasoningModel;
   }, [modeLlmId, llms]);
 
+  const fastAvailable = useMemo(() => {
+    if (!modeLlmId) return true;
+    const llm = llms.find((l) => l.id === modeLlmId);
+    return !llm || !!llm.fastModel;
+  }, [modeLlmId, llms]);
+
   const handleModeChange = useCallback((modeId: string, modeList?: typeof modes) => {
     setSelectedMode(modeId);
     const list = modeList ?? modes;
     const m = list.find(x => x.id === modeId);
-    setUseReasoning(m?.useReasoning ?? false);
-    setModeLlmId(m?.llmId ?? undefined);
-  }, [modes]);
+    const llmId = m?.llmId ?? undefined;
+    setModeLlmId(llmId);
+
+    let newUseReasoning = m?.useReasoning ?? false;
+    if (llmId) {
+      const llm = llms.find((l) => l.id === llmId);
+      if (llm) {
+        const hasReasoning = !!llm.reasoningModel;
+        const hasFast = !!llm.fastModel;
+        if (!hasReasoning) {
+          newUseReasoning = false;
+        } else if (!hasFast) {
+          newUseReasoning = true;
+        }
+        // both available → use mode preference
+      }
+    }
+    setUseReasoning(newUseReasoning);
+  }, [modes, llms]);
 
   const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages);
@@ -694,6 +716,7 @@ function App() {
             useReasoning={useReasoning}
             onToggleReasoning={handleToggleReasoning}
             reasoningAvailable={reasoningAvailable}
+            fastAvailable={fastAvailable}
             onModeChange={handleModeChange}
             llms={llms}
             selectedLlmId={modeLlmId}

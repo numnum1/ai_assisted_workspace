@@ -53,6 +53,7 @@ interface ChatPanelProps {
   selectedLlmId?: string;
   onLlmChange?: (id: string | undefined) => void;
   reasoningAvailable?: boolean;
+  fastAvailable?: boolean;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -147,6 +148,7 @@ export function ChatPanel({
   selectedLlmId,
   onLlmChange,
   reasoningAvailable = true,
+  fastAvailable = true,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -443,6 +445,7 @@ export function ChatPanel({
         useReasoning={useReasoning && reasoningAvailable}
         onToggleReasoning={onToggleReasoning}
         reasoningAvailable={reasoningAvailable}
+        fastAvailable={fastAvailable}
         activeSelection={activeSelection}
         onDismissSelection={onDismissSelection}
         focusTriggerRef={chatFocusTriggerRef}
