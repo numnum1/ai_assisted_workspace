@@ -1,8 +1,8 @@
 package com.assistant.service;
 
 import com.assistant.config.AppConfig;
-import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -23,6 +23,8 @@ import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -37,6 +39,8 @@ import java.util.*;
 
 @Service
 public class GitService {
+
+    private static final Logger log = LoggerFactory.getLogger(GitService.class);
 
     private final AppConfig appConfig;
 
@@ -84,16 +88,17 @@ public class GitService {
     }
 
     public Map<String, Object> status() throws IOException, GitAPIException {
+        log.trace("Received request to get git status");
         try (Git git = openRepo()) {
             Status status = git.status().call();
             String prefix = computePrefix(git.getRepository());
 
-            List<String> added    = filterAndStrip(status.getAdded(),     prefix);
-            List<String> modified = filterAndStrip(status.getModified(),  prefix);
-            List<String> removed  = filterAndStrip(status.getRemoved(),   prefix);
-            List<String> untracked= filterAndStrip(status.getUntracked(), prefix);
-            List<String> changed  = filterAndStrip(status.getChanged(),   prefix);
-            List<String> missing  = filterAndStrip(status.getMissing(),   prefix);
+            List<String> added     = filterAndStrip(status.getAdded(),     prefix);
+            List<String> modified  = filterAndStrip(status.getModified(),  prefix);
+            List<String> removed   = filterAndStrip(status.getRemoved(),   prefix);
+            List<String> untracked = filterAndStrip(status.getUntracked(), prefix);
+            List<String> changed   = filterAndStrip(status.getChanged(),   prefix);
+            List<String> missing   = filterAndStrip(status.getMissing(),   prefix);
 
             boolean isClean = added.isEmpty() && modified.isEmpty() && removed.isEmpty()
                     && untracked.isEmpty() && changed.isEmpty() && missing.isEmpty();
@@ -106,42 +111,71 @@ public class GitService {
             result.put("changed",   changed);
             result.put("missing",   missing);
             result.put("isClean",   isClean);
+
+            log.trace("Finished git status: clean={}, modified={}, untracked={}", isClean, modified.size(), untracked.size());
             return result;
         }
     }
 
     public Map<String, String> commit(String message, List<String> files) throws IOException, GitAPIException {
+        log.trace("Received request to commit with message: {}", message);
         try (Git git = openRepo()) {
             String prefix = computePrefix(git.getRepository());
-            AddCommand add = git.add();
+            var add = git.add();
+
             if (files == null || files.isEmpty()) {
-                // stage everything within the project scope
-                add.addFilepattern(prefix.isEmpty() ? "." : prefix.substring(0, prefix.length() - 1));
+                // Stage all changed and untracked files explicitly to ensure hidden files (.xyz) are included.
+                // Using addFilepattern(".") in JGit can silently skip paths starting with a dot.
+                Status s = git.status().call();
+                Set<String> toStage = new LinkedHashSet<>();
+                toStage.addAll(s.getModified());
+                toStage.addAll(s.getMissing());
+                toStage.addAll(s.getUntracked());
+                toStage.addAll(s.getConflicting());
+                toStage.addAll(s.getChanged());
+                toStage.addAll(s.getAdded());
+                if (toStage.isEmpty()) {
+                    log.trace("Nothing to stage, using fallback pattern");
+                    add.addFilepattern(prefix.isEmpty() ? "." : prefix.substring(0, prefix.length() - 1));
+                } else {
+                    for (String f : toStage) {
+                        String pattern = prefix.isEmpty() ? f : f;
+                        add.addFilepattern(pattern);
+                    }
+                }
             } else {
                 for (String f : files) add.addFilepattern(prefix + f);
             }
+
             add.call();
             RevCommit commit = git.commit().setMessage(message).call();
-            return Map.of(
+            Map<String, String> result = Map.of(
                     "hash", commit.getName(),
                     "message", commit.getFullMessage()
             );
+            log.trace("Finished commit: hash={}", commit.getName());
+            return result;
         }
     }
 
     public void revertFile(String path, boolean untracked) throws IOException, GitAPIException {
+        log.trace("Received request to revert file: {}, untracked={}", path, untracked);
         try (Git git = openRepo()) {
             String prefix = computePrefix(git.getRepository());
             String fullPath = prefix + path;
             if (untracked) {
                 Files.deleteIfExists(git.getRepository().getWorkTree().toPath().resolve(fullPath));
             } else {
+                // Unstage first (in case the file is in the index as added/changed), then discard working tree changes.
+                git.reset().addPath(fullPath).setRef(Constants.HEAD).setMode(ResetCommand.ResetType.MIXED).call();
                 git.checkout().addPath(fullPath).call();
             }
         }
+        log.trace("Finished reverting file: {}", path);
     }
 
     public String diff() throws IOException, GitAPIException {
+        log.trace("Received request to get git diff");
         try (Git git = openRepo()) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             try (DiffFormatter formatter = new DiffFormatter(out)) {
@@ -163,11 +197,14 @@ public class GitService {
                     formatter.format(entry);
                 }
             }
-            return out.toString();
+            String result = out.toString(StandardCharsets.UTF_8);
+            log.trace("Finished git diff: {} bytes", result.length());
+            return result;
         }
     }
 
     public List<Map<String, String>> getFileHistory(String path) throws IOException, GitAPIException {
+        log.trace("Received request to get file history for: {}", path);
         try (Git git = openRepo()) {
             String fullPath = computePrefix(git.getRepository()) + path.replace("\\", "/");
             List<Map<String, String>> commits = new ArrayList<>();
@@ -182,11 +219,13 @@ public class GitService {
                 entry.put("date",    dtf.format(Instant.ofEpochSecond(c.getCommitTime())));
                 commits.add(entry);
             }
+            log.trace("Finished file history for {}: {} commits", path, commits.size());
             return commits;
         }
     }
 
     public Map<String, Object> getFileAtCommit(String path, String hash) throws IOException {
+        log.trace("Received request to get file at commit: path={}, hash={}", path, hash);
         try (Git git = openRepo()) {
             Repository repo = git.getRepository();
             String fullPath = computePrefix(repo) + path.replace("\\", "/");
@@ -195,16 +234,19 @@ public class GitService {
                 RevTree tree = rw.parseCommit(commitId).getTree();
                 TreeWalk tw = TreeWalk.forPath(reader, fullPath, tree);
                 if (tw == null) {
+                    log.trace("Finished getFileAtCommit: file not found at commit {}", hash);
                     return Map.of("path", path, "hash", hash, "content", "", "exists", false);
                 }
                 String content = new String(reader.open(tw.getObjectId(0)).getBytes(), StandardCharsets.UTF_8);
                 tw.close();
+                log.trace("Finished getFileAtCommit: path={}, hash={}", path, hash);
                 return Map.of("path", path, "hash", hash, "content", content, "exists", true);
             }
         }
     }
 
     public List<Map<String, String>> log(int limit) throws IOException, GitAPIException {
+        log.trace("Received request to get git log, limit={}", limit);
         try (Git git = openRepo()) {
             List<Map<String, String>> commits = new ArrayList<>();
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -212,18 +254,21 @@ public class GitService {
 
             for (RevCommit commit : git.log().setMaxCount(limit).call()) {
                 Map<String, String> entry = new LinkedHashMap<>();
-                entry.put("hash", commit.getName().substring(0, 8));
+                entry.put("hash",    commit.getName());
                 entry.put("message", commit.getShortMessage());
-                entry.put("author", commit.getAuthorIdent().getName());
-                entry.put("date", dtf.format(Instant.ofEpochSecond(commit.getCommitTime())));
+                entry.put("author",  commit.getAuthorIdent().getName());
+                entry.put("date",    dtf.format(Instant.ofEpochSecond(commit.getCommitTime())));
                 commits.add(entry);
             }
+            log.trace("Finished git log: {} commits returned", commits.size());
             return commits;
         }
     }
 
     public void init() throws IOException, GitAPIException {
+        log.trace("Received request to init git repository at: {}", getProjectPath());
         Git.init().setDirectory(getProjectPath().toFile()).call().close();
+        log.trace("Finished git init at: {}", getProjectPath());
     }
 
     public boolean isRepo() {
@@ -248,6 +293,7 @@ public class GitService {
     }
 
     public Map<String, Integer> aheadBehind() throws IOException, GitAPIException {
+        log.trace("Received request to get ahead/behind status");
         try (Git git = openRepo()) {
             UsernamePasswordCredentialsProvider creds = buildCreds();
             if (creds != null) {
@@ -261,13 +307,20 @@ public class GitService {
             BranchTrackingStatus trackingStatus = BranchTrackingStatus.of(repo, branch);
 
             if (trackingStatus == null) {
+                log.trace("Finished ahead/behind: no tracking branch");
                 return Map.of("ahead", 0, "behind", 0);
             }
-            return Map.of("ahead", trackingStatus.getAheadCount(), "behind", trackingStatus.getBehindCount());
+            Map<String, Integer> result = Map.of(
+                    "ahead",  trackingStatus.getAheadCount(),
+                    "behind", trackingStatus.getBehindCount()
+            );
+            log.trace("Finished ahead/behind: ahead={}, behind={}", result.get("ahead"), result.get("behind"));
+            return result;
         }
     }
 
     public Map<String, String> sync() throws IOException, GitAPIException {
+        log.trace("Received request to sync (pull/push)");
         try (Git git = openRepo()) {
             UsernamePasswordCredentialsProvider creds = buildCreds();
 
@@ -276,16 +329,23 @@ public class GitService {
             BranchTrackingStatus trackingStatus = BranchTrackingStatus.of(repo, branch);
 
             if (trackingStatus == null) {
+                log.trace("Finished sync: no remote configured");
                 return Map.of("action", "no-remote", "details", "No tracking remote configured");
             }
 
             int behind = trackingStatus.getBehindCount();
-            int ahead = trackingStatus.getAheadCount();
+            int ahead  = trackingStatus.getAheadCount();
+
+            if (behind > 0 && ahead > 0) {
+                throw new IllegalStateException(
+                        "Branch is diverged (ahead=" + ahead + ", behind=" + behind + "). Manual merge required.");
+            }
 
             if (behind > 0) {
                 var pullCmd = git.pull();
                 if (creds != null) pullCmd.setCredentialsProvider(creds);
                 pullCmd.call();
+                log.trace("Finished sync: pulled {} commit(s)", behind);
                 return Map.of("action", "pull", "details", "Pulled " + behind + " commit(s)");
             } else if (ahead > 0) {
                 var pushCmd = git.push();
@@ -300,8 +360,10 @@ public class GitService {
                         }
                     }
                 }
+                log.trace("Finished sync: pushed {} commit(s)", ahead);
                 return Map.of("action", "push", "details", "Pushed " + ahead + " commit(s)");
             } else {
+                log.trace("Finished sync: already up to date");
                 return Map.of("action", "up-to-date", "details", "Already up to date");
             }
         }

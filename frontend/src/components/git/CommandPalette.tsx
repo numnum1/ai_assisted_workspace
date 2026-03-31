@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { FolderOpen, Search, ArrowLeft, Loader, GitCommitHorizontal, RotateCcw } from 'lucide-react';
+import { FolderOpen, Search, ArrowLeft, Loader, GitCommitHorizontal, RotateCcw, History } from 'lucide-react';
 import { projectApi, gitApi, AuthRequiredError } from '../../api.ts';
 import type { GitStatus } from '../../types.ts';
+import { FileHistoryModal } from './FileHistoryModal.tsx';
 
 export interface CommandAction {
   id: string;
@@ -45,6 +46,7 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [revertingFiles, setRevertingFiles] = useState<Set<string>>(new Set());
   const [localChangedFiles, setLocalChangedFiles] = useState<ChangedFile[]>([]);
+  const [historyFilePath, setHistoryFilePath] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const commitRef = useRef<HTMLTextAreaElement>(null);
@@ -240,6 +242,10 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
   if (!open) return null;
 
   return (
+    <>
+    {historyFilePath && (
+      <FileHistoryModal filePath={historyFilePath} onClose={() => setHistoryFilePath(null)} />
+    )}
     <div className="command-palette-overlay" onClick={loading || committing ? undefined : onClose}>
       <div className="command-palette" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
 
@@ -370,6 +376,14 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
                         : <RotateCcw size={11} />
                       }
                     </button>
+                    <button
+                      className="palette-file-history-btn"
+                      title="View file history"
+                      disabled={committing}
+                      onClick={(e) => { e.stopPropagation(); setHistoryFilePath(file.path); }}
+                    >
+                      <History size={11} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -395,5 +409,6 @@ export function CommandPalette({ open, onClose, actions, onOpenFolder, onGitRefr
         )}
       </div>
     </div>
+    </>
   );
 }

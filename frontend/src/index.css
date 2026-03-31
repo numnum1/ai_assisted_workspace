@@ -3854,15 +3854,32 @@ body {
   color: var(--text-muted);
 }
 
-/* ==================== File tree git indicator ==================== */
-
-.tree-node-git-dot {
+.palette-file-history-btn {
   flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #e5c07b;
-  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.palette-file-row:hover .palette-file-history-btn {
+  opacity: 1;
+}
+
+.palette-file-history-btn:hover {
+  color: var(--accent);
+}
+
+.palette-file-history-btn:disabled {
+  cursor: default;
+  color: var(--text-muted);
 }
 
 /* ==================== File tree context menu ==================== */
