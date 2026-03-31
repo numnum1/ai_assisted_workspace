@@ -427,21 +427,13 @@ export function ChatInput({
           disabled={streaming}
           rows={1}
         />
-        {onToggleReasoning && (
+        {onToggleReasoning && reasoningAvailable && fastAvailable && (
           <button
             type="button"
             className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
-            onClick={reasoningAvailable && fastAvailable ? onToggleReasoning : undefined}
-            title={
-              !reasoningAvailable
-                ? 'Dieses LLM unterstützt kein Reasoning'
-                : !fastAvailable
-                  ? 'Dieses LLM unterstützt nur Reasoning'
-                  : useReasoning
-                    ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren'
-                    : 'Reasoning-Modell aktivieren'
-            }
-            disabled={streaming || !reasoningAvailable || !fastAvailable}
+            onClick={onToggleReasoning}
+            title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+            disabled={streaming}
           >
             <Zap size={15} />
           </button>
