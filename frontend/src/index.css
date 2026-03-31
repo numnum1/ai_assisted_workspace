@@ -5348,6 +5348,206 @@ body {
   z-index: 300;
 }
 
+/* ==================== Wiki Browser Tabs ==================== */
+
+.wiki-browser-tabs {
+  display: flex;
+  flex-direction: row;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.wiki-browser-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.wiki-browser-tab:hover {
+  color: var(--text-primary);
+}
+
+.wiki-browser-tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ==================== Free Notes Sticky Grid ==================== */
+
+.free-notes-content {
+  overflow-y: auto;
+}
+
+.free-notes-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 20px;
+  align-content: flex-start;
+}
+
+.free-notes-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.free-note-sticky {
+  width: 150px;
+  height: 80px;
+  padding: 10px 12px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+  background: #e9d85a;
+  color: #2a2200;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+  cursor: pointer;
+}
+
+.free-note-sticky:hover {
+  transform: scale(1.06) rotate(0deg) !important;
+  box-shadow: 4px 6px 16px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+.free-note-sticky--1 { transform: rotate(-1.5deg); }
+.free-note-sticky--2 { transform: rotate(1.2deg); background: #f5e97a; }
+.free-note-sticky--3 { transform: rotate(-0.8deg); background: #f3d96b; }
+.free-note-sticky--4 { transform: rotate(1.8deg); background: #ead64f; }
+
+.free-note-sticky-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1600;
+  line-height: 1.35;
+  text-align: center;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* ==================== Free Note Modal ==================== */
+
+.free-note-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.free-note-modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 520px;
+  max-width: 90vw;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: wiki-slide-up 0.15s ease-out;
+}
+
+.free-note-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.free-note-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.35;
+  flex: 1;
+  word-break: break-word;
+}
+
+.free-note-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.free-note-modal-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.free-note-modal-delete:hover {
+  color: var(--red);
+  background: rgba(243, 139, 168, 0.12);
+}
+
+.free-note-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.free-note-modal-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.free-note-modal-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 16px 0 16px;
+  flex-shrink: 0;
+}
+
+.free-note-modal-content {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  padding: 12px 16px 20px 16px;
+  overflow-y: auto;
+  flex: 1;
+  word-break: break-word;
+}
+
 /* ==================== Wiki Entry Popup ==================== */
 
 .wiki-entry-popup-overlay {
