@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, MessageSquare, X, Pencil, FolderInput, FolderCheck, Eraser } from 'lucide-react';
+import { Trash2, MessageSquare, X, Pencil, FolderInput, FolderCheck, Eraser } from 'lucide-react';
 import type { Conversation } from '../../types.ts';
+import { NewChatButton } from './NewChatButton.tsx';
 
 interface ChatHistoryProps {
   conversations: Conversation[];
@@ -123,9 +124,7 @@ export function ChatHistory({
               <Eraser size={14} />
             </button>
           )}
-          <button type="button" className="chat-history-new-btn" onClick={onCreate} title="Neuer Chat">
-            <Plus size={14} />
-          </button>
+          <NewChatButton onClick={onCreate} />
           <button type="button" className="chat-history-close-btn" onClick={onClose} title="Schliessen">
             <X size={14} />
           </button>

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
+import { NewChatButton } from './NewChatButton.tsx';
+import { NewChatDialog } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
 import { NoteCard } from './NoteCard.tsx';
 import { wikiApi } from '../../api.ts';
@@ -25,7 +27,6 @@ interface ChatPanelProps {
   onModeChange: (mode: string) => void;
   onSend: (message: string) => void;
   onStop: () => void;
-  onClear: () => void;
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
   onForkFromMessage: (index: number) => void;
@@ -116,7 +117,6 @@ export function ChatPanel({
   onModeChange,
   onSend,
   onStop,
-  onClear,
   onAddFile,
   onRemoveFile,
   onForkFromMessage,
@@ -142,6 +142,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [renamingTitle, setRenamingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -149,6 +150,23 @@ export function ChatPanel({
   const [wikiEntriesByType, setWikiEntriesByType] = useState<Record<string, WikiEntry[]>>({});
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
+
+  const handleNewChatClick = () => {
+    const hasMessages = messages.filter((m) => !m.hidden).length > 0;
+    if (hasMessages) {
+      setNewChatDialogOpen(true);
+    } else {
+      onNewChat();
+    }
+  };
+
+  const handleNewChatConfirm = (title: string) => {
+    setNewChatDialogOpen(false);
+    if (title.trim() && title.trim() !== activeTitle) {
+      onRenameChat(activeConversationId, title.trim());
+    }
+    onNewChat();
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -199,9 +217,7 @@ export function ChatPanel({
           >
             <History size={14} />
           </button>
-          <button className="chat-clear-btn" onClick={onClear} title="Clear chat">
-            <Trash2 size={14} />
-          </button>
+          <NewChatButton onClick={handleNewChatClick} />
         </div>
         <div className="chat-header-title-row">
           {renamingTitle ? (
@@ -407,6 +423,14 @@ export function ChatPanel({
         onDismissSelection={onDismissSelection}
         focusTriggerRef={chatFocusTriggerRef}
       />
+
+      {newChatDialogOpen && (
+        <NewChatDialog
+          currentTitle={activeTitle}
+          onConfirm={handleNewChatConfirm}
+          onCancel={() => setNewChatDialogOpen(false)}
+        />
+      )}
     </div>
   );
 }

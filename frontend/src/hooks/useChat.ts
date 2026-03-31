@@ -167,14 +167,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     setToolActivity(null);
   }, []);
 
-  const clearChat = useCallback(() => {
-    syncEnabledRef.current = true;
-    setMessages([]);
-    setContextInfo(null);
-    setError(null);
-    setToolActivity(null);
-  }, []);
-
   const forkFromMessage = useCallback((upToIndex: number) => {
     syncEnabledRef.current = true;
     setMessages(prev => prev.slice(0, upToIndex + 1));
@@ -190,7 +182,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     toolActivity,
     sendMessage,
     stopStreaming,
-    clearChat,
     forkFromMessage,
     loadMessages,
   };

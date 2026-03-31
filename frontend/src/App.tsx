@@ -461,10 +461,6 @@ function App() {
     history.switchConversation(id);
   }, [history]);
 
-  const handleClearChat = useCallback(() => {
-    chat.clearChat();
-  }, [chat]);
-
   const activeChapterTitle = chapter.activeChapter?.meta.title ?? null;
 
   return (
@@ -672,7 +668,6 @@ function App() {
             onModeChange={handleModeChange}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}
-            onClear={handleClearChat}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}

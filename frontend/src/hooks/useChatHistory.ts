@@ -62,6 +62,10 @@ function createEmptyConversation(mode: string): Conversation {
   };
 }
 
+function hasVisibleMessages(c: Conversation): boolean {
+  return c.messages.some((m) => !m.hidden);
+}
+
 /** Merge project file (Git) with localStorage; project wins on id collision */
 function mergeWithProject(
   projectChats: Conversation[] | null,
@@ -221,7 +225,13 @@ export function useChatHistory(currentMode: string, projectPath: string) {
         newConv.title = title;
       }
       setConversations((prev) => {
-        const updated = [newConv, ...prev];
+        const active = prev.find((c) => c.id === activeId);
+        const dropEmptyActive =
+          active !== undefined && !hasVisibleMessages(active);
+        const withoutEmptyActive = dropEmptyActive
+          ? prev.filter((c) => c.id !== activeId)
+          : prev;
+        const updated = [newConv, ...withoutEmptyActive];
         if (updated.length > MAX_CONVERSATIONS) {
           return updated.slice(0, MAX_CONVERSATIONS);
         }
@@ -230,7 +240,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       setActiveId(newConv.id);
       return newConv;
     },
-    [currentMode],
+    [activeId, currentMode],
   );
 
   const deleteConversation = useCallback(
