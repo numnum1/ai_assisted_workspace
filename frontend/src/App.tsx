@@ -650,6 +650,7 @@ function App() {
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
+            onToggleSavedToProject={history.toggleSavedToProject}
             onOpenPromptPack={() => setPromptPackOpen(true)}
             structureRoot={chapter.structureRoot}
             activeSelection={activeSelection}

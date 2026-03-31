@@ -3247,6 +3247,10 @@ body {
   color: var(--accent);
 }
 
+.chat-history-action-btn.chat-history-saved-active {
+  color: var(--accent);
+}
+
 .chat-history-empty {
   padding: 16px 12px;
   font-size: 12px;

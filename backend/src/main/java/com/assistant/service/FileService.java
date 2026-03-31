@@ -128,8 +128,14 @@ public class FileService {
     }
 
     public void writeFile(String relativePath, String content) throws IOException {
-        Path file = resolveAndValidate(relativePath);
-        Files.createDirectories(file.getParent());
+        Path file = resolveForCreate(relativePath);
+        if (Files.exists(file) && Files.isDirectory(file)) {
+            throw new IOException("Cannot write: path is a directory: " + relativePath);
+        }
+        Path parent = file.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
         Files.writeString(file, content, StandardCharsets.UTF_8);
     }
 

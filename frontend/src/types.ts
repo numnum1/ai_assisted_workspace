@@ -97,6 +97,8 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   mode: string;
+  /** When true, conversation is written to `.assistant/chat-history.json` for Git sync */
+  savedToProject?: boolean;
 }
 
 export interface ProjectConfig {

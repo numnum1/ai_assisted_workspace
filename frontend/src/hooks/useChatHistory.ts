@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Conversation, ChatMessage } from '../types.ts';
+import { fetchProjectChatHistory, persistProjectChatHistory } from '../api.ts';
 
 const STORAGE_KEY = 'chat-history';
 const MAX_CONVERSATIONS = 50;
 const SAVE_DEBOUNCE_MS = 500;
+const PROJECT_SAVE_DEBOUNCE_MS = 500;
 
 function loadConversations(): Conversation[] {
   try {
@@ -43,27 +45,65 @@ function createEmptyConversation(mode: string): Conversation {
   };
 }
 
+/** Merge project file (Git) with localStorage; project wins on id collision */
+function mergeWithProject(projectChats: Conversation[] | null, currentMode: string): {
+  conversations: Conversation[];
+  activeId: string;
+} {
+  const local = loadConversations();
+  const newConv = createEmptyConversation(currentMode);
+  const projectList = projectChats ?? [];
+
+  if (projectList.length === 0) {
+    const conversations = [newConv, ...local].slice(0, MAX_CONVERSATIONS);
+    return { conversations, activeId: newConv.id };
+  }
+
+  const byId = new Map<string, Conversation>();
+  for (const c of projectList) {
+    byId.set(c.id, { ...c, savedToProject: true });
+  }
+  for (const c of local) {
+    if (!byId.has(c.id)) {
+      byId.set(c.id, { ...c, savedToProject: c.savedToProject === true });
+    }
+  }
+
+  const rest = Array.from(byId.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+  const conversations = [newConv, ...rest].slice(0, MAX_CONVERSATIONS);
+  return { conversations, activeId: newConv.id };
+}
+
 export function useChatHistory(currentMode: string) {
-  let init: { conversations: Conversation[]; activeId: string } | undefined;
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
-    init = (() => {
-      const loaded = loadConversations();
-      const newConv = createEmptyConversation(currentMode);
-      const convs = [newConv, ...loaded].slice(0, MAX_CONVERSATIONS);
-      return { conversations: convs, activeId: newConv.id };
+  const syncInit = mergeWithProject(null, currentMode);
+  const [conversations, setConversations] = useState<Conversation[]>(syncInit.conversations);
+  const [activeId, setActiveId] = useState<string>(syncInit.activeId);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const project = await fetchProjectChatHistory();
+      if (cancelled) return;
+      const merged = mergeWithProject(project, currentMode);
+      setConversations(merged.conversations);
+      setActiveId(merged.activeId);
+      setHydrated(true);
     })();
-    return init.conversations;
-  });
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally once on mount: mode updates are handled by the empty-chat mode effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const [activeId, setActiveId] = useState<string>(() => init!.activeId);
-
-  // Debounced persist whenever conversations change
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const projectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
 
   useEffect(() => {
-    // Debounce saves to avoid thrashing localStorage during streaming
+    if (!hydrated) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveConversations(conversationsRef.current);
@@ -72,16 +112,31 @@ export function useChatHistory(currentMode: string) {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [conversations]);
+  }, [conversations, hydrated]);
 
-  // Save immediately when the page is about to unload
+  useEffect(() => {
+    if (!hydrated) return;
+    if (projectTimerRef.current) clearTimeout(projectTimerRef.current);
+    projectTimerRef.current = setTimeout(() => {
+      persistProjectChatHistory(conversationsRef.current).catch((err) => {
+        console.error('persistProjectChatHistory failed', err);
+      });
+    }, PROJECT_SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (projectTimerRef.current) clearTimeout(projectTimerRef.current);
+    };
+  }, [conversations, hydrated]);
+
   useEffect(() => {
     const handleBeforeUnload = () => {
+      if (!hydrated) return;
       saveConversations(conversationsRef.current);
+      void persistProjectChatHistory(conversationsRef.current);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  }, [hydrated]);
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? conversations[0];
 
@@ -163,6 +218,14 @@ export function useChatHistory(currentMode: string) {
     );
   }, []);
 
+  const toggleSavedToProject = useCallback((id: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === id ? { ...c, savedToProject: !c.savedToProject, updatedAt: Date.now() } : c,
+      ),
+    );
+  }, []);
+
   return {
     conversations,
     activeConversation,
@@ -172,5 +235,6 @@ export function useChatHistory(currentMode: string) {
     deleteConversation,
     switchConversation,
     renameConversation,
+    toggleSavedToProject,
   };
 }

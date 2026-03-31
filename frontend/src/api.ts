@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation } from './types.ts';
 
 const BASE = '/api';
 
@@ -83,6 +83,30 @@ export const filesApi = {
   rename: (path: string, newName: string) =>
     post<{ status: string; path: string }>('/files/rename', { path, newName }),
 };
+
+/** Persisted chat subset for Git sync (see useChatHistory) */
+export const PROJECT_CHAT_HISTORY_PATH = '.assistant/chat-history.json';
+
+/** Load project-stored chats; returns null if missing or unreadable */
+export async function fetchProjectChatHistory(): Promise<Conversation[] | null> {
+  const res = await fetch(`${BASE}/files/content/${encodeFilePathForApi(PROJECT_CHAT_HISTORY_PATH)}`);
+  if (!res.ok) return null;
+  try {
+    const data = (await res.json()) as { content?: string };
+    if (typeof data.content !== 'string') return null;
+    const parsed = JSON.parse(data.content) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed as Conversation[];
+  } catch {
+    return null;
+  }
+}
+
+/** Writes only conversations marked `savedToProject` (or `[]` if none). */
+export async function persistProjectChatHistory(conversations: Conversation[]): Promise<void> {
+  const payload = conversations.filter((c) => c.savedToProject === true);
+  await filesApi.saveContent(PROJECT_CHAT_HISTORY_PATH, JSON.stringify(payload));
+}
 
 export const modesApi = {
   getAll: () => get<Mode[]>('/modes'),
