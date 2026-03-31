@@ -14,6 +14,12 @@ app:
   git:
     token: ${GITHUB_TOKEN:}
 
+logging:
+  level:
+    com.assistant.controller.ChatController: DEBUG
+    com.assistant.service.AiApiClient: DEBUG
+    com.assistant.service.ToolExecutor: DEBUG
+
 spring:
   profiles:
     active: local

@@ -66,6 +66,14 @@ public class AiApiClient {
         ResolvedAiCredentials cred = aiProviderService.getResolved(llmId, useReasoning);
         Map<String, Object> requestBody = buildRequestBody(messages, tools, true, cred.model());
 
+        log.info(
+                "AI API stream: baseUrl={}, model={}, messages={}, tools={}, totalApproxChars={}",
+                cred.apiUrl(),
+                cred.model(),
+                messages.size(),
+                tools != null ? tools.size() : 0,
+                countApproxCharsInMessages(messages));
+
         return clientFor(cred).post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -103,6 +111,14 @@ public class AiApiClient {
         ResolvedAiCredentials cred = aiProviderService.getResolved(llmId, useReasoning);
         Map<String, Object> requestBody = buildRequestBody(messages, tools, false, cred.model());
 
+        log.info(
+                "AI API completion (tools): baseUrl={}, model={}, messages={}, tools={}, stream=false, totalApproxChars={}",
+                cred.apiUrl(),
+                cred.model(),
+                messages.size(),
+                tools != null ? tools.size() : 0,
+                countApproxCharsInMessages(messages));
+
         String responseBody = clientFor(cred).post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -116,7 +132,20 @@ public class AiApiClient {
                 .bodyToMono(String.class)
                 .block();
 
-        return parseCompletionResult(responseBody);
+        if (responseBody != null) {
+            log.debug("AI API completion raw response length: {} chars", responseBody.length());
+        }
+
+        ChatCompletionResult parsed = parseCompletionResult(responseBody);
+        if (parsed.hasToolCalls()) {
+            log.info("AI API completion: {} tool call(s) in response", parsed.toolCalls().size());
+        } else {
+            String c = parsed.content();
+            log.info(
+                    "AI API completion: text reply, {} chars",
+                    c != null ? c.length() : 0);
+        }
+        return parsed;
     }
 
     /**
@@ -125,6 +154,28 @@ public class AiApiClient {
     public String chat(List<ChatMessage> messages) {
         ChatCompletionResult result = chatWithTools(messages, null, false);
         return result.content() != null ? result.content() : "";
+    }
+
+    private static int countApproxCharsInMessages(List<ChatMessage> messages) {
+        int n = 0;
+        for (ChatMessage m : messages) {
+            if (m.getContent() != null) {
+                n += m.getContent().length();
+            }
+            if (m.getToolCalls() != null) {
+                for (ToolCall tc : m.getToolCalls()) {
+                    if (tc.getFunction() != null) {
+                        if (tc.getFunction().getName() != null) {
+                            n += tc.getFunction().getName().length();
+                        }
+                        if (tc.getFunction().getArguments() != null) {
+                            n += tc.getFunction().getArguments().length();
+                        }
+                    }
+                }
+            }
+        }
+        return n;
     }
 
     private Map<String, Object> buildRequestBody(List<ChatMessage> messages,

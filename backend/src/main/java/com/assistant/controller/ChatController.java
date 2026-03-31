@@ -22,6 +22,7 @@ import reactor.core.publisher.Mono;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -48,11 +49,24 @@ public class ChatController {
     // through ChatRequest so ContextService can load the correct chapter context.
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request) {
+        logIncomingChatRequest(request);
+
         AssembledContext context = contextService.assemble(request);
         List<Map<String, Object>> tools = toolExecutor.getToolDefinitions();
 
         boolean useReasoning = request.isUseReasoning();
         String llmId = request.getLlmId();
+
+        log.info(
+                "Assembled chat context: mode={}, llmId={}, useReasoning={}, includedFiles={} ({}), estimatedTokens={}, assembledMessages={}",
+                request.getMode(),
+                llmId,
+                useReasoning,
+                context.getIncludedFiles().size(),
+                context.getIncludedFiles(),
+                context.getEstimatedTokens(),
+                context.getMessages().size());
+        log.debug("Assembled message breakdown:\n{}", summarizeMessagesForLog(context.getMessages()));
 
         // The last message in the assembled context is the resolved user message (file contents prepended).
         // We send it back so the frontend can store the expanded version for future history turns.
@@ -60,6 +74,11 @@ public class ChatController {
         String resolvedUserContent = assembledMessages.isEmpty()
                 ? ""
                 : assembledMessages.get(assembledMessages.size() - 1).getContent();
+
+        log.info(
+                "Resolved user message (last turn): {} chars, preview: {}",
+                resolvedUserContent != null ? resolvedUserContent.length() : 0,
+                previewForLog(resolvedUserContent, 600));
 
         return Flux.concat(
                 Flux.just(ServerSentEvent.<String>builder()
@@ -79,20 +98,39 @@ public class ChatController {
                                             .event("context_update")
                                             .data("{\"estimatedTokens\":" + contextService.estimateTokensForMessages(resolved.messages()) + "}")
                                             .build());
+                            AtomicInteger streamChunks = new AtomicInteger();
+                            AtomicInteger streamChars = new AtomicInteger();
+                            log.info(
+                                    "Starting assistant token stream after tool resolution: {} tool SSE events, messagesForApi={}",
+                                    resolved.toolCallEvents().size(),
+                                    resolved.messages().size());
                             Flux<ServerSentEvent<String>> tokenStream = aiApiClient
                                     .streamChat(resolved.messages(), tools, llmId, useReasoning)
+                                    .doOnNext(chunk -> {
+                                        streamChunks.incrementAndGet();
+                                        streamChars.addAndGet(chunk.length());
+                                    })
+                                    .doOnComplete(() -> log.info(
+                                            "Assistant stream finished: {} chunks, {} characters",
+                                            streamChunks.get(),
+                                            streamChars.get()))
+                                    .doOnError(e -> log.error(
+                                            "Assistant stream failed after {} chunks ({} chars so far)",
+                                            streamChunks.get(),
+                                            streamChars.get(),
+                                            e))
                                     .map(chunk -> ServerSentEvent.<String>builder()
                                             .event("token").data(escapeForSse(chunk)).build());
                             return Flux.concat(toolEvents, toolHistoryEvent, contextUpdateEvent, tokenStream);
                         })
                         .onErrorResume(e -> {
-                            log.error("AI API error", e);
+                            log.error("Chat pipeline error (mode={}, llmId={})", request.getMode(), llmId, e);
                             return Flux.just(ServerSentEvent.<String>builder()
                                     .event("error").data(toErrorMessage(e)).build());
                         }),
                 Flux.just(ServerSentEvent.<String>builder()
                         .event("done").data("[DONE]").build())
-        );
+        ).doOnComplete(() -> log.info("Chat SSE session completed (done event sent)"));
     }
 
     /**
@@ -109,21 +147,41 @@ public class ChatController {
                                                   boolean useReasoning) {
         List<ChatMessage> currentMessages = new ArrayList<>(messages);
         List<ServerSentEvent<String>> toolCallEvents = new ArrayList<>();
+        log.info(
+                "Tool resolution: starting with {} messages (originalCount={}), {} tool definitions registered",
+                currentMessages.size(),
+                originalMessageCount,
+                tools != null ? tools.size() : 0);
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
             ChatCompletionResult result = aiApiClient.chatWithTools(currentMessages, tools, llmId, useReasoning);
 
             if (!result.hasToolCalls()) {
+                if (result.content() != null && !result.content().isBlank()) {
+                    log.info(
+                            "Tool round {}: model returned text only (no tool_calls), {} chars — will stream final answer separately",
+                            round + 1,
+                            result.content().length());
+                } else {
+                    log.info("Tool round {}: empty content, no tool_calls — proceeding to stream", round + 1);
+                }
                 // Don't add the content here — the streaming call that follows
                 // will generate the final response. Adding it would make the AI
                 // see its own answer and return an empty stream.
                 break;
             }
 
+            log.info("Tool round {}: model requested {} tool call(s)", round + 1, result.toolCalls().size());
+
             // Send tool call events for the frontend
             for (ToolCall tc : result.toolCalls()) {
                 String description = toolExecutor.describeToolCall(tc);
                 log.info("Tool call round {}: {}", round + 1, description);
+                log.debug(
+                        "Tool call raw: name={}, id={}, arguments preview: {}",
+                        tc.getFunction().getName(),
+                        tc.getId(),
+                        previewForLog(tc.getFunction().getArguments(), 1200));
                 toolCallEvents.add(ServerSentEvent.<String>builder()
                         .event("tool_call").data(escapeForSse(description)).build());
             }
@@ -134,9 +192,21 @@ public class ChatController {
             // Execute each tool and add results
             for (ToolCall tc : result.toolCalls()) {
                 String toolResult = toolExecutor.execute(tc);
+                log.info(
+                        "Tool result: name={}, id={}, {} chars, preview: {}",
+                        tc.getFunction().getName(),
+                        tc.getId(),
+                        toolResult != null ? toolResult.length() : 0,
+                        previewForLog(toolResult, 1500));
                 currentMessages.add(ChatMessage.toolResult(tc.getId(), toolResult));
             }
         }
+
+        int addedMessages = currentMessages.size() - originalMessageCount;
+        log.info(
+                "Tool resolution phase done: +{} intermediate message(s), total messages={}",
+                addedMessages,
+                currentMessages.size());
 
         // Build tool_history JSON from the intermediate messages added during tool rounds.
         // These are the messages between the original message list and the final list.
@@ -145,6 +215,7 @@ public class ChatController {
             List<ChatMessage> toolMessages = currentMessages.subList(originalMessageCount, currentMessages.size());
             try {
                 toolHistoryJson = objectMapper.writeValueAsString(toolMessages);
+                log.debug("tool_history JSON length: {} chars", toolHistoryJson.length());
             } catch (JsonProcessingException e) {
                 log.warn("Failed to serialize tool_history messages", e);
             }
@@ -155,8 +226,15 @@ public class ChatController {
 
     @PostMapping("/sync")
     public Map<String, Object> chatSync(@RequestBody ChatRequest request) {
+        log.info("chatSync: mode={}, messageLen={}", request.getMode(), request.getMessage() != null ? request.getMessage().length() : 0);
         AssembledContext context = contextService.assemble(request);
         String response = aiApiClient.chat(context.getMessages());
+        log.info(
+                "chatSync complete: responseChars={}, estimatedTokens={}, files={}",
+                response != null ? response.length() : 0,
+                context.getEstimatedTokens(),
+                context.getIncludedFiles());
+        log.debug("chatSync response preview: {}", previewForLog(response, 2000));
         return Map.of(
                 "response", response,
                 "includedFiles", context.getIncludedFiles(),
@@ -166,7 +244,12 @@ public class ChatController {
 
     @PostMapping("/context-preview")
     public Map<String, Object> previewContext(@RequestBody ChatRequest request) {
+        log.info("context-preview: mode={}, referencedFiles={}", request.getMode(), request.getReferencedFiles());
         AssembledContext context = contextService.assemble(request);
+        log.info(
+                "context-preview result: files={}, estimatedTokens={}",
+                context.getIncludedFiles(),
+                context.getEstimatedTokens());
         return Map.of(
                 "includedFiles", context.getIncludedFiles(),
                 "estimatedTokens", context.getEstimatedTokens()
@@ -192,6 +275,58 @@ public class ChatController {
 
     private String escapeForSse(String data) {
         return data.replace("\n", "\\n").replace("\r", "");
+    }
+
+    private void logIncomingChatRequest(ChatRequest request) {
+        List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
+        log.info(
+                "Incoming chat: mode={}, llmId={}, useReasoning={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                request.getMode(),
+                request.getLlmId(),
+                request.isUseReasoning(),
+                request.getActiveFile(),
+                request.getActiveFieldKey(),
+                request.getReferencedFiles(),
+                history.size(),
+                request.getMessage() != null ? request.getMessage().length() : 0);
+        log.info("Incoming user message preview: {}", previewForLog(request.getMessage(), 800));
+        if (!history.isEmpty()) {
+            log.info("Client history summary:\n{}", summarizeMessagesForLog(history));
+        }
+    }
+
+    private static String summarizeMessagesForLog(List<ChatMessage> messages) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage m = messages.get(i);
+            String role = m.getRole();
+            int len = m.getContent() != null ? m.getContent().length() : 0;
+            boolean hasTools = m.getToolCalls() != null && !m.getToolCalls().isEmpty();
+            sb.append("  [").append(i).append("] role=").append(role)
+                    .append(" contentChars=").append(len);
+            if (hasTools) {
+                sb.append(" toolCalls=").append(m.getToolCalls().size());
+            }
+            if ("tool".equals(role) && m.getToolCallId() != null) {
+                sb.append(" toolCallId=").append(m.getToolCallId());
+            }
+            sb.append("\n");
+            if (len > 0 && !hasTools) {
+                sb.append("      preview: ").append(previewForLog(m.getContent(), 220).replace("\n", "\\n")).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String previewForLog(String text, int maxChars) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        if (normalized.length() <= maxChars) {
+            return normalized;
+        }
+        return normalized.substring(0, maxChars) + " … [" + normalized.length() + " chars total]";
     }
 
     private String toErrorMessage(Throwable e) {
