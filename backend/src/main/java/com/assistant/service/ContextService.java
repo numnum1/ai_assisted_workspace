@@ -5,6 +5,8 @@ import com.assistant.model.AssembledContext;
 import com.assistant.model.ChatMessage;
 import com.assistant.model.ChatRequest;
 import com.assistant.model.Mode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -12,6 +14,8 @@ import java.util.*;
 
 @Service
 public class ContextService {
+
+    private static final Logger log = LoggerFactory.getLogger(ContextService.class);
 
     private final FileService fileService;
     private final ModeService modeService;
@@ -33,6 +37,12 @@ public class ContextService {
     }
 
     public AssembledContext assemble(ChatRequest request) {
+        log.trace("Received request to assemble context: mode={}, historyTurns={}, referencedFiles={}, activeFile={}",
+                request.getMode(),
+                request.getHistory() != null ? request.getHistory().size() : 0,
+                request.getReferencedFiles(),
+                request.getActiveFile());
+
         AssembledContext context = new AssembledContext();
         List<ChatMessage> messages = new ArrayList<>();
         Set<String> includedFiles = new LinkedHashSet<>();
@@ -47,9 +57,11 @@ public class ContextService {
 
         StringBuilder systemPrompt = new StringBuilder();
         systemPrompt.append(mode.getSystemPrompt()).append("\n\n");
+        log.debug("System prompt after mode base: {} chars", systemPrompt.length());
 
         // 2. Inject rules (global + per-mode) right after the mode system prompt
         appendRules(systemPrompt, mode);
+        log.debug("System prompt after rules injection: {} chars", systemPrompt.length());
 
         // 2b. Inject workspace mode system prompt addition
         if (projectConfigService.hasProjectConfig()) {
@@ -80,33 +92,47 @@ public class ContextService {
         systemPrompt.append("Use these ids with read_story_text(chapter_id, scene_id?). ");
         systemPrompt.append("Human titles are in meta JSON, not in file names — use search_story_structure " +
                 "when you need to find a node by title or description.\n");
+        int beforeStory = systemPrompt.length();
         try {
             systemPrompt.append(chapterService.buildStoryStructureOverview());
         } catch (IOException e) {
+            log.warn("Could not read story structure overview", e);
             systemPrompt.append("[Could not read story structure]\n");
         }
+        log.debug("System prompt after story structure: {} chars (+{} for story overview)",
+                systemPrompt.length(), systemPrompt.length() - beforeStory);
         systemPrompt.append("\n");
 
         // Build project file listing
         systemPrompt.append("=== Project Files ===\n");
+        int beforeTree = systemPrompt.length();
         try {
             var tree = fileService.getFileTree();
             appendTreeListing(systemPrompt, tree, "");
         } catch (IOException e) {
+            log.warn("Could not read project file tree", e);
             systemPrompt.append("[Could not read project structure]\n");
         }
+        log.debug("System prompt after file tree: {} chars (+{} for tree)",
+                systemPrompt.length(), systemPrompt.length() - beforeTree);
         systemPrompt.append("\n");
 
         // Include always-included files
+        log.debug("Always-include files to inject: {}", seen);
         for (String filePath : seen) {
             try {
                 if (fileService.fileExists(filePath)) {
+                    int before = systemPrompt.length();
                     String content = fileService.readFile(filePath);
                     systemPrompt.append("=== ").append(filePath).append(" ===\n");
                     systemPrompt.append(content).append("\n\n");
                     includedFiles.add(filePath);
+                    log.debug("Injected always-include file '{}': {} chars", filePath, systemPrompt.length() - before);
+                } else {
+                    log.debug("Always-include file '{}' not found, skipping", filePath);
                 }
             } catch (IOException e) {
+                log.warn("Failed to read always-include file '{}'", filePath, e);
                 systemPrompt.append("=== ").append(filePath).append(" [read error] ===\n\n");
             }
         }
@@ -116,15 +142,20 @@ public class ContextService {
         if (activeFile != null && !activeFile.isBlank() && !seen.contains(activeFile)) {
             try {
                 if (fileService.fileExists(activeFile)) {
+                    int before = systemPrompt.length();
                     String content = fileService.readFile(activeFile);
                     systemPrompt.append("=== Active File: ").append(activeFile).append(" ===\n");
                     systemPrompt.append(content).append("\n\n");
                     includedFiles.add(activeFile);
+                    log.debug("Injected active file '{}': {} chars", activeFile, systemPrompt.length() - before);
                     if (activeFile.endsWith(".json") && activeFile.contains(".project/chapter/")) {
                         appendFieldUpdateInstructions(systemPrompt);
                     }
+                } else {
+                    log.debug("Active file '{}' not found on disk, skipping", activeFile);
                 }
             } catch (IOException e) {
+                log.warn("Failed to read active file '{}'", activeFile, e);
                 systemPrompt.append("=== Active File: ").append(activeFile).append(" [read error] ===\n\n");
             }
         }
@@ -215,6 +246,18 @@ public class ContextService {
         systemPrompt.append("Use this sparingly — only when the ambiguity would lead to a significantly wrong or wasted answer.\n");
         systemPrompt.append("Do NOT use it for simple tasks where a reasonable assumption can be made.\n\n");
 
+        int finalSystemPromptChars = systemPrompt.length();
+        int estimatedSystemTokens = finalSystemPromptChars / 4;
+        log.info(
+                "Final system prompt: {} chars (~{} tokens). Breakdown — mode+rules, story structure, file tree, always-includes, tool instructions all included.",
+                finalSystemPromptChars,
+                estimatedSystemTokens);
+        if (estimatedSystemTokens > 60_000) {
+            log.warn(
+                    "System prompt is very large (~{} tokens) — this may cause context overflow for models with limited context windows!",
+                    estimatedSystemTokens);
+        }
+
         messages.add(new ChatMessage("system", systemPrompt.toString()));
 
         // 5. Add conversation history
@@ -244,6 +287,8 @@ public class ContextService {
         context.setIncludedFiles(new ArrayList<>(includedFiles));
         context.setEstimatedTokens(estimateTokens(messages));
 
+        log.trace("Finished successfully assembling context: totalMessages={}, includedFiles={}, estimatedTokens={}",
+                messages.size(), includedFiles, context.getEstimatedTokens());
         return context;
     }
 

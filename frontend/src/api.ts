@@ -349,6 +349,7 @@ export function streamChat(
       let buffer = '';
       let currentEvent = '';
       let doneHandled = false;
+      let tokenCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -366,11 +367,20 @@ export function streamChat(
             if (currentEvent === 'context') {
               try {
                 onContext(JSON.parse(data));
-              } catch { /* ignore malformed context */ }
+              } catch (e) {
+                console.warn('[streamChat] Failed to parse context event data:', e, 'raw:', data.substring(0, 200));
+              }
             } else if (currentEvent === 'error') {
+              console.warn('[streamChat] Received error event from backend:', data);
               onError(new Error(data));
               doneHandled = true;
             } else if (currentEvent === 'done') {
+              if (tokenCount === 0) {
+                console.warn(
+                  '[streamChat] Stream ended (done event) but 0 tokens were received — model returned no content. ' +
+                  'Check backend logs for finish_reason=length or empty completion warnings.'
+                );
+              }
               onDone();
               doneHandled = true;
             } else if (currentEvent === 'tool_call') {
@@ -379,7 +389,9 @@ export function streamChat(
             } else if (currentEvent === 'tool_history') {
               try {
                 onToolHistory?.(JSON.parse(data));
-              } catch { /* ignore malformed tool_history */ }
+              } catch (e) {
+                console.warn('[streamChat] Failed to parse tool_history event data:', e, 'raw:', data.substring(0, 200));
+              }
             } else if (currentEvent === 'resolved_user_message') {
               const unescaped = data.replace(/\\n/g, '\n');
               onResolvedUserMessage?.(unescaped);
@@ -387,8 +399,11 @@ export function streamChat(
               try {
                 const parsed = JSON.parse(data);
                 onContextUpdate?.(parsed.estimatedTokens);
-              } catch { /* ignore malformed update */ }
+              } catch (e) {
+                console.warn('[streamChat] Failed to parse context_update event data:', e, 'raw:', data.substring(0, 200));
+              }
             } else if (currentEvent === 'token') {
+              tokenCount++;
               const unescaped = data.replace(/\\n/g, '\n');
               onToken(unescaped);
             }
@@ -396,7 +411,12 @@ export function streamChat(
           }
         }
       }
-      if (!doneHandled) onDone();
+      if (!doneHandled) {
+        if (tokenCount === 0) {
+          console.warn('[streamChat] SSE stream closed by server without a done event and 0 tokens received.');
+        }
+        onDone();
+      }
     })
     .catch((err) => {
       if (err.name !== 'AbortError') onError(err);

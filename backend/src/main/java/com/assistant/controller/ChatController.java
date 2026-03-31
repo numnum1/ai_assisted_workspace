@@ -110,10 +110,21 @@ public class ChatController {
                                         streamChunks.incrementAndGet();
                                         streamChars.addAndGet(chunk.length());
                                     })
-                                    .doOnComplete(() -> log.info(
-                                            "Assistant stream finished: {} chunks, {} characters",
-                                            streamChunks.get(),
-                                            streamChars.get()))
+                                    .doOnComplete(() -> {
+                                        int chunks = streamChunks.get();
+                                        int chars = streamChars.get();
+                                        if (chunks == 0) {
+                                            log.warn(
+                                                    "Assistant stream completed with 0 chunks and 0 characters — "
+                                                            + "model returned no content. Likely context overflow or content filter. "
+                                                            + "mode={}, llmId={}, messagesForApi={}",
+                                                    request.getMode(),
+                                                    llmId,
+                                                    resolved.messages().size());
+                                        } else {
+                                            log.info("Assistant stream finished: {} chunks, {} characters", chunks, chars);
+                                        }
+                                    })
                                     .doOnError(e -> log.error(
                                             "Assistant stream failed after {} chunks ({} chars so far)",
                                             streamChunks.get(),
@@ -163,7 +174,14 @@ public class ChatController {
                             round + 1,
                             result.content().length());
                 } else {
-                    log.info("Tool round {}: empty content, no tool_calls — proceeding to stream", round + 1);
+                    log.warn(
+                            "Tool round {}: empty content AND no tool_calls — suspicious response, possible context overflow. "
+                                    + "messages={}, approxChars={}",
+                            round + 1,
+                            currentMessages.size(),
+                            currentMessages.stream()
+                                    .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)
+                                    .sum());
                 }
                 // Don't add the content here — the streaming call that follows
                 // will generate the final response. Adding it would make the AI
