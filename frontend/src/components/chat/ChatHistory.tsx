@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, MessageSquare, X, Pencil, FolderInput, FolderCheck } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, X, Pencil, FolderInput, FolderCheck, Eraser } from 'lucide-react';
 import type { Conversation } from '../../types.ts';
 
 interface ChatHistoryProps {
@@ -10,6 +10,8 @@ interface ChatHistoryProps {
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onToggleSavedToProject: (id: string) => void;
+  onClearAllBrowserChats?: () => void;
+  clearAllBrowserDisabled?: boolean;
   onClose: () => void;
 }
 
@@ -52,6 +54,8 @@ export function ChatHistory({
   onDelete,
   onRename,
   onToggleSavedToProject,
+  onClearAllBrowserChats,
+  clearAllBrowserDisabled = true,
   onClose,
 }: ChatHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -98,6 +102,27 @@ export function ChatHistory({
       <div className="chat-history-header">
         <span className="chat-history-title">Chat-Historie</span>
         <div className="chat-history-header-actions">
+          {onClearAllBrowserChats && (
+            <button
+              type="button"
+              className="chat-history-clear-all-btn"
+              disabled={clearAllBrowserDisabled}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Alle rein lokalen Chats dieses Projekts löschen?\n\n' +
+                      'Chats mit aktivem „Im Projekt speichern“ (Ordner-Häkchen) bleiben erhalten — in der Liste, im Browser und in .assistant/chat-history.json.',
+                  )
+                ) {
+                  return;
+                }
+                onClearAllBrowserChats();
+              }}
+              title="Nur lokale Chats löschen (projektgespeicherte behalten)"
+            >
+              <Eraser size={14} />
+            </button>
+          )}
           <button type="button" className="chat-history-new-btn" onClick={onCreate} title="Neuer Chat">
             <Plus size={14} />
           </button>

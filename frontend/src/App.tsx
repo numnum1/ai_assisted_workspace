@@ -54,7 +54,7 @@ function App() {
     setModeLlmId(m?.llmId ?? undefined);
   }, [modes]);
 
-  const history = useChatHistory(selectedMode);
+  const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages);
 
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
@@ -682,6 +682,8 @@ function App() {
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
             onToggleSavedToProject={history.toggleSavedToProject}
+            onClearAllBrowserChats={history.clearAllBrowserChats}
+            clearAllBrowserChatsDisabled={!project.projectPath || !history.hydrated}
             onOpenPromptPack={() => setPromptPackOpen(true)}
             structureRoot={chapter.structureRoot}
             activeSelection={activeSelection}

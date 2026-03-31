@@ -2,14 +2,30 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Conversation, ChatMessage } from '../types.ts';
 import { fetchProjectChatHistory, persistProjectChatHistory } from '../api.ts';
 
-const STORAGE_KEY = 'chat-history';
+/** Pre–per-project keys: one list for all folders (migrated once into first opened project) */
+const LEGACY_STORAGE_KEY = 'chat-history';
+
 const MAX_CONVERSATIONS = 50;
 const SAVE_DEBOUNCE_MS = 500;
 const PROJECT_SAVE_DEBOUNCE_MS = 500;
 
-function loadConversations(): Conversation[] {
+/** Stable localStorage key per opened project root path */
+export function chatHistoryStorageKey(projectPath: string): string | null {
+  const p = projectPath?.trim();
+  if (!p) return null;
+  return `${LEGACY_STORAGE_KEY}:${p}`;
+}
+
+function loadConversations(storageKey: string | null): Conversation[] {
+  if (!storageKey) return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(storageKey);
+    if (!raw) {
+      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (raw) {
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+    }
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -19,9 +35,10 @@ function loadConversations(): Conversation[] {
   }
 }
 
-function saveConversations(conversations: Conversation[]) {
+function saveConversations(conversations: Conversation[], storageKey: string | null) {
+  if (!storageKey) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    localStorage.setItem(storageKey, JSON.stringify(conversations));
   } catch {
     // localStorage full or unavailable — silently ignore
   }
@@ -46,11 +63,15 @@ function createEmptyConversation(mode: string): Conversation {
 }
 
 /** Merge project file (Git) with localStorage; project wins on id collision */
-function mergeWithProject(projectChats: Conversation[] | null, currentMode: string): {
+function mergeWithProject(
+  projectChats: Conversation[] | null,
+  currentMode: string,
+  storageKey: string | null,
+): {
   conversations: Conversation[];
   activeId: string;
 } {
-  const local = loadConversations();
+  const local = loadConversations(storageKey);
   const newConv = createEmptyConversation(currentMode);
   const projectList = projectChats ?? [];
 
@@ -74,18 +95,39 @@ function mergeWithProject(projectChats: Conversation[] | null, currentMode: stri
   return { conversations, activeId: newConv.id };
 }
 
-export function useChatHistory(currentMode: string) {
-  const syncInit = mergeWithProject(null, currentMode);
+export function useChatHistory(currentMode: string, projectPath: string) {
+  const storageKey = chatHistoryStorageKey(projectPath);
+  const syncInit = mergeWithProject(null, currentMode, storageKey);
   const [conversations, setConversations] = useState<Conversation[]>(syncInit.conversations);
   const [activeId, setActiveId] = useState<string>(syncInit.activeId);
   const [hydrated, setHydrated] = useState(false);
 
+  const projectPathRef = useRef(projectPath);
+  projectPathRef.current = projectPath;
+
+  const currentModeRef = useRef(currentMode);
+  currentModeRef.current = currentMode;
+
   useEffect(() => {
+    const key = chatHistoryStorageKey(projectPath);
+    if (!key) {
+      const nc = createEmptyConversation(currentModeRef.current);
+      setConversations([nc]);
+      setActiveId(nc.id);
+      setHydrated(false);
+      return;
+    }
+
+    const placeholder = createEmptyConversation(currentModeRef.current);
+    setConversations([placeholder]);
+    setActiveId(placeholder.id);
+    setHydrated(false);
+
     let cancelled = false;
     (async () => {
       const project = await fetchProjectChatHistory();
       if (cancelled) return;
-      const merged = mergeWithProject(project, currentMode);
+      const merged = mergeWithProject(project, currentModeRef.current, key);
       setConversations(merged.conversations);
       setActiveId(merged.activeId);
       setHydrated(true);
@@ -93,9 +135,7 @@ export function useChatHistory(currentMode: string) {
     return () => {
       cancelled = true;
     };
-    // Intentionally once on mount: mode updates are handled by the empty-chat mode effect below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [projectPath]);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,9 +144,11 @@ export function useChatHistory(currentMode: string) {
 
   useEffect(() => {
     if (!hydrated) return;
+    const key = chatHistoryStorageKey(projectPathRef.current);
+    if (!key) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveConversations(conversationsRef.current);
+      saveConversations(conversationsRef.current, key);
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
@@ -131,7 +173,10 @@ export function useChatHistory(currentMode: string) {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (!hydrated) return;
-      saveConversations(conversationsRef.current);
+      const key = chatHistoryStorageKey(projectPathRef.current);
+      if (key) {
+        saveConversations(conversationsRef.current, key);
+      }
       void persistProjectChatHistory(conversationsRef.current);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -226,15 +271,39 @@ export function useChatHistory(currentMode: string) {
     );
   }, []);
 
+  /**
+   * Removes only chats that are not pinned to the project file (`savedToProject`).
+   * Pinned chats stay in state, localStorage, and `.assistant/chat-history.json`.
+   */
+  const clearAllBrowserChats = useCallback(() => {
+    if (!hydrated) return;
+    const key = chatHistoryStorageKey(projectPathRef.current);
+    if (!key) return;
+    if (projectTimerRef.current) {
+      clearTimeout(projectTimerRef.current);
+      projectTimerRef.current = null;
+    }
+    const newConv = createEmptyConversation(currentModeRef.current);
+    const pinned = conversationsRef.current.filter((c) => c.savedToProject === true);
+    const sortedPinned = [...pinned].sort((a, b) => b.updatedAt - a.updatedAt);
+    const next = [newConv, ...sortedPinned].slice(0, MAX_CONVERSATIONS);
+    setConversations(next);
+    setActiveId(newConv.id);
+    conversationsRef.current = next;
+    saveConversations(next, key);
+  }, [hydrated]);
+
   return {
     conversations,
     activeConversation,
     activeId,
+    hydrated,
     updateMessages,
     createConversation,
     deleteConversation,
     switchConversation,
     renameConversation,
     toggleSavedToProject,
+    clearAllBrowserChats,
   };
 }

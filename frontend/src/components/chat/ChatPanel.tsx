@@ -35,6 +35,8 @@ interface ChatPanelProps {
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
   onToggleSavedToProject: (id: string) => void;
+  onClearAllBrowserChats?: () => void;
+  clearAllBrowserChatsDisabled?: boolean;
   onOpenPromptPack?: () => void;
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
@@ -124,6 +126,8 @@ export function ChatPanel({
   onDeleteChat,
   onRenameChat,
   onToggleSavedToProject,
+  onClearAllBrowserChats,
+  clearAllBrowserChatsDisabled = true,
   onOpenPromptPack,
   structureRoot = null,
   activeSelection = null,
@@ -234,6 +238,8 @@ export function ChatPanel({
           onDelete={onDeleteChat}
           onRename={onRenameChat}
           onToggleSavedToProject={onToggleSavedToProject}
+          onClearAllBrowserChats={onClearAllBrowserChats}
+          clearAllBrowserDisabled={clearAllBrowserChatsDisabled}
           onClose={() => setHistoryOpen(false)}
         />
       )}

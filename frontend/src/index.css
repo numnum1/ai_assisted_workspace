@@ -3071,7 +3071,8 @@ body {
 }
 
 .chat-history-new-btn,
-.chat-history-close-btn {
+.chat-history-close-btn,
+.chat-history-clear-all-btn {
   display: flex;
   align-items: center;
   padding: 3px;
@@ -3081,6 +3082,16 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s;
+}
+
+.chat-history-clear-all-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--orange, #d97706);
+}
+
+.chat-history-clear-all-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .chat-history-new-btn:hover {
