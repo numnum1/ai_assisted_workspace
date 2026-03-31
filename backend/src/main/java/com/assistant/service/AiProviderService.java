@@ -171,9 +171,11 @@ public class AiProviderService {
     private void validateCreate(AiProviderRequest req) {
         if (req == null) throw new IllegalArgumentException("body required");
         if (req.getName() == null || req.getName().isBlank()) throw new IllegalArgumentException("name required");
-        boolean hasFast = (req.getFastApiUrl() != null && !req.getFastApiUrl().isBlank())
-                || (req.getFastModel() != null && !req.getFastModel().isBlank());
-        if (!hasFast) throw new IllegalArgumentException("fastApiUrl and fastModel are required");
+        boolean hasFastModel = req.getFastModel() != null && !req.getFastModel().isBlank();
+        boolean hasReasoningModel = req.getReasoningModel() != null && !req.getReasoningModel().isBlank();
+        if (!hasFastModel && !hasReasoningModel) {
+            throw new IllegalArgumentException("At least one model (fast or reasoning) is required");
+        }
     }
 
     private AiProvider findById(AiProvidersState state, String id) {

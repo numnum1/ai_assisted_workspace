@@ -395,10 +395,18 @@ export function ProjectSettingsModal({
     if (!llmForm) return;
     const { editingId, name, fastApiUrl, fastModel, fastApiKey,
             reasoningApiUrl, reasoningModel, reasoningApiKey } = llmForm;
-    if (!name.trim() || !fastApiUrl.trim() || !fastModel.trim()) return;
-    if (!editingId && !fastApiKey.trim()) {
-      setError('Fast-API-Key ist für einen neuen Eintrag erforderlich');
-      return;
+    const hasFast = fastModel.trim().length > 0;
+    const hasReasoning = reasoningModel.trim().length > 0;
+    if (!name.trim() || (!hasFast && !hasReasoning)) return;
+    if (!editingId) {
+      if (hasFast && !fastApiKey.trim()) {
+        setError('Fast-API-Key ist für einen neuen Eintrag mit Fast-Modell erforderlich');
+        return;
+      }
+      if (hasReasoning && !hasFast && !reasoningApiKey.trim()) {
+        setError('Reasoning-API-Key ist erforderlich, wenn kein Fast-Modell angegeben ist');
+        return;
+      }
     }
     setSavingLlm(true);
     setError(null);
@@ -418,7 +426,7 @@ export function ProjectSettingsModal({
           name: name.trim(),
           fastApiUrl: fastApiUrl.trim(),
           fastModel: fastModel.trim(),
-          fastApiKey: fastApiKey.trim(),
+          ...(fastApiKey.trim() ? { fastApiKey: fastApiKey.trim() } : {}),
           reasoningApiUrl: reasoningApiUrl.trim(),
           reasoningModel: reasoningModel.trim(),
           ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
@@ -864,7 +872,7 @@ export function ProjectSettingsModal({
             {tab === 'aiProviders' && (
               <div className="ps-tab-content">
                 <p className="ps-hint">
-                  Jeder Eintrag hat eine <strong>Fast</strong>- und optional eine <strong>⚡ Reasoning</strong>-Konfiguration —
+                  Jeder Eintrag benötigt mindestens eine <strong>Fast</strong>- <em>oder</em> eine <strong>⚡ Reasoning</strong>-Konfiguration —
                   jeweils mit eigenem API-URL, Key und Modell. Welcher Eintrag genutzt wird, legst du pro Modus
                   im Tab <em>Modes</em> fest. Kein Eintrag zugewiesen? Der erste in der Liste wird als Fallback verwendet.
                   Bei leerer Liste greift der Server auf <code>application.yml</code> / env zurück.
@@ -889,7 +897,7 @@ export function ProjectSettingsModal({
                       placeholder="z. B. eecc.ai"
                     />
 
-                    <p className="ps-label ps-llm-section-header">Fast-Konfiguration</p>
+                    <p className="ps-label ps-llm-section-header">Fast-Konfiguration <span className="ps-label-hint">(optional, wenn Reasoning angegeben)</span></p>
 
                     <label className="ps-label">API base URL</label>
                     <input
@@ -907,7 +915,11 @@ export function ProjectSettingsModal({
                     />
                     <label className="ps-label">API key</label>
                     <p className="ps-hint">
-                      {llmForm.editingId ? 'Leer = gespeicherten Key behalten.' : 'Pflichtfeld.'}
+                      {llmForm.editingId
+                        ? 'Leer = gespeicherten Key behalten.'
+                        : llmForm.fastModel.trim()
+                          ? 'Pflichtfeld bei Fast-Modell.'
+                          : 'Optional, wenn kein Fast-Modell angegeben.'}
                     </p>
                     <input
                       type="password"
@@ -954,8 +966,7 @@ export function ProjectSettingsModal({
                         disabled={
                           savingLlm
                           || !llmForm.name.trim()
-                          || !llmForm.fastApiUrl.trim()
-                          || !llmForm.fastModel.trim()
+                          || (!llmForm.fastModel.trim() && !llmForm.reasoningModel.trim())
                         }
                       >
                         {savingLlm
@@ -1004,8 +1015,11 @@ export function ProjectSettingsModal({
                                 {hasFast && hasReasoning && ' — '}
                                 {hasReasoning && <>⚡ {p.reasoningModel}{p.reasoningApiUrl ? ` · ${p.reasoningApiUrl}` : ''}</>}
                               </span>
-                              {(!p.fastApiKeySet) && (
+                              {(hasFast && !p.fastApiKeySet) && (
                                 <span className="ps-hint ps-ai-no-key">Kein Fast-Key gesetzt</span>
+                              )}
+                              {(!hasFast && hasReasoning && !p.reasoningApiKeySet) && (
+                                <span className="ps-hint ps-ai-no-key">Kein Reasoning-Key gesetzt</span>
                               )}
                             </div>
                             <div className="ps-ai-provider-actions">
