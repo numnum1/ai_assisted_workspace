@@ -2386,6 +2386,62 @@ body {
   opacity: 0.55;
 }
 
+.chat-thinking {
+  margin: 0 0 0.65em;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 35%, var(--border));
+  border-radius: 6px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 6%, var(--bg-secondary));
+}
+
+.chat-thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  margin: 0;
+  border: none;
+  background: color-mix(in srgb, var(--text-muted) 8%, var(--bg-tertiary));
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-thinking-header:hover {
+  background: color-mix(in srgb, var(--text-muted) 14%, var(--bg-tertiary));
+  color: var(--text-primary);
+}
+
+.chat-thinking-chevron {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.85;
+}
+
+.chat-thinking-body {
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 20%, var(--border));
+}
+
+.chat-thinking-body pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: inherit;
+}
+
 .chat-md hr {
   margin: 0.75em 0;
   border: none;
