@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
@@ -150,7 +150,9 @@ export function ChatPanel({
   reasoningAvailable = true,
   fastAvailable = true,
 }: ChatPanelProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const prevLastVisibleRoleRef = useRef<'user' | 'assistant' | undefined>(undefined);
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
@@ -179,12 +181,30 @@ export function ChatPanel({
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
     setRenamingTitle(false);
   }, [activeConversationId]);
+
+  useEffect(() => {
+    prevLastVisibleRoleRef.current = undefined;
+  }, [activeConversationId]);
+
+  // Once per sent user message: scroll to bottom (not on every streaming token).
+  useEffect(() => {
+    const visible = messages.filter((m) => !m.hidden);
+    const last = visible[visible.length - 1];
+    const role =
+      last?.role === 'user' ? 'user' : last?.role === 'assistant' ? 'assistant' : undefined;
+    const prev = prevLastVisibleRoleRef.current;
+    if (role === 'user' && prev !== 'user') {
+      const el = messagesScrollRef.current;
+      if (el) {
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
+    }
+    prevLastVisibleRoleRef.current = role;
+  }, [messages]);
 
   // Reset dismissed notes when chat is cleared
   useEffect(() => {
@@ -285,7 +305,7 @@ export function ChatPanel({
         />
       )}
 
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesScrollRef}>
         {messages.filter((m) => !m.hidden).length === 0 && (
           <div className="chat-empty">
             <p>Start a conversation with your AI assistant.</p>
@@ -431,7 +451,6 @@ export function ChatPanel({
             <div className="chat-message-content">Error: {error}</div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       <ChatInput
