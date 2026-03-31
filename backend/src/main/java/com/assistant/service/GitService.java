@@ -2,7 +2,6 @@ package com.assistant.service;
 
 import com.assistant.config.AppConfig;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -32,6 +31,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -167,11 +167,126 @@ public class GitService {
                 Files.deleteIfExists(git.getRepository().getWorkTree().toPath().resolve(fullPath));
             } else {
                 // Unstage first (in case the file is in the index as added/changed), then discard working tree changes.
-                git.reset().addPath(fullPath).setRef(Constants.HEAD).setMode(ResetCommand.ResetType.MIXED).call();
+                git.reset().addPath(fullPath).setRef(Constants.HEAD).call();
                 git.checkout().addPath(fullPath).call();
             }
         }
         log.trace("Finished reverting file: {}", path);
+    }
+
+    /**
+     * Reverts all git changes (tracked and untracked) under a project-relative directory.
+     *
+     * @param dirPath project-relative folder path (e.g. "notes/sub" or "." for whole project scope)
+     */
+    public void revertDirectory(String dirPath) throws IOException, GitAPIException {
+        log.trace("Received request to revert directory: {}", dirPath);
+        try (Git git = openRepo()) {
+            Repository repo = git.getRepository();
+            String prefix = computePrefix(repo);
+            String normalizedDir = normalizeProjectDirPath(dirPath);
+            String repoBase = repoBasePathForRevertScope(prefix, normalizedDir);
+
+            Status s = git.status().call();
+            Path workTree = repo.getWorkTree().toPath();
+
+            Set<String> tracked = new LinkedHashSet<>();
+            for (String p : s.getModified()) {
+                if (pathUnderRepoBase(p, repoBase)) tracked.add(p);
+            }
+            for (String p : s.getChanged()) {
+                if (pathUnderRepoBase(p, repoBase)) tracked.add(p);
+            }
+            for (String p : s.getAdded()) {
+                if (pathUnderRepoBase(p, repoBase)) tracked.add(p);
+            }
+            for (String p : s.getMissing()) {
+                if (pathUnderRepoBase(p, repoBase)) tracked.add(p);
+            }
+            for (String p : s.getRemoved()) {
+                if (pathUnderRepoBase(p, repoBase)) tracked.add(p);
+            }
+            for (String p : s.getConflicting()) {
+                if (pathUnderRepoBase(p, repoBase)) tracked.add(p);
+            }
+
+            Set<String> untracked = new LinkedHashSet<>();
+            for (String p : s.getUntracked()) {
+                if (pathUnderRepoBase(p, repoBase)) untracked.add(p);
+            }
+
+            if (!tracked.isEmpty()) {
+                var reset = git.reset().setRef(Constants.HEAD);
+                for (String p : tracked) {
+                    reset.addPath(p);
+                }
+                reset.call();
+                var checkout = git.checkout();
+                for (String p : tracked) {
+                    checkout.addPath(p);
+                }
+                checkout.call();
+            }
+
+            if (!untracked.isEmpty()) {
+                List<String> untrackedSorted = new ArrayList<>(untracked);
+                untrackedSorted.sort((a, b) -> Integer.compare(b.length(), a.length()));
+                for (String fullPath : untrackedSorted) {
+                    Path abs = workTree.resolve(fullPath).normalize();
+                    if (!abs.startsWith(workTree.normalize())) {
+                        log.warn("Skipping untracked path outside work tree: {}", fullPath);
+                        continue;
+                    }
+                    if (Files.exists(abs)) {
+                        deletePathRecursive(abs);
+                    }
+                }
+            }
+
+            log.trace("Finished reverting directory: {}, tracked={}, untracked={}", dirPath, tracked.size(), untracked.size());
+        }
+    }
+
+    private static String normalizeProjectDirPath(String dirPath) {
+        if (dirPath == null || dirPath.isBlank()) {
+            return ".";
+        }
+        String n = dirPath.replace('\\', '/').replaceAll("/+$", "");
+        return n.isEmpty() ? "." : n;
+    }
+
+    /**
+     * Work-tree path prefix for "everything under this project folder" (no trailing slash), or "" for whole repo when project is root.
+     */
+    private static String repoBasePathForRevertScope(String prefix, String normalizedProjectDir) {
+        String pfx = prefix.isEmpty() ? "" : prefix.substring(0, prefix.length() - 1);
+        if (".".equals(normalizedProjectDir)) {
+            return pfx;
+        }
+        return pfx.isEmpty() ? normalizedProjectDir : pfx + "/" + normalizedProjectDir;
+    }
+
+    private static boolean pathUnderRepoBase(String repoPath, String repoBase) {
+        if (repoBase.isEmpty()) {
+            return true;
+        }
+        return repoPath.equals(repoBase) || repoPath.startsWith(repoBase + "/");
+    }
+
+    private static void deletePathRecursive(Path abs) throws IOException {
+        if (!Files.exists(abs)) {
+            return;
+        }
+        if (Files.isRegularFile(abs)) {
+            Files.deleteIfExists(abs);
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(abs)) {
+            List<Path> paths = walk.sorted(Comparator.reverseOrder()).toList();
+            for (Path p : paths) {
+                Files.deleteIfExists(p);
+            }
+        }
     }
 
     public String diff() throws IOException, GitAPIException {

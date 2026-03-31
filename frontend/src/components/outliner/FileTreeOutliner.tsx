@@ -77,6 +77,8 @@ export interface FileTreeOutlinerProps {
   onOpenFileMeta?: (path: string) => void;
   /** Current git status — used to render change indicators in the tree */
   gitStatus?: GitStatus;
+  /** Discard git changes for this file or folder (right-click) */
+  onGitRevert?: (path: string, isDirectory: boolean) => void;
 }
 
 interface ContextMenuState {
@@ -384,6 +386,7 @@ export function FileTreeOutliner({
   onScopeInvalidated,
   onOpenFileMeta,
   gitStatus,
+  onGitRevert,
 }: FileTreeOutlinerProps) {
   const [root, setRoot] = useState<FileNode | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -699,6 +702,22 @@ export function FileTreeOutliner({
               </button>
             </>
           )}
+          {onGitRevert &&
+            (menu.directory ? dirtyFolders.has(menu.path) : changedPaths.has(menu.path)) && (
+              <>
+                <div className="file-tree-context-separator" role="separator" />
+                <button
+                  type="button"
+                  className="file-tree-context-item file-tree-context-item--danger"
+                  onClick={() => {
+                    onGitRevert(menu.path, menu.directory);
+                    setMenu(null);
+                  }}
+                >
+                  Änderungen verwerfen…
+                </button>
+              </>
+            )}
           {showSepBeforeSubproject && <div className="file-tree-context-separator" role="separator" />}
           {menu.directory && menu.subprojectType ? (
             <>

@@ -186,6 +186,8 @@ export const gitApi = {
     post<{ hash: string; message: string }>('/git/commit', { message, files }),
   revertFile: (path: string, untracked: boolean) =>
     post<{ status: string }>('/git/revert-file', { path, untracked }),
+  revertDirectory: (path: string) =>
+    post<{ status: string }>('/git/revert-directory', { path }),
   diff: () => get<{ diff: string }>('/git/diff'),
   log: (limit = 20) => get<GitCommit[]>(`/git/log?limit=${limit}`),
   init: () => post<{ status: string }>('/git/init', {}),

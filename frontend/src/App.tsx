@@ -223,6 +223,32 @@ function App() {
     }
   }, [showCredentialsDialog]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleGitRevert = useCallback(
+    async (path: string, isDirectory: boolean) => {
+      const label = isDirectory ? `Ordner „${path}“` : `Datei „${path}“`;
+      if (
+        !window.confirm(
+          `Alle Änderungen in ${label} wirklich verwerfen?\nDieser Vorgang kann nicht rückgängig gemacht werden.`,
+        )
+      ) {
+        return;
+      }
+      try {
+        if (isDirectory) {
+          await gitApi.revertDirectory(path);
+        } else {
+          const isUntracked = gitStatus?.untracked?.includes(path) ?? false;
+          await gitApi.revertFile(path, isUntracked);
+        }
+        setTreeRefreshKey((k) => k + 1);
+        await fetchGitState();
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'Revert fehlgeschlagen');
+      }
+    },
+    [gitStatus, fetchGitState],
+  );
+
   useEffect(() => {
     fetchGitState();
     const interval = setInterval(fetchGitState, 30_000);
@@ -520,6 +546,7 @@ function App() {
                 onSetOutlinerScope={outlinerScope.setScopePath}
                 onScopeInvalidated={outlinerScope.clearScopePath}
                 gitStatus={gitStatus ?? undefined}
+                onGitRevert={handleGitRevert}
               />
             </div>
 

@@ -80,6 +80,23 @@ public class GitController {
         }
     }
 
+    @PostMapping("/revert-directory")
+    public ResponseEntity<?> revertDirectory(@RequestBody Map<String, Object> body) {
+        log.trace("Received request POST /api/git/revert-directory");
+        try {
+            String path = (String) body.get("path");
+            if (path == null || path.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Directory path required"));
+            }
+            gitService.revertDirectory(path);
+            log.trace("Finished POST /api/git/revert-directory: path={}", path);
+            return ResponseEntity.ok(Map.of("status", "reverted"));
+        } catch (Exception e) {
+            log.error("Error in POST /api/git/revert-directory", e);
+            throw new RuntimeException(e);
+        }
+    }
+
     @GetMapping("/diff")
     public ResponseEntity<Map<String, String>> diff() {
         log.trace("Received request GET /api/git/diff");
