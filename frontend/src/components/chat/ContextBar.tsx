@@ -7,10 +7,11 @@ interface ContextBarProps {
   isDirty: boolean;
 }
 
-function tokenBarColor(pct: number): string {
-  if (pct >= 90) return 'var(--color-error, #f38ba8)';
-  if (pct >= 70) return 'var(--color-warning, #f9e2af)';
-  return 'var(--color-success, #a6e3a1)';
+function tokenBarColor(tokens: number): string {
+  if (tokens >= 100_000) return 'var(--red, #f38ba8)';
+  if (tokens >= 75_000)  return 'var(--orange, #fab387)';
+  if (tokens >= 60_000)  return 'var(--yellow, #f9e2af)';
+  return 'var(--green, #a6e3a1)';
 }
 
 export function ContextBar({ contextInfo, activeFile, isDirty }: ContextBarProps) {
@@ -38,11 +39,11 @@ export function ContextBar({ contextInfo, activeFile, isDirty }: ContextBarProps
             </span>
             {hasMax ? (
               <span className="context-bar-tokens context-bar-tokens--with-bar" title={`${contextInfo!.estimatedTokens.toLocaleString()} / ${contextInfo!.maxContextTokens!.toLocaleString()} tokens`}>
-                <span className="context-bar-token-pct" style={{ color: tokenBarColor(pct) }}>{pct}%</span>
+                <span className="context-bar-token-pct" style={{ color: tokenBarColor(contextInfo!.estimatedTokens) }}>{pct}%</span>
                 <span className="context-bar-token-bar" aria-hidden="true">
                   <span
                     className="context-bar-token-bar-fill"
-                    style={{ width: `${pct}%`, background: tokenBarColor(pct) }}
+                    style={{ width: `${pct}%`, background: tokenBarColor(contextInfo!.estimatedTokens) }}
                   />
                 </span>
                 ~{contextInfo.estimatedTokens.toLocaleString()} / {(contextInfo.maxContextTokens! / 1000).toFixed(0)}k
