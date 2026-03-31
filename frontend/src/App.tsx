@@ -34,6 +34,26 @@ import { useFileEditor } from './hooks/useFileEditor.ts';
 import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 
+const LLM_PREFS_KEY = 'chat-llm-prefs';
+
+function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null {
+  try {
+    const raw = localStorage.getItem(LLM_PREFS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as { llmId: string | null; useReasoning: boolean };
+  } catch {
+    return null;
+  }
+}
+
+function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
+  try {
+    localStorage.setItem(LLM_PREFS_KEY, JSON.stringify({ llmId: llmId ?? null, useReasoning }));
+  } catch {
+    // localStorage full or unavailable — silently ignore
+  }
+}
+
 function App() {
   const project = useProject();
   const chapter = useChapter();
@@ -44,6 +64,8 @@ function App() {
   const [useReasoning, setUseReasoning] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
+
+  const prefsHydratedRef = useRef(false);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
 
@@ -191,9 +213,53 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadModes();
-    llmApi.list().then((r) => setLlms(r.providers)).catch(console.error);
+    prefsHydratedRef.current = false;
+    let cancelled = false;
+    const llmsRef: { current: LlmPublic[] } = { current: [] };
+
+    const llmsPromise = llmApi
+      .list()
+      .then((r) => {
+        if (!cancelled) {
+          setLlms(r.providers);
+          llmsRef.current = r.providers;
+        }
+      })
+      .catch(console.error);
+
+    Promise.all([loadModes(), llmsPromise]).then(() => {
+      if (cancelled) return;
+      const prefs = loadLlmPrefs();
+      if (prefs) {
+        const { llmId, useReasoning: savedReasoning } = prefs;
+        if (llmId !== null) {
+          const llm = llmsRef.current.find((l) => l.id === llmId);
+          if (llm) {
+            setModeLlmId(llmId);
+            const hasReasoning = !!llm.reasoningModel;
+            const hasFast = !!llm.fastModel;
+            if (!hasReasoning) setUseReasoning(false);
+            else if (!hasFast) setUseReasoning(true);
+            else setUseReasoning(savedReasoning);
+          } else {
+            setUseReasoning(savedReasoning);
+          }
+        } else {
+          setUseReasoning(savedReasoning);
+        }
+      }
+      prefsHydratedRef.current = true;
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadModes, project.projectPath]);
+
+  useEffect(() => {
+    if (!prefsHydratedRef.current) return;
+    saveLlmPrefs(modeLlmId, useReasoning);
+  }, [modeLlmId, useReasoning]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
