@@ -5,6 +5,7 @@ import com.assistant.model.FileNode;
 import com.assistant.service.FileService;
 import com.assistant.service.ModeService;
 import com.assistant.service.ProjectConfigService;
+import com.assistant.service.UserPreferencesService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,13 +25,16 @@ public class ProjectController {
     private final FileService fileService;
     private final ModeService modeService;
     private final ProjectConfigService projectConfigService;
+    private final UserPreferencesService userPreferencesService;
 
     public ProjectController(AppConfig appConfig, FileService fileService,
-                             ModeService modeService, ProjectConfigService projectConfigService) {
+                             ModeService modeService, ProjectConfigService projectConfigService,
+                             UserPreferencesService userPreferencesService) {
         this.appConfig = appConfig;
         this.fileService = fileService;
         this.modeService = modeService;
         this.projectConfigService = projectConfigService;
+        this.userPreferencesService = userPreferencesService;
     }
 
     @GetMapping("/current")
@@ -125,6 +129,7 @@ public class ProjectController {
         }
 
         appConfig.getProject().setPath(requestedPath);
+        userPreferencesService.saveLastOpenedPath(requestedPath);
         modeService.reloadModes();
 
         try {
