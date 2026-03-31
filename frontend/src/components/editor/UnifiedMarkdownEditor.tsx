@@ -9,7 +9,7 @@ import { hideMarksExtension } from './hideMarksExtension';
 import { wikiReferenceDisplayExtension } from './wikiReferenceDisplayExtension';
 import { scrollLineWithoutCursorKeymap } from './codemirrorScrollLineKeymap.ts';
 import type { ReadingThemeConfig } from './readingTheme';
-import type { SelectionContext } from '../../types.ts';
+import type { SelectionContext, AltVersionSession } from '../../types.ts';
 import type { Extension } from '@codemirror/state';
 
 export interface MarkdownEditorConfig {
@@ -38,6 +38,7 @@ export interface UnifiedMarkdownEditorProps extends MarkdownEditorConfig {
   onChange: (content: string) => void;
   onSave: () => void;
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
+  onAltVersion?: (session: AltVersionSession) => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -76,6 +77,7 @@ export function UnifiedMarkdownEditor({
   onChange,
   onSave,
   onCtrlL,
+  onAltVersion,
   alwaysShowMarkdownStylingCharacters = false,
   alwaysShowHtmlComments = false,
   showReferencesAsLinks = false,
@@ -94,10 +96,12 @@ export function UnifiedMarkdownEditor({
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onCtrlLRef = useRef(onCtrlL);
+  const onAltVersionRef = useRef(onAltVersion);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onCtrlLRef.current = onCtrlL;
+  onAltVersionRef.current = onAltVersion;
 
   const buildDynamicExtensions = useCallback((): Extension[] => {
     const exts: Extension[] = [];
@@ -178,6 +182,32 @@ export function UnifiedMarkdownEditor({
                   { text, from: sel.from, to: sel.to, editorId },
                   (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
                 );
+              }
+              return true;
+            },
+          },
+          {
+            key: 'Alt-w',
+            run: (view) => {
+              const sel = view.state.selection.main;
+              if (!sel.empty && onAltVersionRef.current) {
+                const text = view.state.doc.sliceString(sel.from, sel.to);
+                const anchorPos = sel.from;
+                onAltVersionRef.current({
+                  originalText: text,
+                  from: anchorPos,
+                  to: sel.to,
+                  editorId,
+                  getAnchorCoords: () => {
+                    const coords = view.coordsAtPos(anchorPos);
+                    if (!coords) return null;
+                    // Use the right edge of the editor scroll container so the panel
+                    // appears to the right of the text column, not mid-line.
+                    const editorRight = view.scrollDOM.getBoundingClientRect().right;
+                    return { ...coords, right: editorRight };
+                  },
+                  replaceFn: (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
+                });
               }
               return true;
             },

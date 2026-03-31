@@ -28,6 +28,16 @@ export interface SelectionContext {
   editorId: 'file' | 'chapter';
 }
 
+export interface AltVersionSession {
+  originalText: string;
+  from: number;
+  to: number;
+  editorId: 'file' | 'chapter';
+  /** Returns current viewport-relative coordinates of the selection anchor, or null when off-screen */
+  getAnchorCoords: () => { top: number; bottom: number; left: number; right: number } | null;
+  replaceFn: (from: number, to: number, insert: string) => void;
+}
+
 export interface ToolCall {
   id: string;
   type: string;

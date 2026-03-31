@@ -18,7 +18,7 @@ import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
 import { WikiTypeEditor } from './components/wiki/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/wiki/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, NoteProposal, LlmPublic } from './types.ts';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, AltVersionSession, NoteProposal, LlmPublic } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, llmApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
@@ -33,6 +33,7 @@ import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
 import { useFileEditor } from './hooks/useFileEditor.ts';
 import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
+import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
 
@@ -139,6 +140,9 @@ function App() {
   const activeSelectionReplaceFnRef = useRef<((from: number, to: number, text: string) => void) | null>(null);
   const chatFocusTriggerRef = useRef<(() => void) | null>(null);
 
+  // Ctrl+Alt+A: alternative version panel
+  const [altVersionSession, setAltVersionSession] = useState<AltVersionSession | null>(null);
+
   const leftPanelRef = usePanelRef();
   const rightPanelRef = usePanelRef();
 
@@ -157,6 +161,10 @@ function App() {
   const handleDismissSelection = useCallback(() => {
     setActiveSelection(null);
     activeSelectionReplaceFnRef.current = null;
+  }, []);
+
+  const handleAltVersion = useCallback((session: AltVersionSession) => {
+    setAltVersionSession(session);
   }, []);
 
   // Project root changes: reset structure and editor state
@@ -738,6 +746,7 @@ function App() {
               onCloseFile={fileEditor.closeFile}
               onClearShadowError={fileEditor.clearShadowError}
               onCtrlL={handleCtrlL}
+              onAltVersion={handleAltVersion}
             />
           ) : (
             <MediaProjectEditor
@@ -754,6 +763,7 @@ function App() {
               onScrollTargetConsumed={chapter.clearScrollTarget}
               onEditorFocus={chapter.updateEditorPosition}
               onCtrlL={handleCtrlL}
+              onAltVersion={handleAltVersion}
             />
           )}
           </div>
@@ -896,6 +906,13 @@ function App() {
 
       {fileHistoryPath && (
         <FileHistoryModal filePath={fileHistoryPath} onClose={() => setFileHistoryPath(null)} />
+      )}
+
+      {altVersionSession && (
+        <AlternativeVersionPanel
+          session={altVersionSession}
+          onClose={() => setAltVersionSession(null)}
+        />
       )}
     </div>
   );
