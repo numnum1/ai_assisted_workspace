@@ -18,8 +18,8 @@ import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
 import { WikiTypeEditor } from './components/wiki/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/wiki/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, NoteProposal } from './types.ts';
-import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, AuthRequiredError } from './api.ts';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, NoteProposal, LlmPublic } from './types.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, llmApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -43,8 +43,35 @@ function App() {
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
+  const [llms, setLlms] = useState<LlmPublic[]>([]);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
+
+  const handleLlmChange = useCallback((id: string | undefined) => {
+    setModeLlmId(id);
+    if (id) {
+      const llm = llms.find((l) => l.id === id);
+      if (llm) {
+        const hasReasoning = !!llm.reasoningModel;
+        const hasFast = !!llm.fastModel;
+        if (!hasReasoning) {
+          setUseReasoning(false);
+        } else if (!hasFast) {
+          setUseReasoning(true);
+        }
+        // both available → keep current toggle state
+      }
+    } else {
+      const mode = modes.find((m) => m.id === selectedMode);
+      setUseReasoning(mode?.useReasoning ?? false);
+    }
+  }, [llms, modes, selectedMode]);
+
+  const reasoningAvailable = useMemo(() => {
+    if (!modeLlmId) return true;
+    const llm = llms.find((l) => l.id === modeLlmId);
+    return !llm || !!llm.reasoningModel;
+  }, [modeLlmId, llms]);
 
   const handleModeChange = useCallback((modeId: string, modeList?: typeof modes) => {
     setSelectedMode(modeId);
@@ -143,6 +170,7 @@ function App() {
 
   useEffect(() => {
     loadModes();
+    llmApi.list().then((r) => setLlms(r.providers)).catch(console.error);
   }, [loadModes, project.projectPath]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
@@ -665,7 +693,11 @@ function App() {
             activeConversationId={history.activeId}
             useReasoning={useReasoning}
             onToggleReasoning={handleToggleReasoning}
+            reasoningAvailable={reasoningAvailable}
             onModeChange={handleModeChange}
+            llms={llms}
+            selectedLlmId={modeLlmId}
+            onLlmChange={handleLlmChange}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}
             onAddFile={refs.addFile}

@@ -1812,6 +1812,30 @@ body {
   gap: 4px;
 }
 
+.chat-llm-select {
+  height: 24px;
+  padding: 0 6px;
+  background: var(--bg-input, var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  max-width: 120px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.chat-llm-select:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.chat-llm-select:focus {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 .chat-prompt-pack-btn {
   display: flex;
   align-items: center;

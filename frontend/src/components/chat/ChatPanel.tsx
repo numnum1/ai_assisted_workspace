@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
-import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry } from '../../types.ts';
+import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
@@ -49,6 +49,10 @@ interface ChatPanelProps {
   wikiTypes?: WikiType[];
   onSaveFreeNote?: (note: NoteProposal) => Promise<void>;
   onAttachNoteToEntry?: (note: NoteProposal, typeId: string, entryId: string) => Promise<void>;
+  llms?: LlmPublic[];
+  selectedLlmId?: string;
+  onLlmChange?: (id: string | undefined) => void;
+  reasoningAvailable?: boolean;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -139,6 +143,10 @@ export function ChatPanel({
   wikiTypes = [],
   onSaveFreeNote,
   onAttachNoteToEntry,
+  llms = [],
+  selectedLlmId,
+  onLlmChange,
+  reasoningAvailable = true,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -200,6 +208,21 @@ export function ChatPanel({
       <div className="chat-header">
         <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
         <div className="chat-header-actions">
+          {llms.length > 0 && onLlmChange && (
+            <select
+              className="chat-llm-select"
+              value={selectedLlmId ?? ''}
+              onChange={(e) => onLlmChange(e.target.value || undefined)}
+              title="LLM auswählen"
+            >
+              <option value="">— Standard —</option>
+              {llms.map((llm) => (
+                <option key={llm.id} value={llm.id}>
+                  {llm.name}
+                </option>
+              ))}
+            </select>
+          )}
           {onOpenPromptPack && (
             <button
               type="button"
@@ -417,8 +440,9 @@ export function ChatPanel({
         onAddFile={onAddFile}
         onRemoveFile={onRemoveFile}
         structureRoot={structureRoot}
-        useReasoning={useReasoning}
+        useReasoning={useReasoning && reasoningAvailable}
         onToggleReasoning={onToggleReasoning}
+        reasoningAvailable={reasoningAvailable}
         activeSelection={activeSelection}
         onDismissSelection={onDismissSelection}
         focusTriggerRef={chatFocusTriggerRef}
