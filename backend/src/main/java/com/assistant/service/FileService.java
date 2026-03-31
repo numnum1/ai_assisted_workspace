@@ -4,6 +4,8 @@ import com.assistant.config.AppConfig;
 import com.assistant.model.FileNode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,6 +19,8 @@ import java.util.stream.Stream;
 
 @Service
 public class FileService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileService.class);
 
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
@@ -130,13 +134,21 @@ public class FileService {
     public void writeFile(String relativePath, String content) throws IOException {
         Path file = resolveForCreate(relativePath);
         if (Files.exists(file) && Files.isDirectory(file)) {
+            log.warn("Refused write: path is a directory: {}", relativePath);
             throw new IOException("Cannot write: path is a directory: " + relativePath);
         }
+        boolean isNew = !Files.exists(file);
         Path parent = file.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
         Files.writeString(file, content, StandardCharsets.UTF_8);
+        int bytes = content.getBytes(StandardCharsets.UTF_8).length;
+        if (isNew) {
+            log.info("Created project file: {} ({} bytes)", relativePath, bytes);
+        } else {
+            log.debug("Updated project file: {} ({} bytes)", relativePath, bytes);
+        }
     }
 
     public void deleteFile(String relativePath) throws IOException {
