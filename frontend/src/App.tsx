@@ -519,6 +519,7 @@ function App() {
                 onClearOutlinerScope={outlinerScope.clearScopePath}
                 onSetOutlinerScope={outlinerScope.setScopePath}
                 onScopeInvalidated={outlinerScope.clearScopePath}
+                gitStatus={gitStatus ?? undefined}
               />
             </div>
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
 import { filesApi, subprojectApi, chapterApi } from '../../api.ts';
-import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../../types.ts';
+import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, ScrollTarget, GitStatus } from '../../types.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
 import { resolveLevelConfig } from '../../hooks/useWorkspaceLevelConfigMap.ts';
@@ -75,6 +75,8 @@ export interface FileTreeOutlinerProps {
   onScopeInvalidated?: () => void;
   /** Called when user wants to open a file and immediately show its shadow meta-note panel */
   onOpenFileMeta?: (path: string) => void;
+  /** Current git status — used to render change indicators in the tree */
+  gitStatus?: GitStatus;
 }
 
 interface ContextMenuState {
@@ -104,6 +106,8 @@ function TreeNodeRow({
   runSubprojectMutation,
   onSubprojectStructureChanged,
   inlineChaptersRefreshNonce,
+  changedPaths,
+  dirtyFolders,
 }: {
   node: FileNode;
   depth: number;
@@ -128,11 +132,14 @@ function TreeNodeRow({
   runSubprojectMutation?: (subprojectPath: string, subprojectType: string, fn: () => Promise<void>) => Promise<void>;
   onSubprojectStructureChanged?: () => void;
   inlineChaptersRefreshNonce: number;
+  changedPaths: Set<string>;
+  dirtyFolders: Set<string>;
 }) {
   const isDir = node.directory;
   const isOpen = expanded.has(node.path);
   const isSelected = selectedPath === node.path;
   const isSubproject = Boolean(isDir && node.subprojectType);
+  const hasGitChange = isDir ? dirtyFolders.has(node.path) : changedPaths.has(node.path);
 
   const [subChapters, setSubChapters] = useState<ChapterSummary[] | null>(null);
   const [subLoading, setSubLoading] = useState(false);
@@ -205,6 +212,7 @@ function TreeNodeRow({
               className="file-tree-icon file-tree-icon--subproject"
             />
             <span className="file-tree-name">{node.name}</span>
+            {hasGitChange && <span className="tree-node-git-dot" title="Enthält ungespeicherte Änderungen" />}
             <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>
           </button>
           <button
@@ -255,6 +263,7 @@ function TreeNodeRow({
             <File size={14} className="file-tree-icon" />
           )}
           <span className="file-tree-name">{node.name}</span>
+          {hasGitChange && <span className="tree-node-git-dot" title={isDir ? 'Ordner enthält Änderungen' : 'Datei geändert'} />}
           {!isDir && node.hasShadow && (
             <span className="file-tree-shadow-dot" title="Hat Meta-Notiz" />
           )}
@@ -281,6 +290,8 @@ function TreeNodeRow({
           runSubprojectMutation={runSubprojectMutation}
           onSubprojectStructureChanged={onSubprojectStructureChanged}
           inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
+          changedPaths={changedPaths}
+          dirtyFolders={dirtyFolders}
         />
       ))}
       {isSubproject && isOpen && onActivateSubprojectStructure && runSubprojectMutation && onSubprojectStructureChanged && (
@@ -336,6 +347,8 @@ function TreeNodeRow({
                     runSubprojectMutation={runSubprojectMutation}
                     onSubprojectStructureChanged={onSubprojectStructureChanged}
                     inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
+                    changedPaths={changedPaths}
+                    dirtyFolders={dirtyFolders}
                   />
                 ))}
             </>
@@ -370,12 +383,40 @@ export function FileTreeOutliner({
   onSetOutlinerScope,
   onScopeInvalidated,
   onOpenFileMeta,
+  gitStatus,
 }: FileTreeOutlinerProps) {
   const [root, setRoot] = useState<FileNode | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['.']));
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Build the set of all changed file paths and the set of all folders that contain changes.
+  const changedPaths = useMemo<Set<string>>(() => {
+    if (!gitStatus?.isRepo) return new Set();
+    const all = [
+      ...(gitStatus.modified  ?? []),
+      ...(gitStatus.added     ?? []),
+      ...(gitStatus.changed   ?? []),
+      ...(gitStatus.untracked ?? []),
+      ...(gitStatus.missing   ?? []),
+      ...(gitStatus.removed   ?? []),
+    ];
+    return new Set(all.map((p) => p.replace(/\/$/, '')));
+  }, [gitStatus]);
+
+  const dirtyFolders = useMemo<Set<string>>(() => {
+    const folders = new Set<string>();
+    if (changedPaths.size === 0) return folders;
+    folders.add('.');
+    for (const filePath of changedPaths) {
+      const parts = filePath.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        folders.add(parts.slice(0, i).join('/'));
+      }
+    }
+    return folders;
+  }, [changedPaths]);
 
   const scopedNode = useMemo(() => {
     if (!root || !scopeToPath) return null;
@@ -606,6 +647,8 @@ export function FileTreeOutliner({
             runSubprojectMutation={runSubprojectMutation}
             onSubprojectStructureChanged={onSubprojectStructureChanged}
             inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
+            changedPaths={changedPaths}
+            dirtyFolders={dirtyFolders}
           />
         )}
       </div>

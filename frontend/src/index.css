@@ -3882,6 +3882,18 @@ body {
   color: var(--text-muted);
 }
 
+/* ==================== File tree git indicator ==================== */
+
+.tree-node-git-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4e9ef5;
+  margin-left: 4px;
+  opacity: 0.85;
+}
+
 /* ==================== File tree context menu ==================== */
 
 .tree-context-menu {
