@@ -3,6 +3,7 @@ import { Save, Moon, Sun, MoveHorizontal, X, ChevronDown, ChevronRight } from 'l
 import { ActionEditor } from './ActionEditor';
 import type { ChapterNode, ScrollTarget, SelectionContext } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
+import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../../hooks/useReadingPaddingMax.ts';
 
 const FONT_SIZE_KEY = 'reading-font-size';
 const PADDING_KEY = 'reading-padding';
@@ -89,6 +90,8 @@ export function ChapterView({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
 
+  const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
+
   const colors = nightMode ? NIGHT_COLORS : DAY_COLORS;
 
   const toggleSceneCollapsed = useCallback((sceneId: string) => {
@@ -116,6 +119,10 @@ export function ChapterView({
   useEffect(() => { localStorage.setItem(FONT_SIZE_KEY, String(fontSize)); }, [fontSize]);
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
+
+  useEffect(() => {
+    setPadding(p => (p > paddingSliderMax ? paddingSliderMax : p));
+  }, [paddingSliderMax]);
 
   // Ctrl+S saves all dirty
   useEffect(() => {
@@ -186,8 +193,8 @@ export function ChapterView({
               type="range"
               className="reading-padding-slider"
               min={0}
-              max={200}
-              step={4}
+              max={paddingSliderMax}
+              step={READING_PADDING_SLIDER_STEP}
               value={padding}
               onChange={e => setPadding(Number(e.target.value))}
             />

@@ -3,6 +3,7 @@ import { Save, Moon, Sun, MoveHorizontal, X, Music, Eye, EyeOff } from 'lucide-r
 import { ActionEditor } from '../components/editor/ActionEditor.tsx';
 import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
 import type { ActionEditorColors } from '../components/editor/ActionEditor.tsx';
+import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../hooks/useReadingPaddingMax.ts';
 
 const FONT_SIZE_KEY = 'music-font-size';
 const PADDING_KEY = 'music-padding';
@@ -63,6 +64,10 @@ export function MusicProjectEditor({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
 
+  const paddingSliderMax = useReadingPaddingMax(scrollContainerRef, {
+    enabled: editorMode === 'prose',
+  });
+
   const colors = nightMode ? NIGHT_COLORS : DAY_COLORS;
 
   const registerRef = useCallback((key: string, el: HTMLElement | null) => {
@@ -74,6 +79,10 @@ export function MusicProjectEditor({
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
   useEffect(() => { localStorage.setItem(HIDE_METATAGS_KEY, String(hideMetatags)); }, [hideMetatags]);
+
+  useEffect(() => {
+    setPadding(p => (p > paddingSliderMax ? paddingSliderMax : p));
+  }, [paddingSliderMax]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -153,8 +162,8 @@ export function MusicProjectEditor({
               type="range"
               className="reading-padding-slider"
               min={0}
-              max={200}
-              step={4}
+              max={paddingSliderMax}
+              step={READING_PADDING_SLIDER_STEP}
               value={padding}
               onChange={e => setPadding(Number(e.target.value))}
             />
