@@ -3631,6 +3631,30 @@ body {
   color: var(--yellow);
 }
 
+.context-bar-tokens--with-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.context-bar-token-bar {
+  display: inline-block;
+  width: 60px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.context-bar-token-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
 /* ==================== Command Palette ==================== */
 
 .command-palette-overlay {

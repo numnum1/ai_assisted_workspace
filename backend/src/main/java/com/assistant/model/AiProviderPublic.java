@@ -16,6 +16,8 @@ public class AiProviderPublic {
     private String reasoningModel;
     private boolean reasoningApiKeySet;
 
+    private Integer maxTokens;
+
     public AiProviderPublic() {
     }
 
@@ -42,4 +44,7 @@ public class AiProviderPublic {
 
     public boolean isReasoningApiKeySet() { return reasoningApiKeySet; }
     public void setReasoningApiKeySet(boolean reasoningApiKeySet) { this.reasoningApiKeySet = reasoningApiKeySet; }
+
+    public Integer getMaxTokens() { return maxTokens; }
+    public void setMaxTokens(Integer maxTokens) { this.maxTokens = maxTokens; }
 }

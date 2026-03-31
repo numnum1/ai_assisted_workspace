@@ -21,6 +21,9 @@ public class AiProvider {
     private String reasoningApiKey;
     private String reasoningModel;
 
+    // ── context window ────────────────────────────────────────────────────────────
+    private Integer maxTokens;
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -44,4 +47,7 @@ public class AiProvider {
 
     public String getReasoningModel() { return reasoningModel; }
     public void setReasoningModel(String reasoningModel) { this.reasoningModel = reasoningModel; }
+
+    public Integer getMaxTokens() { return maxTokens; }
+    public void setMaxTokens(Integer maxTokens) { this.maxTokens = maxTokens; }
 }

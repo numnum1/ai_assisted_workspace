@@ -22,6 +22,7 @@ interface LlmFormState {
   reasoningApiUrl: string;
   reasoningModel: string;
   reasoningApiKey: string;
+  maxTokens: string;
 }
 
 interface ModeForm {
@@ -374,6 +375,7 @@ export function ProjectSettingsModal({
     reasoningApiUrl: '',
     reasoningModel: '',
     reasoningApiKey: '',
+    maxTokens: '',
   });
 
   const openNewLlm = () => setLlmForm(emptyLlmForm());
@@ -388,13 +390,14 @@ export function ProjectSettingsModal({
       reasoningApiUrl: p.reasoningApiUrl ?? '',
       reasoningModel: p.reasoningModel ?? '',
       reasoningApiKey: '',
+      maxTokens: p.maxTokens ? String(p.maxTokens) : '',
     });
   };
 
   const handleSaveLlm = async () => {
     if (!llmForm) return;
     const { editingId, name, fastApiUrl, fastModel, fastApiKey,
-            reasoningApiUrl, reasoningModel, reasoningApiKey } = llmForm;
+            reasoningApiUrl, reasoningModel, reasoningApiKey, maxTokens } = llmForm;
     const hasFast = fastModel.trim().length > 0;
     const hasReasoning = reasoningModel.trim().length > 0;
     if (!name.trim() || (!hasFast && !hasReasoning)) return;
@@ -408,6 +411,8 @@ export function ProjectSettingsModal({
         return;
       }
     }
+    const parsedMaxTokens = parseInt(maxTokens, 10);
+    const maxTokensPayload = parsedMaxTokens > 0 ? parsedMaxTokens : undefined;
     setSavingLlm(true);
     setError(null);
     try {
@@ -420,6 +425,7 @@ export function ProjectSettingsModal({
           reasoningApiUrl: reasoningApiUrl.trim(),
           reasoningModel: reasoningModel.trim(),
           ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
+          maxTokens: maxTokensPayload,
         });
       } else {
         await llmApi.create({
@@ -430,6 +436,7 @@ export function ProjectSettingsModal({
           reasoningApiUrl: reasoningApiUrl.trim(),
           reasoningModel: reasoningModel.trim(),
           ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
+          maxTokens: maxTokensPayload,
         });
       }
       setLlmForm(null);
@@ -956,6 +963,19 @@ export function ProjectSettingsModal({
                       onChange={e => setLlmForm(p => p && ({ ...p, reasoningApiKey: e.target.value }))}
                       placeholder="(optional, Leer = Fast-Key)"
                       autoComplete="off"
+                    />
+
+                    <p className="ps-label ps-llm-section-header">Kontextfenster</p>
+
+                    <label className="ps-label">Max Context Tokens <span className="ps-label-hint">(optional)</span></label>
+                    <p className="ps-hint">Geschätzter Token-Verbrauch wird im Chat als Fortschrittsbalken angezeigt. Leer lassen = kein Limit.</p>
+                    <input
+                      type="number"
+                      className="ps-input"
+                      value={llmForm.maxTokens}
+                      onChange={e => setLlmForm(p => p && ({ ...p, maxTokens: e.target.value }))}
+                      placeholder="z. B. 128000"
+                      min={0}
                     />
 
                     <div className="ps-actions">

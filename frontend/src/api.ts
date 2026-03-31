@@ -160,6 +160,7 @@ export interface LlmCreateRequest {
   reasoningApiUrl?: string;
   reasoningModel?: string;
   reasoningApiKey?: string;
+  maxTokens?: number;
 }
 
 export interface LlmUpdateRequest {
@@ -170,6 +171,7 @@ export interface LlmUpdateRequest {
   reasoningApiUrl?: string;
   reasoningModel?: string;
   reasoningApiKey?: string;
+  maxTokens?: number;
 }
 
 export const llmApi = {
@@ -317,7 +319,7 @@ export const notesApi = {
 export function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,
-  onContext: (info: { includedFiles: string[]; estimatedTokens: number }) => void,
+  onContext: (info: { includedFiles: string[]; estimatedTokens: number; maxContextTokens?: number }) => void,
   onDone: () => void,
   onError: (err: Error) => void,
   onToolCall?: (description: string) => void,

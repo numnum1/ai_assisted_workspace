@@ -65,6 +65,7 @@ export interface ChatRequest {
 export interface ContextInfo {
   includedFiles: string[];
   estimatedTokens: number;
+  maxContextTokens?: number;
 }
 
 export interface GitStatus {
@@ -122,6 +123,7 @@ export interface LlmPublic {
   reasoningApiUrl: string;
   reasoningModel: string;
   reasoningApiKeySet: boolean;
+  maxTokens?: number;
 }
 
 export interface LlmsListResponse {

@@ -6,6 +6,7 @@ import com.assistant.model.ChatRequest;
 import com.assistant.model.ToolCall;
 import com.assistant.service.AiApiClient;
 import com.assistant.service.AiApiClient.ChatCompletionResult;
+import com.assistant.service.AiProviderService;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -34,12 +35,14 @@ public class ChatController {
     private final ContextService contextService;
     private final AiApiClient aiApiClient;
     private final ToolExecutor toolExecutor;
+    private final AiProviderService aiProviderService;
     private final ObjectMapper objectMapper;
 
-    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor, ObjectMapper objectMapper) {
+    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor, AiProviderService aiProviderService, ObjectMapper objectMapper) {
         this.contextService = contextService;
         this.aiApiClient = aiApiClient;
         this.toolExecutor = toolExecutor;
+        this.aiProviderService = aiProviderService;
         this.objectMapper = objectMapper;
     }
 
@@ -82,7 +85,7 @@ public class ChatController {
 
         return Flux.concat(
                 Flux.just(ServerSentEvent.<String>builder()
-                        .event("context").data(toContextJson(context)).build()),
+                        .event("context").data(toContextJson(context, llmId)).build()),
                 Flux.just(ServerSentEvent.<String>builder()
                         .event("resolved_user_message").data(escapeForSse(resolvedUserContent != null ? resolvedUserContent : "")).build()),
                 Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning))
@@ -280,14 +283,19 @@ public class ChatController {
             String toolHistoryJson
     ) {}
 
-    private String toContextJson(AssembledContext context) {
+    private String toContextJson(AssembledContext context, String llmId) {
         StringBuilder sb = new StringBuilder("{\"includedFiles\":[");
         var files = context.getIncludedFiles();
         for (int i = 0; i < files.size(); i++) {
             if (i > 0) sb.append(",");
             sb.append("\"").append(files.get(i).replace("\"", "\\\"")).append("\"");
         }
-        sb.append("],\"estimatedTokens\":").append(context.getEstimatedTokens()).append("}");
+        sb.append("],\"estimatedTokens\":").append(context.getEstimatedTokens());
+        Integer maxTokens = aiProviderService.getMaxTokensForProvider(llmId);
+        if (maxTokens != null) {
+            sb.append(",\"maxContextTokens\":").append(maxTokens);
+        }
+        sb.append("}");
         return sb.toString();
     }
 

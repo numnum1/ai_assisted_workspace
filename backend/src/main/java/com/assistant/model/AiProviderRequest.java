@@ -16,6 +16,8 @@ public class AiProviderRequest {
     private String reasoningApiKey;
     private String reasoningModel;
 
+    private Integer maxTokens;
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
@@ -36,4 +38,7 @@ public class AiProviderRequest {
 
     public String getReasoningModel() { return reasoningModel; }
     public void setReasoningModel(String reasoningModel) { this.reasoningModel = reasoningModel; }
+
+    public Integer getMaxTokens() { return maxTokens; }
+    public void setMaxTokens(Integer maxTokens) { this.maxTokens = maxTokens; }
 }

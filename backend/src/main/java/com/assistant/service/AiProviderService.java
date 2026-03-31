@@ -166,6 +166,9 @@ public class AiProviderService {
         } else if (isCreate) {
             p.setReasoningApiKey("");
         }
+        if (req.getMaxTokens() != null) {
+            p.setMaxTokens(req.getMaxTokens() > 0 ? req.getMaxTokens() : null);
+        }
     }
 
     private void validateCreate(AiProviderRequest req) {
@@ -196,7 +199,28 @@ public class AiProviderService {
         pub.setReasoningApiUrl(p.getReasoningApiUrl());
         pub.setReasoningModel(p.getReasoningModel());
         pub.setReasoningApiKeySet(p.getReasoningApiKey() != null && !p.getReasoningApiKey().isBlank());
+        pub.setMaxTokens(p.getMaxTokens());
         return pub;
+    }
+
+    /**
+     * Returns the configured maxTokens for the given provider ID.
+     * Falls back to the first provider when {@code llmId} is blank or not found.
+     * Returns {@code null} when no limit is configured or no providers are stored.
+     */
+    public Integer getMaxTokensForProvider(String llmId) {
+        AiProvidersState state = loadState();
+        if (state.getProviders() == null || state.getProviders().isEmpty()) {
+            return null;
+        }
+        AiProvider p = null;
+        if (llmId != null && !llmId.isBlank()) {
+            p = findById(state, llmId);
+        }
+        if (p == null) {
+            p = state.getProviders().get(0);
+        }
+        return p.getMaxTokens();
     }
 
     private AiProvidersState loadState() {
