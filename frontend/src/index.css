@@ -2578,6 +2578,24 @@ body {
   flex: 1;
 }
 
+.note-card-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.note-card-copy:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
 .note-card-dismiss {
   background: none;
   border: none;
@@ -2588,6 +2606,7 @@ body {
   display: flex;
   align-items: center;
   transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
 }
 
 .note-card-dismiss:hover {
@@ -5740,6 +5759,23 @@ body {
   background: rgba(243, 139, 168, 0.12);
 }
 
+.free-note-modal-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.free-note-modal-copy:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
 .free-note-modal-close {
   background: none;
   border: none;
@@ -5874,7 +5910,7 @@ body {
   border: 1px solid var(--border);
   border-left: 3px solid var(--yellow);
   border-radius: 6px;
-  padding: 8px 32px 8px 10px;
+  padding: 8px 52px 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -5893,10 +5929,23 @@ body {
   line-height: 1.5;
 }
 
-.wiki-entry-note-delete {
+.wiki-entry-note-actions {
   position: absolute;
   top: 6px;
   right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.wiki-entry-note-item:hover .wiki-entry-note-actions {
+  opacity: 1;
+}
+
+.wiki-entry-note-copy,
+.wiki-entry-note-delete {
   background: none;
   border: none;
   cursor: pointer;
@@ -5906,11 +5955,11 @@ body {
   display: flex;
   align-items: center;
   transition: color 0.15s, background 0.15s;
-  opacity: 0;
 }
 
-.wiki-entry-note-item:hover .wiki-entry-note-delete {
-  opacity: 1;
+.wiki-entry-note-copy:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
 }
 
 .wiki-entry-note-delete:hover {
@@ -6529,11 +6578,41 @@ body {
   background: var(--accent-dim) !important;
 }
 
+.alt-version-notes-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.alt-version-notes-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10px;
+}
+
+.alt-version-notes-toolbar button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.alt-version-notes-toolbar button:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
 .alt-version-notes {
   border-style: dashed !important;
   border-color: var(--text-muted) !important;
   color: var(--text-secondary) !important;
-  margin-top: 6px !important;
+  margin-top: 0 !important;
 }
 
 .alt-version-textarea {

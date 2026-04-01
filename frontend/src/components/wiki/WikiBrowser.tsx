@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { X, Folder, FileText, ChevronRight, StickyNote, Loader2, Trash2 } from 'lucide-react';
+import { X, Folder, FileText, ChevronRight, StickyNote, Loader2, Trash2, Copy, Check } from 'lucide-react';
 import type { WikiState } from '../../hooks/useWiki.ts';
 import type { WikiEntry, WikiType, NoteProposal } from '../../types.ts';
 import { notesApi } from '../../api.ts';
@@ -23,6 +23,11 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
   const [freeNotes, setFreeNotes] = useState<NoteProposal[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
   const [openedNote, setOpenedNote] = useState<NoteProposal | null>(null);
+  const [freeNoteCopied, setFreeNoteCopied] = useState(false);
+
+  useEffect(() => {
+    setFreeNoteCopied(false);
+  }, [openedNote?.id]);
 
   useEffect(() => {
     wiki.loadTypes();
@@ -245,6 +250,24 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
               <h3 className="free-note-modal-title">{openedNote.title}</h3>
               <div className="free-note-modal-actions">
                 <button
+                  type="button"
+                  className="free-note-modal-copy"
+                  title={freeNoteCopied ? 'Kopiert' : 'In Zwischenablage kopieren'}
+                  onClick={async () => {
+                    const text = `${openedNote.title}\n\n${openedNote.content}`;
+                    try {
+                      await navigator.clipboard.writeText(text);
+                      setFreeNoteCopied(true);
+                      setTimeout(() => setFreeNoteCopied(false), 2000);
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  {freeNoteCopied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+                <button
+                  type="button"
                   className="free-note-modal-delete"
                   title="Notiz löschen"
                   onClick={async () => {
@@ -254,7 +277,7 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
                 >
                   <Trash2 size={14} />
                 </button>
-                <button className="free-note-modal-close" onClick={() => setOpenedNote(null)} title="Schließen">
+                <button type="button" className="free-note-modal-close" onClick={() => setOpenedNote(null)} title="Schließen">
                   <X size={15} />
                 </button>
               </div>

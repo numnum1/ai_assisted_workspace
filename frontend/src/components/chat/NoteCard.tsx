@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StickyNote, X, Save, BookOpen, ChevronDown, ChevronUp, Check, Loader2 } from 'lucide-react';
+import { StickyNote, X, Save, BookOpen, ChevronDown, ChevronUp, Check, Loader2, Copy } from 'lucide-react';
 import type { NoteProposal, WikiType, WikiEntry } from '../../types.ts';
 
 interface NoteCardProps {
@@ -24,6 +24,7 @@ export function NoteCard({
   onLoadEntries,
 }: NoteCardProps) {
   const [cardState, setCardState] = useState<CardState>('idle');
+  const [copied, setCopied] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState<string>(() => {
     if (note.wikiHint) {
@@ -80,14 +81,34 @@ export function NoteCard({
 
   const entries = selectedTypeId ? (wikiEntriesByType[selectedTypeId] ?? []) : [];
 
+  const handleCopy = async () => {
+    const text = `${note.title}\n\n${note.content}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div className={`note-card ${cardState === 'saved' ? 'note-card--saved' : ''}`}>
       <div className="note-card-header">
         <div className="note-card-title-row">
           <StickyNote size={13} className="note-card-icon" />
           <span className="note-card-label">Notiz-Vorschlag</span>
+          <button
+            type="button"
+            className="note-card-copy"
+            onClick={handleCopy}
+            title={copied ? 'Kopiert' : 'In Zwischenablage kopieren'}
+          >
+            {copied ? <Check size={12} /> : <Copy size={12} />}
+          </button>
           {cardState !== 'saved' && (
             <button
+              type="button"
               className="note-card-dismiss"
               onClick={() => onDismiss(note.id)}
               title="Verwerfen"

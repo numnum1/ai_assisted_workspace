@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, ArrowLeftRight, StickyNote } from 'lucide-react';
+import { X, ArrowLeftRight, StickyNote, Copy, Check } from 'lucide-react';
 import type { AltVersionSession } from '../../types.ts';
 
 interface AlternativeVersionPanelProps {
@@ -55,6 +55,7 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
   const [editorText, setEditorText] = useState(session.originalText);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState('');
+  const [notesCopied, setNotesCopied] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; width: number }>(() => {
     const coords = session.getAnchorCoords();
     return coords ? calcPosition(coords, 200) : { top: 100, left: 100, width: PANEL_MIN_WIDTH };
@@ -173,13 +174,32 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
       />
 
       {notesOpen && (
-        <textarea
-          className="alt-version-textarea alt-version-notes"
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          placeholder="Notizen…"
-          rows={4}
-        />
+        <div className="alt-version-notes-block">
+          <div className="alt-version-notes-toolbar">
+            <button
+              type="button"
+              title={notesCopied ? 'Kopiert' : 'Notizen in Zwischenablage kopieren'}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(notes);
+                  setNotesCopied(true);
+                  setTimeout(() => setNotesCopied(false), 2000);
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              {notesCopied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+          <textarea
+            className="alt-version-textarea alt-version-notes"
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Notizen…"
+            rows={4}
+          />
+        </div>
       )}
 
       <div className="alt-version-hint">Ctrl+Enter = Übernehmen · Esc = Verwerfen</div>

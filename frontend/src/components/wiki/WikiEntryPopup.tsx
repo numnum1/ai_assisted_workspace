@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { StickyNote, Trash2 } from 'lucide-react';
+import { StickyNote, Trash2, Copy, Check } from 'lucide-react';
 import type { EditingWikiEntry } from '../../hooks/useWiki.ts';
 import type { MetaTypeSchema } from '../../meta/metaSchema.ts';
 import type { NoteProposal } from '../../types.ts';
@@ -29,6 +29,7 @@ function wikiTypeToSchema(editing: EditingWikiEntry): MetaTypeSchema {
 export function WikiEntryPopup({ editing, onSave, onClose }: WikiEntryPopupProps) {
   const [notes, setNotes] = useState<NoteProposal[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
@@ -63,6 +64,17 @@ export function WikiEntryPopup({ editing, onSave, onClose }: WikiEntryPopupProps
     }
   }, [editing.type.id, editing.entry.id]);
 
+  const handleCopyNote = useCallback(async (note: NoteProposal) => {
+    const text = `${note.title}\n\n${note.content}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedNoteId(note.id);
+      setTimeout(() => setCopiedNoteId((id) => (id === note.id ? null : id)), 2000);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const schema = wikiTypeToSchema(editing);
   const entryName = editing.entry.values['name'] || editing.entry.values['title'] || editing.entry.id;
 
@@ -91,13 +103,24 @@ export function WikiEntryPopup({ editing, onSave, onClose }: WikiEntryPopupProps
                   <div key={note.id} className="wiki-entry-note-item">
                     <div className="wiki-entry-note-title">{note.title}</div>
                     <div className="wiki-entry-note-content">{note.content}</div>
-                    <button
-                      className="wiki-entry-note-delete"
-                      onClick={() => handleDeleteNote(note.id)}
-                      title="Notiz löschen"
-                    >
-                      <Trash2 size={11} />
-                    </button>
+                    <div className="wiki-entry-note-actions">
+                      <button
+                        type="button"
+                        className="wiki-entry-note-copy"
+                        onClick={() => handleCopyNote(note)}
+                        title={copiedNoteId === note.id ? 'Kopiert' : 'In Zwischenablage kopieren'}
+                      >
+                        {copiedNoteId === note.id ? <Check size={11} /> : <Copy size={11} />}
+                      </button>
+                      <button
+                        type="button"
+                        className="wiki-entry-note-delete"
+                        onClick={() => handleDeleteNote(note.id)}
+                        title="Notiz löschen"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
