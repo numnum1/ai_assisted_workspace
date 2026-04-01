@@ -37,6 +37,10 @@ public class ContextService {
     }
 
     public AssembledContext assemble(ChatRequest request) {
+        if (request.isQuickChat()) {
+            return assembleQuickChat(request);
+        }
+
         log.trace("Received request to assemble context: mode={}, historyTurns={}, referencedFiles={}, activeFile={}",
                 request.getMode(),
                 request.getHistory() != null ? request.getHistory().size() : 0,
@@ -289,6 +293,67 @@ public class ContextService {
 
         log.trace("Finished successfully assembling context: totalMessages={}, includedFiles={}, estimatedTokens={}",
                 messages.size(), includedFiles, context.getEstimatedTokens());
+        return context;
+    }
+
+    /**
+     * Minimal context for Quick Chat: no project files, tree, wiki, or story structure — plain text only.
+     */
+    private AssembledContext assembleQuickChat(ChatRequest request) {
+        int historySize = request.getHistory() != null ? request.getHistory().size() : 0;
+        log.trace(
+                "Received request to assemble Quick Chat context: historyTurns={}, messageLen={}",
+                historySize,
+                request.getMessage() != null ? request.getMessage().length() : 0);
+
+        AssembledContext context = new AssembledContext();
+        List<ChatMessage> messages = new ArrayList<>();
+
+        String systemText = """
+                Du bist ein kompakter Hilfs-Assistent (Quick Chat) für kurze, selbstständige Fragen — z. B. Begriffe \
+                erklären, Formulierungen vorschlagen oder Fakten recherchieren.
+
+                Du hast keinen Zugriff auf das Schreibprojekt, Dateien oder die Projekt-Wiki. Behandle jede Anfrage \
+                unabhängig; nimm keine Story-, Manuskript- oder Projektdateien an.
+
+                Wenn aktuelle oder allgemeine Web-Informationen nötig sind, nutze das Tool **web_search** mit einer \
+                präzisen Suchanfrage. Wenn keine Websuche verfügbar ist oder nicht nötig, antworte aus deinem Wissen.
+
+                Antworte auf Deutsch, sachlich und möglichst knapp. Nutze normalen Fließtext — keine Projekt-spezifischen \
+                Code-Blöcke (kein field-update, kein replace für Editor-Auswahl). Du kannst bei Bedarf normale \
+                Markdown-Formatierung (Listen, Fettdruck) verwenden.
+                """;
+
+        messages.add(new ChatMessage("system", systemText.trim()));
+
+        if (request.getHistory() != null) {
+            for (ChatMessage m : request.getHistory()) {
+                if (m == null || m.getRole() == null) {
+                    continue;
+                }
+                String role = m.getRole();
+                if ("system".equalsIgnoreCase(role)) {
+                    continue;
+                }
+                if ("user".equals(role) || "assistant".equals(role) || "tool".equals(role)) {
+                    messages.add(m);
+                }
+            }
+        }
+
+        String userText = request.getMessage() != null ? request.getMessage() : "";
+        messages.add(new ChatMessage("user", userText));
+
+        context.setMessages(messages);
+        context.setIncludedFiles(List.of());
+        context.setEstimatedTokens(estimateTokens(messages));
+
+        log.info(
+                "Quick Chat context assembled: totalMessages={}, estimatedTokens={}, userChars={}",
+                messages.size(),
+                context.getEstimatedTokens(),
+                userText.length());
+        log.trace("Finished successfully assembling Quick Chat context");
         return context;
     }
 

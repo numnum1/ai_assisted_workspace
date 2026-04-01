@@ -34,25 +34,24 @@ import { useFileEditor } from './hooks/useFileEditor.ts';
 import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
+import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
 
-function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean } | null {
+function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null {
   try {
     const raw = localStorage.getItem(LLM_PREFS_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean };
+    const parsed = JSON.parse(raw) as { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean };
+    return { llmId: parsed.llmId, useReasoning: parsed.useReasoning };
   } catch {
     return null;
   }
 }
 
-function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean, useWebSearch: boolean) {
+function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
   try {
-    localStorage.setItem(
-      LLM_PREFS_KEY,
-      JSON.stringify({ llmId: llmId ?? null, useReasoning, useWebSearch }),
-    );
+    localStorage.setItem(LLM_PREFS_KEY, JSON.stringify({ llmId: llmId ?? null, useReasoning }));
   } catch {
     // localStorage full or unavailable — silently ignore
   }
@@ -66,7 +65,7 @@ function App() {
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
-  const [useWebSearch, setUseWebSearch] = useState(false);
+  const [quickChatOpen, setQuickChatOpen] = useState(false);
   const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
@@ -74,7 +73,6 @@ function App() {
   const prefsHydratedRef = useRef(false);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
-  const handleToggleWebSearch = useCallback(() => setUseWebSearch(v => !v), []);
 
   const handleLlmChange = useCallback((id: string | undefined) => {
     setModeLlmId(id);
@@ -230,16 +228,13 @@ function App() {
     prefsHydratedRef.current = false;
     let cancelled = false;
     const llmsRef: { current: LlmPublic[] } = { current: [] };
-    const webSearchConfiguredRef = { current: false };
-
     const llmsPromise = llmApi
       .list()
       .then((r) => {
         if (!cancelled) {
           setLlms(r.providers);
           llmsRef.current = r.providers;
-          webSearchConfiguredRef.current = !!r.webSearchAvailable;
-          setWebSearchAvailable(webSearchConfiguredRef.current);
+          setWebSearchAvailable(!!r.webSearchAvailable);
         }
       })
       .catch(console.error);
@@ -248,7 +243,7 @@ function App() {
       if (cancelled) return;
       const prefs = loadLlmPrefs();
       if (prefs) {
-        const { llmId, useReasoning: savedReasoning, useWebSearch: savedWeb } = prefs;
+        const { llmId, useReasoning: savedReasoning } = prefs;
         if (llmId !== null) {
           const llm = llmsRef.current.find((l) => l.id === llmId);
           if (llm) {
@@ -264,11 +259,6 @@ function App() {
         } else {
           setUseReasoning(savedReasoning);
         }
-        if (savedWeb === true && webSearchConfiguredRef.current) {
-          setUseWebSearch(true);
-        } else {
-          setUseWebSearch(false);
-        }
       }
       prefsHydratedRef.current = true;
     });
@@ -280,8 +270,20 @@ function App() {
 
   useEffect(() => {
     if (!prefsHydratedRef.current) return;
-    saveLlmPrefs(modeLlmId, useReasoning, useWebSearch);
-  }, [modeLlmId, useReasoning, useWebSearch]);
+    saveLlmPrefs(modeLlmId, useReasoning);
+  }, [modeLlmId, useReasoning]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || (e.key !== 'e' && e.key !== 'E')) {
+        return;
+      }
+      e.preventDefault();
+      setQuickChatOpen((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -550,7 +552,6 @@ function App() {
         modeLlmId,
         activeSelection ?? undefined,
         focusedField?.fieldKey ?? null,
-        webSearchAvailable && useWebSearch,
       );
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
@@ -567,8 +568,6 @@ function App() {
       chapter.structureRoot,
       fileEditor.selectedPath,
       focusedField,
-      webSearchAvailable,
-      useWebSearch,
     ],
   );
 
@@ -833,9 +832,6 @@ function App() {
             onToggleReasoning={handleToggleReasoning}
             reasoningAvailable={reasoningAvailable}
             fastAvailable={fastAvailable}
-            useWebSearch={useWebSearch}
-            onToggleWebSearch={handleToggleWebSearch}
-            webSearchAvailable={webSearchAvailable}
             onModeChange={handleModeChange}
             llms={llms}
             selectedLlmId={modeLlmId}
@@ -957,6 +953,13 @@ function App() {
           onClose={() => setAltVersionSession(null)}
         />
       )}
+
+      <QuickChatWindow
+        open={quickChatOpen}
+        onClose={() => setQuickChatOpen(false)}
+        llms={llms}
+        webSearchAvailable={webSearchAvailable}
+      />
     </div>
   );
 }

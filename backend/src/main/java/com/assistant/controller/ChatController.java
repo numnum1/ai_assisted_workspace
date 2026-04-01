@@ -24,6 +24,7 @@ import reactor.core.publisher.Mono;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
@@ -58,12 +59,13 @@ public class ChatController {
         AssembledContext context = contextService.assemble(request);
         List<Map<String, Object>> tools = toolsForRequest(request);
 
-        boolean useReasoning = request.isUseReasoning();
+        boolean useReasoning = request.isQuickChat() ? false : request.isUseReasoning();
         String llmId = request.getLlmId();
 
         log.info(
-                "Assembled chat context: mode={}, llmId={}, useReasoning={}, includedFiles={} ({}), estimatedTokens={}, assembledMessages={}",
+                "Assembled chat context: mode={}, quickChat={}, llmId={}, useReasoning={}, includedFiles={} ({}), estimatedTokens={}, assembledMessages={}",
                 request.getMode(),
+                request.isQuickChat(),
                 llmId,
                 useReasoning,
                 context.getIncludedFiles().size(),
@@ -298,23 +300,10 @@ public class ChatController {
      * Omits {@link WebSearchTool} unless the client explicitly enables web search.
      */
     private List<Map<String, Object>> toolsForRequest(ChatRequest request) {
-        List<Map<String, Object>> all = toolExecutor.getToolDefinitions();
-        if (request.isUseWebSearch()) {
-            return all;
+        if (request.isQuickChat()) {
+            return toolExecutor.getToolDefinitionsForNames(List.of(WebSearchTool.TOOL_NAME));
         }
-        return all.stream()
-                .filter(def -> !WebSearchTool.TOOL_NAME.equals(extractFunctionName(def)))
-                .toList();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static String extractFunctionName(Map<String, Object> def) {
-        Object fn = def.get("function");
-        if (fn instanceof Map<?, ?> m) {
-            Object name = m.get("name");
-            return name != null ? name.toString() : "";
-        }
-        return "";
+        return toolExecutor.getToolDefinitionsExcluding(Set.of(WebSearchTool.TOOL_NAME));
     }
 
     private String toContextJson(AssembledContext context, String llmId) {
@@ -340,11 +329,11 @@ public class ChatController {
     private void logIncomingChatRequest(ChatRequest request) {
         List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
         log.info(
-                "Incoming chat: mode={}, llmId={}, useReasoning={}, useWebSearch={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
                 request.getMode(),
                 request.getLlmId(),
                 request.isUseReasoning(),
-                request.isUseWebSearch(),
+                request.isQuickChat(),
                 request.getActiveFile(),
                 request.getActiveFieldKey(),
                 request.getReferencedFiles(),

@@ -69,8 +69,8 @@ export interface ChatRequest {
   referencedFiles: string[];
   history: ChatMessage[];
   useReasoning?: boolean;
-  /** When true, backend may expose the web_search tool (if Tavily is configured). */
-  useWebSearch?: boolean;
+  /** Quick Chat: minimal context, web search only, no project tools. */
+  quickChat?: boolean;
   llmId?: string;
 }
 
@@ -123,6 +123,8 @@ export interface ProjectConfig {
   defaultMode?: string;
   /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
   workspaceMode?: string;
+  /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
+  quickChatLlmId?: string;
 }
 
 /** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */
