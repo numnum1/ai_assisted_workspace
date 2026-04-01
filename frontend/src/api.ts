@@ -382,8 +382,10 @@ export function streamChat(
                   '[streamChat] Stream ended (done event) but 0 tokens were received — model returned no content. ' +
                   'Check backend logs for finish_reason=length or empty completion warnings.'
                 );
+                onError(new Error('MODEL_EMPTY_RESPONSE'));
+              } else {
+                onDone();
               }
-              onDone();
               doneHandled = true;
             } else if (currentEvent === 'tool_call') {
               const unescaped = data.replace(/\\n/g, '\n');
@@ -416,8 +418,10 @@ export function streamChat(
       if (!doneHandled) {
         if (tokenCount === 0) {
           console.warn('[streamChat] SSE stream closed by server without a done event and 0 tokens received.');
+          onError(new Error('MODEL_EMPTY_RESPONSE'));
+        } else {
+          onDone();
         }
-        onDone();
       }
     })
     .catch((err) => {

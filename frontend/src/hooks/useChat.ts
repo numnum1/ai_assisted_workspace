@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { ChatMessage, ContextInfo, SelectionContext } from '../types.ts';
+import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
 import { streamChat } from '../api.ts';
 
 /**
@@ -43,6 +43,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
   const [error, setError] = useState<string | null>(null);
   const [toolActivity, setToolActivity] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastStreamCallRef = useRef<{ chatRequest: ChatRequest; selectionContext?: SelectionContext } | null>(null);
   const onMessagesChangeRef = useRef(onMessagesChange);
   onMessagesChangeRef.current = onMessagesChange;
 
@@ -95,17 +96,20 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
 
       let assistantContent = '';
 
+      const chatRequest: ChatRequest = {
+        message: text,
+        activeFile,
+        activeFieldKey: activeFieldKey ?? null,
+        mode,
+        referencedFiles,
+        history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
+        useReasoning: useReasoning ?? false,
+        llmId: llmId,
+      };
+      lastStreamCallRef.current = { chatRequest, selectionContext };
+
       const controller = streamChat(
-        {
-          message: text,
-          activeFile,
-          activeFieldKey: activeFieldKey ?? null,
-          mode,
-          referencedFiles,
-          history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
-          useReasoning: useReasoning ?? false,
-          llmId: llmId,
-        },
+        chatRequest,
         (token) => {
           assistantContent += token;
           setMessages([
@@ -167,6 +171,66 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     setToolActivity(null);
   }, []);
 
+  const retry = useCallback(() => {
+    const last = lastStreamCallRef.current;
+    if (!last) return;
+    setError(null);
+    setStreaming(true);
+    setToolActivity(null);
+    let assistantContent = '';
+    const { chatRequest, selectionContext } = last;
+    const controller = streamChat(
+      chatRequest,
+      (token) => {
+        assistantContent += token;
+        setMessages([
+          ...currentBaseRef.current,
+          { role: 'assistant', content: assistantContent, selectionContext },
+        ]);
+        setToolActivity(null);
+      },
+      (info) => {
+        setContextInfo(info);
+      },
+      () => {
+        setStreaming(false);
+        setToolActivity(null);
+      },
+      (err) => {
+        setError(err.message);
+        setStreaming(false);
+        setToolActivity(null);
+      },
+      (description) => {
+        setToolActivity(description);
+      },
+      (updatedTokens) => {
+        setContextInfo(prev =>
+          prev ? { ...prev, estimatedTokens: updatedTokens } : prev
+        );
+      },
+      (toolMessages) => {
+        currentBaseRef.current = [
+          ...currentBaseRef.current,
+          ...toolMessages.map((m) => ({ ...m, hidden: true })),
+        ];
+        setMessages(currentBaseRef.current);
+      },
+      (resolved) => {
+        const base = [...currentBaseRef.current];
+        for (let i = base.length - 1; i >= 0; i--) {
+          if (base[i].role === 'user' && !base[i].hidden) {
+            base[i] = { ...base[i], resolvedContent: resolved };
+            break;
+          }
+        }
+        currentBaseRef.current = base;
+        setMessages(base);
+      },
+    );
+    abortRef.current = controller;
+  }, []);
+
   const forkFromMessage = useCallback((upToIndex: number) => {
     syncEnabledRef.current = true;
     setMessages(prev => prev.slice(0, upToIndex + 1));
@@ -182,6 +246,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     toolActivity,
     sendMessage,
     stopStreaming,
+    retry,
     forkFromMessage,
     loadMessages,
   };

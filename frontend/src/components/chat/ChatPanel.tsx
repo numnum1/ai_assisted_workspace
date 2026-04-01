@@ -55,6 +55,7 @@ interface ChatPanelProps {
   onLlmChange?: (id: string | undefined) => void;
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
+  onRetry?: () => void;
 }
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
@@ -151,6 +152,7 @@ export function ChatPanel({
   onLlmChange,
   reasoningAvailable = true,
   fastAvailable = true,
+  onRetry,
 }: ChatPanelProps) {
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const prevLastVisibleRoleRef = useRef<'user' | 'assistant' | undefined>(undefined);
@@ -455,7 +457,16 @@ export function ChatPanel({
         )}
         {error && (
           <div className="chat-message error">
-            <div className="chat-message-content">Error: {error}</div>
+            <div className="chat-message-content">
+              {error === 'MODEL_EMPTY_RESPONSE'
+                ? 'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+                : `Error: ${error}`}
+            </div>
+            {error === 'MODEL_EMPTY_RESPONSE' && onRetry && (
+              <button className="chat-retry-btn" onClick={onRetry}>
+                Erneut versuchen
+              </button>
+            )}
           </div>
         )}
       </div>

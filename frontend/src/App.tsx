@@ -842,6 +842,7 @@ function App() {
             onLlmChange={handleLlmChange}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}
+            onRetry={chat.retry}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
