@@ -6,8 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,6 +36,29 @@ public class ToolExecutor {
     public List<Map<String, Object>> getToolDefinitions() {
         return toolsByName.values().stream()
                 .map(Tool::getDefinition)
+                .toList();
+    }
+
+    /** Definitions for the given tool names, in list order; skips unknown names. */
+    public List<Map<String, Object>> getToolDefinitionsForNames(Collection<String> names) {
+        if (names == null || names.isEmpty()) {
+            return List.of();
+        }
+        return names.stream()
+                .map(toolsByName::get)
+                .filter(t -> t != null)
+                .map(Tool::getDefinition)
+                .toList();
+    }
+
+    /** All definitions except tools whose {@link Tool#getName()} is in {@code excluded}. */
+    public List<Map<String, Object>> getToolDefinitionsExcluding(Set<String> excluded) {
+        if (excluded == null || excluded.isEmpty()) {
+            return getToolDefinitions();
+        }
+        return toolsByName.entrySet().stream()
+                .filter(e -> !excluded.contains(e.getKey()))
+                .map(e -> e.getValue().getDefinition())
                 .toList();
     }
 

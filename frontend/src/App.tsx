@@ -34,6 +34,7 @@ import { useFileEditor } from './hooks/useFileEditor.ts';
 import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
+import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
 
@@ -41,7 +42,8 @@ function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null 
   try {
     const raw = localStorage.getItem(LLM_PREFS_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as { llmId: string | null; useReasoning: boolean };
+    const parsed = JSON.parse(raw) as { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean };
+    return { llmId: parsed.llmId, useReasoning: parsed.useReasoning };
   } catch {
     return null;
   }
@@ -63,6 +65,8 @@ function App() {
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
+  const [quickChatOpen, setQuickChatOpen] = useState(false);
+  const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
 
@@ -224,13 +228,13 @@ function App() {
     prefsHydratedRef.current = false;
     let cancelled = false;
     const llmsRef: { current: LlmPublic[] } = { current: [] };
-
     const llmsPromise = llmApi
       .list()
       .then((r) => {
         if (!cancelled) {
           setLlms(r.providers);
           llmsRef.current = r.providers;
+          setWebSearchAvailable(!!r.webSearchAvailable);
         }
       })
       .catch(console.error);
@@ -268,6 +272,18 @@ function App() {
     if (!prefsHydratedRef.current) return;
     saveLlmPrefs(modeLlmId, useReasoning);
   }, [modeLlmId, useReasoning]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || (e.key !== 'e' && e.key !== 'E')) {
+        return;
+      }
+      e.preventDefault();
+      setQuickChatOpen((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -525,11 +541,34 @@ function App() {
       const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
-      chat.sendMessage(message, activeFile, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined, focusedField?.fieldKey ?? null);
+      chat.sendMessage(
+        message,
+        activeFile,
+        selectedMode,
+        refs.referencedFiles,
+        mode?.name,
+        mode?.color,
+        useReasoning,
+        modeLlmId,
+        activeSelection ?? undefined,
+        focusedField?.fieldKey ?? null,
+      );
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
     },
-    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection, selectedMeta, chapter.structureRoot, fileEditor.selectedPath, focusedField],
+    [
+      chat,
+      selectedMode,
+      modes,
+      refs.referencedFiles,
+      useReasoning,
+      modeLlmId,
+      activeSelection,
+      selectedMeta,
+      chapter.structureRoot,
+      fileEditor.selectedPath,
+      focusedField,
+    ],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
@@ -561,6 +600,10 @@ function App() {
 
   const handleNewChat = useCallback(() => {
     history.createConversation(selectedMode);
+  }, [history, selectedMode]);
+
+  const handleDiscardCurrentChat = useCallback(() => {
+    history.discardActiveAndCreateConversation(selectedMode);
   }, [history, selectedMode]);
 
   const handleSaveFreeNote = useCallback(async (note: NoteProposal) => {
@@ -804,6 +847,7 @@ function App() {
             onForkFromMessage={chat.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
             onNewChat={handleNewChat}
+            onDiscardCurrentChat={handleDiscardCurrentChat}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
@@ -914,6 +958,13 @@ function App() {
           onClose={() => setAltVersionSession(null)}
         />
       )}
+
+      <QuickChatWindow
+        open={quickChatOpen}
+        onClose={() => setQuickChatOpen(false)}
+        llms={llms}
+        webSearchAvailable={webSearchAvailable}
+      />
     </div>
   );
 }

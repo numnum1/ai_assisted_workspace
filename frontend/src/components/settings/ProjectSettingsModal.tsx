@@ -11,7 +11,7 @@ interface ProjectSettingsModalProps {
   onWorkspacePluginsChanged?: () => void;
 }
 
-type Tab = 'general' | 'modes' | 'workspacePlugins' | 'rules' | 'aiProviders';
+type Tab = 'general' | 'quickChat' | 'modes' | 'workspacePlugins' | 'rules' | 'aiProviders';
 
 interface LlmFormState {
   editingId: string | null;
@@ -113,6 +113,7 @@ export function ProjectSettingsModal({
     globalRules: [],
     defaultMode: '',
     workspaceMode: 'default',
+    quickChatLlmId: '',
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -186,7 +187,7 @@ export function ProjectSettingsModal({
   }, [initialized, tab, loadWorkspacePlugins]);
 
   useEffect(() => {
-    if (!loading && (tab === 'aiProviders' || tab === 'modes')) {
+    if (!loading && (tab === 'aiProviders' || tab === 'modes' || tab === 'quickChat')) {
       void loadLlms();
     }
   }, [loading, tab, loadLlms]);
@@ -248,6 +249,21 @@ export function ProjectSettingsModal({
   };
 
   // ── General ──────────────────────────────────────────────────────────────────
+
+  const handleSaveQuickChatConfig = async () => {
+    setSavingConfig(true);
+    setError(null);
+    try {
+      await projectConfigApi.update(config);
+      setConfigSaved(true);
+      setTimeout(() => setConfigSaved(false), 2000);
+      onGeneralConfigSaved?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   const handleSaveConfig = async () => {
     setSavingConfig(true);
@@ -501,7 +517,7 @@ export function ProjectSettingsModal({
         ) : (
           <>
             <div className="ps-tabs">
-              {(['general', 'modes', 'workspacePlugins', 'aiProviders', 'rules'] as Tab[]).map(t => (
+              {(['general', 'quickChat', 'modes', 'workspacePlugins', 'aiProviders', 'rules'] as Tab[]).map(t => (
                 <button
                   key={t}
                   type="button"
@@ -511,17 +527,20 @@ export function ProjectSettingsModal({
                     if (!initialized && t !== 'aiProviders') return;
                     setTab(t);
                     setError(null);
+                    setConfigSaved(false);
                   }}
                 >
                   {t === 'general'
                     ? 'General'
-                    : t === 'modes'
-                      ? `Modes (${modes.length})`
-                      : t === 'workspacePlugins'
-                        ? 'Workspace plugins'
-                        : t === 'aiProviders'
-                          ? `LLMs (${llmsState?.providers?.length ?? 0})`
-                          : `Rules (${rules.length})`}
+                    : t === 'quickChat'
+                      ? 'Quick Chat'
+                      : t === 'modes'
+                        ? `Modes (${modes.length})`
+                        : t === 'workspacePlugins'
+                          ? 'Workspace plugins'
+                          : t === 'aiProviders'
+                            ? `LLMs (${llmsState?.providers?.length ?? 0})`
+                            : `Rules (${rules.length})`}
                 </button>
               ))}
             </div>
@@ -609,6 +628,56 @@ export function ProjectSettingsModal({
                         ? <><Check size={13} /> Saved</>
                         : <><Save size={13} /> Save</>
                     }
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Chat tab (Alt+E floating window; websuche nur dort) */}
+            {initialized && tab === 'quickChat' && (
+              <div className="ps-tab-content">
+                <p className="ps-hint">
+                  Das schwebende <strong>Quick Chat</strong>-Fenster (Tastenkürzel <kbd>Alt+E</kbd>) ist für kurze
+                  Fragen ohne Projekt-Kontext: Begriffe, Formulierungen, Websuche. Es nutzt kein Datei-Referenzsystem.
+                </p>
+                <label className="ps-label">LLM für Quick Chat</label>
+                <p className="ps-hint">
+                  Leer lassen = erstes konfiguriertes LLM aus der Liste. Anbieter verwaltest du unter <strong>LLMs</strong>.
+                </p>
+                <select
+                  className="ps-input"
+                  value={config.quickChatLlmId ?? ''}
+                  onChange={(e) => setConfig((p) => ({ ...p, quickChatLlmId: e.target.value }))}
+                  disabled={loadingLlms || !(llmsState?.providers?.length)}
+                >
+                  <option value="">Standard (erstes LLM)</option>
+                  {(llmsState?.providers ?? []).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.fastModel})
+                    </option>
+                  ))}
+                </select>
+                {loadingLlms && (
+                  <p className="ps-hint" style={{ marginTop: '0.5rem' }}>
+                    <Loader size={12} className="ps-spinner" style={{ display: 'inline', verticalAlign: 'middle' }} />{' '}
+                    LLMs werden geladen…
+                  </p>
+                )}
+                <div className="ps-actions" style={{ marginTop: '1rem' }}>
+                  <button className="ps-save-btn" onClick={() => void handleSaveQuickChatConfig()} disabled={savingConfig}>
+                    {savingConfig ? (
+                      <>
+                        <Loader size={13} className="ps-spinner" /> Saving...
+                      </>
+                    ) : configSaved ? (
+                      <>
+                        <Check size={13} /> Saved
+                      </>
+                    ) : (
+                      <>
+                        <Save size={13} /> Save
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

@@ -15,6 +15,10 @@ public class ChatRequest {
     private boolean useReasoning = false;
     /** Optional: ID of a specific LLM entry to use. Overrides the globally active LLM. */
     private String llmId;
+    /**
+     * Quick Chat: minimal context, plain user text, only {@code web_search} tool (no project files/wiki tools).
+     */
+    private boolean quickChat = false;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
@@ -32,4 +36,6 @@ public class ChatRequest {
     public void setUseReasoning(boolean useReasoning) { this.useReasoning = useReasoning; }
     public String getLlmId() { return llmId; }
     public void setLlmId(String llmId) { this.llmId = llmId; }
+    public boolean isQuickChat() { return quickChat; }
+    public void setQuickChat(boolean quickChat) { this.quickChat = quickChat; }
 }

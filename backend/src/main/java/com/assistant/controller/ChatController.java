@@ -9,6 +9,7 @@ import com.assistant.service.AiApiClient.ChatCompletionResult;
 import com.assistant.service.AiProviderService;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
+import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
@@ -55,14 +57,15 @@ public class ChatController {
         logIncomingChatRequest(request);
 
         AssembledContext context = contextService.assemble(request);
-        List<Map<String, Object>> tools = toolExecutor.getToolDefinitions();
+        List<Map<String, Object>> tools = toolsForRequest(request);
 
-        boolean useReasoning = request.isUseReasoning();
+        boolean useReasoning = request.isQuickChat() ? false : request.isUseReasoning();
         String llmId = request.getLlmId();
 
         log.info(
-                "Assembled chat context: mode={}, llmId={}, useReasoning={}, includedFiles={} ({}), estimatedTokens={}, assembledMessages={}",
+                "Assembled chat context: mode={}, quickChat={}, llmId={}, useReasoning={}, includedFiles={} ({}), estimatedTokens={}, assembledMessages={}",
                 request.getMode(),
+                request.isQuickChat(),
                 llmId,
                 useReasoning,
                 context.getIncludedFiles().size(),
@@ -293,6 +296,16 @@ public class ChatController {
             String preGeneratedContent
     ) {}
 
+    /**
+     * Omits {@link WebSearchTool} unless the client explicitly enables web search.
+     */
+    private List<Map<String, Object>> toolsForRequest(ChatRequest request) {
+        if (request.isQuickChat()) {
+            return toolExecutor.getToolDefinitionsForNames(List.of(WebSearchTool.TOOL_NAME));
+        }
+        return toolExecutor.getToolDefinitionsExcluding(Set.of(WebSearchTool.TOOL_NAME));
+    }
+
     private String toContextJson(AssembledContext context, String llmId) {
         StringBuilder sb = new StringBuilder("{\"includedFiles\":[");
         var files = context.getIncludedFiles();
@@ -316,10 +329,11 @@ public class ChatController {
     private void logIncomingChatRequest(ChatRequest request) {
         List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
         log.info(
-                "Incoming chat: mode={}, llmId={}, useReasoning={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
                 request.getMode(),
                 request.getLlmId(),
                 request.isUseReasoning(),
+                request.isQuickChat(),
                 request.getActiveFile(),
                 request.getActiveFieldKey(),
                 request.getReferencedFiles(),

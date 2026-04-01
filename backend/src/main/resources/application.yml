@@ -8,6 +8,13 @@ app:
     api-url: https://api.eecc.ai
     api-key: ${AI_API_KEY:your-api-key-here}
     model: gpt-5.2
+  # Optional: Tavily web search for the chat tool "web_search" (https://www.tavily.com — personal API key).
+  # Leave empty to disable; set TAVILY_API_KEY or app.web-search.api-key to enable.
+  web-search:
+    api-key: ${TAVILY_API_KEY:}
+    max-results: 8
+    search-depth: basic
+    max-snippet-chars: 450
   project:
     path: ${PROJECT_PATH:}
     always-include: []
@@ -19,6 +26,7 @@ logging:
     com.assistant.controller.ChatController: DEBUG
     com.assistant.service.AiApiClient: DEBUG
     com.assistant.service.ToolExecutor: DEBUG
+    com.assistant.service.tools.WebSearchTool: INFO
     com.assistant.service.ContextService: DEBUG
 
 spring:
