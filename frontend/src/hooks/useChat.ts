@@ -84,6 +84,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       llmId?: string,
       selectionContext?: SelectionContext,
       activeFieldKey?: string | null,
+      useWebSearch?: boolean,
     ) => {
       syncEnabledRef.current = true;
       setError(null);
@@ -104,6 +105,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
           referencedFiles,
           history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
           useReasoning: useReasoning ?? false,
+          useWebSearch: useWebSearch ?? false,
           llmId: llmId,
         },
         (token) => {

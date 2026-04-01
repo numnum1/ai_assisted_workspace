@@ -14,6 +14,7 @@ public class AppConfig {
     private final Project project = new Project();
     private final Git git = new Git();
     private final Data data = new Data();
+    private final WebSearch webSearch = new WebSearch();
 
     public Ai getAi() {
         return ai;
@@ -29,6 +30,10 @@ public class AppConfig {
 
     public Data getData() {
         return data;
+    }
+
+    public WebSearch getWebSearch() {
+        return webSearch;
     }
 
     public static class Ai {
@@ -77,6 +82,51 @@ public class AppConfig {
 
         public void setDataDir(String dataDir) {
             this.dataDir = dataDir != null ? dataDir : "";
+        }
+    }
+
+    /**
+     * Optional Tavily search ({@code https://api.tavily.com}). Personal use: obtain a key at tavily.com.
+     */
+    public static class WebSearch {
+        private String apiKey = "";
+        /** Capped per request (Tavily and tool schema). */
+        private int maxResults = 8;
+        /** {@code basic} or {@code advanced} — passed through to Tavily. */
+        private String searchDepth = "basic";
+        /** Max characters of snippet text per result (keeps context small). */
+        private int maxSnippetChars = 450;
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey != null ? apiKey : "";
+        }
+
+        public int getMaxResults() {
+            return maxResults;
+        }
+
+        public void setMaxResults(int maxResults) {
+            this.maxResults = maxResults;
+        }
+
+        public String getSearchDepth() {
+            return searchDepth;
+        }
+
+        public void setSearchDepth(String searchDepth) {
+            this.searchDepth = searchDepth != null && !searchDepth.isBlank() ? searchDepth : "basic";
+        }
+
+        public int getMaxSnippetChars() {
+            return maxSnippetChars;
+        }
+
+        public void setMaxSnippetChars(int maxSnippetChars) {
+            this.maxSnippetChars = Math.max(80, maxSnippetChars);
         }
     }
 }

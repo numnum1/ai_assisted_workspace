@@ -3458,6 +3458,37 @@ body {
   cursor: default;
 }
 
+.chat-websearch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chat-websearch-btn:hover:not(:disabled) {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.chat-websearch-btn.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--bg-tertiary);
+}
+
+.chat-websearch-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* ==================== Chat Autocomplete ==================== */
 
 .ac-dropdown {

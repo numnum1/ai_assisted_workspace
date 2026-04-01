@@ -69,6 +69,8 @@ export interface ChatRequest {
   referencedFiles: string[];
   history: ChatMessage[];
   useReasoning?: boolean;
+  /** When true, backend may expose the web_search tool (if Tavily is configured). */
+  useWebSearch?: boolean;
   llmId?: string;
 }
 
@@ -138,6 +140,8 @@ export interface LlmPublic {
 
 export interface LlmsListResponse {
   providers: LlmPublic[];
+  /** True when the server has a Tavily API key (chat can use web_search). */
+  webSearchAvailable?: boolean;
 }
 
 /** Persisted browser tab: folder + display metadata */

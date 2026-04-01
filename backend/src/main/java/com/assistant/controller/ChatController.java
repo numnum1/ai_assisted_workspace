@@ -9,6 +9,7 @@ import com.assistant.service.AiApiClient.ChatCompletionResult;
 import com.assistant.service.AiProviderService;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
+import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -55,7 +56,7 @@ public class ChatController {
         logIncomingChatRequest(request);
 
         AssembledContext context = contextService.assemble(request);
-        List<Map<String, Object>> tools = toolExecutor.getToolDefinitions();
+        List<Map<String, Object>> tools = toolsForRequest(request);
 
         boolean useReasoning = request.isUseReasoning();
         String llmId = request.getLlmId();
@@ -293,6 +294,29 @@ public class ChatController {
             String preGeneratedContent
     ) {}
 
+    /**
+     * Omits {@link WebSearchTool} unless the client explicitly enables web search.
+     */
+    private List<Map<String, Object>> toolsForRequest(ChatRequest request) {
+        List<Map<String, Object>> all = toolExecutor.getToolDefinitions();
+        if (request.isUseWebSearch()) {
+            return all;
+        }
+        return all.stream()
+                .filter(def -> !WebSearchTool.TOOL_NAME.equals(extractFunctionName(def)))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String extractFunctionName(Map<String, Object> def) {
+        Object fn = def.get("function");
+        if (fn instanceof Map<?, ?> m) {
+            Object name = m.get("name");
+            return name != null ? name.toString() : "";
+        }
+        return "";
+    }
+
     private String toContextJson(AssembledContext context, String llmId) {
         StringBuilder sb = new StringBuilder("{\"includedFiles\":[");
         var files = context.getIncludedFiles();
@@ -316,10 +340,11 @@ public class ChatController {
     private void logIncomingChatRequest(ChatRequest request) {
         List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
         log.info(
-                "Incoming chat: mode={}, llmId={}, useReasoning={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                "Incoming chat: mode={}, llmId={}, useReasoning={}, useWebSearch={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
                 request.getMode(),
                 request.getLlmId(),
                 request.isUseReasoning(),
+                request.isUseWebSearch(),
                 request.getActiveFile(),
                 request.getActiveFieldKey(),
                 request.getReferencedFiles(),

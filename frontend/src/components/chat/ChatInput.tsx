@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X, Globe } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
 import { shadowApi, filesApi } from '../../api.ts';
 import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../../types.ts';
@@ -55,6 +55,10 @@ interface ChatInputProps {
   reasoningAvailable?: boolean;
   /** False when the currently selected LLM has no fast configuration (reasoning-only) */
   fastAvailable?: boolean;
+  /** Tavily web search tool enabled for this message (server must expose it). */
+  useWebSearch?: boolean;
+  onToggleWebSearch?: () => void;
+  webSearchAvailable?: boolean;
   /** Active editor selection captured via Ctrl+L */
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
@@ -76,6 +80,9 @@ export function ChatInput({
   onToggleReasoning,
   reasoningAvailable = true,
   fastAvailable = true,
+  useWebSearch = false,
+  onToggleWebSearch,
+  webSearchAvailable = false,
   activeSelection = null,
   onDismissSelection,
   focusTriggerRef,
@@ -436,6 +443,21 @@ export function ChatInput({
             disabled={streaming}
           >
             <Zap size={15} />
+          </button>
+        )}
+        {onToggleWebSearch && webSearchAvailable && (
+          <button
+            type="button"
+            className={`chat-websearch-btn${useWebSearch ? ' active' : ''}`}
+            onClick={onToggleWebSearch}
+            title={
+              useWebSearch
+                ? 'Websuche für diese Nachricht aktiv — KI darf tavily.com nutzen. Klicken zum Deaktivieren.'
+                : 'Websuche aktivieren (Tavily, nur für diese Sitzung sichtbar wenn eingeschaltet)'
+            }
+            disabled={streaming}
+          >
+            <Globe size={15} />
           </button>
         )}
         {streaming ? (

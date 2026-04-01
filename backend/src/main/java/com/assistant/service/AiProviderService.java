@@ -2,9 +2,11 @@ package com.assistant.service;
 
 import com.assistant.config.AppConfig;
 import com.assistant.model.*;
+import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -24,16 +26,19 @@ public class AiProviderService {
     private final ProjectConfigService projectConfigService;
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
+    private final WebSearchTool webSearchTool;
 
     private final Object lock = new Object();
 
     public AiProviderService(
             ProjectConfigService projectConfigService,
             AppConfig appConfig,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Autowired(required = false) WebSearchTool webSearchTool) {
         this.projectConfigService = projectConfigService;
         this.appConfig = appConfig;
         this.objectMapper = objectMapper;
+        this.webSearchTool = webSearchTool;
     }
 
     private Path storeFile() {
@@ -82,6 +87,7 @@ public class AiProviderService {
             rows.add(toPublic(p));
         }
         out.setProviders(rows);
+        out.setWebSearchAvailable(webSearchTool != null);
         return out;
     }
 

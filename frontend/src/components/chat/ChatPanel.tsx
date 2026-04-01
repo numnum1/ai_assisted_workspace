@@ -24,6 +24,9 @@ interface ChatPanelProps {
   activeConversationId: string;
   useReasoning: boolean;
   onToggleReasoning: () => void;
+  useWebSearch?: boolean;
+  onToggleWebSearch?: () => void;
+  webSearchAvailable?: boolean;
   onModeChange: (mode: string) => void;
   onSend: (message: string) => void;
   onStop: () => void;
@@ -119,6 +122,9 @@ export function ChatPanel({
   activeConversationId,
   useReasoning,
   onToggleReasoning,
+  useWebSearch = false,
+  onToggleWebSearch,
+  webSearchAvailable = false,
   onModeChange,
   onSend,
   onStop,
@@ -465,6 +471,9 @@ export function ChatPanel({
         onToggleReasoning={onToggleReasoning}
         reasoningAvailable={reasoningAvailable}
         fastAvailable={fastAvailable}
+        useWebSearch={useWebSearch}
+        onToggleWebSearch={onToggleWebSearch}
+        webSearchAvailable={webSearchAvailable}
         activeSelection={activeSelection}
         onDismissSelection={onDismissSelection}
         focusTriggerRef={chatFocusTriggerRef}

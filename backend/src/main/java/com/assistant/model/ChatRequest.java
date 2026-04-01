@@ -15,6 +15,11 @@ public class ChatRequest {
     private boolean useReasoning = false;
     /** Optional: ID of a specific LLM entry to use. Overrides the globally active LLM. */
     private String llmId;
+    /**
+     * When true and the server has web search configured, the {@code web_search} tool is offered to the model.
+     * Default false to avoid accidental API usage and latency.
+     */
+    private boolean useWebSearch = false;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
@@ -32,4 +37,6 @@ public class ChatRequest {
     public void setUseReasoning(boolean useReasoning) { this.useReasoning = useReasoning; }
     public String getLlmId() { return llmId; }
     public void setLlmId(String llmId) { this.llmId = llmId; }
+    public boolean isUseWebSearch() { return useWebSearch; }
+    public void setUseWebSearch(boolean useWebSearch) { this.useWebSearch = useWebSearch; }
 }

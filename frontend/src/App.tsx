@@ -37,19 +37,22 @@ import { AlternativeVersionPanel } from './components/editor/AlternativeVersionP
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
 
-function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null {
+function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean } | null {
   try {
     const raw = localStorage.getItem(LLM_PREFS_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as { llmId: string | null; useReasoning: boolean };
+    return JSON.parse(raw) as { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean };
   } catch {
     return null;
   }
 }
 
-function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
+function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean, useWebSearch: boolean) {
   try {
-    localStorage.setItem(LLM_PREFS_KEY, JSON.stringify({ llmId: llmId ?? null, useReasoning }));
+    localStorage.setItem(
+      LLM_PREFS_KEY,
+      JSON.stringify({ llmId: llmId ?? null, useReasoning, useWebSearch }),
+    );
   } catch {
     // localStorage full or unavailable — silently ignore
   }
@@ -63,12 +66,15 @@ function App() {
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
+  const [useWebSearch, setUseWebSearch] = useState(false);
+  const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
 
   const prefsHydratedRef = useRef(false);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
+  const handleToggleWebSearch = useCallback(() => setUseWebSearch(v => !v), []);
 
   const handleLlmChange = useCallback((id: string | undefined) => {
     setModeLlmId(id);
@@ -224,6 +230,7 @@ function App() {
     prefsHydratedRef.current = false;
     let cancelled = false;
     const llmsRef: { current: LlmPublic[] } = { current: [] };
+    const webSearchConfiguredRef = { current: false };
 
     const llmsPromise = llmApi
       .list()
@@ -231,6 +238,8 @@ function App() {
         if (!cancelled) {
           setLlms(r.providers);
           llmsRef.current = r.providers;
+          webSearchConfiguredRef.current = !!r.webSearchAvailable;
+          setWebSearchAvailable(webSearchConfiguredRef.current);
         }
       })
       .catch(console.error);
@@ -239,7 +248,7 @@ function App() {
       if (cancelled) return;
       const prefs = loadLlmPrefs();
       if (prefs) {
-        const { llmId, useReasoning: savedReasoning } = prefs;
+        const { llmId, useReasoning: savedReasoning, useWebSearch: savedWeb } = prefs;
         if (llmId !== null) {
           const llm = llmsRef.current.find((l) => l.id === llmId);
           if (llm) {
@@ -255,6 +264,11 @@ function App() {
         } else {
           setUseReasoning(savedReasoning);
         }
+        if (savedWeb === true && webSearchConfiguredRef.current) {
+          setUseWebSearch(true);
+        } else {
+          setUseWebSearch(false);
+        }
       }
       prefsHydratedRef.current = true;
     });
@@ -266,8 +280,8 @@ function App() {
 
   useEffect(() => {
     if (!prefsHydratedRef.current) return;
-    saveLlmPrefs(modeLlmId, useReasoning);
-  }, [modeLlmId, useReasoning]);
+    saveLlmPrefs(modeLlmId, useReasoning, useWebSearch);
+  }, [modeLlmId, useReasoning, useWebSearch]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -525,11 +539,37 @@ function App() {
       const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
-      chat.sendMessage(message, activeFile, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined, focusedField?.fieldKey ?? null);
+      chat.sendMessage(
+        message,
+        activeFile,
+        selectedMode,
+        refs.referencedFiles,
+        mode?.name,
+        mode?.color,
+        useReasoning,
+        modeLlmId,
+        activeSelection ?? undefined,
+        focusedField?.fieldKey ?? null,
+        webSearchAvailable && useWebSearch,
+      );
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
     },
-    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection, selectedMeta, chapter.structureRoot, fileEditor.selectedPath, focusedField],
+    [
+      chat,
+      selectedMode,
+      modes,
+      refs.referencedFiles,
+      useReasoning,
+      modeLlmId,
+      activeSelection,
+      selectedMeta,
+      chapter.structureRoot,
+      fileEditor.selectedPath,
+      focusedField,
+      webSearchAvailable,
+      useWebSearch,
+    ],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
@@ -793,6 +833,9 @@ function App() {
             onToggleReasoning={handleToggleReasoning}
             reasoningAvailable={reasoningAvailable}
             fastAvailable={fastAvailable}
+            useWebSearch={useWebSearch}
+            onToggleWebSearch={handleToggleWebSearch}
+            webSearchAvailable={webSearchAvailable}
             onModeChange={handleModeChange}
             llms={llms}
             selectedLlmId={modeLlmId}
