@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 
 interface NewChatDialogProps {
   currentTitle: string;
   onConfirm: (title: string) => void;
+  onDiscard: () => void;
   onCancel: () => void;
 }
 
-export function NewChatDialog({ currentTitle, onConfirm, onCancel }: NewChatDialogProps) {
+export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: NewChatDialogProps) {
   const [title, setTitle] = useState(currentTitle);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -45,7 +46,8 @@ export function NewChatDialog({ currentTitle, onConfirm, onCancel }: NewChatDial
 
         <div className="new-chat-dialog-body">
           <p className="new-chat-dialog-hint">
-            Den aktuellen Chat unter diesem Namen im Verlauf speichern?
+            Mit „Neuer Chat starten“ bleibt der aktuelle Chat unter dem Namen im Verlauf. Mit
+            „Verwerfen“ wird er gelöscht und erscheint dort nicht.
           </p>
           <input
             ref={inputRef}
@@ -61,10 +63,21 @@ export function NewChatDialog({ currentTitle, onConfirm, onCancel }: NewChatDial
           <button type="button" className="new-chat-dialog-btn-secondary" onClick={onCancel}>
             Abbrechen
           </button>
-          <button type="button" className="new-chat-dialog-btn-primary" onClick={handleConfirm}>
-            <Plus size={13} />
-            Neuer Chat starten
-          </button>
+          <div className="new-chat-dialog-footer-actions">
+            <button
+              type="button"
+              className="new-chat-dialog-btn-danger"
+              onClick={onDiscard}
+              title="Aktuellen Chat löschen und neu starten"
+            >
+              <Trash2 size={13} />
+              Verwerfen
+            </button>
+            <button type="button" className="new-chat-dialog-btn-primary" onClick={handleConfirm}>
+              <Plus size={13} />
+              Neuer Chat starten
+            </button>
+          </div>
         </div>
       </div>
     </div>

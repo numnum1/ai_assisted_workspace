@@ -309,6 +309,24 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     [activeId, currentMode],
   );
 
+  /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
+  const discardActiveAndCreateConversation = useCallback(
+    (mode?: string) => {
+      const newConv = createEmptyConversation(mode ?? currentMode);
+      setConversations((prev) => {
+        const filtered = prev.filter((c) => c.id !== activeId);
+        let updated = [newConv, ...filtered];
+        if (updated.length > MAX_CONVERSATIONS) {
+          updated = updated.slice(0, MAX_CONVERSATIONS);
+        }
+        return updated;
+      });
+      setActiveId(newConv.id);
+      return newConv;
+    },
+    [activeId, currentMode],
+  );
+
   const deleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => {
@@ -376,6 +394,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     hydrated,
     updateMessages,
     createConversation,
+    discardActiveAndCreateConversation,
     deleteConversation,
     switchConversation,
     renameConversation,

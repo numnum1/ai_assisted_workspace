@@ -602,6 +602,10 @@ function App() {
     history.createConversation(selectedMode);
   }, [history, selectedMode]);
 
+  const handleDiscardCurrentChat = useCallback(() => {
+    history.discardActiveAndCreateConversation(selectedMode);
+  }, [history, selectedMode]);
+
   const handleSaveFreeNote = useCallback(async (note: NoteProposal) => {
     await notesApi.saveFree(note);
   }, []);
@@ -843,6 +847,7 @@ function App() {
             onForkFromMessage={chat.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
             onNewChat={handleNewChat}
+            onDiscardCurrentChat={handleDiscardCurrentChat}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}

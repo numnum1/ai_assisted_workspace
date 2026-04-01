@@ -32,6 +32,7 @@ interface ChatPanelProps {
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onNewChat: () => void;
+  onDiscardCurrentChat: () => void;
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
@@ -127,6 +128,7 @@ export function ChatPanel({
   onForkFromMessage,
   onForkToNewConversation,
   onNewChat,
+  onDiscardCurrentChat,
   onSwitchChat,
   onDeleteChat,
   onRenameChat,
@@ -178,6 +180,11 @@ export function ChatPanel({
       onRenameChat(activeConversationId, title.trim());
     }
     onNewChat();
+  };
+
+  const handleNewChatDiscard = () => {
+    setNewChatDialogOpen(false);
+    onDiscardCurrentChat();
   };
 
   useEffect(() => {
@@ -474,6 +481,7 @@ export function ChatPanel({
         <NewChatDialog
           currentTitle={activeTitle}
           onConfirm={handleNewChatConfirm}
+          onDiscard={handleNewChatDiscard}
           onCancel={() => setNewChatDialogOpen(false)}
         />
       )}
