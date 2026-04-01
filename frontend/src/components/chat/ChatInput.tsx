@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X, Maximize2 } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
 import { shadowApi, filesApi } from '../../api.ts';
 import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../../types.ts';
@@ -81,6 +82,7 @@ export function ChatInput({
   focusTriggerRef,
 }: ChatInputProps) {
   const [text, setText] = useState('');
+  const [expandOpen, setExpandOpen] = useState(false);
   const [ac, setAc] = useState<{
     query: string;
     atIndex: number;
@@ -89,6 +91,7 @@ export function ChatInput({
   } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const expandTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const itemsCacheRef = useRef<AutocompleteItem[] | null>(null);
   const loadingRef = useRef(false);
@@ -126,6 +129,23 @@ export function ChatInput({
       els[idx].scrollIntoView({ block: 'nearest' });
     }
   }, [ac?.selectedIdx]);
+
+  // Focus expand textarea when modal opens
+  useEffect(() => {
+    if (expandOpen) {
+      requestAnimationFrame(() => expandTextareaRef.current?.focus());
+    }
+  }, [expandOpen]);
+
+  // Close expand modal on Escape
+  useEffect(() => {
+    if (!expandOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpandOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [expandOpen]);
 
   // Invalidate cache when structure root changes (different subproject)
   useEffect(() => {
@@ -225,6 +245,7 @@ export function ChatInput({
     onSend(finalMessage);
     setText('');
     setAc(null);
+    setExpandOpen(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -296,6 +317,10 @@ export function ChatInput({
     } else {
       setAc(null);
     }
+  };
+
+  const handleExpandChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -427,6 +452,15 @@ export function ChatInput({
           disabled={streaming}
           rows={1}
         />
+        <button
+          type="button"
+          className="chat-expand-btn"
+          onClick={() => setExpandOpen(true)}
+          title="Prompt-Fenster öffnen (großes Eingabefeld)"
+          disabled={streaming}
+        >
+          <Maximize2 size={14} />
+        </button>
         {onToggleReasoning && reasoningAvailable && fastAvailable && (
           <button
             type="button"
@@ -453,6 +487,88 @@ export function ChatInput({
           </button>
         )}
       </div>
+
+      {expandOpen && createPortal(
+        <div className="chat-expand-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setExpandOpen(false); }}>
+          <div className="chat-expand-modal">
+            <div className="chat-expand-modal-header">
+              <span className="chat-expand-modal-title">Prompt bearbeiten</span>
+              <button
+                type="button"
+                className="chat-expand-modal-close"
+                onClick={() => setExpandOpen(false)}
+                title="Schließen (Esc)"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {activeSelection && (
+              <div className="chat-selection-chip chat-expand-selection-chip">
+                <span className="chat-selection-chip-text">
+                  &ldquo;{activeSelection.text.length > 120 ? activeSelection.text.slice(0, 120) + '…' : activeSelection.text}&rdquo;
+                </span>
+                <button
+                  type="button"
+                  className="chat-selection-chip-dismiss"
+                  onClick={onDismissSelection}
+                  title="Auswahl entfernen"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+
+            {!hideFileChips && referencedFiles.length > 0 && (
+              <div className="chat-input-files chat-expand-files">
+                {referencedFiles.map(f => (
+                  <FileChip key={f} path={f} onRemove={onRemoveFile} />
+                ))}
+              </div>
+            )}
+
+            <textarea
+              ref={expandTextareaRef}
+              className="chat-expand-textarea"
+              value={text}
+              onChange={handleExpandChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={placeholderProp ?? 'Nachricht...'}
+            />
+
+            <div className="chat-expand-modal-footer">
+              <span className="chat-expand-hint">Strg+Enter zum Senden · Esc zum Schließen</span>
+              <div className="chat-expand-footer-actions">
+                {onToggleReasoning && reasoningAvailable && fastAvailable && (
+                  <button
+                    type="button"
+                    className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+                    onClick={onToggleReasoning}
+                    title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+                  >
+                    <Zap size={15} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="chat-send-btn"
+                  onClick={handleSend}
+                  disabled={!text.trim()}
+                  title="Senden (Strg+Enter)"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
