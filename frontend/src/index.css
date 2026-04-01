@@ -6263,6 +6263,24 @@ body {
   color: var(--text-secondary) !important;
 }
 
+.alt-version-btn-notes-toggle {
+  border: 1px solid var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.alt-version-btn-notes-toggle.active {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  background: var(--accent-dim) !important;
+}
+
+.alt-version-notes {
+  border-style: dashed !important;
+  border-color: var(--text-muted) !important;
+  color: var(--text-secondary) !important;
+  margin-top: 6px !important;
+}
+
 .alt-version-textarea {
   margin: 10px 10px 2px;
   padding: 8px 10px;

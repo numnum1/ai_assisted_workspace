@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, ArrowLeftRight } from 'lucide-react';
+import { X, ArrowLeftRight, StickyNote } from 'lucide-react';
 import type { AltVersionSession } from '../../types.ts';
 
 interface AlternativeVersionPanelProps {
@@ -53,6 +53,8 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
   const [altText, setAltText] = useState('');
   // Track what's currently in the editor at the selection (changes on swap)
   const [editorText, setEditorText] = useState(session.originalText);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notes, setNotes] = useState('');
   const [pos, setPos] = useState<{ top: number; left: number; width: number }>(() => {
     const coords = session.getAnchorCoords();
     return coords ? calcPosition(coords, 200) : { top: 100, left: 100, width: PANEL_MIN_WIDTH };
@@ -147,6 +149,14 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
             <ArrowLeftRight size={13} />
             Tauschen
           </button>
+          <button
+            className={`alt-version-btn-notes-toggle${notesOpen ? ' active' : ''}`}
+            onClick={() => setNotesOpen(v => !v)}
+            title={notesOpen ? 'Notizfeld ausblenden' : 'Notizfeld einblenden'}
+          >
+            <StickyNote size={13} />
+            Notizen
+          </button>
           <button onClick={onClose} title="Schließen (Esc)">
             <X size={14} />
           </button>
@@ -161,6 +171,16 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
         placeholder="Alternative Version eingeben…"
         rows={estimateRows(session.originalText, charsPerLine)}
       />
+
+      {notesOpen && (
+        <textarea
+          className="alt-version-textarea alt-version-notes"
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Notizen…"
+          rows={4}
+        />
+      )}
 
       <div className="alt-version-hint">Ctrl+Enter = Übernehmen · Esc = Verwerfen</div>
 
