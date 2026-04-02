@@ -42,6 +42,16 @@ interface RuleEditor {
   isNew: boolean;
 }
 
+/** Next free mode id: `{sourceId}-kopie`, `{sourceId}-kopie-2`, … */
+function suggestDuplicateModeId(sourceId: string, existingIds: Set<string>): string {
+  const normalized = sourceId.trim().replace(/\s+/g, '-').toLowerCase();
+  const base = `${normalized}-kopie`;
+  if (!existingIds.has(base)) return base;
+  let n = 2;
+  while (existingIds.has(`${base}-${n}`)) n += 1;
+  return `${base}-${n}`;
+}
+
 function TagListEditor({
   items,
   onAdd,
@@ -124,6 +134,7 @@ export function ProjectSettingsModal({
   const [editingModeId, setEditingModeId] = useState<string | null>(null);
   const [savingMode, setSavingMode] = useState(false);
   const [deletingMode, setDeletingMode] = useState<string | null>(null);
+  const [duplicatingModeId, setDuplicatingModeId] = useState<string | null>(null);
 
   // Rules
   const [rules, setRules] = useState<string[]>([]);
@@ -341,6 +352,28 @@ export function ProjectSettingsModal({
       setError(err instanceof Error ? err.message : 'Failed to delete mode');
     } finally {
       setDeletingMode(null);
+    }
+  };
+
+  const handleDuplicateMode = async (mode: Mode) => {
+    setDuplicatingModeId(mode.id);
+    setError(null);
+    try {
+      const existingIds = new Set(modes.map((m) => m.id));
+      const newId = suggestDuplicateModeId(mode.id, existingIds);
+      const duplicate: Mode = {
+        ...mode,
+        id: newId,
+        name: `${mode.name}-Kopie`,
+      };
+      await projectConfigApi.saveMode(newId, duplicate);
+      const updated = await projectConfigApi.getModes();
+      setModes(updated);
+      onModesChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to duplicate mode');
+    } finally {
+      setDuplicatingModeId(null);
     }
   };
 
@@ -809,10 +842,26 @@ export function ProjectSettingsModal({
                           <span className="ps-list-item-name">{mode.name}</span>
                           <span className="ps-list-item-id">{mode.id}</span>
                           <button
+                            type="button"
+                            className="ps-list-item-duplicate"
+                            title="Mode duplizieren"
+                            onClick={e => {
+                              e.stopPropagation();
+                              void handleDuplicateMode(mode);
+                            }}
+                            disabled={duplicatingModeId === mode.id || deletingMode === mode.id}
+                          >
+                            {duplicatingModeId === mode.id
+                              ? <Loader size={12} className="ps-spinner" />
+                              : <Copy size={12} />
+                            }
+                          </button>
+                          <button
+                            type="button"
                             className="ps-list-item-delete"
                             title="Delete mode"
                             onClick={e => { e.stopPropagation(); handleDeleteMode(mode.id); }}
-                            disabled={deletingMode === mode.id}
+                            disabled={deletingMode === mode.id || duplicatingModeId === mode.id}
                           >
                             {deletingMode === mode.id
                               ? <Loader size={12} className="ps-spinner" />

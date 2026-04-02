@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2 } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -154,10 +154,12 @@ export function ChatPanel({
   fastAvailable = true,
   onRetry,
 }: ChatPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const prevLastVisibleRoleRef = useRef<'user' | 'assistant' | undefined>(undefined);
 
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [renamingTitle, setRenamingTitle] = useState(false);
@@ -222,6 +224,41 @@ export function ChatPanel({
     }
   }, [messages.length]);
 
+  useEffect(() => {
+    const panel = panelRef.current;
+    const syncFullscreen = () => {
+      const fs =
+        document.fullscreenElement ??
+        (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+        null;
+      setIsFullscreen(!!panel && fs === panel);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+    };
+  }, []);
+
+  const toggleChatFullscreen = useCallback(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    const fs =
+      document.fullscreenElement ??
+      (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+      null;
+    if (fs === el) {
+      const exit = document.exitFullscreen?.bind(document) ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen?.bind(document);
+      if (exit) void exit().catch(() => { /* user gesture / policy */ });
+      return;
+    }
+    const req =
+      el.requestFullscreen?.bind(el) ??
+      (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen?.bind(el);
+    if (req) void req().catch(() => { /* unsupported or denied */ });
+  }, []);
+
   const handleLoadEntries = useCallback(async (typeId: string) => {
     if (wikiEntriesByType[typeId]) return;
     try {
@@ -235,7 +272,7 @@ export function ChatPanel({
   const noteProposalMap = extractNoteProposals(messages);
 
   return (
-    <div className="chat-panel">
+    <div ref={panelRef} className="chat-panel">
       <div className="chat-header">
         <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
         <div className="chat-header-actions">
@@ -264,6 +301,15 @@ export function ChatPanel({
               <Wand2 size={14} />
             </button>
           )}
+          <button
+            type="button"
+            className={`chat-history-btn ${isFullscreen ? 'active' : ''}`}
+            onClick={() => toggleChatFullscreen()}
+            title={isFullscreen ? 'Vollbild verlassen (Esc)' : 'Chat im Vollbild'}
+            aria-pressed={isFullscreen}
+          >
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
           <button
             className={`chat-history-btn ${historyOpen ? 'active' : ''}`}
             onClick={() => setHistoryOpen((prev) => !prev)}
