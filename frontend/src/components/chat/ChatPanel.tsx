@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2 } from 'lucide-react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, Trash2 } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -31,6 +31,7 @@ interface ChatPanelProps {
   onRemoveFile: (path: string) => void;
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
+  onDeleteMessage: (index: number) => void;
   onNewChat: () => void;
   onDiscardCurrentChat: () => void;
   onSwitchChat: (id: string) => void;
@@ -128,6 +129,7 @@ export function ChatPanel({
   onRemoveFile,
   onForkFromMessage,
   onForkToNewConversation,
+  onDeleteMessage,
   onNewChat,
   onDiscardCurrentChat,
   onSwitchChat,
@@ -457,21 +459,32 @@ export function ChatPanel({
                     {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 )}
-                {visIdx > 0 && !streaming && (
+                {!streaming && (
                   <div className="chat-fork-actions">
+                    {visIdx > 0 && (
+                      <>
+                        <button
+                          className="chat-fork-btn"
+                          onClick={() => onForkFromMessage(originalIdx)}
+                          title="Hier abschneiden (in-place)"
+                        >
+                          <Scissors size={12} />
+                        </button>
+                        <button
+                          className="chat-fork-btn"
+                          onClick={() => onForkToNewConversation(originalIdx)}
+                          title="Als neuen Chat forken"
+                        >
+                          <GitFork size={12} />
+                        </button>
+                      </>
+                    )}
                     <button
-                      className="chat-fork-btn"
-                      onClick={() => onForkFromMessage(originalIdx)}
-                      title="Hier abschneiden (in-place)"
+                      className="chat-fork-btn chat-fork-btn--danger"
+                      onClick={() => onDeleteMessage(originalIdx)}
+                      title="Nachricht löschen"
                     >
-                      <Scissors size={12} />
-                    </button>
-                    <button
-                      className="chat-fork-btn"
-                      onClick={() => onForkToNewConversation(originalIdx)}
-                      title="Als neuen Chat forken"
-                    >
-                      <GitFork size={12} />
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 )}

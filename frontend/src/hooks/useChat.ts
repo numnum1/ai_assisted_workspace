@@ -238,6 +238,15 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     setError(null);
   }, []);
 
+  const deleteMessage = useCallback((originalIdx: number) => {
+    syncEnabledRef.current = true;
+    setMessages(prev => {
+      const next = prev.filter((_, i) => i !== originalIdx);
+      currentBaseRef.current = next;
+      return next;
+    });
+  }, []);
+
   return {
     messages,
     streaming,
@@ -248,6 +257,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     stopStreaming,
     retry,
     forkFromMessage,
+    deleteMessage,
     loadMessages,
   };
 }

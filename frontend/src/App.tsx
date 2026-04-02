@@ -882,6 +882,7 @@ function App() {
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
+            onDeleteMessage={chat.deleteMessage}
             onNewChat={handleNewChat}
             onDiscardCurrentChat={handleDiscardCurrentChat}
             onSwitchChat={handleSwitchChat}
