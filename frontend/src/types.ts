@@ -125,6 +125,20 @@ export interface ProjectConfig {
   workspaceMode?: string;
   /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
   quickChatLlmId?: string;
+  /** LLM id for glossary generation from chat; empty = first configured LLM (fast) */
+  glossaryLlmId?: string;
+}
+
+export interface GlossaryEntry {
+  id: string;
+  term: string;
+  definition: string;
+  createdAt: number;
+}
+
+export interface GlossaryGenerateResult {
+  term: string;
+  definition: string;
 }
 
 /** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */

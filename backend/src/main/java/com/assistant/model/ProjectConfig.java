@@ -14,6 +14,8 @@ public class ProjectConfig {
     private String workspaceMode = "default";
     /** Optional LLM id (from AppData providers) for the floating Quick Chat; empty = first available. */
     private String quickChatLlmId = "";
+    /** Optional LLM id for glossary entry generation from chat; empty = first available (fast). */
+    private String glossaryLlmId = "";
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -29,4 +31,6 @@ public class ProjectConfig {
     public void setWorkspaceMode(String workspaceMode) { this.workspaceMode = workspaceMode != null ? workspaceMode : "default"; }
     public String getQuickChatLlmId() { return quickChatLlmId; }
     public void setQuickChatLlmId(String quickChatLlmId) { this.quickChatLlmId = quickChatLlmId != null ? quickChatLlmId : ""; }
+    public String getGlossaryLlmId() { return glossaryLlmId; }
+    public void setGlossaryLlmId(String glossaryLlmId) { this.glossaryLlmId = glossaryLlmId != null ? glossaryLlmId : ""; }
 }

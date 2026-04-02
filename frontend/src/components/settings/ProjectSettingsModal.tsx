@@ -114,6 +114,7 @@ export function ProjectSettingsModal({
     defaultMode: '',
     workspaceMode: 'default',
     quickChatLlmId: '',
+    glossaryLlmId: '',
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -648,6 +649,23 @@ export function ProjectSettingsModal({
                   className="ps-input"
                   value={config.quickChatLlmId ?? ''}
                   onChange={(e) => setConfig((p) => ({ ...p, quickChatLlmId: e.target.value }))}
+                  disabled={loadingLlms || !(llmsState?.providers?.length)}
+                >
+                  <option value="">Standard (erstes LLM)</option>
+                  {(llmsState?.providers ?? []).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.fastModel})
+                    </option>
+                  ))}
+                </select>
+                <label className="ps-label" style={{ marginTop: '1rem' }}>LLM für Glossar (Generierung)</label>
+                <p className="ps-hint">
+                  Wird genutzt, wenn du im Chat Text markierst und einen Glossar-Eintrag per KI erzeugst. Leer = erstes konfiguriertes LLM (schneller Pfad, kein Reasoning).
+                </p>
+                <select
+                  className="ps-input"
+                  value={config.glossaryLlmId ?? ''}
+                  onChange={(e) => setConfig((p) => ({ ...p, glossaryLlmId: e.target.value }))}
                   disabled={loadingLlms || !(llmsState?.providers?.length)}
                 >
                   <option value="">Standard (erstes LLM)</option>

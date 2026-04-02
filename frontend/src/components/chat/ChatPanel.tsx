@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, BookMarked } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -9,6 +9,19 @@ import { NewChatDialog } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
 import { NoteCard } from './NoteCard.tsx';
 import { wikiApi } from '../../api.ts';
+import { GlossaryChatDialog } from './GlossaryChatDialog.tsx';
+
+function buildGlossaryChatContext(msgs: ChatMessage[]): string {
+  const visible = msgs.filter((m) => !m.hidden && (m.role === 'user' || m.role === 'assistant'));
+  const last = visible.slice(-40);
+  return last
+    .map((m) => {
+      const label = m.role === 'user' ? 'Nutzer' : 'Assistent';
+      const text = m.role === 'user' ? (m.resolvedContent ?? m.content) : m.content;
+      return `${label}: ${text}`;
+    })
+    .join('\n\n');
+}
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
@@ -162,6 +175,12 @@ export function ChatPanel({
   const [titleDraft, setTitleDraft] = useState('');
   const [dismissedNoteIds, setDismissedNoteIds] = useState<Set<string>>(new Set());
   const [wikiEntriesByType, setWikiEntriesByType] = useState<Record<string, WikiEntry[]>>({});
+  const [glossaryAnchor, setGlossaryAnchor] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [glossaryDialog, setGlossaryDialog] = useState<{ open: boolean; term: string; version: number }>({
+    open: false,
+    term: '',
+    version: 0,
+  });
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
@@ -231,6 +250,57 @@ export function ChatPanel({
   }, [wikiEntriesByType]);
 
   const noteProposalMap = extractNoteProposals(messages);
+
+  useEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const onScroll = () => setGlossaryAnchor(null);
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('.glossary-chat-selection-btn')) return;
+      if (t.closest('.chat-messages')) return;
+      setGlossaryAnchor(null);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, []);
+
+  const handleChatMessagesMouseUp = useCallback(() => {
+    const root = messagesScrollRef.current;
+    if (!root) return;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      setGlossaryAnchor(null);
+      return;
+    }
+    const anchorNode = sel.anchorNode;
+    const focusNode = sel.focusNode;
+    if (!anchorNode || !focusNode) {
+      setGlossaryAnchor(null);
+      return;
+    }
+    if (!root.contains(anchorNode) || !root.contains(focusNode)) {
+      setGlossaryAnchor(null);
+      return;
+    }
+    const text = sel.toString().trim();
+    if (!text || text.length > 500) {
+      setGlossaryAnchor(null);
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    setGlossaryAnchor({
+      text,
+      x: rect.left + rect.width / 2,
+      y: Math.min(rect.bottom + 6, window.innerHeight - 8),
+    });
+  }, []);
 
   return (
     <div className="chat-panel">
@@ -312,7 +382,7 @@ export function ChatPanel({
         />
       )}
 
-      <div className="chat-messages" ref={messagesScrollRef}>
+      <div className="chat-messages" ref={messagesScrollRef} onMouseUp={handleChatMessagesMouseUp}>
         {messages.filter((m) => !m.hidden).length === 0 && (
           <div className="chat-empty">
             <p>Start a conversation with your AI assistant.</p>
@@ -459,6 +529,35 @@ export function ChatPanel({
           </div>
         )}
       </div>
+
+      {glossaryAnchor && !streaming && (
+        <button
+          type="button"
+          className="glossary-chat-selection-btn"
+          style={{ left: glossaryAnchor.x, top: glossaryAnchor.y }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setGlossaryDialog((p) => ({
+              open: true,
+              term: glossaryAnchor.text,
+              version: p.version + 1,
+            }));
+            setGlossaryAnchor(null);
+            window.getSelection()?.removeAllRanges();
+          }}
+        >
+          <BookMarked size={12} />
+          Glossar
+        </button>
+      )}
+
+      <GlossaryChatDialog
+        open={glossaryDialog.open}
+        dialogVersion={glossaryDialog.version}
+        initialTerm={glossaryDialog.term}
+        chatContext={buildGlossaryChatContext(messages)}
+        onClose={() => setGlossaryDialog((p) => ({ ...p, open: false }))}
+      />
 
       <ChatInput
         onSend={onSend}

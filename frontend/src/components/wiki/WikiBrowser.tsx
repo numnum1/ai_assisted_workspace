@@ -1,15 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
-import { X, Folder, FileText, ChevronRight, StickyNote, Loader2, Trash2, Copy, Check } from 'lucide-react';
+import { X, Folder, FileText, ChevronRight, ChevronDown, StickyNote, Loader2, Trash2, Copy, Check, BookMarked } from 'lucide-react';
 import type { WikiState } from '../../hooks/useWiki.ts';
-import type { WikiEntry, WikiType, NoteProposal } from '../../types.ts';
-import { notesApi } from '../../api.ts';
+import type { WikiEntry, WikiType, NoteProposal, GlossaryEntry } from '../../types.ts';
+import { notesApi, glossaryApi } from '../../api.ts';
 
 interface WikiBrowserProps {
   wiki: WikiState;
   onClose: () => void;
 }
 
-type ActiveTab = 'wiki' | 'notes';
+type ActiveTab = 'wiki' | 'notes' | 'glossary';
 
 type ContextMenuTarget =
   | { kind: 'root-empty'; x: number; y: number }
@@ -24,6 +24,15 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
   const [notesLoading, setNotesLoading] = useState(false);
   const [openedNote, setOpenedNote] = useState<NoteProposal | null>(null);
   const [freeNoteCopied, setFreeNoteCopied] = useState(false);
+  const [glossaryEntries, setGlossaryEntries] = useState<GlossaryEntry[]>([]);
+  const [glossaryLoading, setGlossaryLoading] = useState(false);
+  const [glossaryExpanded, setGlossaryExpanded] = useState<Set<string>>(new Set());
+  const [glossaryEditingId, setGlossaryEditingId] = useState<string | null>(null);
+  const [glossaryEditTerm, setGlossaryEditTerm] = useState('');
+  const [glossaryEditDef, setGlossaryEditDef] = useState('');
+  const [glossaryManualOpen, setGlossaryManualOpen] = useState(false);
+  const [glossaryManualTerm, setGlossaryManualTerm] = useState('');
+  const [glossaryManualDef, setGlossaryManualDef] = useState('');
 
   useEffect(() => {
     setFreeNoteCopied(false);
@@ -43,11 +52,27 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
     }
   }, []);
 
+  const loadGlossary = useCallback(async () => {
+    setGlossaryLoading(true);
+    try {
+      const data = await glossaryApi.list();
+      setGlossaryEntries(data);
+    } finally {
+      setGlossaryLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'notes') {
       loadFreeNotes();
     }
   }, [activeTab, loadFreeNotes]);
+
+  useEffect(() => {
+    if (activeTab === 'glossary') {
+      void loadGlossary();
+    }
+  }, [activeTab, loadGlossary]);
 
   const handleDeleteFreeNote = useCallback(async (id: string) => {
     await notesApi.deleteFree(id);
@@ -114,10 +139,15 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
                 </>
               )}
             </div>
-          ) : (
+          ) : activeTab === 'notes' ? (
             <div className="wiki-browser-breadcrumb">
               <StickyNote size={13} className="wiki-browser-breadcrumb-sep" />
               <span className="wiki-browser-breadcrumb-item active">Notizen</span>
+            </div>
+          ) : (
+            <div className="wiki-browser-breadcrumb">
+              <BookMarked size={13} className="wiki-browser-breadcrumb-sep" />
+              <span className="wiki-browser-breadcrumb-item active">Glossar</span>
             </div>
           )}
           <button className="wiki-browser-close" onClick={onClose} title="Schließen">
@@ -138,6 +168,12 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
             onClick={() => setActiveTab('notes')}
           >
             Notizen
+          </button>
+          <button
+            className={`wiki-browser-tab${activeTab === 'glossary' ? ' wiki-browser-tab--active' : ''}`}
+            onClick={() => setActiveTab('glossary')}
+          >
+            Glossar
           </button>
         </div>
 
@@ -213,7 +249,7 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
               </>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'notes' ? (
           /* Notes tab */
           <div className="wiki-browser-content free-notes-content">
             {notesLoading ? (
@@ -237,6 +273,166 @@ export function WikiBrowser({ wiki, onClose }: WikiBrowserProps) {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        ) : (
+          /* Glossary tab */
+          <div className="wiki-browser-content glossary-browser-content">
+            <div className="glossary-browser-toolbar">
+              <button
+                type="button"
+                className="glossary-browser-add-btn"
+                onClick={() => {
+                  setGlossaryManualOpen((o) => !o);
+                  setGlossaryManualTerm('');
+                  setGlossaryManualDef('');
+                }}
+              >
+                {glossaryManualOpen ? 'Abbrechen' : 'Manuell hinzufügen'}
+              </button>
+            </div>
+            {glossaryManualOpen && (
+              <div className="glossary-acc-item" style={{ marginBottom: 8 }}>
+                <div className="glossary-acc-body">
+                  <div className="glossary-acc-edit-form">
+                    <input
+                      placeholder="Begriff"
+                      value={glossaryManualTerm}
+                      onChange={(e) => setGlossaryManualTerm(e.target.value)}
+                    />
+                    <textarea
+                      placeholder="Beschreibung"
+                      value={glossaryManualDef}
+                      onChange={(e) => setGlossaryManualDef(e.target.value)}
+                      rows={4}
+                    />
+                    <div className="glossary-acc-edit-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGlossaryManualOpen(false);
+                          setGlossaryManualTerm('');
+                          setGlossaryManualDef('');
+                        }}
+                      >
+                        Abbrechen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const t = glossaryManualTerm.trim();
+                          const d = glossaryManualDef.trim();
+                          if (!t || !d) return;
+                          await glossaryApi.create({ term: t, definition: d });
+                          setGlossaryManualOpen(false);
+                          setGlossaryManualTerm('');
+                          setGlossaryManualDef('');
+                          await loadGlossary();
+                        }}
+                      >
+                        Speichern
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {glossaryLoading ? (
+              <div className="wiki-browser-empty">
+                <Loader2 size={18} className="free-notes-spinner" />
+              </div>
+            ) : glossaryEntries.length === 0 ? (
+              <div className="wiki-browser-empty">Keine Glossar-Einträge</div>
+            ) : (
+              glossaryEntries.map((e) => {
+                const expanded = glossaryExpanded.has(e.id);
+                const editing = glossaryEditingId === e.id;
+                return (
+                  <div key={e.id} className="glossary-acc-item">
+                    <button
+                      type="button"
+                      className="glossary-acc-head"
+                      onClick={() => {
+                        setGlossaryExpanded((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(e.id)) next.delete(e.id);
+                          else next.add(e.id);
+                          return next;
+                        });
+                      }}
+                    >
+                      {expanded ? (
+                        <ChevronDown size={16} className="glossary-acc-chevron" />
+                      ) : (
+                        <ChevronRight size={16} className="glossary-acc-chevron" />
+                      )}
+                      <span className="glossary-acc-title">{e.term}</span>
+                    </button>
+                    {expanded && (
+                      <div className="glossary-acc-body">
+                        {editing ? (
+                          <div className="glossary-acc-edit-form">
+                            <input
+                              value={glossaryEditTerm}
+                              onChange={(ev) => setGlossaryEditTerm(ev.target.value)}
+                            />
+                            <textarea
+                              value={glossaryEditDef}
+                              onChange={(ev) => setGlossaryEditDef(ev.target.value)}
+                              rows={5}
+                            />
+                            <div className="glossary-acc-edit-actions">
+                              <button type="button" onClick={() => setGlossaryEditingId(null)}>
+                                Abbrechen
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await glossaryApi.update(e.id, {
+                                    term: glossaryEditTerm.trim(),
+                                    definition: glossaryEditDef.trim(),
+                                  });
+                                  setGlossaryEditingId(null);
+                                  await loadGlossary();
+                                }}
+                              >
+                                Speichern
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div>{e.definition}</div>
+                            <div className="glossary-acc-actions">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setGlossaryEditingId(e.id);
+                                  setGlossaryEditTerm(e.term);
+                                  setGlossaryEditDef(e.definition);
+                                }}
+                              >
+                                Bearbeiten
+                              </button>
+                              <button
+                                type="button"
+                                className="glossary-acc-delete"
+                                onClick={async () => {
+                                  if (!window.confirm(`Eintrag „${e.term}“ löschen?`)) return;
+                                  await glossaryApi.delete(e.id);
+                                  await loadGlossary();
+                                }}
+                              >
+                                Löschen
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         )}
