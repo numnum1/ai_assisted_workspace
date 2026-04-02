@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -31,6 +31,7 @@ interface ChatPanelProps {
   onRemoveFile: (path: string) => void;
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
+  onEditMessage: (index: number, newContent: string) => void;
   onNewChat: () => void;
   onDiscardCurrentChat: () => void;
   onSwitchChat: (id: string) => void;
@@ -56,6 +57,59 @@ interface ChatPanelProps {
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
 }
+
+interface MessageEditBoxProps {
+  initialContent: string;
+  onSave: (text: string) => void;
+  onCancel: () => void;
+}
+
+const MessageEditBox = memo(function MessageEditBox({ initialContent, onSave, onCancel }: MessageEditBoxProps) {
+  const [draft, setDraft] = useState(initialContent);
+
+  return (
+    <div className="chat-message-edit-wrap">
+      <textarea
+        className="chat-message-edit-textarea"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          e.target.style.height = 'auto';
+          e.target.style.height = `${e.target.scrollHeight}px`;
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+          else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSave(draft); }
+        }}
+        ref={(el) => {
+          if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+        }}
+        autoFocus
+      />
+      <div className="chat-edit-actions">
+        <button
+          type="button"
+          className="chat-edit-save-btn"
+          disabled={!draft.trim()}
+          onClick={() => onSave(draft)}
+          title="Speichern (Enter)"
+        >
+          <Check size={14} />
+          <span>Speichern</span>
+        </button>
+        <button
+          type="button"
+          className="chat-edit-cancel-btn"
+          onClick={onCancel}
+          title="Abbrechen (Esc)"
+        >
+          <X size={14} />
+          <span>Abbrechen</span>
+        </button>
+      </div>
+    </div>
+  );
+});
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
   if (!hexColor || !/^#[0-9A-Fa-f]{6}$/.test(hexColor)) return undefined;
@@ -127,6 +181,7 @@ export function ChatPanel({
   onRemoveFile,
   onForkFromMessage,
   onForkToNewConversation,
+  onEditMessage,
   onNewChat,
   onDiscardCurrentChat,
   onSwitchChat,
@@ -164,8 +219,21 @@ export function ChatPanel({
   const [titleDraft, setTitleDraft] = useState('');
   const [dismissedNoteIds, setDismissedNoteIds] = useState<Set<string>>(new Set());
   const [wikiEntriesByType, setWikiEntriesByType] = useState<Record<string, WikiEntry[]>>({});
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
+
+  const cancelEdit = useCallback(() => setEditingIdx(null), []);
+
+  const commitEdit = useCallback(
+    (originalIdx: number, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      onEditMessage(originalIdx, trimmed);
+      setEditingIdx(null);
+    },
+    [onEditMessage],
+  );
 
   const handleNewChatClick = () => {
     const hasMessages = messages.filter((m) => !m.hidden).length > 0;
@@ -191,6 +259,10 @@ export function ChatPanel({
 
   useEffect(() => {
     setRenamingTitle(false);
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    setEditingIdx(null);
   }, [activeConversationId]);
 
   useEffect(() => {
@@ -433,6 +505,12 @@ export function ChatPanel({
                       onSelectOption={onSend}
                       isAnswered={visIdx < visArr.length - 1 && visArr[visIdx + 1]?.msg.role === 'user'}
                     />
+                  ) : editingIdx === originalIdx ? (
+                    <MessageEditBox
+                      initialContent={msg.content}
+                      onSave={(text) => commitEdit(originalIdx, text)}
+                      onCancel={cancelEdit}
+                    />
                   ) : (
                     msg.content
                   )}
@@ -455,22 +533,38 @@ export function ChatPanel({
                     {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 )}
-                {visIdx > 0 && !streaming && (
+                {!streaming && (msg.role === 'user' || visIdx > 0) && editingIdx !== originalIdx && (
                   <div className="chat-fork-actions">
-                    <button
-                      className="chat-fork-btn"
-                      onClick={() => onForkFromMessage(originalIdx)}
-                      title="Hier abschneiden (in-place)"
-                    >
-                      <Scissors size={12} />
-                    </button>
-                    <button
-                      className="chat-fork-btn"
-                      onClick={() => onForkToNewConversation(originalIdx)}
-                      title="Als neuen Chat forken"
-                    >
-                      <GitFork size={12} />
-                    </button>
+                    {msg.role === 'user' && (
+                      <button
+                        type="button"
+                        className="chat-fork-btn chat-edit-btn"
+                        onClick={() => setEditingIdx(originalIdx)}
+                        title="Nachricht bearbeiten"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    )}
+                    {visIdx > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          className="chat-fork-btn"
+                          onClick={() => onForkFromMessage(originalIdx)}
+                          title="Hier abschneiden (in-place)"
+                        >
+                          <Scissors size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          className="chat-fork-btn"
+                          onClick={() => onForkToNewConversation(originalIdx)}
+                          title="Als neuen Chat forken"
+                        >
+                          <GitFork size={12} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

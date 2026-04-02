@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { ChatMessage, ContextInfo, SelectionContext } from '../types.ts';
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
 import { streamChat } from '../api.ts';
 
 /**
@@ -8,6 +9,17 @@ import { streamChat } from '../api.ts';
  * - Tool/hidden messages: passes through role, content, toolCalls, toolCallId
  * - Assistant messages: passes through role and content (and selectionContext stripped)
  */
+/** Params for API context when editing the last user message and re-streaming */
+export interface EditMessageSendParams {
+  activeFile: string | null;
+  mode: string;
+  referencedFiles: string[];
+  useReasoning?: boolean;
+  llmId?: string;
+  selectionContext?: SelectionContext;
+  activeFieldKey?: string | null;
+}
+
 function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
   return msgs.map((msg) => {
     if (msg.role === 'user') {
@@ -34,6 +46,73 @@ function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
     }
     return { role: msg.role, content: msg.content };
   });
+}
+
+type StreamCallbacks = {
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  setStreaming: (v: boolean) => void;
+  setError: (v: string | null) => void;
+  setToolActivity: (v: string | null) => void;
+  setContextInfo: Dispatch<SetStateAction<ContextInfo | null>>;
+  currentBaseRef: MutableRefObject<ChatMessage[]>;
+};
+
+function attachAssistantStream(
+  requestBase: ChatRequest,
+  selectionContext: SelectionContext | undefined,
+  cbs: StreamCallbacks,
+): AbortController {
+  let assistantContent = '';
+
+  return streamChat(
+    requestBase,
+    (token) => {
+      assistantContent += token;
+      cbs.setMessages([
+        ...cbs.currentBaseRef.current,
+        { role: 'assistant', content: assistantContent, selectionContext },
+      ]);
+      cbs.setToolActivity(null);
+    },
+    (info) => {
+      cbs.setContextInfo(info);
+    },
+    () => {
+      cbs.setStreaming(false);
+      cbs.setToolActivity(null);
+    },
+    (err) => {
+      cbs.setError(err.message);
+      cbs.setStreaming(false);
+      cbs.setToolActivity(null);
+    },
+    (description) => {
+      cbs.setToolActivity(description);
+    },
+    (updatedTokens) => {
+      cbs.setContextInfo((prev) =>
+        prev ? { ...prev, estimatedTokens: updatedTokens } : prev,
+      );
+    },
+    (toolMessages) => {
+      cbs.currentBaseRef.current = [
+        ...cbs.currentBaseRef.current,
+        ...toolMessages.map((m) => ({ ...m, hidden: true })),
+      ];
+      cbs.setMessages(cbs.currentBaseRef.current);
+    },
+    (resolved) => {
+      const base = [...cbs.currentBaseRef.current];
+      for (let i = base.length - 1; i >= 0; i--) {
+        if (base[i].role === 'user' && !base[i].hidden) {
+          base[i] = { ...base[i], resolvedContent: resolved };
+          break;
+        }
+      }
+      cbs.currentBaseRef.current = base;
+      cbs.setMessages(base);
+    },
+  );
 }
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
@@ -93,70 +172,27 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       setMessages(currentBaseRef.current);
       setStreaming(true);
 
-      let assistantContent = '';
+      const streamCbs: StreamCallbacks = {
+        setMessages,
+        setStreaming,
+        setError,
+        setToolActivity,
+        setContextInfo,
+        currentBaseRef,
+      };
 
-      const controller = streamChat(
-        {
-          message: text,
-          activeFile,
-          activeFieldKey: activeFieldKey ?? null,
-          mode,
-          referencedFiles,
-          history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
-          useReasoning: useReasoning ?? false,
-          llmId: llmId,
-        },
-        (token) => {
-          assistantContent += token;
-          setMessages([
-            ...currentBaseRef.current,
-            { role: 'assistant', content: assistantContent, selectionContext },
-          ]);
-          setToolActivity(null);
-        },
-        (info) => {
-          setContextInfo(info);
-        },
-        () => {
-          setStreaming(false);
-          setToolActivity(null);
-        },
-        (err) => {
-          setError(err.message);
-          setStreaming(false);
-          setToolActivity(null);
-        },
-        (description) => {
-          setToolActivity(description);
-        },
-        (updatedTokens) => {
-          setContextInfo(prev =>
-            prev ? { ...prev, estimatedTokens: updatedTokens } : prev
-          );
-        },
-        (toolMessages) => {
-          // Append hidden tool-chain messages into the base so subsequent turns include them
-          currentBaseRef.current = [
-            ...currentBaseRef.current,
-            ...toolMessages.map((m) => ({ ...m, hidden: true })),
-          ];
-          setMessages(currentBaseRef.current);
-        },
-        (resolved) => {
-          // Replace the user message's content with the expanded version (file contents included)
-          const base = [...currentBaseRef.current];
-          for (let i = base.length - 1; i >= 0; i--) {
-            if (base[i].role === 'user' && !base[i].hidden) {
-              base[i] = { ...base[i], resolvedContent: resolved };
-              break;
-            }
-          }
-          currentBaseRef.current = base;
-          setMessages(base);
-        },
-      );
+      const request: ChatRequest = {
+        message: text,
+        activeFile,
+        activeFieldKey: activeFieldKey ?? null,
+        mode,
+        referencedFiles,
+        history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
+        useReasoning: useReasoning ?? false,
+        llmId: llmId,
+      };
 
-      abortRef.current = controller;
+      abortRef.current = attachAssistantStream(request, selectionContext, streamCbs);
     },
     [messages],
   );
@@ -174,6 +210,70 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     setError(null);
   }, []);
 
+  const editMessage = useCallback(
+    (index: number, newContent: string, sendParams: EditMessageSendParams) => {
+      const trimmed = newContent.trim();
+      if (!trimmed) return;
+
+      const target = messages[index];
+      if (!target || target.role !== 'user' || target.hidden) return;
+
+      const hasLaterVisibleUser = messages
+        .slice(index + 1)
+        .some((m) => m.role === 'user' && !m.hidden);
+
+      if (hasLaterVisibleUser) {
+        syncEnabledRef.current = true;
+        setMessages((prev) =>
+          prev.map((m, i) =>
+            i === index ? { ...m, content: trimmed, resolvedContent: undefined } : m,
+          ),
+        );
+        return;
+      }
+
+      syncEnabledRef.current = true;
+      setError(null);
+      setToolActivity(null);
+      const userMsg: ChatMessage = {
+        role: 'user',
+        content: trimmed,
+        mode: target.mode,
+        modeColor: target.modeColor,
+      };
+      currentBaseRef.current = [...messages.slice(0, index), userMsg];
+      setMessages(currentBaseRef.current);
+      setStreaming(true);
+
+      const streamCbs: StreamCallbacks = {
+        setMessages,
+        setStreaming,
+        setError,
+        setToolActivity,
+        setContextInfo,
+        currentBaseRef,
+      };
+
+      const request: ChatRequest = {
+        message: trimmed,
+        activeFile: sendParams.activeFile,
+        activeFieldKey: sendParams.activeFieldKey ?? null,
+        mode: sendParams.mode,
+        referencedFiles: sendParams.referencedFiles,
+        history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
+        useReasoning: sendParams.useReasoning ?? false,
+        llmId: sendParams.llmId,
+      };
+
+      abortRef.current = attachAssistantStream(
+        request,
+        sendParams.selectionContext,
+        streamCbs,
+      );
+    },
+    [messages],
+  );
+
   return {
     messages,
     streaming,
@@ -183,6 +283,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     sendMessage,
     stopStreaming,
     forkFromMessage,
+    editMessage,
     loadMessages,
   };
 }

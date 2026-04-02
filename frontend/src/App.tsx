@@ -571,6 +571,36 @@ function App() {
     ],
   );
 
+  const handleEditMessage = useCallback(
+    (index: number, newContent: string) => {
+      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
+        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+        : (fileEditor.selectedPath ?? null);
+      chat.editMessage(index, newContent, {
+        activeFile,
+        mode: selectedMode,
+        referencedFiles: refs.referencedFiles,
+        useReasoning,
+        llmId: modeLlmId,
+        selectionContext: activeSelection ?? undefined,
+        activeFieldKey: focusedField?.fieldKey ?? null,
+      });
+      setActiveSelection(null);
+    },
+    [
+      chat,
+      selectedMode,
+      refs.referencedFiles,
+      useReasoning,
+      modeLlmId,
+      activeSelection,
+      selectedMeta,
+      chapter.structureRoot,
+      fileEditor.selectedPath,
+      focusedField,
+    ],
+  );
+
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
 
   const handlePromptPackGenerate = useCallback(
@@ -846,6 +876,7 @@ function App() {
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
+            onEditMessage={handleEditMessage}
             onNewChat={handleNewChat}
             onDiscardCurrentChat={handleDiscardCurrentChat}
             onSwitchChat={handleSwitchChat}
