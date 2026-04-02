@@ -299,6 +299,14 @@ public class ProjectConfigService {
         if (workspaceMode != null) {
             config.setWorkspaceMode(workspaceMode.toString());
         }
+        Object quickChatLlmId = data.get("quickChatLlmId");
+        if (quickChatLlmId != null) {
+            config.setQuickChatLlmId(quickChatLlmId.toString());
+        }
+        Object glossaryLlmId = data.get("glossaryLlmId");
+        if (glossaryLlmId != null) {
+            config.setGlossaryLlmId(glossaryLlmId.toString());
+        }
         return config;
     }
 
@@ -310,6 +318,8 @@ public class ProjectConfigService {
         data.put("globalRules", config.getGlobalRules() != null ? config.getGlobalRules() : List.of());
         data.put("defaultMode", config.getDefaultMode() != null ? config.getDefaultMode() : "");
         data.put("workspaceMode", config.getWorkspaceMode() != null ? config.getWorkspaceMode() : "default");
+        data.put("quickChatLlmId", config.getQuickChatLlmId() != null ? config.getQuickChatLlmId() : "");
+        data.put("glossaryLlmId", config.getGlossaryLlmId() != null ? config.getGlossaryLlmId() : "");
         return buildYaml().dump(data);
     }
 

@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation, GlossaryEntry, GlossaryGenerateResult } from './types.ts';
 
 const BASE = '/api';
 
@@ -314,6 +314,18 @@ export const notesApi = {
     get<NoteProposal[]>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`),
   deleteFromEntry: (typeId: string, entryId: string, id: string) =>
     del<{ status: string; id: string }>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}/${encodeURIComponent(id)}`),
+};
+
+export const glossaryApi = {
+  list: () => get<GlossaryEntry[]>('/glossary'),
+  create: (entry: Pick<GlossaryEntry, 'term' | 'definition'> & Partial<Pick<GlossaryEntry, 'id' | 'createdAt'>>) =>
+    post<GlossaryEntry>('/glossary', entry),
+  update: (id: string, entry: Pick<GlossaryEntry, 'term' | 'definition'>) =>
+    put<GlossaryEntry>(`/glossary/${encodeURIComponent(id)}`, entry),
+  delete: (id: string) =>
+    del<{ status: string; id: string }>(`/glossary/${encodeURIComponent(id)}`),
+  generate: (body: { term: string; chatContext?: string }) =>
+    post<GlossaryGenerateResult>('/glossary/generate', body),
 };
 
 export function streamChat(

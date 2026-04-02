@@ -206,6 +206,14 @@ public class AiApiClient {
         return result.content() != null ? result.content() : "";
     }
 
+    /**
+     * Non-streaming chat completion with optional LLM id (from providers list) and reasoning toggle.
+     */
+    public String chat(List<ChatMessage> messages, String llmId, boolean useReasoning) {
+        ChatCompletionResult result = chatWithTools(messages, null, llmId, useReasoning);
+        return result.content() != null ? result.content() : "";
+    }
+
     private static int countApproxCharsInMessages(List<ChatMessage> messages) {
         int n = 0;
         for (ChatMessage m : messages) {

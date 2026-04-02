@@ -23,17 +23,20 @@ public class ContextService {
     private final AppConfig appConfig;
     private final ProjectConfigService projectConfigService;
     private final ChapterService chapterService;
+    private final GlossaryService glossaryService;
 
     public ContextService(FileService fileService, ModeService modeService,
                           ReferenceResolver referenceResolver, AppConfig appConfig,
                           ProjectConfigService projectConfigService,
-                          ChapterService chapterService) {
+                          ChapterService chapterService,
+                          GlossaryService glossaryService) {
         this.fileService = fileService;
         this.modeService = modeService;
         this.referenceResolver = referenceResolver;
         this.appConfig = appConfig;
         this.projectConfigService = projectConfigService;
         this.chapterService = chapterService;
+        this.glossaryService = glossaryService;
     }
 
     public AssembledContext assemble(ChatRequest request) {
@@ -66,6 +69,17 @@ public class ContextService {
         // 2. Inject rules (global + per-mode) right after the mode system prompt
         appendRules(systemPrompt, mode);
         log.debug("System prompt after rules injection: {} chars", systemPrompt.length());
+
+        // 2a. Project glossary (definitions the user curated for consistent terminology)
+        try {
+            String glossaryBlock = glossaryService.buildContextBlock();
+            if (glossaryBlock != null && !glossaryBlock.isBlank()) {
+                systemPrompt.append(glossaryBlock).append("\n\n");
+                log.debug("System prompt after glossary: {} chars", systemPrompt.length());
+            }
+        } catch (IOException e) {
+            log.warn("Could not load project glossary", e);
+        }
 
         // 2b. Inject workspace mode system prompt addition
         if (projectConfigService.hasProjectConfig()) {
