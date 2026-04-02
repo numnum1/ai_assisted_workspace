@@ -5336,6 +5336,24 @@ body {
 .ps-list-item:hover .ps-list-item-delete { opacity: 1; }
 .ps-list-item-delete:hover { color: var(--red); }
 
+.ps-list-item-duplicate {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.ps-list-item:hover .ps-list-item-duplicate { opacity: 1; }
+.ps-list-item-duplicate:hover:not(:disabled) { color: var(--accent); }
+.ps-list-item-duplicate:disabled { cursor: default; opacity: 0.5; }
+
 /* AI provider rows (settings) */
 .ps-list-item.ps-ai-provider-row {
   cursor: default;
