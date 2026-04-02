@@ -387,6 +387,27 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     saveConversations(next, key);
   }, [hydrated]);
 
+  /**
+   * Merges an imported list of conversations into the current state.
+   * Conversations whose IDs already exist are skipped to avoid duplicates.
+   * Imported conversations are not auto-pinned to the project file.
+   */
+  const importConversations = useCallback(
+    (imported: Conversation[]) => {
+      if (!imported.length) return;
+      setConversations((prev) => {
+        const existingIds = new Set(prev.map((c) => c.id));
+        const incoming = imported
+          .filter((c) => !existingIds.has(c.id))
+          .map((c) => ({ ...c, savedToProject: false as const }));
+        if (!incoming.length) return prev;
+        const merged = [...incoming, ...prev].slice(0, MAX_CONVERSATIONS);
+        return merged;
+      });
+    },
+    [],
+  );
+
   return {
     conversations,
     activeConversation,
@@ -400,5 +421,6 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     renameConversation,
     toggleSavedToProject,
     clearAllBrowserChats,
+    importConversations,
   };
 }

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
@@ -338,6 +338,33 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [wikiOpen, setWikiOpen] = useState(false);
   const [promptPackOpen, setPromptPackOpen] = useState(false);
+
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportChatFile = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = '';
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const text = evt.target?.result;
+          if (typeof text !== 'string') return;
+          const parsed = JSON.parse(text);
+          if (!Array.isArray(parsed)) {
+            window.alert('Invalid chat history file: expected a JSON array of conversations.');
+            return;
+          }
+          history.importConversations(parsed);
+        } catch {
+          window.alert('Failed to parse chat history file. Make sure it is a valid JSON file.');
+        }
+      };
+      reader.readAsText(file);
+    },
+    [history],
+  );
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
@@ -465,6 +492,14 @@ function App() {
       label: 'Project Settings',
       icon: <Settings size={16} />,
       handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
+    },
+    {
+      id: 'import-chat',
+      label: 'Import Chat History',
+      icon: <Upload size={16} />,
+      handler: () => {
+        importFileInputRef.current?.click();
+      },
     },
     hasUncommitted
       ? {
@@ -965,6 +1000,14 @@ function App() {
         onClose={() => setQuickChatOpen(false)}
         llms={llms}
         webSearchAvailable={webSearchAvailable}
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".json,application/json"
+        style={{ display: 'none' }}
+        onChange={handleImportChatFile}
       />
     </div>
   );
