@@ -5,17 +5,25 @@ import com.assistant.model.AssembledContext;
 import com.assistant.model.ChatMessage;
 import com.assistant.model.ChatRequest;
 import com.assistant.model.Mode;
+import com.assistant.model.WikiEntry;
+import com.assistant.model.WikiType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ContextService {
 
     private static final Logger log = LoggerFactory.getLogger(ContextService.class);
+
+    private static final Pattern WIKI_ENTRY_PATH = Pattern.compile(
+            "^\\.wiki/entries/([^/]+)/(.+)\\.json$"
+    );
 
     private final FileService fileService;
     private final ModeService modeService;
@@ -23,17 +31,20 @@ public class ContextService {
     private final AppConfig appConfig;
     private final ProjectConfigService projectConfigService;
     private final ChapterService chapterService;
+    private final WikiService wikiService;
 
     public ContextService(FileService fileService, ModeService modeService,
                           ReferenceResolver referenceResolver, AppConfig appConfig,
                           ProjectConfigService projectConfigService,
-                          ChapterService chapterService) {
+                          ChapterService chapterService,
+                          WikiService wikiService) {
         this.fileService = fileService;
         this.modeService = modeService;
         this.referenceResolver = referenceResolver;
         this.appConfig = appConfig;
         this.projectConfigService = projectConfigService;
         this.chapterService = chapterService;
+        this.wikiService = wikiService;
     }
 
     public AssembledContext assemble(ChatRequest request) {
@@ -279,7 +290,8 @@ public class ContextService {
         for (Map.Entry<String, String> entry : resolved.fileContents().entrySet()) {
             if (!includedFiles.contains(entry.getKey())) {
                 userMessage.append("=== Referenced: ").append(entry.getKey()).append(" ===\n");
-                userMessage.append(entry.getValue()).append("\n\n");
+                String content = formatWikiEntryIfApplicable(entry.getKey(), entry.getValue());
+                userMessage.append(content).append("\n\n");
                 includedFiles.add(entry.getKey());
             }
         }
@@ -431,5 +443,28 @@ public class ContextService {
                 .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)
                 .sum();
         return totalChars / 4;
+    }
+
+    /**
+     * If the given file path is a wiki entry (.wiki/entries/{typeId}/{entryId}.json),
+     * returns a formatted representation with blank fields omitted.
+     * Falls back to the original raw content on any error.
+     */
+    private String formatWikiEntryIfApplicable(String filePath, String rawContent) {
+        Matcher m = WIKI_ENTRY_PATH.matcher(filePath);
+        if (!m.matches()) {
+            return rawContent;
+        }
+        String typeId = m.group(1);
+        String entryId = m.group(2);
+        try {
+            WikiType type = wikiService.getType(typeId);
+            WikiEntry entry = wikiService.getEntry(typeId, entryId);
+            log.trace("Formatting wiki entry for AI: {}/{}", typeId, entryId);
+            return wikiService.formatEntryForAi(entry, type);
+        } catch (Exception e) {
+            log.warn("Could not format wiki entry {}/{} for AI, using raw content: {}", typeId, entryId, e.getMessage());
+            return rawContent;
+        }
     }
 }

@@ -224,6 +224,47 @@ public class WikiService {
         }
     }
 
+    // ─── AI formatting ────────────────────────────────────────────────────────
+
+    /**
+     * Formats a wiki entry for inclusion in an AI prompt, omitting fields with blank values.
+     */
+    public String formatEntryForAi(WikiEntry entry, WikiType type) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Wiki Entry: ").append(entry.getTypeId()).append("/").append(entry.getId())
+          .append(" [").append(type.getName()).append("]\n\n");
+
+        Map<String, String> values = entry.getValues();
+        if (values == null || values.isEmpty()) {
+            sb.append("(no field values)");
+            return sb.toString();
+        }
+
+        List<WikiFieldDef> fields = type.getFields();
+        if (fields != null) {
+            for (WikiFieldDef field : fields) {
+                String value = values.get(field.getKey());
+                if (value != null && !value.isBlank()) {
+                    sb.append(field.getLabel()).append(": ").append(value).append("\n");
+                }
+            }
+            for (Map.Entry<String, String> kv : values.entrySet()) {
+                boolean inSchema = fields.stream().anyMatch(f -> f.getKey().equals(kv.getKey()));
+                if (!inSchema && kv.getValue() != null && !kv.getValue().isBlank()) {
+                    sb.append(kv.getKey()).append(": ").append(kv.getValue()).append("\n");
+                }
+            }
+        } else {
+            for (Map.Entry<String, String> kv : values.entrySet()) {
+                if (kv.getValue() != null && !kv.getValue().isBlank()) {
+                    sb.append(kv.getKey()).append(": ").append(kv.getValue()).append("\n");
+                }
+            }
+        }
+
+        return sb.toString().stripTrailing();
+    }
+
     // ─── Helper ───────────────────────────────────────────────────────────────
 
     private void deleteRecursively(Path path) throws IOException {
