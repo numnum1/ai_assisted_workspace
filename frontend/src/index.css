@@ -1805,6 +1805,9 @@ body {
   max-height: 100%;
   border-left: none;
   box-sizing: border-box;
+  padding-left: 20%;
+  padding-right: 20%;
+  padding-bottom: 10vh;
 }
 
 .chat-header {
@@ -2000,6 +2003,24 @@ body {
 }
 
 .chat-message.error {
+  background: var(--red);
+  color: var(--bg-tertiary);
+}
+
+.chat-retry-btn {
+  margin-top: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-tertiary);
+  color: var(--red);
+  border: 1px solid var(--red);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-retry-btn:hover {
   background: var(--red);
   color: var(--bg-tertiary);
 }
@@ -2579,6 +2600,12 @@ body {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--text-primary);
+}
+
+.chat-fork-btn--danger:hover {
+  background: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.3);
 }
 
 .copy-msg-btn {
@@ -3490,6 +3517,13 @@ body {
   max-height: 200px;
 }
 
+/* Taller default input when chat panel is fullscreen (~12 lines; keep in sync with ChatInput resize math) */
+.chat-panel:fullscreen .chat-textarea,
+.chat-panel:-webkit-full-screen .chat-textarea {
+  min-height: calc(16px + 12 * 1.4em);
+  max-height: min(50vh, 480px);
+}
+
 .chat-textarea:focus {
   border-color: var(--accent);
 }
@@ -3528,6 +3562,136 @@ body {
 
 .chat-send-btn.stop {
   background: var(--red);
+}
+
+/* Expand button (opens large prompt modal) */
+.chat-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.chat-expand-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.chat-expand-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Expand modal overlay */
+.chat-expand-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.chat-expand-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  width: min(60vw, 100%);
+  height: min(1080px, calc(100vh - 48px));
+  max-height: min(1080px, calc(100vh - 48px));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.chat-expand-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chat-expand-modal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.chat-expand-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-expand-modal-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.chat-expand-selection-chip {
+  margin: 10px 14px 0;
+}
+
+.chat-expand-files {
+  padding: 8px 14px 0;
+}
+
+.chat-expand-textarea {
+  flex: 1;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  resize: none;
+  outline: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chat-expand-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.chat-expand-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chat-expand-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .chat-reasoning-btn {
@@ -3736,6 +3900,27 @@ body {
 .quick-chat-error {
   font-size: 12px;
   color: var(--red);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-chat-retry-btn {
+  align-self: flex-start;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.quick-chat-retry-btn:hover {
+  background: var(--red);
+  color: var(--bg-tertiary);
 }
 
 .quick-chat-input-row {

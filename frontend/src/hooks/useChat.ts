@@ -122,6 +122,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
   const [error, setError] = useState<string | null>(null);
   const [toolActivity, setToolActivity] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastStreamCallRef = useRef<{ chatRequest: ChatRequest; selectionContext?: SelectionContext } | null>(null);
   const onMessagesChangeRef = useRef(onMessagesChange);
   onMessagesChangeRef.current = onMessagesChange;
 
@@ -191,6 +192,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         useReasoning: useReasoning ?? false,
         llmId: llmId,
       };
+      lastStreamCallRef.current = { chatRequest: request, selectionContext };
 
       abortRef.current = attachAssistantStream(request, selectionContext, streamCbs);
     },
@@ -201,6 +203,66 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     abortRef.current?.abort();
     setStreaming(false);
     setToolActivity(null);
+  }, []);
+
+  const retry = useCallback(() => {
+    const last = lastStreamCallRef.current;
+    if (!last) return;
+    setError(null);
+    setStreaming(true);
+    setToolActivity(null);
+    let assistantContent = '';
+    const { chatRequest, selectionContext } = last;
+    const controller = streamChat(
+      chatRequest,
+      (token) => {
+        assistantContent += token;
+        setMessages([
+          ...currentBaseRef.current,
+          { role: 'assistant', content: assistantContent, selectionContext },
+        ]);
+        setToolActivity(null);
+      },
+      (info) => {
+        setContextInfo(info);
+      },
+      () => {
+        setStreaming(false);
+        setToolActivity(null);
+      },
+      (err) => {
+        setError(err.message);
+        setStreaming(false);
+        setToolActivity(null);
+      },
+      (description) => {
+        setToolActivity(description);
+      },
+      (updatedTokens) => {
+        setContextInfo(prev =>
+          prev ? { ...prev, estimatedTokens: updatedTokens } : prev
+        );
+      },
+      (toolMessages) => {
+        currentBaseRef.current = [
+          ...currentBaseRef.current,
+          ...toolMessages.map((m) => ({ ...m, hidden: true })),
+        ];
+        setMessages(currentBaseRef.current);
+      },
+      (resolved) => {
+        const base = [...currentBaseRef.current];
+        for (let i = base.length - 1; i >= 0; i--) {
+          if (base[i].role === 'user' && !base[i].hidden) {
+            base[i] = { ...base[i], resolvedContent: resolved };
+            break;
+          }
+        }
+        currentBaseRef.current = base;
+        setMessages(base);
+      },
+    );
+    abortRef.current = controller;
   }, []);
 
   const forkFromMessage = useCallback((upToIndex: number) => {
@@ -274,6 +336,15 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     [messages],
   );
 
+  const deleteMessage = useCallback((originalIdx: number) => {
+    syncEnabledRef.current = true;
+    setMessages(prev => {
+      const next = prev.filter((_, i) => i !== originalIdx);
+      currentBaseRef.current = next;
+      return next;
+    });
+  }, []);
+
   return {
     messages,
     streaming,
@@ -282,8 +353,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     toolActivity,
     sendMessage,
     stopStreaming,
+    retry,
     forkFromMessage,
     editMessage,
+    deleteMessage,
     loadMessages,
   };
 }

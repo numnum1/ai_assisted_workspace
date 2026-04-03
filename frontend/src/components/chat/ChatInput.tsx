@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X, Maximize2 } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
 import { shadowApi, filesApi } from '../../api.ts';
 import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../../types.ts';
@@ -18,6 +19,15 @@ function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem
   return items.filter(item =>
     item.title.toLowerCase().includes(q) || item.path.toLowerCase().includes(q)
   ).slice(0, limit);
+}
+
+/** ~12 lines at 13px / 1.4 line-height + vertical padding; must match fullscreen .chat-textarea min-height */
+const CHAT_TEXTAREA_FULLSCREEN_MIN_PX = Math.round(16 + 12 * 1.4 * 13);
+
+function chatTextareaMaxHeightPx(fullscreen: boolean): number {
+  if (!fullscreen) return 200;
+  if (typeof window === 'undefined') return 480;
+  return Math.min(Math.round(window.innerHeight * 0.5), 480);
 }
 
 function flattenFileTree(node: FileNode): AutocompleteItem[] {
@@ -60,6 +70,8 @@ interface ChatInputProps {
   onDismissSelection?: () => void;
   /** Ref that, when set, allows App to focus the textarea (e.g. on Ctrl+L) */
   focusTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  /** Wider, taller input area (e.g. chat fullscreen) */
+  fullscreen?: boolean;
 }
 
 export function ChatInput({
@@ -79,8 +91,10 @@ export function ChatInput({
   activeSelection = null,
   onDismissSelection,
   focusTriggerRef,
+  fullscreen = false,
 }: ChatInputProps) {
   const [text, setText] = useState('');
+  const [expandOpen, setExpandOpen] = useState(false);
   const [ac, setAc] = useState<{
     query: string;
     atIndex: number;
@@ -89,6 +103,7 @@ export function ChatInput({
   } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const expandTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const itemsCacheRef = useRef<AutocompleteItem[] | null>(null);
   const loadingRef = useRef(false);
@@ -99,6 +114,24 @@ export function ChatInput({
     focusTriggerRef.current = () => textareaRef.current?.focus();
     return () => { if (focusTriggerRef) focusTriggerRef.current = null; };
   }, [focusTriggerRef]);
+
+  const syncTextareaHeight = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
+    const maxH = chatTextareaMaxHeightPx(fullscreen);
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
+  }, [fullscreen]);
+
+  useEffect(() => {
+    syncTextareaHeight();
+  }, [fullscreen, syncTextareaHeight]);
+
+  useEffect(() => {
+    if (text !== '') return;
+    syncTextareaHeight();
+  }, [text, syncTextareaHeight]);
 
   // Close on outside click
   useEffect(() => {
@@ -126,6 +159,23 @@ export function ChatInput({
       els[idx].scrollIntoView({ block: 'nearest' });
     }
   }, [ac?.selectedIdx]);
+
+  // Focus expand textarea when modal opens
+  useEffect(() => {
+    if (expandOpen) {
+      requestAnimationFrame(() => expandTextareaRef.current?.focus());
+    }
+  }, [expandOpen]);
+
+  // Close expand modal on Escape
+  useEffect(() => {
+    if (!expandOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpandOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [expandOpen]);
 
   // Invalidate cache when structure root changes (different subproject)
   useEffect(() => {
@@ -225,9 +275,7 @@ export function ChatInput({
     onSend(finalMessage);
     setText('');
     setAc(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    setExpandOpen(false);
   }, [text, streaming, onSend, activeSelection]);
 
   const selectItem = useCallback(
@@ -245,9 +293,10 @@ export function ChatInput({
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(newCursor, newCursor);
+        syncTextareaHeight();
       });
     },
-    [ac, text]
+    [ac, text, syncTextareaHeight]
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -258,7 +307,9 @@ export function ChatInput({
     // Auto-resize
     const ta = e.target;
     ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
+    const maxH = chatTextareaMaxHeightPx(fullscreen);
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
 
     // Detect @ pattern — stop at whitespace; ignore already-inserted paths (contain / or start with .)
     const textBefore = newText.slice(0, cursor);
@@ -296,6 +347,10 @@ export function ChatInput({
     } else {
       setAc(null);
     }
+  };
+
+  const handleExpandChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -425,8 +480,17 @@ export function ChatInput({
                 'Nachricht...')
           }
           disabled={streaming}
-          rows={1}
+          rows={fullscreen ? 12 : 1}
         />
+        <button
+          type="button"
+          className="chat-expand-btn"
+          onClick={() => setExpandOpen(true)}
+          title="Prompt-Fenster öffnen (großes Eingabefeld)"
+          disabled={streaming}
+        >
+          <Maximize2 size={14} />
+        </button>
         {onToggleReasoning && reasoningAvailable && fastAvailable && (
           <button
             type="button"
@@ -453,6 +517,88 @@ export function ChatInput({
           </button>
         )}
       </div>
+
+      {expandOpen && createPortal(
+        <div className="chat-expand-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setExpandOpen(false); }}>
+          <div className="chat-expand-modal">
+            <div className="chat-expand-modal-header">
+              <span className="chat-expand-modal-title">Prompt bearbeiten</span>
+              <button
+                type="button"
+                className="chat-expand-modal-close"
+                onClick={() => setExpandOpen(false)}
+                title="Schließen (Esc)"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {activeSelection && (
+              <div className="chat-selection-chip chat-expand-selection-chip">
+                <span className="chat-selection-chip-text">
+                  &ldquo;{activeSelection.text.length > 120 ? activeSelection.text.slice(0, 120) + '…' : activeSelection.text}&rdquo;
+                </span>
+                <button
+                  type="button"
+                  className="chat-selection-chip-dismiss"
+                  onClick={onDismissSelection}
+                  title="Auswahl entfernen"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+
+            {!hideFileChips && referencedFiles.length > 0 && (
+              <div className="chat-input-files chat-expand-files">
+                {referencedFiles.map(f => (
+                  <FileChip key={f} path={f} onRemove={onRemoveFile} />
+                ))}
+              </div>
+            )}
+
+            <textarea
+              ref={expandTextareaRef}
+              className="chat-expand-textarea"
+              value={text}
+              onChange={handleExpandChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={placeholderProp ?? 'Nachricht...'}
+            />
+
+            <div className="chat-expand-modal-footer">
+              <span className="chat-expand-hint">Strg+Enter zum Senden · Esc zum Schließen</span>
+              <div className="chat-expand-footer-actions">
+                {onToggleReasoning && reasoningAvailable && fastAvailable && (
+                  <button
+                    type="button"
+                    className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+                    onClick={onToggleReasoning}
+                    title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+                  >
+                    <Zap size={15} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="chat-send-btn"
+                  onClick={handleSend}
+                  disabled={!text.trim()}
+                  title="Senden (Strg+Enter)"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { ChatMessage } from '../types.ts';
+import type { ChatMessage, ChatRequest } from '../types.ts';
 import { streamChat } from '../api.ts';
 
 export const QUICK_CHAT_STORAGE_KEY = 'markdown-project-quick-chat-v1';
@@ -73,6 +73,7 @@ export function useQuickChat() {
   const [toolActivity, setToolActivity] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const currentBaseRef = useRef<ChatMessage[]>([]);
+  const lastChatRequestRef = useRef<ChatRequest | null>(null);
   const llmIdRef = useRef<string | undefined>(undefined);
 
   const setLlmId = useCallback((id: string | undefined) => {
@@ -89,18 +90,21 @@ export function useQuickChat() {
 
     let assistantContent = '';
 
+    const chatRequest: ChatRequest = {
+      message: text,
+      activeFile: null,
+      activeFieldKey: null,
+      mode: 'review',
+      referencedFiles: [],
+      history: buildQuickHistoryPayload(currentBaseRef.current.slice(0, -1)),
+      useReasoning: false,
+      quickChat: true,
+      llmId: llmIdRef.current,
+    };
+    lastChatRequestRef.current = chatRequest;
+
     const controller = streamChat(
-      {
-        message: text,
-        activeFile: null,
-        activeFieldKey: null,
-        mode: 'review',
-        referencedFiles: [],
-        history: buildQuickHistoryPayload(currentBaseRef.current.slice(0, -1)),
-        useReasoning: false,
-        quickChat: true,
-        llmId: llmIdRef.current,
-      },
+      chatRequest,
       (token) => {
         assistantContent += token;
         setMessages([...currentBaseRef.current, { role: 'assistant', content: assistantContent }]);
@@ -153,6 +157,56 @@ export function useQuickChat() {
     setToolActivity(null);
   }, []);
 
+  const retry = useCallback(() => {
+    const chatRequest = lastChatRequestRef.current;
+    if (!chatRequest) return;
+    setError(null);
+    setStreaming(true);
+    setToolActivity(null);
+    let assistantContent = '';
+    const controller = streamChat(
+      chatRequest,
+      (token) => {
+        assistantContent += token;
+        setMessages([...currentBaseRef.current, { role: 'assistant', content: assistantContent }]);
+        setToolActivity(null);
+      },
+      () => { /* Quick Chat ignores context bar */ },
+      () => {
+        setStreaming(false);
+        setToolActivity(null);
+      },
+      (err) => {
+        setError(err.message);
+        setStreaming(false);
+        setToolActivity(null);
+      },
+      (description) => {
+        setToolActivity(description);
+      },
+      () => { /* token estimate not shown in quick UI */ },
+      (toolMessages) => {
+        currentBaseRef.current = [
+          ...currentBaseRef.current,
+          ...toolMessages.map((m) => ({ ...m, hidden: true })),
+        ];
+        setMessages(currentBaseRef.current);
+      },
+      (resolved) => {
+        const base = [...currentBaseRef.current];
+        for (let i = base.length - 1; i >= 0; i--) {
+          if (base[i].role === 'user' && !base[i].hidden) {
+            base[i] = { ...base[i], resolvedContent: resolved };
+            break;
+          }
+        }
+        currentBaseRef.current = base;
+        setMessages(base);
+      },
+    );
+    abortRef.current = controller;
+  }, []);
+
   const clearMessages = useCallback(() => {
     currentBaseRef.current = [];
     setMessages([]);
@@ -167,6 +221,7 @@ export function useQuickChat() {
     toolActivity,
     sendMessage,
     stopStreaming,
+    retry,
     clearMessages,
     setLlmId,
   };

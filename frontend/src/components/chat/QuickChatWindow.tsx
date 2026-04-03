@@ -24,6 +24,7 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable }: Qui
     toolActivity,
     sendMessage,
     stopStreaming,
+    retry,
     clearMessages,
     setLlmId,
   } = useQuickChat();
@@ -192,7 +193,18 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable }: Qui
         {toolActivity && streaming && (
           <div className="quick-chat-tool">{toolActivity}</div>
         )}
-        {error && <div className="quick-chat-error">{error}</div>}
+        {error && (
+          <div className="quick-chat-error">
+            {error === 'MODEL_EMPTY_RESPONSE'
+              ? 'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+              : error}
+            {error === 'MODEL_EMPTY_RESPONSE' && (
+              <button className="quick-chat-retry-btn" onClick={retry}>
+                Erneut versuchen
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="quick-chat-input-row">

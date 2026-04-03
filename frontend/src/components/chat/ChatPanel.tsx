@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X } from 'lucide-react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 'react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2 } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -35,6 +35,7 @@ interface ChatPanelProps {
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onEditMessage: (index: number, newContent: string) => void;
+  onDeleteMessage: (index: number) => void;
   onNewChat: () => void;
   onDiscardCurrentChat: () => void;
   onSwitchChat: (id: string) => void;
@@ -59,6 +60,7 @@ interface ChatPanelProps {
   onLlmChange?: (id: string | undefined) => void;
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
+  onRetry?: () => void;
 }
 
 interface MessageEditBoxProps {
@@ -185,6 +187,7 @@ export function ChatPanel({
   onForkFromMessage,
   onForkToNewConversation,
   onEditMessage,
+  onDeleteMessage,
   onNewChat,
   onDiscardCurrentChat,
   onSwitchChat,
@@ -209,6 +212,7 @@ export function ChatPanel({
   onLlmChange,
   reasoningAvailable = true,
   fastAvailable = true,
+  onRetry,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -270,6 +274,14 @@ export function ChatPanel({
   useEffect(() => {
     setEditingIdx(null);
   }, [activeConversationId]);
+
+  // After load / conversation switch: show the latest messages.
+  useLayoutEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const scrollToEnd = () => { el.scrollTop = el.scrollHeight; };
+    requestAnimationFrame(() => { requestAnimationFrame(scrollToEnd); });
+  }, [activeConversationId, messages.length]);
 
   useEffect(() => {
     prevLastVisibleRoleRef.current = undefined;
@@ -613,6 +625,14 @@ export function ChatPanel({
                         </button>
                       </>
                     )}
+                    <button
+                      type="button"
+                      className="chat-fork-btn chat-fork-btn--danger"
+                      onClick={() => onDeleteMessage(originalIdx)}
+                      title="Nachricht löschen"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                 )}
               </div>
@@ -643,7 +663,16 @@ export function ChatPanel({
         )}
         {error && (
           <div className="chat-message error">
-            <div className="chat-message-content">Error: {error}</div>
+            <div className="chat-message-content">
+              {error === 'MODEL_EMPTY_RESPONSE'
+                ? 'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+                : `Error: ${error}`}
+            </div>
+            {error === 'MODEL_EMPTY_RESPONSE' && onRetry && (
+              <button className="chat-retry-btn" onClick={onRetry}>
+                Erneut versuchen
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -655,6 +684,7 @@ export function ChatPanel({
         referencedFiles={referencedFiles}
         onAddFile={onAddFile}
         onRemoveFile={onRemoveFile}
+        fullscreen={isFullscreen}
         structureRoot={structureRoot}
         useReasoning={useReasoning && reasoningAvailable}
         onToggleReasoning={onToggleReasoning}
