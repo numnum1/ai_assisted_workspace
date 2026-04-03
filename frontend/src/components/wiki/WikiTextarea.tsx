@@ -107,11 +107,15 @@ export function WikiTextarea({
     }
   }, [editing, textareaRef, customHeight]);
 
-  const handleResizeEnd = useCallback(() => {
-    if (textareaRef.current) {
-      setCustomHeight(textareaRef.current.offsetHeight);
-    }
-  }, [textareaRef]);
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!editing || !ta) return;
+    const observer = new ResizeObserver(() => {
+      setCustomHeight(ta.offsetHeight);
+    });
+    observer.observe(ta);
+    return () => observer.disconnect();
+  }, [editing, textareaRef]);
 
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState<number>(0);
@@ -293,7 +297,6 @@ export function WikiTextarea({
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           onBlur={() => { onCommit?.(); setEditing(false); }}
-          onMouseUp={handleResizeEnd}
           placeholder={placeholder}
           rows={rows}
           autoFocus={autoFocus}

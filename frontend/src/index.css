@@ -6115,7 +6115,7 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
-  width: 840px;
+  width: 1100px;
   max-width: 92vw;
   max-height: 80vh;
   overflow-y: auto;

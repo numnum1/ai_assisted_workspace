@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { StickyNote, Trash2, Copy, Check } from 'lucide-react';
 import type { EditingWikiEntry } from '../../hooks/useWiki.ts';
 import type { MetaTypeSchema } from '../../meta/metaSchema.ts';
@@ -78,9 +78,15 @@ export function WikiEntryPopup({ editing, onSave, onClose }: WikiEntryPopupProps
   const schema = wikiTypeToSchema(editing);
   const entryName = editing.entry.values['name'] || editing.entry.values['title'] || editing.entry.id;
 
+  const mouseDownOnOverlay = useRef(false);
+
   return (
-    <div className="wiki-entry-popup-overlay" onClick={onClose}>
-      <div className="wiki-entry-popup" onClick={e => e.stopPropagation()}>
+    <div
+      className="wiki-entry-popup-overlay"
+      onMouseDown={(e) => { mouseDownOnOverlay.current = e.target === e.currentTarget; }}
+      onMouseUp={(e) => { if (mouseDownOnOverlay.current && e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="wiki-entry-popup" onMouseDown={e => e.stopPropagation()}>
         <div className="wiki-entry-popup-type-label">{editing.type.name}</div>
         <AssetPanel
           schema={schema}
