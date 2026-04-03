@@ -12,6 +12,9 @@ import { wikiApi } from '../../api.ts';
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
+/** Assistant reply length (chars) below which we keep following the stream with auto-scroll. */
+const AUTOSCROLL_CHAR_LIMIT = 1500;
+
 interface ChatPanelProps {
   messages: ChatMessage[];
   streaming: boolean;
@@ -210,6 +213,9 @@ export function ChatPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const prevLastVisibleRoleRef = useRef<'user' | 'assistant' | undefined>(undefined);
+  const prevStreamingRef = useRef(false);
+  /** When false, stop auto-scrolling for the current stream (user scrolled up or reply grew too large). */
+  const autoScrollActiveRef = useRef(true);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -267,9 +273,18 @@ export function ChatPanel({
 
   useEffect(() => {
     prevLastVisibleRoleRef.current = undefined;
+    autoScrollActiveRef.current = true;
   }, [activeConversationId]);
 
-  // Once per sent user message: scroll to bottom (not on every streaming token).
+  // Re-enable follow-scroll when a new stream starts.
+  useEffect(() => {
+    if (streaming && !prevStreamingRef.current) {
+      autoScrollActiveRef.current = true;
+    }
+    prevStreamingRef.current = streaming;
+  }, [streaming]);
+
+  // Once per sent user message: scroll to bottom.
   useEffect(() => {
     const visible = messages.filter((m) => !m.hidden);
     const last = visible[visible.length - 1];
@@ -286,6 +301,39 @@ export function ChatPanel({
     }
     prevLastVisibleRoleRef.current = role;
   }, [messages]);
+
+  // During streaming: auto-scroll for small/medium assistant replies; stop if reply is large or user scrolls up.
+  useEffect(() => {
+    if (!streaming) return;
+    const visible = messages.filter((m) => !m.hidden);
+    const last = visible[visible.length - 1];
+    if (!last || last.role !== 'assistant') return;
+    if (!autoScrollActiveRef.current) return;
+    if (last.content.length > AUTOSCROLL_CHAR_LIMIT) {
+      autoScrollActiveRef.current = false;
+      return;
+    }
+    const el = messagesScrollRef.current;
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+  }, [messages, streaming]);
+
+  // Disable follow-scroll when the user scrolls away from the bottom during streaming.
+  useEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el || !streaming) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom > 60) {
+        autoScrollActiveRef.current = false;
+      }
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [streaming]);
 
   // Reset dismissed notes when chat is cleared
   useEffect(() => {
