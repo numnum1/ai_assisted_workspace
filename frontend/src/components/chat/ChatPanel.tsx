@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, Trash2 } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
@@ -200,6 +200,18 @@ export function ChatPanel({
   useEffect(() => {
     prevLastVisibleRoleRef.current = undefined;
   }, [activeConversationId]);
+
+  // After load / conversation switch: show the latest messages (scrollHeight is stable during token streaming).
+  useLayoutEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const scrollToEnd = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToEnd);
+    });
+  }, [activeConversationId, messages.length]);
 
   // Once per sent user message: scroll to bottom (not on every streaming token).
   useEffect(() => {
@@ -537,6 +549,7 @@ export function ChatPanel({
         referencedFiles={referencedFiles}
         onAddFile={onAddFile}
         onRemoveFile={onRemoveFile}
+        fullscreen={isFullscreen}
         structureRoot={structureRoot}
         useReasoning={useReasoning && reasoningAvailable}
         onToggleReasoning={onToggleReasoning}

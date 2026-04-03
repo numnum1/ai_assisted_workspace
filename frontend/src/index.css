@@ -1805,6 +1805,9 @@ body {
   max-height: 100%;
   border-left: none;
   box-sizing: border-box;
+  padding-left: 20%;
+  padding-right: 20%;
+  padding-bottom: 10vh;
 }
 
 .chat-header {
@@ -3437,6 +3440,13 @@ body {
   transition: border-color 0.15s;
   min-height: 38px;
   max-height: 200px;
+}
+
+/* Taller default input when chat panel is fullscreen (~12 lines; keep in sync with ChatInput resize math) */
+.chat-panel:fullscreen .chat-textarea,
+.chat-panel:-webkit-full-screen .chat-textarea {
+  min-height: calc(16px + 12 * 1.4em);
+  max-height: min(50vh, 480px);
 }
 
 .chat-textarea:focus {

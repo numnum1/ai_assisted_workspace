@@ -21,6 +21,15 @@ function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem
   ).slice(0, limit);
 }
 
+/** ~12 lines at 13px / 1.4 line-height + vertical padding; must match fullscreen .chat-textarea min-height */
+const CHAT_TEXTAREA_FULLSCREEN_MIN_PX = Math.round(16 + 12 * 1.4 * 13);
+
+function chatTextareaMaxHeightPx(fullscreen: boolean): number {
+  if (!fullscreen) return 200;
+  if (typeof window === 'undefined') return 480;
+  return Math.min(Math.round(window.innerHeight * 0.5), 480);
+}
+
 function flattenFileTree(node: FileNode): AutocompleteItem[] {
   const results: AutocompleteItem[] = [];
   if (!node.directory && node.path !== '.') {
@@ -61,6 +70,8 @@ interface ChatInputProps {
   onDismissSelection?: () => void;
   /** Ref that, when set, allows App to focus the textarea (e.g. on Ctrl+L) */
   focusTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  /** Wider, taller input area (e.g. chat fullscreen) */
+  fullscreen?: boolean;
 }
 
 export function ChatInput({
@@ -80,6 +91,7 @@ export function ChatInput({
   activeSelection = null,
   onDismissSelection,
   focusTriggerRef,
+  fullscreen = false,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [expandOpen, setExpandOpen] = useState(false);
@@ -102,6 +114,24 @@ export function ChatInput({
     focusTriggerRef.current = () => textareaRef.current?.focus();
     return () => { if (focusTriggerRef) focusTriggerRef.current = null; };
   }, [focusTriggerRef]);
+
+  const syncTextareaHeight = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
+    const maxH = chatTextareaMaxHeightPx(fullscreen);
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
+  }, [fullscreen]);
+
+  useEffect(() => {
+    syncTextareaHeight();
+  }, [fullscreen, syncTextareaHeight]);
+
+  useEffect(() => {
+    if (text !== '') return;
+    syncTextareaHeight();
+  }, [text, syncTextareaHeight]);
 
   // Close on outside click
   useEffect(() => {
@@ -246,9 +276,6 @@ export function ChatInput({
     setText('');
     setAc(null);
     setExpandOpen(false);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
   }, [text, streaming, onSend, activeSelection]);
 
   const selectItem = useCallback(
@@ -266,9 +293,10 @@ export function ChatInput({
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(newCursor, newCursor);
+        syncTextareaHeight();
       });
     },
-    [ac, text]
+    [ac, text, syncTextareaHeight]
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -279,7 +307,9 @@ export function ChatInput({
     // Auto-resize
     const ta = e.target;
     ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
+    const maxH = chatTextareaMaxHeightPx(fullscreen);
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
 
     // Detect @ pattern — stop at whitespace; ignore already-inserted paths (contain / or start with .)
     const textBefore = newText.slice(0, cursor);
@@ -450,7 +480,7 @@ export function ChatInput({
                 'Nachricht...')
           }
           disabled={streaming}
-          rows={1}
+          rows={fullscreen ? 12 : 1}
         />
         <button
           type="button"
