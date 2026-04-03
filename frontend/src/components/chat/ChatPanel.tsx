@@ -664,11 +664,19 @@ export function ChatPanel({
         {error && (
           <div className="chat-message error">
             <div className="chat-message-content">
-              {error === 'MODEL_EMPTY_RESPONSE'
-                ? 'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
-                : `Error: ${error}`}
+              {error === 'NETWORK_ERROR' ? (
+                <>
+                  <strong>Verbindungsproblem:</strong> Die KI-API ist nicht erreichbar.
+                  <br />
+                  Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.
+                </>
+              ) : error === 'MODEL_EMPTY_RESPONSE' ? (
+                'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+              ) : (
+                `Error: ${error}`
+              )}
             </div>
-            {error === 'MODEL_EMPTY_RESPONSE' && onRetry && (
+            {(error === 'MODEL_EMPTY_RESPONSE' || error === 'NETWORK_ERROR') && onRetry && (
               <button className="chat-retry-btn" onClick={onRetry}>
                 Erneut versuchen
               </button>

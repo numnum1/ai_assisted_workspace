@@ -18,6 +18,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -388,6 +391,12 @@ public class ChatController {
                 case 500, 502, 503 -> "AI API is temporarily unavailable (" + status + ") — try again later";
                 default -> "AI API error (" + status + ")";
             };
+        }
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        if (cause instanceof UnknownHostException || cause instanceof ConnectException
+                || (cause.getMessage() != null && cause.getMessage().contains("Failed to resolve"))) {
+            log.warn("Network/DNS error while contacting AI API: {}", cause.getMessage());
+            return "NETWORK_ERROR";
         }
         if (e.getMessage() != null && !e.getMessage().isBlank()) {
             return "AI error: " + e.getMessage();

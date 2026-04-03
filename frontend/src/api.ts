@@ -351,6 +351,7 @@ export function streamChat(
       let buffer = '';
       let currentEvent = '';
       let doneHandled = false;
+      let errorHandled = false;
       let tokenCount = 0;
 
       while (true) {
@@ -375,16 +376,19 @@ export function streamChat(
             } else if (currentEvent === 'error') {
               console.warn('[streamChat] Received error event from backend:', data);
               onError(new Error(data));
+              errorHandled = true;
               doneHandled = true;
             } else if (currentEvent === 'done') {
-              if (tokenCount === 0) {
-                console.warn(
-                  '[streamChat] Stream ended (done event) but 0 tokens were received — model returned no content. ' +
-                  'Check backend logs for finish_reason=length or empty completion warnings.'
-                );
-                onError(new Error('MODEL_EMPTY_RESPONSE'));
-              } else {
-                onDone();
+              if (!errorHandled) {
+                if (tokenCount === 0) {
+                  console.warn(
+                    '[streamChat] Stream ended (done event) but 0 tokens were received — model returned no content. ' +
+                    'Check backend logs for finish_reason=length or empty completion warnings.'
+                  );
+                  onError(new Error('MODEL_EMPTY_RESPONSE'));
+                } else {
+                  onDone();
+                }
               }
               doneHandled = true;
             } else if (currentEvent === 'tool_call') {

@@ -195,10 +195,18 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable }: Qui
         )}
         {error && (
           <div className="quick-chat-error">
-            {error === 'MODEL_EMPTY_RESPONSE'
-              ? 'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
-              : error}
-            {error === 'MODEL_EMPTY_RESPONSE' && (
+            {error === 'NETWORK_ERROR' ? (
+              <>
+                <strong>Verbindungsproblem:</strong> Die KI-API ist nicht erreichbar.
+                <br />
+                Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.
+              </>
+            ) : error === 'MODEL_EMPTY_RESPONSE' ? (
+              'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+            ) : (
+              error
+            )}
+            {(error === 'MODEL_EMPTY_RESPONSE' || error === 'NETWORK_ERROR') && (
               <button className="quick-chat-retry-btn" onClick={retry}>
                 Erneut versuchen
               </button>
