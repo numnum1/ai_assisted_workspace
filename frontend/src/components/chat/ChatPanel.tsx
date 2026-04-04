@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 'react';
-import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2 } from 'lucide-react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2, RotateCcw } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
@@ -516,6 +516,9 @@ export function ChatPanel({
           .filter(({ msg }) => !msg.hidden)
           .map(({ msg, originalIdx }, visIdx, visArr) => {
           const prevUser = visIdx > 0 ? visArr[visIdx - 1].msg : null;
+          const isLastUserMsg =
+            msg.role === 'user' &&
+            !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === 'user');
           const showCopyForPromptPack =
             msg.role === 'assistant' &&
             msg.content.trim() &&
@@ -600,6 +603,16 @@ export function ChatPanel({
                 )}
                 {!streaming && (msg.role === 'user' || visIdx > 0) && editingIdx !== originalIdx && (
                   <div className="chat-fork-actions">
+                    {msg.role === 'user' && isLastUserMsg && (
+                      <button
+                        type="button"
+                        className="chat-fork-btn chat-resend-btn"
+                        onClick={() => onEditMessage(originalIdx, msg.content)}
+                        title="Nachricht erneut senden"
+                      >
+                        <RotateCcw size={12} />
+                      </button>
+                    )}
                     {msg.role === 'user' && (
                       <button
                         type="button"
