@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X, Maximize2 } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X, Maximize2, Wrench } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
 import { shadowApi, filesApi } from '../../api.ts';
 import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../../types.ts';
@@ -61,6 +61,9 @@ interface ChatInputProps {
   /** Whether the reasoning model should be used for this message */
   useReasoning?: boolean;
   onToggleReasoning?: () => void;
+  /** When true, tools are off (API receives no tool definitions). */
+  toolsDisabled?: boolean;
+  onToggleToolsDisabled?: () => void;
   /** False when the currently selected LLM has no reasoning configuration */
   reasoningAvailable?: boolean;
   /** False when the currently selected LLM has no fast configuration (reasoning-only) */
@@ -86,6 +89,8 @@ export function ChatInput({
   structureRoot = null,
   useReasoning = false,
   onToggleReasoning,
+  toolsDisabled = false,
+  onToggleToolsDisabled,
   reasoningAvailable = true,
   fastAvailable = true,
   activeSelection = null,
@@ -502,6 +507,22 @@ export function ChatInput({
             <Zap size={15} />
           </button>
         )}
+        {onToggleToolsDisabled && (
+          <button
+            type="button"
+            className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ''}`}
+            onClick={onToggleToolsDisabled}
+            title={
+              toolsDisabled
+                ? 'Tools aus — KI-API ohne Function Calling (klicken zum Aktivieren)'
+                : 'Tools an — Wiki/Datei-Tools an die API senden (klicken zum Deaktivieren)'
+            }
+            disabled={streaming}
+            aria-pressed={!toolsDisabled}
+          >
+            <Wrench size={15} />
+          </button>
+        )}
         {streaming ? (
           <button className="chat-send-btn stop" onClick={onStop} title="Stop">
             <Square size={16} />
@@ -582,6 +603,21 @@ export function ChatInput({
                     title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
                   >
                     <Zap size={15} />
+                  </button>
+                )}
+                {onToggleToolsDisabled && (
+                  <button
+                    type="button"
+                    className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ''}`}
+                    onClick={onToggleToolsDisabled}
+                    title={
+                      toolsDisabled
+                        ? 'Tools aus — KI-API ohne Function Calling (klicken zum Aktivieren)'
+                        : 'Tools an — Wiki/Datei-Tools an die API senden (klicken zum Deaktivieren)'
+                    }
+                    aria-pressed={!toolsDisabled}
+                  >
+                    <Wrench size={15} />
                   </button>
                 )}
                 <button

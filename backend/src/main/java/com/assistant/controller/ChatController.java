@@ -303,6 +303,10 @@ public class ChatController {
      * Omits {@link WebSearchTool} unless the client explicitly enables web search.
      */
     private List<Map<String, Object>> toolsForRequest(ChatRequest request) {
+        if (request.isDisableTools()) {
+            log.info("Tools disabled for this request (no tool definitions sent to API)");
+            return List.of();
+        }
         if (request.isQuickChat()) {
             return toolExecutor.getToolDefinitionsForNames(List.of(WebSearchTool.TOOL_NAME));
         }
@@ -332,11 +336,12 @@ public class ChatController {
     private void logIncomingChatRequest(ChatRequest request) {
         List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
         log.info(
-                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, disableTools={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
                 request.getMode(),
                 request.getLlmId(),
                 request.isUseReasoning(),
                 request.isQuickChat(),
+                request.isDisableTools(),
                 request.getActiveFile(),
                 request.getActiveFieldKey(),
                 request.getReferencedFiles(),

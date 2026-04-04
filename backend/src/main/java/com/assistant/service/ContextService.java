@@ -199,40 +199,42 @@ public class ContextService {
             systemPrompt.append("- You may discuss, ask questions, or offer alternatives in plain text before or after the block.\n\n");
         }
 
-        // Tool usage instructions
-        systemPrompt.append("=== Available Tools ===\n");
-        systemPrompt.append("You have access to tools for project files and the project wiki:\n\n");
-        systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
-        systemPrompt.append("- wiki_search(query, type?, limit?): Search the project wiki for entries. " +
-                "Returns compact hit list with IDs.\n");
-        systemPrompt.append("- wiki_read(id): Read the full content of a wiki entry by id (format: typeId/entryId, e.g. character/mara-voss).\n\n");
-        systemPrompt.append("**Wiki lookup strategy:**\n");
-        systemPrompt.append("1) If referenced story/scene JSON or markdown contains a wiki link or id in the form " +
-                "`typeId/entryId` (e.g. markdown `@[Name](charakter/slug)` or `@@[Name](charakter/slug)`), " +
-                "call **wiki_read** with that exact id first. Those paths are authoritative; do not skip lookup " +
-                "just because wiki_search by display name returned nothing.\n");
-        systemPrompt.append("2) wiki_search matches **substrings** only on entry ids and field values. " +
-                "Hyphenated ids (e.g. `lupus-regina`) do **not** match the query `lupusregina`. " +
-                "Underscores in a label (e.g. `Beobachter_A`) do not match a slug `beobachter-a`. " +
-                "If the full name fails, retry with shorter tokens (e.g. `lupus`, `regina`, `beobachter`) " +
-                "or obvious hyphen/underscore variants.\n");
-        systemPrompt.append("3) The optional `type` filter matches the wiki **type id or type display name** as substring. " +
-                "If a filtered search returns no hits, repeat **without** `type` or try the actual type id from the project " +
-                "(German vs English names differ, e.g. `charakter` vs `character`).\n");
-        systemPrompt.append("4) After wiki_search returns ids, use wiki_read for entities you rely on in your answer.\n\n");
-        systemPrompt.append("**IMPORTANT:** For named entities, prefer the steps above over guessing. " +
-                "If the user or attached content names a character, place, or organization, look it up in the wiki " +
-                "before asserting facts. Use wiki_read to get full details when needed.\n\n");
-        systemPrompt.append("**Project files & story:**\n");
-        systemPrompt.append("- search_story_structure(query): Find chapters, scenes, or actions by **title/description** " +
-                "in meta JSON (not by opaque ids like chapter_1). Returns ids and paths for read_file / read_story_text.\n");
-        systemPrompt.append("- search_project(query): Search files/folders by **path and file name** only. " +
-                "For human story titles, prefer search_story_structure.\n");
-        systemPrompt.append("- read_file(path): Read the full content of a project file. " +
-                "Use after searching to inspect relevant files.\n");
-        systemPrompt.append("- read_story_text(chapter_id, scene_id?): Read the combined prose text " +
-                "of all actions in a scene (if scene_id given) or an entire chapter. " +
-                "Use this to read what has actually been written in the story.\n\n");
+        // Tool usage instructions (omitted when client disables tools — API must not advertise unavailable tools)
+        if (!request.isDisableTools()) {
+            systemPrompt.append("=== Available Tools ===\n");
+            systemPrompt.append("You have access to tools for project files and the project wiki:\n\n");
+            systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
+            systemPrompt.append("- wiki_search(query, type?, limit?): Search the project wiki for entries. " +
+                    "Returns compact hit list with IDs.\n");
+            systemPrompt.append("- wiki_read(id): Read the full content of a wiki entry by id (format: typeId/entryId, e.g. character/mara-voss).\n\n");
+            systemPrompt.append("**Wiki lookup strategy:**\n");
+            systemPrompt.append("1) If referenced story/scene JSON or markdown contains a wiki link or id in the form " +
+                    "`typeId/entryId` (e.g. markdown `@[Name](charakter/slug)` or `@@[Name](charakter/slug)`), " +
+                    "call **wiki_read** with that exact id first. Those paths are authoritative; do not skip lookup " +
+                    "just because wiki_search by display name returned nothing.\n");
+            systemPrompt.append("2) wiki_search matches **substrings** only on entry ids and field values. " +
+                    "Hyphenated ids (e.g. `lupus-regina`) do **not** match the query `lupusregina`. " +
+                    "Underscores in a label (e.g. `Beobachter_A`) do not match a slug `beobachter-a`. " +
+                    "If the full name fails, retry with shorter tokens (e.g. `lupus`, `regina`, `beobachter`) " +
+                    "or obvious hyphen/underscore variants.\n");
+            systemPrompt.append("3) The optional `type` filter matches the wiki **type id or type display name** as substring. " +
+                    "If a filtered search returns no hits, repeat **without** `type` or try the actual type id from the project " +
+                    "(German vs English names differ, e.g. `charakter` vs `character`).\n");
+            systemPrompt.append("4) After wiki_search returns ids, use wiki_read for entities you rely on in your answer.\n\n");
+            systemPrompt.append("**IMPORTANT:** For named entities, prefer the steps above over guessing. " +
+                    "If the user or attached content names a character, place, or organization, look it up in the wiki " +
+                    "before asserting facts. Use wiki_read to get full details when needed.\n\n");
+            systemPrompt.append("**Project files & story:**\n");
+            systemPrompt.append("- search_story_structure(query): Find chapters, scenes, or actions by **title/description** " +
+                    "in meta JSON (not by opaque ids like chapter_1). Returns ids and paths for read_file / read_story_text.\n");
+            systemPrompt.append("- search_project(query): Search files/folders by **path and file name** only. " +
+                    "For human story titles, prefer search_story_structure.\n");
+            systemPrompt.append("- read_file(path): Read the full content of a project file. " +
+                    "Use after searching to inspect relevant files.\n");
+            systemPrompt.append("- read_story_text(chapter_id, scene_id?): Read the combined prose text " +
+                    "of all actions in a scene (if scene_id given) or an entire chapter. " +
+                    "Use this to read what has actually been written in the story.\n\n");
+        }
 
         // Editor selection replacement capability
         systemPrompt.append("=== Editor Selection Replacement ===\n");
@@ -264,9 +266,11 @@ public class ContextService {
         int finalSystemPromptChars = systemPrompt.length();
         int estimatedSystemTokens = finalSystemPromptChars / 4;
         log.info(
-                "Final system prompt: {} chars (~{} tokens). Breakdown — mode+rules, story structure, file tree, always-includes, tool instructions all included.",
+                "Final system prompt: {} chars (~{} tokens). disableTools={}, tool instructions block {}",
                 finalSystemPromptChars,
-                estimatedSystemTokens);
+                estimatedSystemTokens,
+                request.isDisableTools(),
+                request.isDisableTools() ? "omitted" : "included");
         if (estimatedSystemTokens > 60_000) {
             log.warn(
                     "System prompt is very large (~{} tokens) — this may cause context overflow for models with limited context windows!",
@@ -321,7 +325,21 @@ public class ContextService {
         AssembledContext context = new AssembledContext();
         List<ChatMessage> messages = new ArrayList<>();
 
-        String systemText = """
+        String systemText = request.isDisableTools()
+                ? """
+                Du bist ein kompakter Hilfs-Assistent (Quick Chat) für kurze, selbstständige Fragen — z. B. Begriffe \
+                erklären, Formulierungen vorschlagen oder Fakten erläutern.
+
+                Du hast keinen Zugriff auf das Schreibprojekt, Dateien oder die Projekt-Wiki. Behandle jede Anfrage \
+                unabhängig; nimm keine Story-, Manuskript- oder Projektdateien an.
+
+                Du hast keine Tool-Funktionen (keine Websuche). Antworte aus deinem Wissen.
+
+                Antworte auf Deutsch, sachlich und möglichst knapp. Nutze normalen Fließtext — keine Projekt-spezifischen \
+                Code-Blöcke (kein field-update, kein replace für Editor-Auswahl). Du kannst bei Bedarf normale \
+                Markdown-Formatierung (Listen, Fettdruck) verwenden.
+                """
+                : """
                 Du bist ein kompakter Hilfs-Assistent (Quick Chat) für kurze, selbstständige Fragen — z. B. Begriffe \
                 erklären, Formulierungen vorschlagen oder Fakten recherchieren.
 
@@ -361,10 +379,11 @@ public class ContextService {
         context.setEstimatedTokens(estimateTokens(messages));
 
         log.info(
-                "Quick Chat context assembled: totalMessages={}, estimatedTokens={}, userChars={}",
+                "Quick Chat context assembled: totalMessages={}, estimatedTokens={}, userChars={}, disableTools={}",
                 messages.size(),
                 context.getEstimatedTokens(),
-                userText.length());
+                userText.length(),
+                request.isDisableTools());
         log.trace("Finished successfully assembling Quick Chat context");
         return context;
     }

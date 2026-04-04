@@ -37,6 +37,23 @@ import { AlternativeVersionPanel } from './components/editor/AlternativeVersionP
 import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
+const CHAT_TOOLS_DISABLED_KEY = 'chat-tools-disabled';
+
+function loadInitialToolsDisabled(): boolean {
+  try {
+    return localStorage.getItem(CHAT_TOOLS_DISABLED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function saveToolsDisabled(disabled: boolean) {
+  try {
+    localStorage.setItem(CHAT_TOOLS_DISABLED_KEY, disabled ? 'true' : 'false');
+  } catch {
+    /* ignore */
+  }
+}
 
 function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null {
   try {
@@ -69,10 +86,12 @@ function App() {
   const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
+  const [toolsDisabled, setToolsDisabled] = useState(loadInitialToolsDisabled);
 
   const prefsHydratedRef = useRef(false);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
+  const handleToggleToolsDisabled = useCallback(() => setToolsDisabled((v) => !v), []);
 
   const handleLlmChange = useCallback((id: string | undefined) => {
     setModeLlmId(id);
@@ -272,6 +291,10 @@ function App() {
     if (!prefsHydratedRef.current) return;
     saveLlmPrefs(modeLlmId, useReasoning);
   }, [modeLlmId, useReasoning]);
+
+  useEffect(() => {
+    saveToolsDisabled(toolsDisabled);
+  }, [toolsDisabled]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -587,6 +610,7 @@ function App() {
         modeLlmId,
         activeSelection ?? undefined,
         focusedField?.fieldKey ?? null,
+        toolsDisabled,
       );
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
@@ -603,6 +627,7 @@ function App() {
       chapter.structureRoot,
       fileEditor.selectedPath,
       focusedField,
+      toolsDisabled,
     ],
   );
 
@@ -619,6 +644,7 @@ function App() {
         llmId: modeLlmId,
         selectionContext: activeSelection ?? undefined,
         activeFieldKey: focusedField?.fieldKey ?? null,
+        disableTools: toolsDisabled,
       });
       setActiveSelection(null);
     },
@@ -633,6 +659,7 @@ function App() {
       chapter.structureRoot,
       fileEditor.selectedPath,
       focusedField,
+      toolsDisabled,
     ],
   );
 
@@ -648,10 +675,15 @@ function App() {
         files,
         m?.name ?? 'Prompt-Paket',
         m?.color ?? '#f9e2af',
+        useReasoning,
+        modeLlmId,
+        undefined,
+        null,
+        toolsDisabled,
       );
       setPromptPackOpen(false);
     },
-    [chat, modes],
+    [chat, modes, useReasoning, modeLlmId, toolsDisabled],
   );
 
   useEffect(() => {
@@ -899,6 +931,8 @@ function App() {
             activeConversationId={history.activeId}
             useReasoning={useReasoning}
             onToggleReasoning={handleToggleReasoning}
+            toolsDisabled={toolsDisabled}
+            onToggleToolsDisabled={handleToggleToolsDisabled}
             reasoningAvailable={reasoningAvailable}
             fastAvailable={fastAvailable}
             onModeChange={handleModeChange}
@@ -1032,6 +1066,7 @@ function App() {
         onClose={() => setQuickChatOpen(false)}
         llms={llms}
         webSearchAvailable={webSearchAvailable}
+        toolsDisabled={toolsDisabled}
       />
 
       <input

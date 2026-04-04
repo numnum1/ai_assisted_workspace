@@ -71,6 +71,8 @@ export interface ChatRequest {
   useReasoning?: boolean;
   /** Quick Chat: minimal context, web search only, no project tools. */
   quickChat?: boolean;
+  /** When true, backend omits tools from the API payload and strips tool instructions from the system prompt. */
+  disableTools?: boolean;
   llmId?: string;
 }
 

@@ -80,7 +80,7 @@ export function useQuickChat() {
     llmIdRef.current = id;
   }, []);
 
-  const sendMessage = useCallback((text: string) => {
+  const sendMessage = useCallback((text: string, options?: { disableTools?: boolean }) => {
     setError(null);
     setToolActivity(null);
     const userMsg: ChatMessage = { role: 'user', content: text };
@@ -90,6 +90,7 @@ export function useQuickChat() {
 
     let assistantContent = '';
 
+    const disableTools = options?.disableTools === true;
     const chatRequest: ChatRequest = {
       message: text,
       activeFile: null,
@@ -100,6 +101,7 @@ export function useQuickChat() {
       useReasoning: false,
       quickChat: true,
       llmId: llmIdRef.current,
+      ...(disableTools ? { disableTools: true } : {}),
     };
     lastChatRequestRef.current = chatRequest;
 

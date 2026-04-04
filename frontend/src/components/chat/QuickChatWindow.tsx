@@ -14,9 +14,11 @@ interface QuickChatWindowProps {
   onClose: () => void;
   llms: LlmPublic[];
   webSearchAvailable: boolean;
+  /** Same preference as main chat: no tools in API when true. */
+  toolsDisabled?: boolean;
 }
 
-export function QuickChatWindow({ open, onClose, llms, webSearchAvailable }: QuickChatWindowProps) {
+export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, toolsDisabled = false }: QuickChatWindowProps) {
   const {
     messages,
     streaming,
@@ -127,8 +129,8 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable }: Qui
     const t = draft.trim();
     if (!t || streaming) return;
     setDraft('');
-    sendMessage(t);
-  }, [draft, streaming, sendMessage]);
+    sendMessage(t, { disableTools: toolsDisabled });
+  }, [draft, streaming, sendMessage, toolsDisabled]);
 
   if (!open) {
     return null;
