@@ -288,7 +288,8 @@ public class ChatController {
                 context.getEstimatedTokens());
         return Map.of(
                 "includedFiles", context.getIncludedFiles(),
-                "estimatedTokens", context.getEstimatedTokens()
+                "estimatedTokens", context.getEstimatedTokens(),
+                "contextBlocks", context.getContextBlocks()
         );
     }
 

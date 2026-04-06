@@ -32,7 +32,6 @@ public class ProjectConfigService {
     private static final String ASSISTANT_DIR = ".assistant";
     private static final String PROJECT_YAML = "project.yaml";
     private static final String MODES_DIR = "modes";
-    private static final String RULES_DIR = "rules";
     private static final String WORKSPACE_MODES_PREFIX = "workspace-modes/";
     /** User plugin YAMLs: {@code <appData>/workspace-modes/*.yaml} */
     private static final String USER_WORKSPACE_MODES_DIR = "workspace-modes";
@@ -45,7 +44,7 @@ public class ProjectConfigService {
 
     // ─── Path helpers ────────────────────────────────────────────────────────────
 
-    private Path getAssistantDir() {
+    public Path getAssistantDir() {
         String projectPath = appConfig.getProject().getPath();
         if (projectPath == null || projectPath.isBlank()) {
             throw new IllegalStateException("No project is open");
@@ -127,70 +126,6 @@ public class ProjectConfigService {
         return true;
     }
 
-    // ─── Rules ───────────────────────────────────────────────────────────────────
-
-    public List<String> getRuleNames() {
-        if (!hasProjectConfig()) return List.of();
-        Path rulesDir = getAssistantDir().resolve(RULES_DIR);
-        if (!Files.isDirectory(rulesDir)) return List.of();
-        try (Stream<Path> entries = Files.list(rulesDir)) {
-            return entries
-                .filter(p -> p.getFileName().toString().endsWith(".md"))
-                .sorted(Comparator.comparing(p -> p.getFileName().toString()))
-                .map(p -> RULES_DIR + "/" + p.getFileName().toString())
-                .toList();
-        } catch (IOException e) {
-            log.warn("Could not list rules directory: {}", e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
-     * Reads the given rule paths (relative to .assistant/) and returns their content.
-     * Each entry in the returned map: path -> content.
-     */
-    public Map<String, String> getRuleContents(List<String> rulePaths) {
-        if (rulePaths == null || rulePaths.isEmpty()) return Map.of();
-        Path assistantDir = getAssistantDir();
-        Map<String, String> result = new LinkedHashMap<>();
-        for (String rulePath : rulePaths) {
-            Path file = assistantDir.resolve(rulePath).normalize();
-            if (!file.startsWith(assistantDir)) {
-                log.warn("Rule path escapes .assistant/ directory: {}", rulePath);
-                continue;
-            }
-            if (!Files.exists(file)) {
-                log.debug("Rule file not found: {}", rulePath);
-                continue;
-            }
-            try {
-                result.put(rulePath, Files.readString(file, StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                log.warn("Could not read rule {}: {}", rulePath, e.getMessage());
-            }
-        }
-        return result;
-    }
-
-    public void saveRule(String name, String content) throws IOException {
-        Path rulesDir = getAssistantDir().resolve(RULES_DIR);
-        Files.createDirectories(rulesDir);
-        String filename = name.endsWith(".md") ? name : name + ".md";
-        Path ruleFile = rulesDir.resolve(filename);
-        if (!ruleFile.startsWith(rulesDir)) {
-            throw new IOException("Invalid rule name: " + name);
-        }
-        Files.writeString(ruleFile, content, StandardCharsets.UTF_8);
-    }
-
-    public boolean deleteRule(String name) throws IOException {
-        String filename = name.endsWith(".md") ? name : name + ".md";
-        Path ruleFile = getAssistantDir().resolve(RULES_DIR).resolve(filename);
-        if (!Files.exists(ruleFile)) return false;
-        Files.delete(ruleFile);
-        return true;
-    }
-
     // ─── Init ────────────────────────────────────────────────────────────────────
 
     /**
@@ -207,7 +142,6 @@ public class ProjectConfigService {
         }
 
         Files.createDirectories(assistantDir.resolve(MODES_DIR));
-        Files.createDirectories(assistantDir.resolve(RULES_DIR));
 
         ProjectConfig config = new ProjectConfig();
         String projectPath = appConfig.getProject().getPath();
@@ -260,10 +194,6 @@ public class ProjectConfigService {
             if (autoIncludes instanceof List<?> list) {
                 mode.setAutoIncludes(list.stream().map(Object::toString).toList());
             }
-            Object rules = data.get("rules");
-            if (rules instanceof List<?> list) {
-                mode.setRules(list.stream().map(Object::toString).toList());
-            }
             mode.setUseReasoning(booleanVal(data.get("useReasoning"), false));
             Object llmId = data.get("llmId");
             if (llmId instanceof String s && !s.isBlank()) {
@@ -287,10 +217,6 @@ public class ProjectConfigService {
         if (alwaysInclude instanceof List<?> list) {
             config.setAlwaysInclude(list.stream().map(Object::toString).toList());
         }
-        Object globalRules = data.get("globalRules");
-        if (globalRules instanceof List<?> list) {
-            config.setGlobalRules(list.stream().map(Object::toString).toList());
-        }
         Object defaultMode = data.get("defaultMode");
         if (defaultMode != null) {
             config.setDefaultMode(defaultMode.toString());
@@ -299,7 +225,6 @@ public class ProjectConfigService {
         if (workspaceMode != null) {
             config.setWorkspaceMode(workspaceMode.toString());
         }
-        config.setGlossaryEnabled(booleanVal(data.get("glossaryEnabled"), false));
         return config;
     }
 
@@ -308,10 +233,8 @@ public class ProjectConfigService {
         data.put("name", config.getName() != null ? config.getName() : "");
         data.put("description", config.getDescription() != null ? config.getDescription() : "");
         data.put("alwaysInclude", config.getAlwaysInclude() != null ? config.getAlwaysInclude() : List.of());
-        data.put("globalRules", config.getGlobalRules() != null ? config.getGlobalRules() : List.of());
         data.put("defaultMode", config.getDefaultMode() != null ? config.getDefaultMode() : "");
         data.put("workspaceMode", config.getWorkspaceMode() != null ? config.getWorkspaceMode() : "default");
-        data.put("glossaryEnabled", config.isGlossaryEnabled());
         return buildYaml().dump(data);
     }
 
@@ -624,7 +547,6 @@ public class ProjectConfigService {
         data.put("color", mode.getColor() != null ? mode.getColor() : "#89b4fa");
         data.put("systemPrompt", mode.getSystemPrompt() != null ? mode.getSystemPrompt() : "");
         data.put("autoIncludes", mode.getAutoIncludes() != null ? mode.getAutoIncludes() : List.of());
-        data.put("rules", mode.getRules() != null ? mode.getRules() : List.of());
         data.put("useReasoning", mode.isUseReasoning());
         if (mode.getLlmId() != null && !mode.getLlmId().isBlank()) {
             data.put("llmId", mode.getLlmId());

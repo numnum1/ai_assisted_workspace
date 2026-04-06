@@ -1,7 +1,5 @@
 package com.assistant.service.tools;
 
-import com.assistant.model.WikiEntry;
-import com.assistant.model.WikiType;
 import com.assistant.service.WikiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,8 +11,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
- * Reads a single wiki entry by its id (typeId/entryId).
- * Use wiki_search first to find the correct id.
+ * Reads a single wiki entry (Markdown file) from the /wiki/ directory.
+ * Use wiki_search first to find the correct path.
  */
 @Component
 public class WikiReadTool extends AbstractTool {
@@ -38,17 +36,18 @@ public class WikiReadTool extends AbstractTool {
             "type", "function",
             "function", Map.of(
                 "name", getName(),
-                "description", "Read the full content of a single wiki entry by its id. " +
-                        "Use wiki_search first to discover the correct id.",
+                "description", "Read the full content of a wiki entry (Markdown file in /wiki/). " +
+                        "Use wiki_search first to discover the correct path.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(
-                        "id", Map.of(
+                        "path", Map.of(
                             "type", "string",
-                            "description", "The wiki entry id in the format 'typeId/entryId' (e.g. 'character/mara-voss')"
+                            "description", "Relative path of the wiki file within /wiki/ " +
+                                    "(e.g. 'characters/lupusregina.md' or 'characters/lupusregina')"
                         )
                     ),
-                    "required", List.of("id")
+                    "required", List.of("path")
                 )
             )
         );
@@ -56,48 +55,30 @@ public class WikiReadTool extends AbstractTool {
 
     @Override
     public String execute(String argsJson) {
-        String id = extractArg(argsJson, "id");
-        if (id == null || id.isBlank()) {
-            return "Error: missing 'id' parameter";
+        String path = extractArg(argsJson, "path");
+        if (path == null || path.isBlank()) {
+            return "Error: missing 'path' parameter";
         }
-
-        String normalized = id.replace('\\', '/').trim();
-        int slash = normalized.indexOf('/');
-        if (slash <= 0 || slash == normalized.length() - 1) {
-            return "Error: id must be in format 'typeId/entryId' (e.g. 'character/mara-voss'), got: '" + id + "'";
-        }
-        if (normalized.contains("..")) {
+        if (path.contains("..")) {
             return "Error: path traversal not allowed";
         }
 
-        String typeId = normalized.substring(0, slash);
-        String entryId = normalized.substring(slash + 1);
-
-        WikiType type;
+        log.trace("Received request to execute wiki_read for path: {}", path);
         try {
-            type = wikiService.getType(typeId);
+            String content = wikiService.readWikiFile(path);
+            String result = wikiService.formatForAi(path, content);
+            log.trace("Finished wiki_read for path: {}", path);
+            return result;
         } catch (NoSuchElementException e) {
-            return "Wiki type not found: '" + typeId + "'";
+            return "Wiki file not found: '" + path + "'. Use wiki_search to find available entries.";
         } catch (IOException e) {
-            log.error("Error reading wiki type: {}", typeId, e);
-            return "Error reading wiki type: " + e.getMessage();
+            log.error("Error reading wiki file: {}", path, e);
+            return "Error reading wiki file: " + e.getMessage();
         }
-
-        WikiEntry entry;
-        try {
-            entry = wikiService.getEntry(typeId, entryId);
-        } catch (NoSuchElementException e) {
-            return "Wiki entry not found: '" + id + "'";
-        } catch (IOException e) {
-            log.error("Error reading wiki entry: {}/{}", typeId, entryId, e);
-            return "Error reading wiki entry: " + e.getMessage();
-        }
-
-        return wikiService.formatEntryForAi(entry, type);
     }
 
     @Override
     public String describe(String argsJson) {
-        return "Reading wiki entry: " + extractArg(argsJson, "id");
+        return "Reading wiki entry: " + extractArg(argsJson, "path");
     }
 }

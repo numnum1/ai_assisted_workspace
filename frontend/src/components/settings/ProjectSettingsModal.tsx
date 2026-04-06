@@ -11,7 +11,7 @@ interface ProjectSettingsModalProps {
   onWorkspacePluginsChanged?: () => void;
 }
 
-type Tab = 'general' | 'quickChat' | 'modes' | 'workspacePlugins' | 'rules' | 'aiProviders';
+type Tab = 'general' | 'quickChat' | 'modes' | 'workspacePlugins' | 'aiProviders';
 
 interface LlmFormState {
   editingId: string | null;
@@ -31,15 +31,8 @@ interface ModeForm {
   color: string;
   systemPrompt: string;
   autoIncludes: string;
-  rules: string;
   useReasoning: boolean;
   llmId: string;
-}
-
-interface RuleEditor {
-  name: string;
-  content: string;
-  isNew: boolean;
 }
 
 /** Next free mode id: `{sourceId}-kopie`, `{sourceId}-kopie-2`, … */
@@ -120,11 +113,9 @@ export function ProjectSettingsModal({
     name: '',
     description: '',
     alwaysInclude: [],
-    globalRules: [],
     defaultMode: '',
     workspaceMode: 'default',
     quickChatLlmId: '',
-    glossaryEnabled: false,
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -136,14 +127,6 @@ export function ProjectSettingsModal({
   const [savingMode, setSavingMode] = useState(false);
   const [deletingMode, setDeletingMode] = useState<string | null>(null);
   const [duplicatingModeId, setDuplicatingModeId] = useState<string | null>(null);
-
-  // Rules
-  const [rules, setRules] = useState<string[]>([]);
-  const [ruleEditor, setRuleEditor] = useState<RuleEditor | null>(null);
-  const [loadingRule, setLoadingRule] = useState(false);
-  const [savingRule, setSavingRule] = useState(false);
-  const [deletingRule, setDeletingRule] = useState<string | null>(null);
-  const [ruleSaved, setRuleSaved] = useState(false);
 
   // Workspace mode plugins (YAML under app data)
   const [workspaceModesList, setWorkspaceModesList] = useState<WorkspaceModeInfo[]>([]);
@@ -215,14 +198,12 @@ export function ProjectSettingsModal({
       setInitialized(status.initialized);
       if (llmsData) setLlmsState(llmsData);
       if (status.initialized) {
-        const [cfg, mds, ruleList] = await Promise.all([
+        const [cfg, mds] = await Promise.all([
           projectConfigApi.get(),
           projectConfigApi.getModes(),
-          projectConfigApi.getRules(),
         ]);
         setConfig(cfg);
         setModes(mds);
-        setRules(ruleList);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project settings');
@@ -246,12 +227,8 @@ export function ProjectSettingsModal({
       const cfg = await projectConfigApi.init();
       setConfig(cfg);
       setInitialized(true);
-      const [mds, ruleList] = await Promise.all([
-        projectConfigApi.getModes(),
-        projectConfigApi.getRules(),
-      ]);
+      const mds = await projectConfigApi.getModes();
       setModes(mds);
-      setRules(ruleList);
       onModesChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Initialization failed');
@@ -296,7 +273,7 @@ export function ProjectSettingsModal({
 
   const openNewMode = () => {
     setEditingModeId(null);
-    setModeForm({ id: '', name: '', color: '#89b4fa', systemPrompt: '', autoIncludes: '', rules: '', useReasoning: false, llmId: '' });
+    setModeForm({ id: '', name: '', color: '#89b4fa', systemPrompt: '', autoIncludes: '', useReasoning: false, llmId: '' });
   };
 
   const openEditMode = (mode: Mode) => {
@@ -307,7 +284,6 @@ export function ProjectSettingsModal({
       color: mode.color || '#89b4fa',
       systemPrompt: mode.systemPrompt || '',
       autoIncludes: (mode.autoIncludes || []).join('\n'),
-      rules: (mode.rules || []).join('\n'),
       useReasoning: mode.useReasoning ?? false,
       llmId: mode.llmId ?? '',
     });
@@ -324,7 +300,6 @@ export function ProjectSettingsModal({
         color: modeForm.color,
         systemPrompt: modeForm.systemPrompt,
         autoIncludes: modeForm.autoIncludes.split('\n').map(s => s.trim()).filter(Boolean),
-        rules: modeForm.rules.split('\n').map(s => s.trim()).filter(Boolean),
         useReasoning: modeForm.useReasoning,
         llmId: modeForm.llmId.trim() || undefined,
       };
@@ -375,44 +350,6 @@ export function ProjectSettingsModal({
       setError(err instanceof Error ? err.message : 'Failed to duplicate mode');
     } finally {
       setDuplicatingModeId(null);
-    }
-  };
-
-  // ── Rules ─────────────────────────────────────────────────────────────────────
-
-  const openNewRule = () => {
-    setRuleEditor({ name: '', content: '', isNew: true });
-  };
-
-  const openEditRule = async (rulePath: string) => {
-    const name = rulePath.replace(/^rules\//, '').replace(/\.md$/, '');
-    setLoadingRule(true);
-    setError(null);
-    try {
-      const data = await projectConfigApi.getRuleContent(name);
-      setRuleEditor({ name: data.name, content: data.content, isNew: false });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load rule');
-    } finally {
-      setLoadingRule(false);
-    }
-  };
-
-  const handleSaveRule = async () => {
-    if (!ruleEditor || !ruleEditor.name.trim()) return;
-    setSavingRule(true);
-    setError(null);
-    try {
-      await projectConfigApi.saveRule(ruleEditor.name.trim(), ruleEditor.content);
-      const updated = await projectConfigApi.getRules();
-      setRules(updated);
-      setRuleEditor(prev => prev ? { ...prev, isNew: false } : null);
-      setRuleSaved(true);
-      setTimeout(() => setRuleSaved(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save rule');
-    } finally {
-      setSavingRule(false);
     }
   };
 
@@ -513,21 +450,6 @@ export function ProjectSettingsModal({
   };
 
 
-  const handleDeleteRule = async (rulePath: string) => {
-    const name = rulePath.replace(/^rules\//, '').replace(/\.md$/, '');
-    setDeletingRule(rulePath);
-    setError(null);
-    try {
-      await projectConfigApi.deleteRule(name);
-      setRules(prev => prev.filter(r => r !== rulePath));
-      if (ruleEditor && ruleEditor.name === name) setRuleEditor(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete rule');
-    } finally {
-      setDeletingRule(null);
-    }
-  };
-
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -551,7 +473,7 @@ export function ProjectSettingsModal({
         ) : (
           <>
             <div className="ps-tabs">
-              {(['general', 'quickChat', 'modes', 'workspacePlugins', 'aiProviders', 'rules'] as Tab[]).map(t => (
+              {(['general', 'quickChat', 'modes', 'workspacePlugins', 'aiProviders'] as Tab[]).map(t => (
                 <button
                   key={t}
                   type="button"
@@ -572,9 +494,7 @@ export function ProjectSettingsModal({
                         ? `Modes (${modes.length})`
                         : t === 'workspacePlugins'
                           ? 'Workspace plugins'
-                          : t === 'aiProviders'
-                            ? `LLMs (${llmsState?.providers?.length ?? 0})`
-                            : `Rules (${rules.length})`}
+                          : `LLMs (${llmsState?.providers?.length ?? 0})`}
                 </button>
               ))}
             </div>
@@ -644,32 +564,6 @@ export function ProjectSettingsModal({
                   onRemove={i => setConfig(p => ({ ...p, alwaysInclude: p.alwaysInclude.filter((_, idx) => idx !== i) }))}
                   placeholder="e.g. story.md or characters/main-cast.md"
                 />
-
-                <label className="ps-label">Global Rules</label>
-                <p className="ps-hint">Rule files (from the Rules tab) injected into every mode's system prompt.</p>
-                <TagListEditor
-                  items={config.globalRules}
-                  onAdd={v => setConfig(p => ({ ...p, globalRules: [...p.globalRules, v] }))}
-                  onRemove={i => setConfig(p => ({ ...p, globalRules: p.globalRules.filter((_, idx) => idx !== i) }))}
-                  placeholder="e.g. rules/style-guide.md"
-                />
-
-                <label className="ps-label">Glossar</label>
-                <p className="ps-hint">
-                  Aktiviert den Befehl „Open Glossar“ in der Command Palette und die KI-Tools <code>glossary_search</code> / <code>glossary_read</code>.
-                  Einträge sind Markdown-Dateien unter <code>.glossary/</code>.
-                </p>
-                <div className="ps-toggle-row">
-                  <input
-                    type="checkbox"
-                    id="glossaryEnabled"
-                    checked={!!config.glossaryEnabled}
-                    onChange={e => setConfig(p => ({ ...p, glossaryEnabled: e.target.checked }))}
-                  />
-                  <label htmlFor="glossaryEnabled" className="ps-toggle-label">
-                    Glossar aktivieren
-                  </label>
-                </div>
 
                 <div className="ps-actions">
                   <button className="ps-save-btn" onClick={handleSaveConfig} disabled={savingConfig}>
@@ -796,15 +690,6 @@ export function ProjectSettingsModal({
                       onChange={e => setModeForm(p => p && ({ ...p, autoIncludes: e.target.value }))}
                       placeholder="story.md&#10;characters/main-cast.md"
                       rows={3}
-                    />
-
-                    <label className="ps-label">Rules <span className="ps-label-hint">(one path per line)</span></label>
-                    <textarea
-                      className="ps-textarea"
-                      value={modeForm.rules}
-                      onChange={e => setModeForm(p => p && ({ ...p, rules: e.target.value }))}
-                      placeholder="rules/review-checklist.md"
-                      rows={2}
                     />
 
                     <label className="ps-label">LLM <span className="ps-label-hint">(optional — leer = globaler aktiver Eintrag)</span></label>
@@ -1219,97 +1104,6 @@ export function ProjectSettingsModal({
               </div>
             )}
 
-            {/* Rules tab */}
-            {initialized && tab === 'rules' && (
-              <div className="ps-tab-content">
-                {ruleEditor ? (
-                  <div className="ps-rule-form">
-                    <div className="ps-form-nav">
-                      <button className="ps-back-btn" onClick={() => setRuleEditor(null)}>
-                        <ChevronLeft size={14} />
-                        Back
-                      </button>
-                      <span className="ps-form-title">{ruleEditor.isNew ? 'New Rule' : `Edit: ${ruleEditor.name}`}</span>
-                    </div>
-
-                    {ruleEditor.isNew && (
-                      <>
-                        <label className="ps-label">Rule Name <span className="ps-label-hint">(.md will be added automatically)</span></label>
-                        <input
-                          className="ps-input"
-                          value={ruleEditor.name}
-                          onChange={e => setRuleEditor(p => p && ({ ...p, name: e.target.value }))}
-                          placeholder="e.g. style-guide"
-                          autoFocus
-                        />
-                      </>
-                    )}
-
-                    <label className="ps-label">Content <span className="ps-label-hint">(Markdown)</span></label>
-                    <textarea
-                      className="ps-textarea ps-textarea-rule"
-                      value={ruleEditor.content}
-                      onChange={e => setRuleEditor(p => p && ({ ...p, content: e.target.value }))}
-                      placeholder="Write your rule content here..."
-                      rows={12}
-                    />
-
-                    <div className="ps-actions">
-                      <button
-                        className="ps-save-btn"
-                        onClick={handleSaveRule}
-                        disabled={savingRule || !ruleEditor.name.trim()}
-                      >
-                        {savingRule
-                          ? <><Loader size={13} className="ps-spinner" /> Saving...</>
-                          : ruleSaved
-                            ? <><Check size={13} /> Saved</>
-                            : <><Save size={13} /> Save Rule</>
-                        }
-                      </button>
-                    </div>
-                  </div>
-                ) : loadingRule ? (
-                  <div className="ps-loading">
-                    <Loader size={16} className="ps-spinner" />
-                    <span>Loading rule...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="ps-list">
-                      {rules.length === 0 && (
-                        <div className="ps-empty">No rules defined.</div>
-                      )}
-                      {rules.map(rulePath => {
-                        const label = rulePath.replace(/^rules\//, '').replace(/\.md$/, '');
-                        return (
-                          <div key={rulePath} className="ps-list-item" onClick={() => openEditRule(rulePath)}>
-                            <span className="ps-list-item-name">{label}</span>
-                            <span className="ps-list-item-id">{rulePath}</span>
-                            <button
-                              className="ps-list-item-delete"
-                              title="Delete rule"
-                              onClick={e => { e.stopPropagation(); handleDeleteRule(rulePath); }}
-                              disabled={deletingRule === rulePath}
-                            >
-                              {deletingRule === rulePath
-                                ? <Loader size={12} className="ps-spinner" />
-                                : <Trash2 size={12} />
-                              }
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="ps-actions">
-                      <button className="ps-add-btn" onClick={openNewRule}>
-                        <Plus size={13} /> New Rule
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
           </>
         )}
       </div>

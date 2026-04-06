@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+
 @RestController
 @RequestMapping("/api/project-config")
 public class ProjectConfigController {
@@ -169,60 +170,6 @@ public class ProjectConfigController {
             return ResponseEntity.ok(Map.of("status", "deleted"));
         } catch (IOException e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to delete mode: " + e.getMessage()));
-        }
-    }
-
-    // ─── Rules ───────────────────────────────────────────────────────────────────
-
-    @GetMapping("/rules")
-    public ResponseEntity<List<String>> getRules() {
-        return ResponseEntity.ok(projectConfigService.getRuleNames());
-    }
-
-    @GetMapping("/rules/{name}")
-    public ResponseEntity<?> getRule(@PathVariable String name) {
-        if (!projectConfigService.hasProjectConfig()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized."));
-        }
-        if (!isValidId(name)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid rule name: " + name));
-        }
-        Map<String, String> contents = projectConfigService.getRuleContents(List.of("rules/" + name + ".md"));
-        String key = "rules/" + name + ".md";
-        if (!contents.containsKey(key)) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(Map.of("name", name, "content", contents.get(key)));
-    }
-
-    @PutMapping("/rules/{name}")
-    public ResponseEntity<?> saveRule(@PathVariable String name, @RequestBody Map<String, String> body) {
-        if (!projectConfigService.hasProjectConfig()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized. Call /init first."));
-        }
-        if (!isValidId(name)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid rule name: " + name));
-        }
-        String content = body.getOrDefault("content", "");
-        try {
-            projectConfigService.saveRule(name, content);
-            return ResponseEntity.ok(Map.of("status", "saved", "name", name));
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to save rule: " + e.getMessage()));
-        }
-    }
-
-    @DeleteMapping("/rules/{name}")
-    public ResponseEntity<?> deleteRule(@PathVariable String name) {
-        if (!projectConfigService.hasProjectConfig()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized."));
-        }
-        try {
-            boolean deleted = projectConfigService.deleteRule(name);
-            if (!deleted) return ResponseEntity.notFound().build();
-            return ResponseEntity.ok(Map.of("status", "deleted"));
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to delete rule: " + e.getMessage()));
         }
     }
 

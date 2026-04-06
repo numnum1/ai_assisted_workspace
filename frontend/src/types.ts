@@ -5,8 +5,6 @@ export interface FileNode {
   children: FileNode[] | null;
   /** Workspace mode id from `.subproject.json` when this directory is a subproject */
   subprojectType?: string | null;
-  /** True if a shadow meta-note file exists under `.wiki/files/` for this file */
-  hasShadow?: boolean;
 }
 
 export interface Mode {
@@ -15,7 +13,6 @@ export interface Mode {
   systemPrompt: string;
   autoIncludes: string[];
   color: string;
-  rules?: string[];
   useReasoning?: boolean;
   llmId?: string;
 }
@@ -120,15 +117,12 @@ export interface ProjectConfig {
   name: string;
   description: string;
   alwaysInclude: string[];
-  globalRules: string[];
   /** Mode id; empty means client uses review or first available mode */
   defaultMode?: string;
   /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
   workspaceMode?: string;
   /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
   quickChatLlmId?: string;
-  /** When true, glossary command palette entry and .glossary/ tools are intended for use */
-  glossaryEnabled?: boolean;
 }
 
 /** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */
@@ -266,47 +260,3 @@ export interface MetaSelection {
   meta: NodeMeta;
 }
 
-// ─── Notes ────────────────────────────────────────────────────────────────────
-
-export interface NoteProposal {
-  id: string;
-  title: string;
-  content: string;
-  wikiHint?: string | null;
-  createdAt?: number;
-}
-
-// ─── Wiki ─────────────────────────────────────────────────────────────────────
-
-export interface WikiFieldDef {
-  key: string;
-  label: string;
-  type: string;
-  placeholder?: string;
-  defaultValue: string;
-  config?: Record<string, unknown>;
-}
-
-export interface WikiType {
-  id: string;
-  name: string;
-  fields: WikiFieldDef[];
-  /** When true, omit from @-mention picker */
-  excludeFromMentions?: boolean;
-}
-
-export interface WikiEntry {
-  id: string;
-  typeId: string;
-  values: Record<string, string>;
-}
-
-/** Flat list item from GET /api/glossary/entries (markdown under .glossary/) */
-export interface GlossaryEntry {
-  path: string;
-  name: string;
-  type: string | null;
-  summary: string | null;
-  aliases: string | null;
-  tags: string | null;
-}

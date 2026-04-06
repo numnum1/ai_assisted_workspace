@@ -1,21 +1,18 @@
 package com.assistant.service.tools;
 
-import com.assistant.model.WikiEntry;
-import com.assistant.model.WikiType;
 import com.assistant.service.WikiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Searches the project wiki (.wiki/entries/) for entries across all types.
- * Returns a compact hit list. Use wiki_read to retrieve the full entry content.
+ * Searches wiki entries (Markdown files in /wiki/) by filename and content.
+ * Returns a list of matching file paths with snippets.
+ * Use wiki_read to retrieve the full content of a specific entry.
  */
 @Component
 public class WikiSearchTool extends AbstractTool {
@@ -42,19 +39,14 @@ public class WikiSearchTool extends AbstractTool {
             "type", "function",
             "function", Map.of(
                 "name", getName(),
-                "description", "Search the project wiki for characters, locations, organizations, and other world-building entries. " +
-                        "Returns a compact list of matching entries with their IDs. " +
-                        "Use wiki_read afterwards to get the full content of a specific entry.",
+                "description", "Search wiki entries (Markdown files in /wiki/) by filename and content. " +
+                        "Returns matching file paths and snippets. Use wiki_read to get the full content.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(
                         "query", Map.of(
                             "type", "string",
-                            "description", "Search term matched against all field values of each entry (case-insensitive)"
-                        ),
-                        "type", Map.of(
-                            "type", "string",
-                            "description", "Optional filter by wiki type ID (e.g. 'character', 'location', 'organization')"
+                            "description", "Search term matched against filenames and content (case-insensitive)"
                         ),
                         "limit", Map.of(
                             "type", "string",
@@ -74,117 +66,42 @@ public class WikiSearchTool extends AbstractTool {
             return "Error: missing 'query' parameter";
         }
 
-        String typeFilter = extractArg(argsJson, "type");
         int limit = parseLimit(extractArg(argsJson, "limit"));
-        String lowerQuery = query.toLowerCase();
+        log.trace("Received request to execute wiki_search for query: {}", query);
 
-        List<WikiType> types;
+        List<WikiService.WikiSearchHit> hits;
         try {
-            types = wikiService.listTypes();
+            hits = wikiService.searchWiki(query, limit);
         } catch (IOException e) {
-            log.error("Error listing wiki types", e);
-            return "Error reading wiki types: " + e.getMessage();
-        }
-
-        if (types.isEmpty()) {
-            return "No wiki types found. Create wiki types and entries in the Wiki browser first.";
-        }
-
-        List<WikiHit> hits = new ArrayList<>();
-
-        for (WikiType type : types) {
-            if (typeFilter != null && !typeFilter.isBlank()
-                    && !type.getId().toLowerCase().contains(typeFilter.toLowerCase())
-                    && !type.getName().toLowerCase().contains(typeFilter.toLowerCase())) {
-                continue;
-            }
-
-            List<WikiEntry> entries;
-            try {
-                entries = wikiService.listEntries(type.getId());
-            } catch (IOException e) {
-                log.warn("Could not read entries for type: {}", type.getId());
-                continue;
-            }
-
-            for (WikiEntry entry : entries) {
-                if (matchesQuery(entry, lowerQuery)) {
-                    String displayName = entry.getValues() != null ? entry.getValues().get("name") : null;
-                    if (displayName == null || displayName.isBlank()) {
-                        displayName = entry.getId();
-                    }
-                    hits.add(new WikiHit(type.getId() + "/" + entry.getId(), type.getName(), displayName));
-                    if (hits.size() >= limit) break;
-                }
-            }
-
-            if (hits.size() >= limit) break;
+            log.error("Error searching wiki", e);
+            return "Error searching wiki: " + e.getMessage();
         }
 
         if (hits.isEmpty()) {
-            return "No wiki entries found matching '" + query + "'" +
-                    (typeFilter != null && !typeFilter.isBlank() ? " with type='" + typeFilter + "'" : "") + ".";
+            return "No wiki entries found matching '" + query + "'.";
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Found ").append(hits.size()).append(" wiki entry/entries matching '").append(query).append("':\n\n");
-        for (WikiHit hit : hits) {
-            sb.append("- **").append(hit.id()).append("** [").append(hit.typeName()).append("]\n");
-            sb.append("  ").append(hit.displayName()).append("\n");
+        sb.append("Found ").append(hits.size()).append(" wiki entries matching '").append(query).append("':\n\n");
+        for (WikiService.WikiSearchHit hit : hits) {
+            sb.append("- **wiki/").append(hit.path()).append("**");
+            if (!hit.title().equals(hit.path())) {
+                sb.append(" — ").append(hit.title());
+            }
+            if (!hit.snippet().isEmpty()) {
+                sb.append("\n  ").append(hit.snippet());
+            }
+            sb.append("\n");
         }
-        sb.append("\nUse wiki_read with the id to get the full entry.");
+        sb.append("\nUse wiki_read with the path to get the full entry.");
+
+        log.trace("Finished wiki_search for '{}': {} hits", query, hits.size());
         return sb.toString();
     }
 
     @Override
     public String describe(String argsJson) {
-        String query = extractArg(argsJson, "query");
-        String type = extractArg(argsJson, "type");
-        if (type != null && !type.isBlank()) {
-            return "Searching wiki for " + type + ": '" + query + "'";
-        }
-        return "Searching wiki for '" + query + "'";
-    }
-
-    private boolean matchesQuery(WikiEntry entry, String lowerQuery) {
-        String entryId = entry.getId();
-
-        // 1. Direct substring match on id and field values
-        if (entryId.toLowerCase().contains(lowerQuery)) return true;
-        if (fieldValuesContain(entry, lowerQuery)) return true;
-
-        // 2. Normalized match: strip all separators (spaces, hyphens, underscores) from both sides
-        //    "vanilla sloth" → "vanillasloth" matches "vanillaSloth" → "vanillasloth"
-        String normalizedQuery = lowerQuery.replaceAll("[\\s\\-_]", "");
-        if (!normalizedQuery.isEmpty()) {
-            String normalizedId = entryId.toLowerCase().replaceAll("[\\s\\-_]", "");
-            if (normalizedId.contains(normalizedQuery)) return true;
-        }
-
-        // 3. Token-based match: split query into words and check that every token appears
-        //    somewhere in the camelCase-split id or in any field value.
-        //    "Vanilla Sloth" → ["vanilla","sloth"]; "vanillaSloth" splits to "vanilla sloth"
-        String[] queryTokens = lowerQuery.trim().split("[\\s\\-_]+");
-        if (queryTokens.length > 1) {
-            // expand camelCase id to space-separated lowercase words
-            String expandedId = entryId
-                    .replaceAll("([a-z])([A-Z])", "$1 $2")
-                    .replaceAll("[\\-_]", " ")
-                    .toLowerCase();
-            boolean allTokensMatch = Arrays.stream(queryTokens)
-                    .allMatch(token -> expandedId.contains(token) || fieldValuesContain(entry, token));
-            if (allTokensMatch) return true;
-        }
-
-        return false;
-    }
-
-    private boolean fieldValuesContain(WikiEntry entry, String lowerToken) {
-        if (entry.getValues() == null) return false;
-        for (String value : entry.getValues().values()) {
-            if (value != null && value.toLowerCase().contains(lowerToken)) return true;
-        }
-        return false;
+        return "Searching wiki for '" + extractArg(argsJson, "query") + "'";
     }
 
     private int parseLimit(String raw) {
@@ -196,6 +113,4 @@ public class WikiSearchTool extends AbstractTool {
             return DEFAULT_LIMIT;
         }
     }
-
-    private record WikiHit(String id, String typeName, String displayName) {}
 }

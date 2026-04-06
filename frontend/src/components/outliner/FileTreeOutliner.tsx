@@ -73,8 +73,6 @@ export interface FileTreeOutlinerProps {
   onSetOutlinerScope?: (relativeSubprojectPath: string) => void;
   /** Called when saved scope no longer exists or is not a subproject */
   onScopeInvalidated?: () => void;
-  /** Called when user wants to open a file and immediately show its shadow meta-note panel */
-  onOpenFileMeta?: (path: string) => void;
   /** Current git status — used to render change indicators in the tree */
   gitStatus?: GitStatus;
   /** Discard git changes for this file or folder (right-click) */
@@ -89,7 +87,6 @@ interface ContextMenuState {
   path: string;
   directory: boolean;
   subprojectType: string | null | undefined;
-  hasShadow: boolean;
 }
 
 function TreeNodeRow({
@@ -268,9 +265,6 @@ function TreeNodeRow({
           )}
           <span className="file-tree-name">{node.name}</span>
           {hasGitChange && <span className="tree-node-git-dot" title={isDir ? 'Ordner enthält Änderungen' : 'Datei geändert'} />}
-          {!isDir && node.hasShadow && (
-            <span className="file-tree-shadow-dot" title="Hat Meta-Notiz" />
-          )}
           {isSubproject && <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>}
         </button>
       )}
@@ -386,7 +380,6 @@ export function FileTreeOutliner({
   onClearOutlinerScope,
   onSetOutlinerScope,
   onScopeInvalidated,
-  onOpenFileMeta,
   gitStatus,
   onGitRevert,
   onShowFileHistory,
@@ -519,7 +512,6 @@ export function FileTreeOutliner({
       path: node.path,
       directory: node.directory,
       subprojectType: node.subprojectType,
-      hasShadow: node.hasShadow ?? false,
     });
   }, []);
 
@@ -687,21 +679,6 @@ export function FileTreeOutliner({
                 onClick={() => handleDelete(menu.path, menu.directory)}
               >
                 Löschen…
-              </button>
-            </>
-          )}
-          {!menu.directory && onOpenFileMeta && (
-            <>
-              <div className="file-tree-context-separator" role="separator" />
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => {
-                  onOpenFileMeta(menu.path);
-                  setMenu(null);
-                }}
-              >
-                {menu.hasShadow ? 'Meta-Notiz bearbeiten' : 'Meta-Notiz anlegen'}
               </button>
             </>
           )}

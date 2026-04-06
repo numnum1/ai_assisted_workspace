@@ -1,14 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 'react';
 import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2, RotateCcw } from 'lucide-react';
-import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
+import type { ChatMessage, Mode, Conversation, SelectionContext, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
 import { NewChatButton } from './NewChatButton.tsx';
 import { NewChatDialog } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
-import { NoteCard } from './NoteCard.tsx';
-import { wikiApi } from '../../api.ts';
+import { ChangeCard } from './ChangeCard.tsx';
+import type { ChangeCardData } from './ChangeCard.tsx';
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
@@ -55,15 +55,13 @@ interface ChatPanelProps {
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
   chatFocusTriggerRef?: React.MutableRefObject<(() => void) | null>;
-  wikiTypes?: WikiType[];
-  onSaveFreeNote?: (note: NoteProposal) => Promise<void>;
-  onAttachNoteToEntry?: (note: NoteProposal, typeId: string, entryId: string) => Promise<void>;
   llms?: LlmPublic[];
   selectedLlmId?: string;
   onLlmChange?: (id: string | undefined) => void;
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
   onRetry?: () => void;
+  onFileChanged?: (path: string) => void;
 }
 
 interface MessageEditBoxProps {
@@ -128,48 +126,6 @@ function getContrastingTextColor(hexColor?: string): string | undefined {
   return luminance > 0.6 ? '#1e1e2e' : '#f5f5ff';
 }
 
-/**
- * Scans all messages (including hidden tool-chain messages) and returns a map from
- * visible message index to the list of note proposals that should appear after it.
- * A note proposal is a tool result from a "propose_note" tool call.
- */
-function extractNoteProposals(messages: ChatMessage[]): Map<number, NoteProposal[]> {
-  // Build map: toolCallId → function name (from assistant messages with toolCalls)
-  const toolCallFnMap = new Map<string, string>();
-  messages.forEach((m) => {
-    if (m.role === 'assistant' && m.toolCalls) {
-      m.toolCalls.forEach((tc) => toolCallFnMap.set(tc.id, tc.function.name));
-    }
-  });
-
-  // Track the index of the last visible (non-hidden) message seen so far
-  const result = new Map<number, NoteProposal[]>();
-  let lastVisibleIdx = -1;
-
-  messages.forEach((m, idx) => {
-    if (!m.hidden) {
-      lastVisibleIdx = idx;
-    }
-    if (m.role === 'tool' && m.toolCallId) {
-      const fnName = toolCallFnMap.get(m.toolCallId);
-      if (fnName === 'propose_note') {
-        try {
-          const note = JSON.parse(m.content) as NoteProposal;
-          if (note.id && note.title && note.content) {
-            const key = lastVisibleIdx;
-            const existing = result.get(key) ?? [];
-            result.set(key, [...existing, note]);
-          }
-        } catch {
-          /* ignore malformed note JSON */
-        }
-      }
-    }
-  });
-
-  return result;
-}
-
 export function ChatPanel({
   messages,
   streaming,
@@ -209,15 +165,13 @@ export function ChatPanel({
   onApplyFieldUpdate,
   fieldLabels,
   chatFocusTriggerRef,
-  wikiTypes = [],
-  onSaveFreeNote,
-  onAttachNoteToEntry,
   llms = [],
   selectedLlmId,
   onLlmChange,
   reasoningAvailable = true,
   fastAvailable = true,
   onRetry,
+  onFileChanged,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -232,9 +186,10 @@ export function ChatPanel({
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [renamingTitle, setRenamingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
-  const [dismissedNoteIds, setDismissedNoteIds] = useState<Set<string>>(new Set());
-  const [wikiEntriesByType, setWikiEntriesByType] = useState<Record<string, WikiEntry[]>>({});
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [glossaryPopup, setGlossaryPopup] = useState<{ x: number; y: number; selectedText: string } | null>(null);
+  const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string } | null>(null);
+  const [glossarySaving, setGlosarySaving] = useState(false);
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
@@ -249,6 +204,45 @@ export function ChatPanel({
     },
     [onEditMessage],
   );
+
+  const handleMessagesMouseUp = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      setGlossaryPopup(null);
+      return;
+    }
+    const text = selection.toString().trim();
+    if (!text || text.length < 2) {
+      setGlossaryPopup(null);
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const panelRect = panelRef.current?.getBoundingClientRect();
+    if (!panelRect) return;
+    setGlossaryPopup({
+      x: rect.left - panelRect.left + rect.width / 2,
+      y: rect.top - panelRect.top - 8,
+      selectedText: text,
+    });
+  }, []);
+
+  const handleSaveToGlossary = async () => {
+    if (!glossaryForm) return;
+    setGlosarySaving(true);
+    try {
+      await fetch('/api/glossary/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term: glossaryForm.term, definition: glossaryForm.definition }),
+      });
+    } finally {
+      setGlosarySaving(false);
+      setGlossaryForm(null);
+      setGlossaryPopup(null);
+      window.getSelection()?.removeAllRanges();
+    }
+  };
 
   const handleNewChatClick = () => {
     const hasMessages = messages.filter((m) => !m.hidden).length > 0;
@@ -352,13 +346,6 @@ export function ChatPanel({
     return () => el.removeEventListener('scroll', onScroll);
   }, [streaming]);
 
-  // Reset dismissed notes when chat is cleared
-  useEffect(() => {
-    if (messages.length === 0) {
-      setDismissedNoteIds(new Set());
-    }
-  }, [messages.length]);
-
   useEffect(() => {
     const panel = panelRef.current;
     const syncFullscreen = () => {
@@ -394,17 +381,6 @@ export function ChatPanel({
     if (req) void req().catch(() => { /* unsupported or denied */ });
   }, []);
 
-  const handleLoadEntries = useCallback(async (typeId: string) => {
-    if (wikiEntriesByType[typeId]) return;
-    try {
-      const entries = await wikiApi.listEntries(typeId);
-      setWikiEntriesByType((prev) => ({ ...prev, [typeId]: entries }));
-    } catch {
-      /* ignore */
-    }
-  }, [wikiEntriesByType]);
-
-  const noteProposalMap = extractNoteProposals(messages);
 
   return (
     <div ref={panelRef} className="chat-panel">
@@ -495,7 +471,7 @@ export function ChatPanel({
         />
       )}
 
-      <div className="chat-messages" ref={messagesScrollRef}>
+      <div className="chat-messages" ref={messagesScrollRef} onMouseUp={handleMessagesMouseUp}>
         {messages.filter((m) => !m.hidden).length === 0 && (
           <div className="chat-empty">
             <p>Start a conversation with your AI assistant.</p>
@@ -525,8 +501,36 @@ export function ChatPanel({
             prevUser?.role === 'user' &&
             prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
 
-          const noteProposalsForMsg = (noteProposalMap.get(originalIdx) ?? [])
-            .filter((n) => !dismissedNoteIds.has(n.id));
+          if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
+            const term = msg.content.slice('glossary_add:success:'.length);
+            return (
+              <div key={originalIdx} className="glossary-indicator">
+                <span className="glossary-indicator-icon">📖</span>
+                <span className="glossary-indicator-text">Glossar-Eintrag angelegt: <strong>{term}</strong></span>
+              </div>
+            );
+          }
+
+          if (msg.role === 'tool' && msg.content?.startsWith('write_file:success:')) {
+            const rest = msg.content.slice('write_file:success:'.length);
+            // format: {snapshotId}:{new|modified}:{path}:{description}
+            const parts = rest.split(':');
+            if (parts.length >= 4) {
+              const snapshotId = parts[0];
+              const isNew = parts[1] === 'new';
+              const path = parts[2];
+              const description = parts.slice(3).join(':');
+              const cardData: ChangeCardData = { snapshotId, path, isNew, description };
+              return (
+                <div key={originalIdx} className="change-card-wrapper">
+                  <ChangeCard
+                    data={cardData}
+                    onFileChanged={onFileChanged}
+                  />
+                </div>
+              );
+            }
+          }
 
           return (
             <div key={originalIdx}>
@@ -654,22 +658,6 @@ export function ChatPanel({
                   </div>
                 )}
               </div>
-              {noteProposalsForMsg.length > 0 && onSaveFreeNote && onAttachNoteToEntry && (
-                <div className="note-cards-container">
-                  {noteProposalsForMsg.map((note) => (
-                    <NoteCard
-                      key={note.id}
-                      note={note}
-                      wikiTypes={wikiTypes}
-                      wikiEntriesByType={wikiEntriesByType}
-                      onSaveFree={onSaveFreeNote}
-                      onAttachToEntry={onAttachNoteToEntry}
-                      onDismiss={(id) => setDismissedNoteIds((prev) => new Set([...prev, id]))}
-                      onLoadEntries={handleLoadEntries}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
           );
         })}
@@ -730,6 +718,65 @@ export function ChatPanel({
           onDiscard={handleNewChatDiscard}
           onCancel={() => setNewChatDialogOpen(false)}
         />
+      )}
+
+      {glossaryPopup && !glossaryForm && (
+        <div
+          className="glossary-selection-popup"
+          style={{ left: glossaryPopup.x, top: glossaryPopup.y }}
+        >
+          <button
+            className="glossary-selection-btn"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setGlossaryForm({ term: glossaryPopup.selectedText, definition: '' });
+            }}
+          >
+            📖 Als Glossar-Begriff speichern
+          </button>
+        </div>
+      )}
+
+      {glossaryForm && (
+        <div className="glossary-save-overlay" onClick={() => { setGlossaryForm(null); setGlossaryPopup(null); }}>
+          <div className="glossary-save-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="glossary-save-title">Glossar-Eintrag speichern</div>
+            <label className="glossary-save-label">
+              Begriff
+              <input
+                className="glossary-save-input"
+                value={glossaryForm.term}
+                onChange={(e) => setGlossaryForm({ ...glossaryForm, term: e.target.value })}
+                autoFocus
+              />
+            </label>
+            <label className="glossary-save-label">
+              Definition
+              <textarea
+                className="glossary-save-textarea"
+                value={glossaryForm.definition}
+                onChange={(e) => setGlossaryForm({ ...glossaryForm, definition: e.target.value })}
+                rows={3}
+                placeholder="Kurze Erklärung..."
+              />
+            </label>
+            <div className="glossary-save-actions">
+              <button
+                className="glossary-save-cancel"
+                onClick={() => { setGlossaryForm(null); setGlossaryPopup(null); }}
+              >
+                Abbrechen
+              </button>
+              <button
+                className="glossary-save-confirm"
+                disabled={!glossaryForm.term.trim() || !glossaryForm.definition.trim() || glossarySaving}
+                onClick={handleSaveToGlossary}
+              >
+                {glossarySaving ? 'Speichere…' : 'Speichern'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

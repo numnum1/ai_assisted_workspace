@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload, BookOpen } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
@@ -13,25 +13,21 @@ import { CommandPalette } from './components/git/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx';
 import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
 import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
-import { WikiBrowser } from './components/wiki/WikiBrowser.tsx';
-import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
-import { WikiTypeEditor } from './components/wiki/WikiTypeEditor.tsx';
-import { WikiTypePickerDialog } from './components/wiki/WikiTypePickerDialog.tsx';
-import { GlossaryPanel } from './components/glossary/GlossaryPanel.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, AltVersionSession, NoteProposal, LlmPublic } from './types.ts';
-import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, llmApi, AuthRequiredError } from './api.ts';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, AltVersionSession, LlmPublic } from './types.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
 import { useChatHistory } from './hooks/useChatHistory.ts';
-import { useWiki } from './hooks/useWiki.ts';
 import { useWorkspaceMode } from './hooks/useWorkspaceMode.ts';
 import { useWorkspaceLevelConfigMap } from './hooks/useWorkspaceLevelConfigMap.ts';
 import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
-import { useFileEditor } from './hooks/useFileEditor.ts';
+import { useFileTabs } from './hooks/useFileTabs.ts';
+import { EditorTabs } from './components/editor/EditorTabs.tsx';
+import { SearchPanel } from './components/editor/SearchPanel.tsx';
 import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
@@ -79,7 +75,6 @@ function App() {
   const project = useProject();
   const chapter = useChapter();
   const refs = useReferencedFiles();
-  const wiki = useWiki();
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
@@ -199,27 +194,8 @@ function App() {
     setSelectedMeta(null);
     setMetaExpanded(false);
     setFocusedField(null);
-    setGlossaryOpen(false);
-    wiki.loadTypes().catch(() => { /* ignore if wiki not yet initialised */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
-
-  const refreshGlossaryFlag = useCallback(async () => {
-    if (!project.initialized) {
-      setGlossaryEnabled(false);
-      return;
-    }
-    try {
-      const cfg = await projectConfigApi.get();
-      setGlossaryEnabled(!!cfg.glossaryEnabled);
-    } catch {
-      setGlossaryEnabled(false);
-    }
-  }, [project.initialized]);
-
-  useEffect(() => {
-    void refreshGlossaryFlag();
-  }, [project.projectPath, refreshGlossaryFlag]);
 
   // Load messages when switching conversations
   useEffect(() => {
@@ -378,9 +354,7 @@ function App() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [wikiOpen, setWikiOpen] = useState(false);
-  const [glossaryOpen, setGlossaryOpen] = useState(false);
-  const [glossaryEnabled, setGlossaryEnabled] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [promptPackOpen, setPromptPackOpen] = useState(false);
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
@@ -474,9 +448,9 @@ function App() {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
-      if (e.ctrlKey && e.shiftKey && e.key === ' ') {
+      if (e.ctrlKey && e.shiftKey && e.key === 'F') {
         e.preventDefault();
-        setWikiOpen((prev) => !prev);
+        setSearchOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handler);
@@ -560,7 +534,7 @@ function App() {
   const MediaProjectEditor =
     getMediaProjectPlugin(workspaceModeId)?.ViewComponent ?? DefaultMediaProjectEditor;
 
-  const fileEditor = useFileEditor(project.projectPath ?? null);
+  const fileEditor = useFileTabs(project.projectPath ?? null);
 
   const commandActions: CommandAction[] = useMemo(() => {
     const actions: CommandAction[] = [
@@ -600,19 +574,8 @@ function App() {
             handler: () => {},
           },
     ];
-    if (project.initialized && glossaryEnabled) {
-      actions.push({
-        id: 'open-glossary',
-        label: 'Open Glossar',
-        icon: <BookOpen size={16} />,
-        handler: () => {
-          setPaletteOpen(false);
-          setGlossaryOpen(true);
-        },
-      });
-    }
     return actions;
-  }, [hasUncommitted, syncBadge, project.initialized, glossaryEnabled]);
+  }, [hasUncommitted, syncBadge]);
 
   const showMetaChrome =
     selectedMeta != null && (chapter.activeChapter != null || selectedMeta.type === 'book');
@@ -620,8 +583,7 @@ function App() {
   const onProjectGeneralSaved = useCallback(() => {
     loadModes();
     void refreshWorkspaceModeSchema();
-    void refreshGlossaryFlag();
-  }, [loadModes, refreshWorkspaceModeSchema, refreshGlossaryFlag]);
+  }, [loadModes, refreshWorkspaceModeSchema]);
 
   const onWorkspacePluginsChanged = useCallback(() => {
     setWorkspaceModesRefreshNonce((n) => n + 1);
@@ -739,14 +701,6 @@ function App() {
     history.discardActiveAndCreateConversation(selectedMode);
   }, [history, selectedMode]);
 
-  const handleSaveFreeNote = useCallback(async (note: NoteProposal) => {
-    await notesApi.saveFree(note);
-  }, []);
-
-  const handleAttachNoteToEntry = useCallback(async (note: NoteProposal, typeId: string, entryId: string) => {
-    await notesApi.attachToEntry(typeId, entryId, note);
-  }, []);
-
   const handleForkToNewConversation = useCallback((index: number) => {
     const forkedMessages = chat.messages.slice(0, index + 1);
     const baseTitle = history.activeConversation?.title ?? 'Chat';
@@ -802,7 +756,7 @@ function App() {
                   setSelectedMeta(null);
                   setMetaExpanded(false);
                   setFocusedField(null);
-                  void fileEditor.openFileMeta(path);
+                  void fileEditor.openFile(path);
                 }}
                 onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
                 refreshNonce={treeRefreshKey}
@@ -868,6 +822,21 @@ function App() {
 
         <Panel id="editor" defaultSize="45%" minSize="15%">
           <div className="center-editor-pane">
+          <EditorTabs
+            tabs={fileEditor.tabs}
+            activeTabPath={fileEditor.activeTabPath}
+            onSelectTab={(path) => void fileEditor.openFile(path)}
+            onCloseTab={fileEditor.closeTab}
+          />
+          {searchOpen && (
+            <SearchPanel
+              onOpenFile={(path) => {
+                void fileEditor.openFile(path);
+                setSearchOpen(false);
+              }}
+              onClose={() => setSearchOpen(false)}
+            />
+          )}
           <button
             type="button"
             className="center-pane-wide-toggle"
@@ -908,19 +877,7 @@ function App() {
               onChange={fileEditor.setContent}
               onSave={() => { void fileEditor.save(); fetchGitState(); }}
               onClearError={fileEditor.clearError}
-              shadowContent={fileEditor.shadowContent}
-              shadowDirty={fileEditor.shadowDirty}
-              shadowExists={fileEditor.shadowExists}
-              shadowLoading={fileEditor.shadowLoading}
-              shadowError={fileEditor.shadowError}
-              shadowPanelOpen={fileEditor.shadowPanelOpen}
-              onShadowChange={fileEditor.setShadowContent}
-              onShadowSave={() => { void fileEditor.saveShadow(); }}
-              onShadowDelete={() => { void fileEditor.deleteShadow(); }}
-              onOpenShadowPanel={() => { void fileEditor.openShadowPanel(); }}
-              onCloseShadowPanel={fileEditor.closeShadowPanel}
               onCloseFile={fileEditor.closeFile}
-              onClearShadowError={fileEditor.clearShadowError}
               onCtrlL={handleCtrlL}
               onAltVersion={handleAltVersion}
             />
@@ -1000,9 +957,12 @@ function App() {
             onApplyFieldUpdate={handleApplyFieldUpdate}
             fieldLabels={fieldLabels}
             chatFocusTriggerRef={chatFocusTriggerRef}
-            wikiTypes={wiki.types}
-            onSaveFreeNote={handleSaveFreeNote}
-            onAttachNoteToEntry={handleAttachNoteToEntry}
+            onFileChanged={(path) => {
+              if (fileEditor.selectedPath === path) {
+                void fileEditor.openFile(path);
+              }
+              setTreeRefreshKey((k) => k + 1);
+            }}
           />
         </Panel>
       </Group>
@@ -1011,6 +971,20 @@ function App() {
         contextInfo={chat.contextInfo}
         activeFile={activeChapterTitle}
         isDirty={chapter.hasDirtyActions}
+        onFetchContextBlocks={async () => {
+          const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
+            ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+            : (fileEditor.selectedPath ?? null);
+          const result = await chatApi.previewContext({
+            message: '',
+            activeFile,
+            mode: selectedMode,
+            referencedFiles: refs.referencedFiles,
+            history: [],
+            disableTools: toolsDisabled,
+          });
+          return result.contextBlocks ?? [];
+        }}
       />
 
       {credDialogOpen && (
@@ -1043,43 +1017,6 @@ function App() {
         streaming={chat.streaming}
         hasPromptPackMode={modes.some(m => m.id === 'prompt-pack')}
       />
-
-      {wikiOpen && (
-        <WikiBrowser
-          wiki={wiki}
-          onClose={() => setWikiOpen(false)}
-        />
-      )}
-
-      {glossaryOpen && glossaryEnabled && (
-        <GlossaryPanel
-          onOpenFile={(path) => { void fileEditor.openFile(path); }}
-          onClose={() => setGlossaryOpen(false)}
-        />
-      )}
-
-      {wiki.editingEntry && (
-        <WikiEntryPopup
-          editing={wiki.editingEntry}
-          onSave={wiki.saveEntry}
-          onClose={wiki.closeEntry}
-        />
-      )}
-
-      {wiki.editingType && (
-        <WikiTypeEditor
-          type={wiki.editingType}
-          onSave={wiki.saveType}
-          onClose={wiki.closeTypeEditor}
-        />
-      )}
-
-      {wiki.typePickerOpen && (
-        <WikiTypePickerDialog
-          onConfirm={wiki.createType}
-          onClose={wiki.closeTypePicker}
-        />
-      )}
 
       {subprojectDialog && (
         <SubprojectTypeDialog

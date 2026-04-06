@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X, Maximize2, Wrench } from 'lucide-react';
+import { Send, Square, BookOpen, Layers, Zap, FileText, File, X, Maximize2, Wrench } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
-import { shadowApi, filesApi } from '../../api.ts';
-import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../../types.ts';
+import { filesApi } from '../../api.ts';
+import type { ChapterNode, SelectionContext, FileNode } from '../../types.ts';
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'wiki' | 'shadow' | 'file';
+  type: 'chapter' | 'scene' | 'file';
   title: string;
   path: string;
   breadcrumb: string;
@@ -193,10 +193,8 @@ export function ChatInput({
 
     const rootParam = structureRoot ? `?root=${encodeURIComponent(structureRoot)}` : '';
 
-    const [summaries, wikiTypes, shadowResult, fileTree] = await Promise.all([
+    const [summaries, fileTree] = await Promise.all([
       fetch(`/api/chapters${rootParam}`).then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
-      fetch('/api/wiki/types').then(r => r.json()) as Promise<WikiType[]>,
-      shadowApi.list().catch(() => ({ paths: [] as string[] })),
       filesApi.getTree().catch(() => null as FileNode | null),
     ]);
 
@@ -206,7 +204,7 @@ export function ChatInput({
 
     const items: AutocompleteItem[] = [];
 
-    // Chapters and scenes (no actions)
+    // Chapters and scenes
     const chapterBase = structureRoot ? `${structureRoot}/.project/chapter` : '.project/chapter';
     for (const chapter of details) {
       const chapterTitle = chapter.meta.title || chapter.id;
@@ -227,41 +225,7 @@ export function ChatInput({
       }
     }
 
-    // Wiki entries (respecting excludeFromMentions)
-    const includedTypes = wikiTypes.filter(t => !t.excludeFromMentions);
-    const wikiEntries = await Promise.all(
-      includedTypes.map(t =>
-        fetch(`/api/wiki/types/${t.id}/entries`)
-          .then(r => r.json())
-          .then((entries: WikiEntry[]) => ({ type: t, entries }))
-      )
-    );
-    for (const { type: wType, entries } of wikiEntries) {
-      for (const entry of entries) {
-        const displayName = entry.values['name'] || entry.values['title'] || entry.id;
-        items.push({
-          type: 'wiki',
-          title: displayName,
-          path: `.wiki/entries/${wType.id}/${entry.id}.json`,
-          breadcrumb: wType.name,
-        });
-      }
-    }
-
-    // Shadow / meta-note files
-    for (const p of shadowResult.paths) {
-      const base = p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p;
-      const dot = base.lastIndexOf('.');
-      const displayName = dot > 0 ? base.slice(0, dot) : base;
-      items.push({
-        type: 'shadow',
-        title: displayName,
-        path: `.wiki/files/${p}`,
-        breadcrumb: 'Meta-Notiz',
-      });
-    }
-
-    // Project files (regular files visible in the file tree)
+    // Project files (regular files visible in the file tree, including /wiki/)
     if (fileTree) {
       items.push(...flattenFileTree(fileTree));
     }
@@ -428,12 +392,8 @@ export function ChatInput({
                   <BookOpen size={13} />
                 ) : item.type === 'scene' ? (
                   <Layers size={13} />
-                ) : item.type === 'shadow' ? (
-                  <FileText size={13} />
-                ) : item.type === 'file' ? (
-                  <File size={13} />
                 ) : (
-                  <Library size={13} />
+                  <File size={13} />
                 )}
               </span>
               <span className="ac-item-title">{item.title}</span>

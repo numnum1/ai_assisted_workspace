@@ -3,6 +3,11 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
 import { streamChat } from '../api.ts';
 
+function isVisibleToolMessage(content: string | undefined): boolean {
+  if (!content) return false;
+  return content.startsWith('glossary_add:success:') || content.startsWith('write_file:success:');
+}
+
 /**
  * Transforms the messages array into the history payload sent to the backend.
  * - User messages: uses resolvedContent (with file data) if available, strips UI-only fields
@@ -99,7 +104,7 @@ function attachAssistantStream(
     (toolMessages) => {
       cbs.currentBaseRef.current = [
         ...cbs.currentBaseRef.current,
-        ...toolMessages.map((m) => ({ ...m, hidden: true })),
+        ...toolMessages.map((m) => ({ ...m, hidden: !isVisibleToolMessage(m.content) })),
       ];
       cbs.setMessages(cbs.currentBaseRef.current);
     },
@@ -250,7 +255,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       (toolMessages) => {
         currentBaseRef.current = [
           ...currentBaseRef.current,
-          ...toolMessages.map((m) => ({ ...m, hidden: true })),
+          ...toolMessages.map((m) => ({ ...m, hidden: !isVisibleToolMessage(m.content) })),
         ];
         setMessages(currentBaseRef.current);
       },

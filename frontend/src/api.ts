@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, GlossaryEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, Conversation } from './types.ts';
 
 const BASE = '/api';
 
@@ -146,10 +146,6 @@ export const projectConfigApi = {
   getModes: () => get<Mode[]>('/project-config/modes'),
   saveMode: (id: string, mode: Mode) => put<Mode>(`/project-config/modes/${id}`, mode),
   deleteMode: (id: string) => fetch(`/api/project-config/modes/${id}`, { method: 'DELETE' }).then(r => r.json()),
-  getRules: () => get<string[]>('/project-config/rules'),
-  getRuleContent: (name: string) => get<{ name: string; content: string }>(`/project-config/rules/${name}`),
-  saveRule: (name: string, content: string) => put<{ status: string; name: string }>(`/project-config/rules/${name}`, { content }),
-  deleteRule: (name: string) => fetch(`/api/project-config/rules/${name}`, { method: 'DELETE' }).then(r => r.json()),
 };
 
 export interface LlmCreateRequest {
@@ -264,60 +260,22 @@ export const subprojectApi = {
 };
 
 export const wikiApi = {
-  listTypes: () =>
-    get<WikiType[]>('/wiki/types'),
-  createType: (name: string, fields?: WikiType['fields']) =>
-    post<WikiType>('/wiki/types', fields ? { name, fields } : { name }),
-  getType: (typeId: string) =>
-    get<WikiType>(`/wiki/types/${typeId}`),
-  updateType: (typeId: string, type: WikiType) =>
-    put<WikiType>(`/wiki/types/${typeId}`, type),
-  deleteType: (typeId: string) =>
-    del<{ status: string }>(`/wiki/types/${typeId}`),
-  listEntries: (typeId: string) =>
-    get<WikiEntry[]>(`/wiki/types/${typeId}/entries`),
-  createEntry: (typeId: string, name: string) =>
-    post<WikiEntry>(`/wiki/types/${typeId}/entries`, { name }),
-  getEntry: (typeId: string, entryId: string) =>
-    get<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`),
-  updateEntry: (typeId: string, entryId: string, values: Record<string, string>) =>
-    put<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`, { values }),
-  deleteEntry: (typeId: string, entryId: string) =>
-    del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
+  listFiles: () =>
+    get<string[]>('/wiki/files'),
+  search: (q: string, limit?: number) =>
+    get<Array<{ path: string; title: string; snippet: string }>>(`/wiki/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`),
 };
 
-export const glossaryApi = {
-  getEntries: () => get<GlossaryEntry[]>('/glossary/entries'),
-};
-
-export const shadowApi = {
-  list: () => get<{ paths: string[] }>('/shadow/list'),
-  get: (path: string) =>
-    get<{ exists: boolean; content: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
-  save: (path: string, content: string) =>
-    put<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`, { content }),
-  delete: (path: string) =>
-    del<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
-};
+export interface ContextBlock {
+  type: string;
+  label: string;
+  content: string;
+  estimatedTokens: number;
+}
 
 export const chatApi = {
   previewContext: (body: ChatRequest) =>
-    post<{ includedFiles: string[]; estimatedTokens: number }>('/chat/context-preview', body),
-};
-
-export const notesApi = {
-  saveFree: (note: NoteProposal) =>
-    post<NoteProposal>('/notes/free', note),
-  listFree: () =>
-    get<NoteProposal[]>('/notes/free'),
-  deleteFree: (id: string) =>
-    del<{ status: string; id: string }>(`/notes/free/${encodeURIComponent(id)}`),
-  attachToEntry: (typeId: string, entryId: string, note: NoteProposal) =>
-    post<NoteProposal>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`, note),
-  listForEntry: (typeId: string, entryId: string) =>
-    get<NoteProposal[]>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`),
-  deleteFromEntry: (typeId: string, entryId: string, id: string) =>
-    del<{ status: string; id: string }>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}/${encodeURIComponent(id)}`),
+    post<{ includedFiles: string[]; estimatedTokens: number; contextBlocks: ContextBlock[] }>('/chat/context-preview', body),
 };
 
 export function streamChat(
