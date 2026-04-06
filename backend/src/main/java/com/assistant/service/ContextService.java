@@ -166,9 +166,12 @@ public class ContextService {
             }
         }
 
-        // Include active file — always read fresh from disk so the AI sees the current state
+        // Active file content: only when the user opened a dedicated meta field editor (activeFieldKey).
+        // Otherwise do not attach the passively open tab — use @-references or read_file.
+        String activeFieldKey = request.getActiveFieldKey();
+        boolean focusedMetaField = activeFieldKey != null && !activeFieldKey.isBlank();
         String activeFile = request.getActiveFile();
-        if (activeFile != null && !activeFile.isBlank() && !seen.contains(activeFile)) {
+        if (focusedMetaField && activeFile != null && !activeFile.isBlank() && !seen.contains(activeFile)) {
             try {
                 if (fileService.fileExists(activeFile)) {
                     blockStart = systemPrompt.length();
@@ -177,22 +180,23 @@ public class ContextService {
                     systemPrompt.append(content).append("\n\n");
                     includedFiles.add(activeFile);
                     blocks.add(new AssembledContext.ContextBlock("active-file", "Active File: " + activeFile, content, (systemPrompt.length() - blockStart) / 4));
-                    log.debug("Injected active file '{}': {} chars", activeFile, systemPrompt.length() - blockStart);
+                    log.debug("Injected active file for focused field '{}': path={}, {} chars", activeFieldKey, activeFile, systemPrompt.length() - blockStart);
                     if (activeFile.endsWith(".json") && activeFile.contains(".project/chapter/")) {
                         appendFieldUpdateInstructions(systemPrompt);
                     }
                 } else {
-                    log.debug("Active file '{}' not found on disk, skipping", activeFile);
+                    log.debug("Active file '{}' not found on disk (focused field), skipping content injection", activeFile);
                 }
             } catch (IOException e) {
                 log.warn("Failed to read active file '{}'", activeFile, e);
                 systemPrompt.append("=== Active File: ").append(activeFile).append(" [read error] ===\n\n");
             }
+        } else if (!focusedMetaField && activeFile != null && !activeFile.isBlank()) {
+            log.debug("Skipping automatic active-file context injection for path={} (no focused meta field)", activeFile);
         }
 
         // Focused field — tells the AI which single field the user is actively editing
-        String activeFieldKey = request.getActiveFieldKey();
-        if (activeFieldKey != null && !activeFieldKey.isBlank()) {
+        if (focusedMetaField) {
             systemPrompt.append("=== Focused Field ===\n");
             systemPrompt.append("The user has opened the dedicated editor for the field `").append(activeFieldKey)
                     .append("`. They are working EXCLUSIVELY on this field.\n\n");

@@ -978,6 +978,7 @@ function App() {
           const result = await chatApi.previewContext({
             message: '',
             activeFile,
+            activeFieldKey: focusedField?.fieldKey ?? null,
             mode: selectedMode,
             referencedFiles: refs.referencedFiles,
             history: [],
