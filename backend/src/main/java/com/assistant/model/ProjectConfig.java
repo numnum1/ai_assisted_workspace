@@ -14,6 +14,8 @@ public class ProjectConfig {
     private String workspaceMode = "default";
     /** Optional LLM id (from AppData providers) for the floating Quick Chat; empty = first available. */
     private String quickChatLlmId = "";
+    /** When true, the glossary panel and glossary AI tools are available; entries live under .glossary/ */
+    private boolean glossaryEnabled = false;
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -29,4 +31,6 @@ public class ProjectConfig {
     public void setWorkspaceMode(String workspaceMode) { this.workspaceMode = workspaceMode != null ? workspaceMode : "default"; }
     public String getQuickChatLlmId() { return quickChatLlmId; }
     public void setQuickChatLlmId(String quickChatLlmId) { this.quickChatLlmId = quickChatLlmId != null ? quickChatLlmId : ""; }
+    public boolean isGlossaryEnabled() { return glossaryEnabled; }
+    public void setGlossaryEnabled(boolean glossaryEnabled) { this.glossaryEnabled = glossaryEnabled; }
 }

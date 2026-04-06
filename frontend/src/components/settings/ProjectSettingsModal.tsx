@@ -124,6 +124,7 @@ export function ProjectSettingsModal({
     defaultMode: '',
     workspaceMode: 'default',
     quickChatLlmId: '',
+    glossaryEnabled: false,
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -652,6 +653,23 @@ export function ProjectSettingsModal({
                   onRemove={i => setConfig(p => ({ ...p, globalRules: p.globalRules.filter((_, idx) => idx !== i) }))}
                   placeholder="e.g. rules/style-guide.md"
                 />
+
+                <label className="ps-label">Glossar</label>
+                <p className="ps-hint">
+                  Aktiviert den Befehl „Open Glossar“ in der Command Palette und die KI-Tools <code>glossary_search</code> / <code>glossary_read</code>.
+                  Einträge sind Markdown-Dateien unter <code>.glossary/</code>.
+                </p>
+                <div className="ps-toggle-row">
+                  <input
+                    type="checkbox"
+                    id="glossaryEnabled"
+                    checked={!!config.glossaryEnabled}
+                    onChange={e => setConfig(p => ({ ...p, glossaryEnabled: e.target.checked }))}
+                  />
+                  <label htmlFor="glossaryEnabled" className="ps-toggle-label">
+                    Glossar aktivieren
+                  </label>
+                </div>
 
                 <div className="ps-actions">
                   <button className="ps-save-btn" onClick={handleSaveConfig} disabled={savingConfig}>

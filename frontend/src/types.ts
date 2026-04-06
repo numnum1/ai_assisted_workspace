@@ -127,6 +127,8 @@ export interface ProjectConfig {
   workspaceMode?: string;
   /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
   quickChatLlmId?: string;
+  /** When true, glossary command palette entry and .glossary/ tools are intended for use */
+  glossaryEnabled?: boolean;
 }
 
 /** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */
@@ -297,4 +299,14 @@ export interface WikiEntry {
   id: string;
   typeId: string;
   values: Record<string, string>;
+}
+
+/** Flat list item from GET /api/glossary/entries (markdown under .glossary/) */
+export interface GlossaryEntry {
+  path: string;
+  name: string;
+  type: string | null;
+  summary: string | null;
+  aliases: string | null;
+  tags: string | null;
 }

@@ -299,6 +299,7 @@ public class ProjectConfigService {
         if (workspaceMode != null) {
             config.setWorkspaceMode(workspaceMode.toString());
         }
+        config.setGlossaryEnabled(booleanVal(data.get("glossaryEnabled"), false));
         return config;
     }
 
@@ -310,6 +311,7 @@ public class ProjectConfigService {
         data.put("globalRules", config.getGlobalRules() != null ? config.getGlobalRules() : List.of());
         data.put("defaultMode", config.getDefaultMode() != null ? config.getDefaultMode() : "");
         data.put("workspaceMode", config.getWorkspaceMode() != null ? config.getWorkspaceMode() : "default");
+        data.put("glossaryEnabled", config.isGlossaryEnabled());
         return buildYaml().dump(data);
     }
 

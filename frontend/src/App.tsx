@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload, BookOpen } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
@@ -17,6 +17,7 @@ import { WikiBrowser } from './components/wiki/WikiBrowser.tsx';
 import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
 import { WikiTypeEditor } from './components/wiki/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/wiki/WikiTypePickerDialog.tsx';
+import { GlossaryPanel } from './components/glossary/GlossaryPanel.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, AltVersionSession, NoteProposal, LlmPublic } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, llmApi, AuthRequiredError } from './api.ts';
@@ -198,9 +199,27 @@ function App() {
     setSelectedMeta(null);
     setMetaExpanded(false);
     setFocusedField(null);
+    setGlossaryOpen(false);
     wiki.loadTypes().catch(() => { /* ignore if wiki not yet initialised */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
+
+  const refreshGlossaryFlag = useCallback(async () => {
+    if (!project.initialized) {
+      setGlossaryEnabled(false);
+      return;
+    }
+    try {
+      const cfg = await projectConfigApi.get();
+      setGlossaryEnabled(!!cfg.glossaryEnabled);
+    } catch {
+      setGlossaryEnabled(false);
+    }
+  }, [project.initialized]);
+
+  useEffect(() => {
+    void refreshGlossaryFlag();
+  }, [project.projectPath, refreshGlossaryFlag]);
 
   // Load messages when switching conversations
   useEffect(() => {
@@ -360,6 +379,8 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [wikiOpen, setWikiOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const [glossaryEnabled, setGlossaryEnabled] = useState(false);
   const [promptPackOpen, setPromptPackOpen] = useState(false);
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
@@ -502,44 +523,6 @@ function App() {
     );
   }, [syncStatus]);
 
-  const commandActions: CommandAction[] = useMemo(() => [
-    {
-      id: 'open-folder',
-      label: 'Open Folder',
-      shortcut: 'Ctrl+Shift+A',
-      icon: <FolderOpen size={16} />,
-      handler: () => {},
-    },
-    {
-      id: 'project-settings',
-      label: 'Project Settings',
-      icon: <Settings size={16} />,
-      handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
-    },
-    {
-      id: 'import-chat',
-      label: 'Import Chat History',
-      icon: <Upload size={16} />,
-      handler: () => {
-        importFileInputRef.current?.click();
-      },
-    },
-    hasUncommitted
-      ? {
-          id: 'git-commit',
-          label: 'Commit',
-          icon: <GitCommitHorizontal size={16} />,
-          handler: () => {},
-        }
-      : {
-          id: 'git-sync',
-          label: 'Sync',
-          icon: <RefreshCw size={16} />,
-          badge: syncBadge,
-          handler: () => {},
-        },
-  ], [hasUncommitted, syncBadge]);
-
   const handleOpenProject = useCallback(async (path: string) => {
     await project.openProject(path);
     await chapter.refreshChapters();
@@ -579,13 +562,66 @@ function App() {
 
   const fileEditor = useFileEditor(project.projectPath ?? null);
 
+  const commandActions: CommandAction[] = useMemo(() => {
+    const actions: CommandAction[] = [
+      {
+        id: 'open-folder',
+        label: 'Open Folder',
+        shortcut: 'Ctrl+Shift+A',
+        icon: <FolderOpen size={16} />,
+        handler: () => {},
+      },
+      {
+        id: 'project-settings',
+        label: 'Project Settings',
+        icon: <Settings size={16} />,
+        handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
+      },
+      {
+        id: 'import-chat',
+        label: 'Import Chat History',
+        icon: <Upload size={16} />,
+        handler: () => {
+          importFileInputRef.current?.click();
+        },
+      },
+      hasUncommitted
+        ? {
+            id: 'git-commit',
+            label: 'Commit',
+            icon: <GitCommitHorizontal size={16} />,
+            handler: () => {},
+          }
+        : {
+            id: 'git-sync',
+            label: 'Sync',
+            icon: <RefreshCw size={16} />,
+            badge: syncBadge,
+            handler: () => {},
+          },
+    ];
+    if (project.initialized && glossaryEnabled) {
+      actions.push({
+        id: 'open-glossary',
+        label: 'Open Glossar',
+        icon: <BookOpen size={16} />,
+        handler: () => {
+          setPaletteOpen(false);
+          setGlossaryOpen(true);
+        },
+      });
+    }
+    return actions;
+  }, [hasUncommitted, syncBadge, project.initialized, glossaryEnabled]);
+
   const showMetaChrome =
     selectedMeta != null && (chapter.activeChapter != null || selectedMeta.type === 'book');
 
   const onProjectGeneralSaved = useCallback(() => {
     loadModes();
     void refreshWorkspaceModeSchema();
-  }, [loadModes, refreshWorkspaceModeSchema]);
+    void refreshGlossaryFlag();
+  }, [loadModes, refreshWorkspaceModeSchema, refreshGlossaryFlag]);
 
   const onWorkspacePluginsChanged = useCallback(() => {
     setWorkspaceModesRefreshNonce((n) => n + 1);
@@ -1012,6 +1048,13 @@ function App() {
         <WikiBrowser
           wiki={wiki}
           onClose={() => setWikiOpen(false)}
+        />
+      )}
+
+      {glossaryOpen && glossaryEnabled && (
+        <GlossaryPanel
+          onOpenFile={(path) => { void fileEditor.openFile(path); }}
+          onClose={() => setGlossaryOpen(false)}
         />
       )}
 

@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, GlossaryEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation } from './types.ts';
 
 const BASE = '/api';
 
@@ -284,6 +284,10 @@ export const wikiApi = {
     put<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`, { values }),
   deleteEntry: (typeId: string, entryId: string) =>
     del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
+};
+
+export const glossaryApi = {
+  getEntries: () => get<GlossaryEntry[]>('/glossary/entries'),
 };
 
 export const shadowApi = {
