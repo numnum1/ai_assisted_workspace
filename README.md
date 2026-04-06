@@ -51,6 +51,15 @@ Custom workspace modes can be added to the app data directory.
 - **Shadow files**: Per-file notes mirrored under `.wiki/files/` for annotating project files
 - **AI-accessible**: Wiki entries are available as chat context and through AI tools
 
+### Glossary (Glossar)
+Optional vocabulary for your project: **term definitions and concepts** as Markdown files under `.glossary/`, separate from the structured wiki (JSON types/entries).
+
+- **Enable**: Project Settings → **General** → check **Glossar aktivieren** (stored as `glossaryEnabled` in `.assistant/project.yaml`).
+- **UI**: Command palette (`Ctrl+Shift+A`) → **Open Glossar** — floating, draggable panel with search, **create** (`+`), **rename**, **delete**, and open entry in the main **Markdown editor** (the panel stays open while you edit).
+- **Storage**: `.glossary/*.md` with YAML frontmatter, e.g. `type`, `id`, `summary`, `aliases`, `tags`; body is free Markdown. The folder is created automatically when you save the first entry.
+- **AI**: Registered tools **`glossary_search`** (query + optional type filter + limit) and **`glossary_read`** (full file by path under `.glossary/`).
+- **API**: `GET /api/glossary/entries` returns a flat list with parsed frontmatter for the panel.
+
 ### Git Integration
 - Status, diff, log, commit, revert, sync, file history, ahead/behind tracking
 - Credential management and repository initialization
@@ -58,7 +67,7 @@ Custom workspace modes can be added to the app data directory.
 
 ### Project Configuration
 Per-project configuration lives in `.assistant/`:
-- `project.yaml` — project settings and workspace mode selection
+- `project.yaml` — project settings, workspace mode selection, optional `glossaryEnabled` for the glossary feature
 - `modes/` — custom chat modes
 - `rules/` — custom AI rules included in every chat context
 - `chat-history.json` — persisted chat history
@@ -217,6 +226,7 @@ my-book/
 ├── .wiki/                       # Wiki entries (managed by the app)
 │   ├── types/
 │   └── entries/
+├── .glossary/                   # Optional glossary terms (.md + frontmatter), if feature enabled
 └── .assistant/                  # Project config (managed by the app)
     ├── project.yaml
     ├── modes/
@@ -236,6 +246,8 @@ The AI can call these tools during chat to gather information:
 | **SearchStoryStructure** | Search through the chapter/scene structure |
 | **WikiRead** | Read a wiki entry |
 | **WikiSearch** | Search wiki entries |
+| **GlossaryRead** | Read a glossary Markdown file under `.glossary/` |
+| **GlossarySearch** | Search glossary entries by text and optional type |
 | **SceneRead** | Read a specific scene |
 | **SceneSearch** | Search through scenes |
 | **ProposeNote** | Propose a note (free-floating or attached to a wiki entry) |
@@ -304,6 +316,11 @@ All endpoints are under `/api`.
 | POST | `/api/wiki/types` | Create a wiki type |
 | | `/api/wiki/types/{id}/entries/...` | Entry CRUD per type |
 
+### Glossary
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/glossary/entries` | List all `.md` files under `.glossary/` with parsed frontmatter |
+
 ### Project & Config
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -340,3 +357,5 @@ All endpoints are under `/api`.
 |----------|--------|
 | `Ctrl+S` | Save the current file |
 | `Ctrl+Enter` | Send chat message |
+| `Ctrl+Shift+A` | Command palette (includes **Open Glossar** when glossary is enabled) |
+| `Ctrl+Shift+Space` | Toggle wiki browser |
