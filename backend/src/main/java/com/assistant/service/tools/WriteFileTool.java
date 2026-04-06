@@ -41,14 +41,18 @@ public class WriteFileTool extends AbstractTool {
                 "name", getName(),
                 "description", "Write (create or overwrite) a project file with the given content. " +
                         "The old content is saved as a revert snapshot so the user can undo the change. " +
-                        "Use this to create wiki entries, edit chapters, update any project file. " +
+                        "Use this to create or update wiki entries, chapters, or any other project file. " +
+                        "IMPORTANT: Wiki entries are always Markdown files (.md) under wiki/ — " +
+                        "for example wiki/characters/shalltear.md. Never use .json for wiki entries. " +
                         "Always write the complete file content, not just the changed parts.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(
                         "path", Map.of(
                             "type", "string",
-                            "description", "Relative path within the project, e.g. 'wiki/characters/lupusregina.md'"
+                            "description", "Relative path within the project. " +
+                                    "For wiki entries always use a .md extension under wiki/, e.g. 'wiki/characters/lupusregina.md'. " +
+                                    "Never use .json for wiki entries."
                         ),
                         "content", Map.of(
                             "type", "string",

@@ -223,9 +223,13 @@ public class ContextService {
             systemPrompt.append("=== Available Tools ===\n");
             systemPrompt.append("You have access to these tools for reading project files and the wiki:\n\n");
             systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
-            systemPrompt.append("- wiki_search(query, limit?): Search the project wiki under `/wiki/` for entries by text. " +
+            systemPrompt.append("Wiki entries are **Markdown files (`.md`)** stored under `wiki/` at the project root.\n");
+            systemPrompt.append("There are no JSON wiki files — always use `.md` when creating or updating a wiki entry.\n");
+            systemPrompt.append("Example path for a new character entry: `wiki/characters/lupusregina.md`\n\n");
+            systemPrompt.append("- wiki_search(query, limit?): Search the project wiki under `wiki/` for entries by text. " +
                     "Returns matching file paths and a snippet.\n");
-            systemPrompt.append("- wiki_read(path): Read the full content of a wiki file (path relative to project root, e.g. `wiki/characters/lupusregina.md`).\n\n");
+            systemPrompt.append("- wiki_read(path): Read the full content of a wiki file by its path relative to the project root " +
+                    "(e.g. `wiki/characters/lupusregina.md`).\n\n");
             systemPrompt.append("**Project files:**\n");
             systemPrompt.append("- search_project(query): Search files/folders by **path and file name**.\n");
             systemPrompt.append("- read_file(path): Read the full content of any project file by relative path.\n\n");
@@ -235,9 +239,9 @@ public class ContextService {
                     "recurring concept or project-specific term worth remembering.\n\n");
             systemPrompt.append("**File Writing:**\n");
             systemPrompt.append("- write_file(path, content, description): Write (create or overwrite) a project file. " +
-                    "Saves a revert snapshot automatically. Use this to create wiki entries, edit chapters, or update any " +
-                    "project file. Always provide the complete file content. " +
-                    "The 'description' parameter is a short human-readable summary of what you changed and why.\n\n");
+                    "Saves a revert snapshot automatically. Always provide the complete file content.\n");
+            systemPrompt.append("  - Wiki entries → `wiki/<subfolder>/<name>.md` (Markdown, **never** JSON)\n");
+            systemPrompt.append("  - The 'description' parameter is a short human-readable summary of what was changed and why.\n\n");
         }
 
         // Editor selection replacement capability
