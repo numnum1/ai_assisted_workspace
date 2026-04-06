@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Square, BookOpen, Layers, Zap, FileText, File, X, Maximize2, Wrench } from 'lucide-react';
+import { Send, Square, BookOpen, Zap, X, Maximize2, Wrench } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
-import { filesApi } from '../../api.ts';
-import type { ChapterNode, SelectionContext, FileNode } from '../../types.ts';
+import { wikiApi } from '../../api.ts';
+import type { SelectionContext } from '../../types.ts';
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'file';
+  type: 'wiki';
   title: string;
   path: string;
   breadcrumb: string;
@@ -30,20 +30,17 @@ function chatTextareaMaxHeightPx(fullscreen: boolean): number {
   return Math.min(Math.round(window.innerHeight * 0.5), 480);
 }
 
-function flattenFileTree(node: FileNode): AutocompleteItem[] {
-  const results: AutocompleteItem[] = [];
-  if (!node.directory && node.path !== '.') {
-    const dir = node.path.includes('/')
-      ? node.path.slice(0, node.path.lastIndexOf('/'))
-      : '';
-    results.push({ type: 'file', title: node.name, path: node.path, breadcrumb: dir });
-  }
-  if (node.children) {
-    for (const child of node.children) {
-      results.push(...flattenFileTree(child));
-    }
-  }
-  return results;
+const WIKI_PREFIX = 'wiki/';
+
+function wikiDisplayTitle(relativePath: string): string {
+  const parts = relativePath.split('/');
+  const filename = parts[parts.length - 1] ?? relativePath;
+  return filename.replace(/\.md$/i, '').replace(/[-_]/g, ' ');
+}
+
+function wikiBreadcrumb(relativePath: string): string {
+  const parts = relativePath.split('/');
+  return parts.length > 1 ? parts[parts.length - 2]! : 'wiki';
 }
 
 interface ChatInputProps {
@@ -56,7 +53,7 @@ interface ChatInputProps {
   /** When true, file chips are not shown (e.g. Prompt-Paket panel already lists them). */
   hideFileChips?: boolean;
   placeholder?: string;
-  /** Active subproject root path — scopes chapter/scene autocomplete to that folder */
+  /** Active subproject root path — clears @-mention cache when it changes */
   structureRoot?: string | null;
   /** Whether the reasoning model should be used for this message */
   useReasoning?: boolean;
@@ -191,48 +188,23 @@ export function ChatInput({
   const loadItems = useCallback(async (): Promise<AutocompleteItem[]> => {
     if (itemsCacheRef.current) return itemsCacheRef.current;
 
-    const rootParam = structureRoot ? `?root=${encodeURIComponent(structureRoot)}` : '';
-
-    const [summaries, fileTree] = await Promise.all([
-      fetch(`/api/chapters${rootParam}`).then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
-      filesApi.getTree().catch(() => null as FileNode | null),
-    ]);
-
-    const details = await Promise.all(
-      summaries.map(s => fetch(`/api/chapters/${s.id}${rootParam}`).then(r => r.json()) as Promise<ChapterNode>)
-    );
-
-    const items: AutocompleteItem[] = [];
-
-    // Chapters and scenes
-    const chapterBase = structureRoot ? `${structureRoot}/.project/chapter` : '.project/chapter';
-    for (const chapter of details) {
-      const chapterTitle = chapter.meta.title || chapter.id;
-      items.push({
-        type: 'chapter',
-        title: chapterTitle,
-        path: `${chapterBase}/${chapter.id}.json`,
-        breadcrumb: '',
-      });
-      for (const scene of chapter.scenes) {
-        const sceneTitle = scene.meta.title || scene.id;
-        items.push({
-          type: 'scene',
-          title: sceneTitle,
-          path: `${chapterBase}/${chapter.id}/${scene.id}.json`,
-          breadcrumb: chapterTitle,
-        });
-      }
+    let relativePaths: string[] = [];
+    try {
+      relativePaths = await wikiApi.listFiles();
+    } catch {
+      relativePaths = [];
     }
 
-    // Project files (regular files visible in the file tree, including /wiki/)
-    if (fileTree) {
-      items.push(...flattenFileTree(fileTree));
-    }
+    const items: AutocompleteItem[] = relativePaths.map((rel) => ({
+      type: 'wiki',
+      title: wikiDisplayTitle(rel),
+      path: `${WIKI_PREFIX}${rel}`,
+      breadcrumb: wikiBreadcrumb(rel),
+    }));
 
     itemsCacheRef.current = items;
     return items;
-  }, [structureRoot]);
+  }, []);
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
@@ -388,13 +360,7 @@ export function ChatInput({
               }
             >
               <span className="ac-item-icon">
-                {item.type === 'chapter' ? (
-                  <BookOpen size={13} />
-                ) : item.type === 'scene' ? (
-                  <Layers size={13} />
-                ) : (
-                  <File size={13} />
-                )}
+                <BookOpen size={13} />
               </span>
               <span className="ac-item-title">{item.title}</span>
               {item.breadcrumb && (
