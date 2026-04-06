@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
 import { filesApi, subprojectApi, chapterApi } from '../../api.ts';
+import { convertWikiOrFlatJsonToMarkdown } from '../../utils/legacyWikiJsonToMarkdown.ts';
 import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, ScrollTarget, GitStatus } from '../../types.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
@@ -589,6 +590,45 @@ export function FileTreeOutliner({
     }
   };
 
+  const handleConvertJsonToMarkdown = useCallback(
+    async (jsonPath: string) => {
+      setMenu(null);
+      try {
+        const { content } = await filesApi.getContent(jsonPath);
+        const result = convertWikiOrFlatJsonToMarkdown(content);
+        if (!result) {
+          window.alert(
+            'Die Datei ist kein erkanntes Wiki-JSON.\n\nErwartet wird z. B. { "id", "typeId", "values": { … } } oder ein flaches JSON-Objekt mit String-Feldern.',
+          );
+          return;
+        }
+        const outPath = jsonPath.replace(/\.json$/i, '.md');
+        if (outPath === jsonPath) {
+          window.alert('Nur Dateien mit der Endung .json können konvertiert werden.');
+          return;
+        }
+        try {
+          await filesApi.getContent(outPath);
+          if (
+            !window.confirm(
+              `Die Datei „${outPath}“ existiert bereits.\n\nÜberschreiben?`,
+            )
+          ) {
+            return;
+          }
+        } catch {
+          /* target does not exist */
+        }
+        await filesApi.saveContent(outPath, result.markdown);
+        refreshAfterMutation();
+        onSelectFile(outPath);
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'Konvertierung fehlgeschlagen');
+      }
+    },
+    [onSelectFile, refreshAfterMutation],
+  );
+
   const handleNewChapterInSubproject = (path: string, type: string) => {
     const { chapter } = resolveLevelConfig(levelConfigByModeId, type);
     const title = window.prompt(`Titel (${chapter.label}):`, chapter.labelNew);
@@ -682,20 +722,30 @@ export function FileTreeOutliner({
               </button>
             </>
           )}
-          {!menu.directory && onShowFileHistory && gitStatus?.isRepo && (
-            <>
+          {!menu.directory &&
+            ((onShowFileHistory && gitStatus?.isRepo) || menu.path.toLowerCase().endsWith('.json')) && (
               <div className="file-tree-context-separator" role="separator" />
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => {
-                  onShowFileHistory(menu.path);
-                  setMenu(null);
-                }}
-              >
-                Verlauf anzeigen
-              </button>
-            </>
+            )}
+          {!menu.directory && onShowFileHistory && gitStatus?.isRepo && (
+            <button
+              type="button"
+              className="file-tree-context-item"
+              onClick={() => {
+                onShowFileHistory(menu.path);
+                setMenu(null);
+              }}
+            >
+              Verlauf anzeigen
+            </button>
+          )}
+          {!menu.directory && menu.path.toLowerCase().endsWith('.json') && (
+            <button
+              type="button"
+              className="file-tree-context-item"
+              onClick={() => void handleConvertJsonToMarkdown(menu.path)}
+            >
+              Nach Markdown konvertieren…
+            </button>
           )}
           {onGitRevert &&
             (menu.directory ? dirtyFolders.has(menu.path) : changedPaths.has(menu.path)) && (
