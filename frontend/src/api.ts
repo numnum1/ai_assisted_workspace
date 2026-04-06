@@ -1,4 +1,4 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal } from './types.ts';
+import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation } from './types.ts';
 
 const BASE = '/api';
 
@@ -84,6 +84,30 @@ export const filesApi = {
     post<{ status: string; path: string }>('/files/rename', { path, newName }),
 };
 
+/** Persisted chat subset for Git sync (see useChatHistory) */
+export const PROJECT_CHAT_HISTORY_PATH = '.assistant/chat-history.json';
+
+/** Load project-stored chats; returns null if missing or unreadable */
+export async function fetchProjectChatHistory(): Promise<Conversation[] | null> {
+  const res = await fetch(`${BASE}/files/content/${encodeFilePathForApi(PROJECT_CHAT_HISTORY_PATH)}`);
+  if (!res.ok) return null;
+  try {
+    const data = (await res.json()) as { content?: string };
+    if (typeof data.content !== 'string') return null;
+    const parsed = JSON.parse(data.content) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed as Conversation[];
+  } catch {
+    return null;
+  }
+}
+
+/** Writes only conversations marked `savedToProject` (or `[]` if none). */
+export async function persistProjectChatHistory(conversations: Conversation[]): Promise<void> {
+  const payload = conversations.filter((c) => c.savedToProject === true);
+  await filesApi.saveContent(PROJECT_CHAT_HISTORY_PATH, JSON.stringify(payload));
+}
+
 export const modesApi = {
   getAll: () => get<Mode[]>('/modes'),
 };
@@ -136,6 +160,7 @@ export interface LlmCreateRequest {
   reasoningApiUrl?: string;
   reasoningModel?: string;
   reasoningApiKey?: string;
+  maxTokens?: number;
 }
 
 export interface LlmUpdateRequest {
@@ -146,6 +171,7 @@ export interface LlmUpdateRequest {
   reasoningApiUrl?: string;
   reasoningModel?: string;
   reasoningApiKey?: string;
+  maxTokens?: number;
 }
 
 export const llmApi = {
@@ -162,6 +188,8 @@ export const gitApi = {
     post<{ hash: string; message: string }>('/git/commit', { message, files }),
   revertFile: (path: string, untracked: boolean) =>
     post<{ status: string }>('/git/revert-file', { path, untracked }),
+  revertDirectory: (path: string) =>
+    post<{ status: string }>('/git/revert-directory', { path }),
   diff: () => get<{ diff: string }>('/git/diff'),
   log: (limit = 20) => get<GitCommit[]>(`/git/log?limit=${limit}`),
   init: () => post<{ status: string }>('/git/init', {}),
@@ -291,7 +319,7 @@ export const notesApi = {
 export function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,
-  onContext: (info: { includedFiles: string[]; estimatedTokens: number }) => void,
+  onContext: (info: { includedFiles: string[]; estimatedTokens: number; maxContextTokens?: number }) => void,
   onDone: () => void,
   onError: (err: Error) => void,
   onToolCall?: (description: string) => void,
@@ -323,6 +351,8 @@ export function streamChat(
       let buffer = '';
       let currentEvent = '';
       let doneHandled = false;
+      let errorHandled = false;
+      let tokenCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -340,12 +370,26 @@ export function streamChat(
             if (currentEvent === 'context') {
               try {
                 onContext(JSON.parse(data));
-              } catch { /* ignore malformed context */ }
+              } catch (e) {
+                console.warn('[streamChat] Failed to parse context event data:', e, 'raw:', data.substring(0, 200));
+              }
             } else if (currentEvent === 'error') {
+              console.warn('[streamChat] Received error event from backend:', data);
               onError(new Error(data));
+              errorHandled = true;
               doneHandled = true;
             } else if (currentEvent === 'done') {
-              onDone();
+              if (!errorHandled) {
+                if (tokenCount === 0) {
+                  console.warn(
+                    '[streamChat] Stream ended (done event) but 0 tokens were received — model returned no content. ' +
+                    'Check backend logs for finish_reason=length or empty completion warnings.'
+                  );
+                  onError(new Error('MODEL_EMPTY_RESPONSE'));
+                } else {
+                  onDone();
+                }
+              }
               doneHandled = true;
             } else if (currentEvent === 'tool_call') {
               const unescaped = data.replace(/\\n/g, '\n');
@@ -353,7 +397,9 @@ export function streamChat(
             } else if (currentEvent === 'tool_history') {
               try {
                 onToolHistory?.(JSON.parse(data));
-              } catch { /* ignore malformed tool_history */ }
+              } catch (e) {
+                console.warn('[streamChat] Failed to parse tool_history event data:', e, 'raw:', data.substring(0, 200));
+              }
             } else if (currentEvent === 'resolved_user_message') {
               const unescaped = data.replace(/\\n/g, '\n');
               onResolvedUserMessage?.(unescaped);
@@ -361,8 +407,11 @@ export function streamChat(
               try {
                 const parsed = JSON.parse(data);
                 onContextUpdate?.(parsed.estimatedTokens);
-              } catch { /* ignore malformed update */ }
+              } catch (e) {
+                console.warn('[streamChat] Failed to parse context_update event data:', e, 'raw:', data.substring(0, 200));
+              }
             } else if (currentEvent === 'token') {
+              tokenCount++;
               const unescaped = data.replace(/\\n/g, '\n');
               onToken(unescaped);
             }
@@ -370,7 +419,14 @@ export function streamChat(
           }
         }
       }
-      if (!doneHandled) onDone();
+      if (!doneHandled) {
+        if (tokenCount === 0) {
+          console.warn('[streamChat] SSE stream closed by server without a done event and 0 tokens received.');
+          onError(new Error('MODEL_EMPTY_RESPONSE'));
+        } else {
+          onDone();
+        }
+      }
     })
     .catch((err) => {
       if (err.name !== 'AbortError') onError(err);

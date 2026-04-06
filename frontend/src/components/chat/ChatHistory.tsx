@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, MessageSquare, X, Pencil } from 'lucide-react';
+import { Trash2, MessageSquare, X, Pencil, FolderInput, FolderCheck, Eraser } from 'lucide-react';
 import type { Conversation } from '../../types.ts';
+import { NewChatButton } from './NewChatButton.tsx';
 
 interface ChatHistoryProps {
   conversations: Conversation[];
@@ -9,6 +10,9 @@ interface ChatHistoryProps {
   onCreate: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  onToggleSavedToProject: (id: string) => void;
+  onClearAllBrowserChats?: () => void;
+  clearAllBrowserDisabled?: boolean;
   onClose: () => void;
 }
 
@@ -50,6 +54,9 @@ export function ChatHistory({
   onCreate,
   onDelete,
   onRename,
+  onToggleSavedToProject,
+  onClearAllBrowserChats,
+  clearAllBrowserDisabled = true,
   onClose,
 }: ChatHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,10 +103,29 @@ export function ChatHistory({
       <div className="chat-history-header">
         <span className="chat-history-title">Chat-Historie</span>
         <div className="chat-history-header-actions">
-          <button className="chat-history-new-btn" onClick={onCreate} title="Neuer Chat">
-            <Plus size={14} />
-          </button>
-          <button className="chat-history-close-btn" onClick={onClose} title="Schliessen">
+          {onClearAllBrowserChats && (
+            <button
+              type="button"
+              className="chat-history-clear-all-btn"
+              disabled={clearAllBrowserDisabled}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Alle rein lokalen Chats dieses Projekts löschen?\n\n' +
+                      'Chats mit aktivem „Im Projekt speichern“ (Ordner-Häkchen) bleiben erhalten — in der Liste, im Browser und in .assistant/chat-history.json.',
+                  )
+                ) {
+                  return;
+                }
+                onClearAllBrowserChats();
+              }}
+              title="Nur lokale Chats löschen (projektgespeicherte behalten)"
+            >
+              <Eraser size={14} />
+            </button>
+          )}
+          <NewChatButton onClick={onCreate} />
+          <button type="button" className="chat-history-close-btn" onClick={onClose} title="Schliessen">
             <X size={14} />
           </button>
         </div>
@@ -155,6 +181,22 @@ export function ChatHistory({
                 </div>
                 <div className="chat-history-item-actions">
                   <button
+                    type="button"
+                    className={`chat-history-action-btn ${conv.savedToProject ? 'chat-history-saved-active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSavedToProject(conv.id);
+                    }}
+                    title={
+                      conv.savedToProject
+                        ? 'Aus Projektdatei entfernen (nicht mehr per Git synchron)'
+                        : 'Im Projekt speichern (.assistant/chat-history.json)'
+                    }
+                  >
+                    {conv.savedToProject ? <FolderCheck size={12} /> : <FolderInput size={12} />}
+                  </button>
+                  <button
+                    type="button"
                     className="chat-history-action-btn"
                     onClick={(e) => handleStartRename(conv, e)}
                     title="Umbenennen"
@@ -162,6 +204,7 @@ export function ChatHistory({
                     <Pencil size={12} />
                   </button>
                   <button
+                    type="button"
                     className="chat-history-delete-btn"
                     onClick={(e) => {
                       e.stopPropagation();

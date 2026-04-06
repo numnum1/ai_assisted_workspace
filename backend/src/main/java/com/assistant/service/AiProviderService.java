@@ -2,9 +2,11 @@ package com.assistant.service;
 
 import com.assistant.config.AppConfig;
 import com.assistant.model.*;
+import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -24,16 +26,19 @@ public class AiProviderService {
     private final ProjectConfigService projectConfigService;
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
+    private final WebSearchTool webSearchTool;
 
     private final Object lock = new Object();
 
     public AiProviderService(
             ProjectConfigService projectConfigService,
             AppConfig appConfig,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Autowired(required = false) WebSearchTool webSearchTool) {
         this.projectConfigService = projectConfigService;
         this.appConfig = appConfig;
         this.objectMapper = objectMapper;
+        this.webSearchTool = webSearchTool;
     }
 
     private Path storeFile() {
@@ -82,6 +87,7 @@ public class AiProviderService {
             rows.add(toPublic(p));
         }
         out.setProviders(rows);
+        out.setWebSearchAvailable(webSearchTool != null);
         return out;
     }
 
@@ -166,14 +172,19 @@ public class AiProviderService {
         } else if (isCreate) {
             p.setReasoningApiKey("");
         }
+        if (req.getMaxTokens() != null) {
+            p.setMaxTokens(req.getMaxTokens() > 0 ? req.getMaxTokens() : null);
+        }
     }
 
     private void validateCreate(AiProviderRequest req) {
         if (req == null) throw new IllegalArgumentException("body required");
         if (req.getName() == null || req.getName().isBlank()) throw new IllegalArgumentException("name required");
-        boolean hasFast = (req.getFastApiUrl() != null && !req.getFastApiUrl().isBlank())
-                || (req.getFastModel() != null && !req.getFastModel().isBlank());
-        if (!hasFast) throw new IllegalArgumentException("fastApiUrl and fastModel are required");
+        boolean hasFastModel = req.getFastModel() != null && !req.getFastModel().isBlank();
+        boolean hasReasoningModel = req.getReasoningModel() != null && !req.getReasoningModel().isBlank();
+        if (!hasFastModel && !hasReasoningModel) {
+            throw new IllegalArgumentException("At least one model (fast or reasoning) is required");
+        }
     }
 
     private AiProvider findById(AiProvidersState state, String id) {
@@ -194,7 +205,28 @@ public class AiProviderService {
         pub.setReasoningApiUrl(p.getReasoningApiUrl());
         pub.setReasoningModel(p.getReasoningModel());
         pub.setReasoningApiKeySet(p.getReasoningApiKey() != null && !p.getReasoningApiKey().isBlank());
+        pub.setMaxTokens(p.getMaxTokens());
         return pub;
+    }
+
+    /**
+     * Returns the configured maxTokens for the given provider ID.
+     * Falls back to the first provider when {@code llmId} is blank or not found.
+     * Returns {@code null} when no limit is configured or no providers are stored.
+     */
+    public Integer getMaxTokensForProvider(String llmId) {
+        AiProvidersState state = loadState();
+        if (state.getProviders() == null || state.getProviders().isEmpty()) {
+            return null;
+        }
+        AiProvider p = null;
+        if (llmId != null && !llmId.isBlank()) {
+            p = findById(state, llmId);
+        }
+        if (p == null) {
+            p = state.getProviders().get(0);
+        }
+        return p.getMaxTokens();
     }
 
     private AiProvidersState loadState() {

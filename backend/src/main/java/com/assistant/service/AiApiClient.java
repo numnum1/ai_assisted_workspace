@@ -74,6 +74,7 @@ public class AiApiClient {
                 tools != null ? tools.size() : 0,
                 countApproxCharsInMessages(messages));
 
+        java.util.concurrent.atomic.AtomicInteger failedChunks = new java.util.concurrent.atomic.AtomicInteger();
         return clientFor(cred).post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -86,7 +87,33 @@ public class AiApiClient {
                                         "AI API error " + resp.statusCode().value() + ": " + body)))
                 .bodyToFlux(String.class)
                 .filter(line -> !line.isBlank() && !line.equals("[DONE]"))
-                .mapNotNull(this::extractContent);
+                .doOnNext(line -> {
+                    if (line.contains("\"finish_reason\"") && line.contains("\"length\"")) {
+                        log.warn(
+                                "AI stream: finish_reason=length detected — context window likely exceeded! "
+                                        + "messages={}, approxChars={}",
+                                messages.size(),
+                                countApproxCharsInMessages(messages));
+                    }
+                })
+                .mapNotNull(line -> {
+                    String result = extractContent(line);
+                    if (result == null && !line.contains("[DONE]")) {
+                        int failed = failedChunks.incrementAndGet();
+                        if (failed == 1 || failed % 20 == 0) {
+                            log.debug("AI stream: extractContent returned null for chunk #{}, linePreview={}",
+                                    failed,
+                                    line.length() > 120 ? line.substring(0, 120) + "…" : line);
+                        }
+                    }
+                    return result;
+                })
+                .doOnComplete(() -> {
+                    int failed = failedChunks.get();
+                    if (failed > 0) {
+                        log.debug("AI stream complete: {} chunk(s) had no extractable content (tool-call deltas or metadata lines)", failed);
+                    }
+                });
     }
 
     /**
@@ -132,8 +159,25 @@ public class AiApiClient {
                 .bodyToMono(String.class)
                 .block();
 
-        if (responseBody != null) {
-            log.debug("AI API completion raw response length: {} chars", responseBody.length());
+        if (responseBody == null) {
+            log.warn("AI API chatWithTools: responseBody is null — API returned no body (possible network issue or empty 204)");
+            return new ChatCompletionResult("", List.of());
+        }
+        log.debug("AI API completion raw response length: {} chars", responseBody.length());
+
+        String finishReason = extractFinishReason(responseBody);
+        if (finishReason != null) {
+            if ("length".equals(finishReason)) {
+                log.warn(
+                        "AI API completion: finish_reason=length — context window likely exceeded! "
+                                + "messages={}, approxChars={}. Consider shortening the chat history.",
+                        messages.size(),
+                        countApproxCharsInMessages(messages));
+            } else if (!"stop".equals(finishReason) && !"tool_calls".equals(finishReason)) {
+                log.warn("AI API completion: finish_reason={} (unexpected)", finishReason);
+            } else {
+                log.debug("AI API completion: finish_reason={}", finishReason);
+            }
         }
 
         ChatCompletionResult parsed = parseCompletionResult(responseBody);
@@ -141,9 +185,15 @@ public class AiApiClient {
             log.info("AI API completion: {} tool call(s) in response", parsed.toolCalls().size());
         } else {
             String c = parsed.content();
-            log.info(
-                    "AI API completion: text reply, {} chars",
-                    c != null ? c.length() : 0);
+            if (c == null || c.isBlank()) {
+                log.warn(
+                        "AI API completion: empty content and no tool_calls — possible context overflow or content filter. "
+                                + "finish_reason={}, rawResponsePreview={}",
+                        finishReason,
+                        responseBody.length() > 500 ? responseBody.substring(0, 500) + "…" : responseBody);
+            } else {
+                log.info("AI API completion: text reply, {} chars", c.length());
+            }
         }
         return parsed;
     }
@@ -212,8 +262,39 @@ public class AiApiClient {
             String content = extractNonStreamContent(json);
             return new ChatCompletionResult(content, List.of());
         } catch (Exception e) {
-            log.error("Error parsing completion result", e);
+            log.error(
+                    "Error parsing completion result — rawPreview={}",
+                    json.length() > 500 ? json.substring(0, 500) + "…" : json,
+                    e);
             return new ChatCompletionResult("", List.of());
+        }
+    }
+
+    /**
+     * Extracts the finish_reason from a non-streaming completion response.
+     * Returns null if not found.
+     */
+    private String extractFinishReason(String json) {
+        if (json == null) return null;
+        try {
+            String key = "\"finish_reason\"";
+            int idx = json.indexOf(key);
+            if (idx == -1) return null;
+            int colonIdx = json.indexOf(':', idx + key.length());
+            if (colonIdx == -1) return null;
+            int afterColon = colonIdx + 1;
+            while (afterColon < json.length() && json.charAt(afterColon) == ' ') afterColon++;
+            if (afterColon >= json.length()) return null;
+            if (json.charAt(afterColon) == '"') {
+                int endQuote = findClosingQuote(json, afterColon + 1);
+                if (endQuote == -1) return null;
+                return json.substring(afterColon + 1, endQuote);
+            }
+            // null literal
+            if (json.startsWith("null", afterColon)) return "null";
+            return null;
+        } catch (Exception e) {
+            return null;
         }
     }
 

@@ -1,7 +1,7 @@
 import { Save, FileText, NotebookPen, Trash2, X } from 'lucide-react';
 import { ShadowTextarea } from './ShadowTextarea.tsx';
 import { UnifiedMarkdownEditor } from './UnifiedMarkdownEditor';
-import type { SelectionContext } from '../../types.ts';
+import type { SelectionContext, AltVersionSession } from '../../types.ts';
 
 interface MarkdownFileEditorProps {
   path: string | null;
@@ -28,6 +28,8 @@ interface MarkdownFileEditorProps {
   onClearShadowError?: () => void;
   /** Called on Ctrl+L with the selected text and a function to apply a replacement */
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
+  /** Called on Ctrl+Alt+A to open the alternative version panel */
+  onAltVersion?: (session: AltVersionSession) => void;
 }
 
 export function MarkdownFileEditor({
@@ -53,6 +55,7 @@ export function MarkdownFileEditor({
   onCloseFile,
   onClearShadowError,
   onCtrlL,
+  onAltVersion,
 }: MarkdownFileEditorProps) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -120,6 +123,7 @@ export function MarkdownFileEditor({
           onChange={onChange}
           onSave={onSave}
           onCtrlL={onCtrlL}
+          onAltVersion={onAltVersion}
           theme="file"
           layout="fixed"
           editorId="file"

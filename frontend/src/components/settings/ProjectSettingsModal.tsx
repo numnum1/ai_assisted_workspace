@@ -11,7 +11,7 @@ interface ProjectSettingsModalProps {
   onWorkspacePluginsChanged?: () => void;
 }
 
-type Tab = 'general' | 'modes' | 'workspacePlugins' | 'rules' | 'aiProviders';
+type Tab = 'general' | 'quickChat' | 'modes' | 'workspacePlugins' | 'rules' | 'aiProviders';
 
 interface LlmFormState {
   editingId: string | null;
@@ -22,6 +22,7 @@ interface LlmFormState {
   reasoningApiUrl: string;
   reasoningModel: string;
   reasoningApiKey: string;
+  maxTokens: string;
 }
 
 interface ModeForm {
@@ -39,6 +40,16 @@ interface RuleEditor {
   name: string;
   content: string;
   isNew: boolean;
+}
+
+/** Next free mode id: `{sourceId}-kopie`, `{sourceId}-kopie-2`, … */
+function suggestDuplicateModeId(sourceId: string, existingIds: Set<string>): string {
+  const normalized = sourceId.trim().replace(/\s+/g, '-').toLowerCase();
+  const base = `${normalized}-kopie`;
+  if (!existingIds.has(base)) return base;
+  let n = 2;
+  while (existingIds.has(`${base}-${n}`)) n += 1;
+  return `${base}-${n}`;
 }
 
 function TagListEditor({
@@ -112,6 +123,7 @@ export function ProjectSettingsModal({
     globalRules: [],
     defaultMode: '',
     workspaceMode: 'default',
+    quickChatLlmId: '',
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -122,6 +134,7 @@ export function ProjectSettingsModal({
   const [editingModeId, setEditingModeId] = useState<string | null>(null);
   const [savingMode, setSavingMode] = useState(false);
   const [deletingMode, setDeletingMode] = useState<string | null>(null);
+  const [duplicatingModeId, setDuplicatingModeId] = useState<string | null>(null);
 
   // Rules
   const [rules, setRules] = useState<string[]>([]);
@@ -185,7 +198,7 @@ export function ProjectSettingsModal({
   }, [initialized, tab, loadWorkspacePlugins]);
 
   useEffect(() => {
-    if (!loading && (tab === 'aiProviders' || tab === 'modes')) {
+    if (!loading && (tab === 'aiProviders' || tab === 'modes' || tab === 'quickChat')) {
       void loadLlms();
     }
   }, [loading, tab, loadLlms]);
@@ -247,6 +260,21 @@ export function ProjectSettingsModal({
   };
 
   // ── General ──────────────────────────────────────────────────────────────────
+
+  const handleSaveQuickChatConfig = async () => {
+    setSavingConfig(true);
+    setError(null);
+    try {
+      await projectConfigApi.update(config);
+      setConfigSaved(true);
+      setTimeout(() => setConfigSaved(false), 2000);
+      onGeneralConfigSaved?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   const handleSaveConfig = async () => {
     setSavingConfig(true);
@@ -327,6 +355,28 @@ export function ProjectSettingsModal({
     }
   };
 
+  const handleDuplicateMode = async (mode: Mode) => {
+    setDuplicatingModeId(mode.id);
+    setError(null);
+    try {
+      const existingIds = new Set(modes.map((m) => m.id));
+      const newId = suggestDuplicateModeId(mode.id, existingIds);
+      const duplicate: Mode = {
+        ...mode,
+        id: newId,
+        name: `${mode.name}-Kopie`,
+      };
+      await projectConfigApi.saveMode(newId, duplicate);
+      const updated = await projectConfigApi.getModes();
+      setModes(updated);
+      onModesChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to duplicate mode');
+    } finally {
+      setDuplicatingModeId(null);
+    }
+  };
+
   // ── Rules ─────────────────────────────────────────────────────────────────────
 
   const openNewRule = () => {
@@ -374,6 +424,7 @@ export function ProjectSettingsModal({
     reasoningApiUrl: '',
     reasoningModel: '',
     reasoningApiKey: '',
+    maxTokens: '',
   });
 
   const openNewLlm = () => setLlmForm(emptyLlmForm());
@@ -388,18 +439,29 @@ export function ProjectSettingsModal({
       reasoningApiUrl: p.reasoningApiUrl ?? '',
       reasoningModel: p.reasoningModel ?? '',
       reasoningApiKey: '',
+      maxTokens: p.maxTokens ? String(p.maxTokens) : '',
     });
   };
 
   const handleSaveLlm = async () => {
     if (!llmForm) return;
     const { editingId, name, fastApiUrl, fastModel, fastApiKey,
-            reasoningApiUrl, reasoningModel, reasoningApiKey } = llmForm;
-    if (!name.trim() || !fastApiUrl.trim() || !fastModel.trim()) return;
-    if (!editingId && !fastApiKey.trim()) {
-      setError('Fast-API-Key ist für einen neuen Eintrag erforderlich');
-      return;
+            reasoningApiUrl, reasoningModel, reasoningApiKey, maxTokens } = llmForm;
+    const hasFast = fastModel.trim().length > 0;
+    const hasReasoning = reasoningModel.trim().length > 0;
+    if (!name.trim() || (!hasFast && !hasReasoning)) return;
+    if (!editingId) {
+      if (hasFast && !fastApiKey.trim()) {
+        setError('Fast-API-Key ist für einen neuen Eintrag mit Fast-Modell erforderlich');
+        return;
+      }
+      if (hasReasoning && !hasFast && !reasoningApiKey.trim()) {
+        setError('Reasoning-API-Key ist erforderlich, wenn kein Fast-Modell angegeben ist');
+        return;
+      }
     }
+    const parsedMaxTokens = parseInt(maxTokens, 10);
+    const maxTokensPayload = parsedMaxTokens > 0 ? parsedMaxTokens : undefined;
     setSavingLlm(true);
     setError(null);
     try {
@@ -412,16 +474,18 @@ export function ProjectSettingsModal({
           reasoningApiUrl: reasoningApiUrl.trim(),
           reasoningModel: reasoningModel.trim(),
           ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
+          maxTokens: maxTokensPayload,
         });
       } else {
         await llmApi.create({
           name: name.trim(),
           fastApiUrl: fastApiUrl.trim(),
           fastModel: fastModel.trim(),
-          fastApiKey: fastApiKey.trim(),
+          ...(fastApiKey.trim() ? { fastApiKey: fastApiKey.trim() } : {}),
           reasoningApiUrl: reasoningApiUrl.trim(),
           reasoningModel: reasoningModel.trim(),
           ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
+          maxTokens: maxTokensPayload,
         });
       }
       setLlmForm(null);
@@ -486,7 +550,7 @@ export function ProjectSettingsModal({
         ) : (
           <>
             <div className="ps-tabs">
-              {(['general', 'modes', 'workspacePlugins', 'aiProviders', 'rules'] as Tab[]).map(t => (
+              {(['general', 'quickChat', 'modes', 'workspacePlugins', 'aiProviders', 'rules'] as Tab[]).map(t => (
                 <button
                   key={t}
                   type="button"
@@ -496,17 +560,20 @@ export function ProjectSettingsModal({
                     if (!initialized && t !== 'aiProviders') return;
                     setTab(t);
                     setError(null);
+                    setConfigSaved(false);
                   }}
                 >
                   {t === 'general'
                     ? 'General'
-                    : t === 'modes'
-                      ? `Modes (${modes.length})`
-                      : t === 'workspacePlugins'
-                        ? 'Workspace plugins'
-                        : t === 'aiProviders'
-                          ? `LLMs (${llmsState?.providers?.length ?? 0})`
-                          : `Rules (${rules.length})`}
+                    : t === 'quickChat'
+                      ? 'Quick Chat'
+                      : t === 'modes'
+                        ? `Modes (${modes.length})`
+                        : t === 'workspacePlugins'
+                          ? 'Workspace plugins'
+                          : t === 'aiProviders'
+                            ? `LLMs (${llmsState?.providers?.length ?? 0})`
+                            : `Rules (${rules.length})`}
                 </button>
               ))}
             </div>
@@ -594,6 +661,56 @@ export function ProjectSettingsModal({
                         ? <><Check size={13} /> Saved</>
                         : <><Save size={13} /> Save</>
                     }
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Chat tab (Alt+E floating window; websuche nur dort) */}
+            {initialized && tab === 'quickChat' && (
+              <div className="ps-tab-content">
+                <p className="ps-hint">
+                  Das schwebende <strong>Quick Chat</strong>-Fenster (Tastenkürzel <kbd>Alt+E</kbd>) ist für kurze
+                  Fragen ohne Projekt-Kontext: Begriffe, Formulierungen, Websuche. Es nutzt kein Datei-Referenzsystem.
+                </p>
+                <label className="ps-label">LLM für Quick Chat</label>
+                <p className="ps-hint">
+                  Leer lassen = erstes konfiguriertes LLM aus der Liste. Anbieter verwaltest du unter <strong>LLMs</strong>.
+                </p>
+                <select
+                  className="ps-input"
+                  value={config.quickChatLlmId ?? ''}
+                  onChange={(e) => setConfig((p) => ({ ...p, quickChatLlmId: e.target.value }))}
+                  disabled={loadingLlms || !(llmsState?.providers?.length)}
+                >
+                  <option value="">Standard (erstes LLM)</option>
+                  {(llmsState?.providers ?? []).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.fastModel})
+                    </option>
+                  ))}
+                </select>
+                {loadingLlms && (
+                  <p className="ps-hint" style={{ marginTop: '0.5rem' }}>
+                    <Loader size={12} className="ps-spinner" style={{ display: 'inline', verticalAlign: 'middle' }} />{' '}
+                    LLMs werden geladen…
+                  </p>
+                )}
+                <div className="ps-actions" style={{ marginTop: '1rem' }}>
+                  <button className="ps-save-btn" onClick={() => void handleSaveQuickChatConfig()} disabled={savingConfig}>
+                    {savingConfig ? (
+                      <>
+                        <Loader size={13} className="ps-spinner" /> Saving...
+                      </>
+                    ) : configSaved ? (
+                      <>
+                        <Check size={13} /> Saved
+                      </>
+                    ) : (
+                      <>
+                        <Save size={13} /> Save
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -725,10 +842,26 @@ export function ProjectSettingsModal({
                           <span className="ps-list-item-name">{mode.name}</span>
                           <span className="ps-list-item-id">{mode.id}</span>
                           <button
+                            type="button"
+                            className="ps-list-item-duplicate"
+                            title="Mode duplizieren"
+                            onClick={e => {
+                              e.stopPropagation();
+                              void handleDuplicateMode(mode);
+                            }}
+                            disabled={duplicatingModeId === mode.id || deletingMode === mode.id}
+                          >
+                            {duplicatingModeId === mode.id
+                              ? <Loader size={12} className="ps-spinner" />
+                              : <Copy size={12} />
+                            }
+                          </button>
+                          <button
+                            type="button"
                             className="ps-list-item-delete"
                             title="Delete mode"
                             onClick={e => { e.stopPropagation(); handleDeleteMode(mode.id); }}
-                            disabled={deletingMode === mode.id}
+                            disabled={deletingMode === mode.id || duplicatingModeId === mode.id}
                           >
                             {deletingMode === mode.id
                               ? <Loader size={12} className="ps-spinner" />
@@ -864,7 +997,7 @@ export function ProjectSettingsModal({
             {tab === 'aiProviders' && (
               <div className="ps-tab-content">
                 <p className="ps-hint">
-                  Jeder Eintrag hat eine <strong>Fast</strong>- und optional eine <strong>⚡ Reasoning</strong>-Konfiguration —
+                  Jeder Eintrag benötigt mindestens eine <strong>Fast</strong>- <em>oder</em> eine <strong>⚡ Reasoning</strong>-Konfiguration —
                   jeweils mit eigenem API-URL, Key und Modell. Welcher Eintrag genutzt wird, legst du pro Modus
                   im Tab <em>Modes</em> fest. Kein Eintrag zugewiesen? Der erste in der Liste wird als Fallback verwendet.
                   Bei leerer Liste greift der Server auf <code>application.yml</code> / env zurück.
@@ -889,7 +1022,7 @@ export function ProjectSettingsModal({
                       placeholder="z. B. eecc.ai"
                     />
 
-                    <p className="ps-label ps-llm-section-header">Fast-Konfiguration</p>
+                    <p className="ps-label ps-llm-section-header">Fast-Konfiguration <span className="ps-label-hint">(optional, wenn Reasoning angegeben)</span></p>
 
                     <label className="ps-label">API base URL</label>
                     <input
@@ -907,7 +1040,11 @@ export function ProjectSettingsModal({
                     />
                     <label className="ps-label">API key</label>
                     <p className="ps-hint">
-                      {llmForm.editingId ? 'Leer = gespeicherten Key behalten.' : 'Pflichtfeld.'}
+                      {llmForm.editingId
+                        ? 'Leer = gespeicherten Key behalten.'
+                        : llmForm.fastModel.trim()
+                          ? 'Pflichtfeld bei Fast-Modell.'
+                          : 'Optional, wenn kein Fast-Modell angegeben.'}
                     </p>
                     <input
                       type="password"
@@ -946,6 +1083,19 @@ export function ProjectSettingsModal({
                       autoComplete="off"
                     />
 
+                    <p className="ps-label ps-llm-section-header">Kontextfenster</p>
+
+                    <label className="ps-label">Max Context Tokens <span className="ps-label-hint">(optional)</span></label>
+                    <p className="ps-hint">Geschätzter Token-Verbrauch wird im Chat als Fortschrittsbalken angezeigt. Leer lassen = kein Limit.</p>
+                    <input
+                      type="number"
+                      className="ps-input"
+                      value={llmForm.maxTokens}
+                      onChange={e => setLlmForm(p => p && ({ ...p, maxTokens: e.target.value }))}
+                      placeholder="z. B. 128000"
+                      min={0}
+                    />
+
                     <div className="ps-actions">
                       <button
                         type="button"
@@ -954,8 +1104,7 @@ export function ProjectSettingsModal({
                         disabled={
                           savingLlm
                           || !llmForm.name.trim()
-                          || !llmForm.fastApiUrl.trim()
-                          || !llmForm.fastModel.trim()
+                          || (!llmForm.fastModel.trim() && !llmForm.reasoningModel.trim())
                         }
                       >
                         {savingLlm
@@ -1004,8 +1153,11 @@ export function ProjectSettingsModal({
                                 {hasFast && hasReasoning && ' — '}
                                 {hasReasoning && <>⚡ {p.reasoningModel}{p.reasoningApiUrl ? ` · ${p.reasoningApiUrl}` : ''}</>}
                               </span>
-                              {(!p.fastApiKeySet) && (
+                              {(hasFast && !p.fastApiKeySet) && (
                                 <span className="ps-hint ps-ai-no-key">Kein Fast-Key gesetzt</span>
+                              )}
+                              {(!hasFast && hasReasoning && !p.reasoningApiKeySet) && (
+                                <span className="ps-hint ps-ai-no-key">Kein Reasoning-Key gesetzt</span>
                               )}
                             </div>
                             <div className="ps-ai-provider-actions">

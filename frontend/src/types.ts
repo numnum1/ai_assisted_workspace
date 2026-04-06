@@ -28,6 +28,16 @@ export interface SelectionContext {
   editorId: 'file' | 'chapter';
 }
 
+export interface AltVersionSession {
+  originalText: string;
+  from: number;
+  to: number;
+  editorId: 'file' | 'chapter';
+  /** Returns current viewport-relative coordinates of the selection anchor, or null when off-screen */
+  getAnchorCoords: () => { top: number; bottom: number; left: number; right: number } | null;
+  replaceFn: (from: number, to: number, insert: string) => void;
+}
+
 export interface ToolCall {
   id: string;
   type: string;
@@ -59,12 +69,17 @@ export interface ChatRequest {
   referencedFiles: string[];
   history: ChatMessage[];
   useReasoning?: boolean;
+  /** Quick Chat: minimal context, web search only, no project tools. */
+  quickChat?: boolean;
+  /** When true, backend omits tools from the API payload and strips tool instructions from the system prompt. */
+  disableTools?: boolean;
   llmId?: string;
 }
 
 export interface ContextInfo {
   includedFiles: string[];
   estimatedTokens: number;
+  maxContextTokens?: number;
 }
 
 export interface GitStatus {
@@ -97,6 +112,8 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   mode: string;
+  /** When true, conversation is written to `.assistant/chat-history.json` for Git sync */
+  savedToProject?: boolean;
 }
 
 export interface ProjectConfig {
@@ -108,6 +125,8 @@ export interface ProjectConfig {
   defaultMode?: string;
   /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
   workspaceMode?: string;
+  /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
+  quickChatLlmId?: string;
 }
 
 /** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */
@@ -120,10 +139,13 @@ export interface LlmPublic {
   reasoningApiUrl: string;
   reasoningModel: string;
   reasoningApiKeySet: boolean;
+  maxTokens?: number;
 }
 
 export interface LlmsListResponse {
   providers: LlmPublic[];
+  /** True when the server has a Tavily API key (chat can use web_search). */
+  webSearchAvailable?: boolean;
 }
 
 /** Persisted browser tab: folder + display metadata */

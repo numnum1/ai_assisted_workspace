@@ -96,11 +96,25 @@ export function WikiTextarea({
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const [editing, setEditing] = useState(false);
+  const [customHeight, setCustomHeight] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (editing && textareaRef.current) {
+      if (customHeight !== undefined) {
+        textareaRef.current.style.height = `${customHeight}px`;
+      }
       textareaRef.current.focus();
     }
+  }, [editing, textareaRef, customHeight]);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!editing || !ta) return;
+    const observer = new ResizeObserver(() => {
+      setCustomHeight(ta.offsetHeight);
+    });
+    observer.observe(ta);
+    return () => observer.disconnect();
   }, [editing, textareaRef]);
 
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -286,11 +300,12 @@ export function WikiTextarea({
           placeholder={placeholder}
           rows={rows}
           autoFocus={autoFocus}
+          style={customHeight !== undefined ? { height: customHeight } : undefined}
         />
       ) : (
         <div
           className={`wiki-mention-preview ${className ?? 'meta-field-textarea'}`}
-          style={{ '--preview-rows': rows } as React.CSSProperties}
+          style={{ '--preview-rows': rows, ...(customHeight !== undefined ? { height: customHeight } : {}) } as React.CSSProperties}
           onClick={() => setEditing(true)}
         >
           {renderMentionPreview(value, placeholder)}

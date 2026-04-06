@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Save, Moon, Sun, MoveHorizontal, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
-import type { ChapterNode, ScrollTarget, SelectionContext } from '../../types.ts';
+import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
 import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../../hooks/useReadingPaddingMax.ts';
 
@@ -40,6 +40,7 @@ interface ChapterViewProps {
   onScrollTargetConsumed: () => void;
   onEditorFocus?: (sceneId: string, actionId: string) => void;
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
+  onAltVersion?: (session: AltVersionSession) => void;
 }
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
@@ -59,6 +60,7 @@ export function ChapterView({
   onScrollTargetConsumed,
   onEditorFocus,
   onCtrlL,
+  onAltVersion,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -289,6 +291,7 @@ export function ChapterView({
                       onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}
                       onCtrlL={onCtrlL}
+                      onAltVersion={onAltVersion}
                     />
                   </div>
                 )

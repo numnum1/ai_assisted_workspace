@@ -1,0 +1,567 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Secure AI Portal API – /api/chat (Auszug)",
+        "version": "1.0",
+        "description": "Auszug aus swagger.json: nur Pfade, deren URL mit /api/chat beginnt, plus Schemas für ChatBody und securitySchemes für die Queue-Operationen."
+    },
+    "paths": {
+        "/api/chat": {
+            "post": {
+                "summary": "Handles chat requests, interacts with LLMs, and streams responses.",
+                "description": "This endpoint processes chat messages, interacts with configured Large Language Models (LLMs) via a proxy or directly, supports system prompts, temperature settings, plugins (including reasoning boost), and merges plugin @mentions from the last user message into the enabled plugin list before augmentation. It also supports file content injection, and streams the LLM's response back to the client. It handles token counting, context window management, and error handling for LLM interactions. Uses Edge Runtime for streaming capabilities.\n",
+                "tags": [
+                    "Chat"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ChatBody"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful response, streaming the LLM's output. The response is a text stream (text/event-stream or similar, depending on the underlying `OpenAIStream` implementation).\n",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string",
+                                    "description": "Streamed text response from the LLM."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request (e.g., invalid JSON payload, missing required fields)."
+                    },
+                    "500": {
+                        "description": "Internal server error (e.g., error initializing Tiktoken, LLM API error, proxy error)."
+                    },
+                    "504": {
+                        "description": "Gateway timeout (e.g., LLM request timed out)."
+                    }
+                }
+            }
+        },
+        "/api/chat/queue/{conversationId}": {
+            "get": {
+                "summary": "Get conversation queue status",
+                "description": "Returns the current queue status for a conversation including queued items with previews",
+                "tags": [
+                    "Chat"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "SessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "conversationId",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Conversation ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Queue status retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "queueSize": {
+                                            "type": "number"
+                                        },
+                                        "isProcessing": {
+                                            "type": "boolean"
+                                        },
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "index": {
+                                                        "type": "number"
+                                                    },
+                                                    "preview": {
+                                                        "type": "string"
+                                                    },
+                                                    "modelName": {
+                                                        "type": "string"
+                                                    },
+                                                    "timestamp": {
+                                                        "type": "number"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Conversation not found"
+                    }
+                }
+            }
+        },
+        "/api/chat/queue/{conversationId}/{index}": {
+            "delete": {
+                "summary": "Cancel a queued message",
+                "description": "Removes a message from the conversation queue at the specified index",
+                "tags": [
+                    "Chat"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "SessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "conversationId",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Conversation ID"
+                    },
+                    {
+                        "in": "path",
+                        "name": "index",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Index of the queue item to remove (0-based)"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Queue item removed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "queueSize": {
+                                            "type": "number"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid index"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Conversation queue not found"
+                    }
+                }
+            }
+        },
+        "/api/chat/queue/{conversationId}/reorder": {
+            "post": {
+                "summary": "Reorder queue items",
+                "description": "Moves a queue item from one position to another",
+                "tags": [
+                    "Chat"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "SessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "conversationId",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Conversation ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "fromIndex",
+                                    "toIndex"
+                                ],
+                                "properties": {
+                                    "fromIndex": {
+                                        "type": "integer",
+                                        "description": "Current index of the item to move"
+                                    },
+                                    "toIndex": {
+                                        "type": "integer",
+                                        "description": "Target index to move the item to"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Queue item reordered successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "queueSize": {
+                                            "type": "number"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid indices"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Conversation queue not found"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "FileMetadata": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string"
+                    },
+                    "token_count": {
+                        "type": "integer"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "full_text_representation": {
+                        "type": "string"
+                    }
+                }
+            },
+            "MessageMetadata": {
+                "type": "object",
+                "properties": {
+                    "agentId": {
+                        "type": "string"
+                    },
+                    "agentTitle": {
+                        "type": "string"
+                    },
+                    "inputs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "isAgentExecution": {
+                        "type": "boolean"
+                    },
+                    "isToolContinuationTrigger": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "FileContentMetadata": {
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string"
+                    },
+                    "filetype": {
+                        "type": "string"
+                    },
+                    "filesize": {
+                        "type": "integer"
+                    },
+                    "char_count": {
+                        "type": "integer"
+                    },
+                    "word_count": {
+                        "type": "integer"
+                    },
+                    "token_count": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "FileContent": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "$ref": "#/components/schemas/FileContentMetadata"
+                    }
+                }
+            },
+            "Message": {
+                "type": "object",
+                "required": [
+                    "role",
+                    "content"
+                ],
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "assistant",
+                            "user"
+                        ]
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "originalContent": {
+                        "type": "string",
+                        "description": "Clean user message content before mention context injection."
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Model ID used for this message (if different from conversation default)"
+                    },
+                    "fileContents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/FileContent"
+                        }
+                    },
+                    "contextOverride": {
+                        "type": "boolean",
+                        "description": "If true, use provided messages without storage reload."
+                    },
+                    "file": {
+                        "$ref": "#/components/schemas/FileMetadata"
+                    },
+                    "files": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/FileMetadata"
+                        }
+                    },
+                    "metadata": {
+                        "$ref": "#/components/schemas/MessageMetadata"
+                    },
+                    "primingContent": {
+                        "type": "string"
+                    }
+                }
+            },
+            "OpenAIModel": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "operator",
+                    "index",
+                    "name",
+                    "tokenLimit",
+                    "prompt",
+                    "enabled",
+                    "modelType",
+                    "defaultTemperature"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Unique identifier for the model."
+                    },
+                    "operator": {
+                        "type": "string",
+                        "description": "The provider or operator of the model (e.g., OpenAI, Local, Google)."
+                    },
+                    "index": {
+                        "type": "integer",
+                        "description": "Display order index."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Display name of the model."
+                    },
+                    "tokenLimit": {
+                        "type": "integer",
+                        "description": "Maximum number of tokens the model can handle."
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "Default system prompt for the model."
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Whether the model is currently enabled for use."
+                    },
+                    "modelType": {
+                        "type": "string",
+                        "description": "Category or type of the model (e.g., Standard, Coding, Reasoning)."
+                    },
+                    "defaultTemperature": {
+                        "type": "number",
+                        "format": "float",
+                        "description": "Default sampling temperature for the model."
+                    },
+                    "iconFile": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Optional icon filename associated with the model."
+                    },
+                    "starred": {
+                        "type": "boolean",
+                        "nullable": true,
+                        "description": "Optional flag indicating if the user has starred this model."
+                    },
+                    "fixedTemperature": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                }
+            },
+            "ChatBody": {
+                "type": "object",
+                "required": [
+                    "model",
+                    "messages",
+                    "prompt",
+                    "temperature",
+                    "proxyConnection",
+                    "encryption",
+                    "plugins"
+                ],
+                "properties": {
+                    "model": {
+                        "$ref": "#/components/schemas/OpenAIModel"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Message"
+                        }
+                    },
+                    "prompt": {
+                        "type": "string"
+                    },
+                    "temperature": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "proxyConnection": {
+                        "type": "boolean"
+                    },
+                    "encryption": {
+                        "type": "boolean"
+                    },
+                    "plugins": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "fileContents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/FileContent"
+                        }
+                    },
+                    "activePath": {
+                        "type": "array",
+                        "description": "Active branch path for branched conversations.",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "nodeId",
+                                "activeIndex",
+                                "branchType"
+                            ],
+                            "properties": {
+                                "nodeId": {
+                                    "type": "string"
+                                },
+                                "activeIndex": {
+                                    "type": "integer"
+                                },
+                                "branchType": {
+                                    "type": "string",
+                                    "enum": [
+                                        "user",
+                                        "assistant"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            },
+            "SessionAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "next-auth.session-token"
+            },
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            },
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "next-auth.session-token"
+            }
+        }
+    }
+}

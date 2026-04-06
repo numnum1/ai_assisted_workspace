@@ -6,8 +6,10 @@ import com.assistant.model.ChatRequest;
 import com.assistant.model.ToolCall;
 import com.assistant.service.AiApiClient;
 import com.assistant.service.AiApiClient.ChatCompletionResult;
+import com.assistant.service.AiProviderService;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
+import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -16,12 +18,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
@@ -34,12 +40,14 @@ public class ChatController {
     private final ContextService contextService;
     private final AiApiClient aiApiClient;
     private final ToolExecutor toolExecutor;
+    private final AiProviderService aiProviderService;
     private final ObjectMapper objectMapper;
 
-    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor, ObjectMapper objectMapper) {
+    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor, AiProviderService aiProviderService, ObjectMapper objectMapper) {
         this.contextService = contextService;
         this.aiApiClient = aiApiClient;
         this.toolExecutor = toolExecutor;
+        this.aiProviderService = aiProviderService;
         this.objectMapper = objectMapper;
     }
 
@@ -52,14 +60,15 @@ public class ChatController {
         logIncomingChatRequest(request);
 
         AssembledContext context = contextService.assemble(request);
-        List<Map<String, Object>> tools = toolExecutor.getToolDefinitions();
+        List<Map<String, Object>> tools = toolsForRequest(request);
 
-        boolean useReasoning = request.isUseReasoning();
+        boolean useReasoning = request.isQuickChat() ? false : request.isUseReasoning();
         String llmId = request.getLlmId();
 
         log.info(
-                "Assembled chat context: mode={}, llmId={}, useReasoning={}, includedFiles={} ({}), estimatedTokens={}, assembledMessages={}",
+                "Assembled chat context: mode={}, quickChat={}, llmId={}, useReasoning={}, includedFiles={} ({}), estimatedTokens={}, assembledMessages={}",
                 request.getMode(),
+                request.isQuickChat(),
                 llmId,
                 useReasoning,
                 context.getIncludedFiles().size(),
@@ -82,7 +91,7 @@ public class ChatController {
 
         return Flux.concat(
                 Flux.just(ServerSentEvent.<String>builder()
-                        .event("context").data(toContextJson(context)).build()),
+                        .event("context").data(toContextJson(context, llmId)).build()),
                 Flux.just(ServerSentEvent.<String>builder()
                         .event("resolved_user_message").data(escapeForSse(resolvedUserContent != null ? resolvedUserContent : "")).build()),
                 Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning))
@@ -98,29 +107,50 @@ public class ChatController {
                                             .event("context_update")
                                             .data("{\"estimatedTokens\":" + contextService.estimateTokensForMessages(resolved.messages()) + "}")
                                             .build());
-                            AtomicInteger streamChunks = new AtomicInteger();
-                            AtomicInteger streamChars = new AtomicInteger();
-                            log.info(
-                                    "Starting assistant token stream after tool resolution: {} tool SSE events, messagesForApi={}",
-                                    resolved.toolCallEvents().size(),
-                                    resolved.messages().size());
-                            Flux<ServerSentEvent<String>> tokenStream = aiApiClient
-                                    .streamChat(resolved.messages(), tools, llmId, useReasoning)
-                                    .doOnNext(chunk -> {
-                                        streamChunks.incrementAndGet();
-                                        streamChars.addAndGet(chunk.length());
-                                    })
-                                    .doOnComplete(() -> log.info(
-                                            "Assistant stream finished: {} chunks, {} characters",
-                                            streamChunks.get(),
-                                            streamChars.get()))
-                                    .doOnError(e -> log.error(
-                                            "Assistant stream failed after {} chunks ({} chars so far)",
-                                            streamChunks.get(),
-                                            streamChars.get(),
-                                            e))
-                                    .map(chunk -> ServerSentEvent.<String>builder()
-                                            .event("token").data(escapeForSse(chunk)).build());
+
+                            Flux<ServerSentEvent<String>> tokenStream;
+                            if (resolved.preGeneratedContent() != null) {
+                                log.info(
+                                        "Emitting pre-generated content as token stream ({} chars), skipping second API call",
+                                        resolved.preGeneratedContent().length());
+                                tokenStream = Flux.just(ServerSentEvent.<String>builder()
+                                        .event("token").data(escapeForSse(resolved.preGeneratedContent())).build());
+                            } else {
+                                AtomicInteger streamChunks = new AtomicInteger();
+                                AtomicInteger streamChars = new AtomicInteger();
+                                log.info(
+                                        "Starting assistant token stream after tool resolution: {} tool SSE events, messagesForApi={}",
+                                        resolved.toolCallEvents().size(),
+                                        resolved.messages().size());
+                                tokenStream = aiApiClient
+                                        .streamChat(resolved.messages(), tools, llmId, useReasoning)
+                                        .doOnNext(chunk -> {
+                                            streamChunks.incrementAndGet();
+                                            streamChars.addAndGet(chunk.length());
+                                        })
+                                        .doOnComplete(() -> {
+                                            int chunks = streamChunks.get();
+                                            int chars = streamChars.get();
+                                            if (chunks == 0) {
+                                                log.warn(
+                                                        "Assistant stream completed with 0 chunks and 0 characters — "
+                                                                + "model returned no content. Likely context overflow or content filter. "
+                                                                + "mode={}, llmId={}, messagesForApi={}",
+                                                        request.getMode(),
+                                                        llmId,
+                                                        resolved.messages().size());
+                                            } else {
+                                                log.info("Assistant stream finished: {} chunks, {} characters", chunks, chars);
+                                            }
+                                        })
+                                        .doOnError(e -> log.error(
+                                                "Assistant stream failed after {} chunks ({} chars so far)",
+                                                streamChunks.get(),
+                                                streamChars.get(),
+                                                e))
+                                        .map(chunk -> ServerSentEvent.<String>builder()
+                                                .event("token").data(escapeForSse(chunk)).build());
+                            }
                             return Flux.concat(toolEvents, toolHistoryEvent, contextUpdateEvent, tokenStream);
                         })
                         .onErrorResume(e -> {
@@ -147,6 +177,7 @@ public class ChatController {
                                                   boolean useReasoning) {
         List<ChatMessage> currentMessages = new ArrayList<>(messages);
         List<ServerSentEvent<String>> toolCallEvents = new ArrayList<>();
+        String preGeneratedContent = null;
         log.info(
                 "Tool resolution: starting with {} messages (originalCount={}), {} tool definitions registered",
                 currentMessages.size(),
@@ -158,16 +189,21 @@ public class ChatController {
 
             if (!result.hasToolCalls()) {
                 if (result.content() != null && !result.content().isBlank()) {
+                    preGeneratedContent = result.content();
                     log.info(
-                            "Tool round {}: model returned text only (no tool_calls), {} chars — will stream final answer separately",
+                            "Tool round {}: model returned text only (no tool_calls), {} chars — reusing as pre-generated content",
                             round + 1,
                             result.content().length());
                 } else {
-                    log.info("Tool round {}: empty content, no tool_calls — proceeding to stream", round + 1);
+                    log.warn(
+                            "Tool round {}: empty content AND no tool_calls — suspicious response, possible context overflow. "
+                                    + "messages={}, approxChars={}",
+                            round + 1,
+                            currentMessages.size(),
+                            currentMessages.stream()
+                                    .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)
+                                    .sum());
                 }
-                // Don't add the content here — the streaming call that follows
-                // will generate the final response. Adding it would make the AI
-                // see its own answer and return an empty stream.
                 break;
             }
 
@@ -221,7 +257,7 @@ public class ChatController {
             }
         }
 
-        return new ToolResolutionResult(currentMessages, toolCallEvents, toolHistoryJson);
+        return new ToolResolutionResult(currentMessages, toolCallEvents, toolHistoryJson, preGeneratedContent);
     }
 
     @PostMapping("/sync")
@@ -259,17 +295,37 @@ public class ChatController {
     private record ToolResolutionResult(
             List<ChatMessage> messages,
             List<ServerSentEvent<String>> toolCallEvents,
-            String toolHistoryJson
+            String toolHistoryJson,
+            String preGeneratedContent
     ) {}
 
-    private String toContextJson(AssembledContext context) {
+    /**
+     * Omits {@link WebSearchTool} unless the client explicitly enables web search.
+     */
+    private List<Map<String, Object>> toolsForRequest(ChatRequest request) {
+        if (request.isDisableTools()) {
+            log.info("Tools disabled for this request (no tool definitions sent to API)");
+            return List.of();
+        }
+        if (request.isQuickChat()) {
+            return toolExecutor.getToolDefinitionsForNames(List.of(WebSearchTool.TOOL_NAME));
+        }
+        return toolExecutor.getToolDefinitionsExcluding(Set.of(WebSearchTool.TOOL_NAME));
+    }
+
+    private String toContextJson(AssembledContext context, String llmId) {
         StringBuilder sb = new StringBuilder("{\"includedFiles\":[");
         var files = context.getIncludedFiles();
         for (int i = 0; i < files.size(); i++) {
             if (i > 0) sb.append(",");
             sb.append("\"").append(files.get(i).replace("\"", "\\\"")).append("\"");
         }
-        sb.append("],\"estimatedTokens\":").append(context.getEstimatedTokens()).append("}");
+        sb.append("],\"estimatedTokens\":").append(context.getEstimatedTokens());
+        Integer maxTokens = aiProviderService.getMaxTokensForProvider(llmId);
+        if (maxTokens != null) {
+            sb.append(",\"maxContextTokens\":").append(maxTokens);
+        }
+        sb.append("}");
         return sb.toString();
     }
 
@@ -280,10 +336,12 @@ public class ChatController {
     private void logIncomingChatRequest(ChatRequest request) {
         List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
         log.info(
-                "Incoming chat: mode={}, llmId={}, useReasoning={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, disableTools={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
                 request.getMode(),
                 request.getLlmId(),
                 request.isUseReasoning(),
+                request.isQuickChat(),
+                request.isDisableTools(),
                 request.getActiveFile(),
                 request.getActiveFieldKey(),
                 request.getReferencedFiles(),
@@ -338,6 +396,12 @@ public class ChatController {
                 case 500, 502, 503 -> "AI API is temporarily unavailable (" + status + ") — try again later";
                 default -> "AI API error (" + status + ")";
             };
+        }
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        if (cause instanceof UnknownHostException || cause instanceof ConnectException
+                || (cause.getMessage() != null && cause.getMessage().contains("Failed to resolve"))) {
+            log.warn("Network/DNS error while contacting AI API: {}", cause.getMessage());
+            return "NETWORK_ERROR";
         }
         if (e.getMessage() != null && !e.getMessage().isBlank()) {
             return "AI error: " + e.getMessage();

@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { UnifiedMarkdownEditor } from './UnifiedMarkdownEditor';
-import type { SelectionContext } from '../../types.ts';
+import type { SelectionContext, AltVersionSession } from '../../types.ts';
 
 export interface ActionEditorColors {
   bg: string;
@@ -19,9 +19,11 @@ interface ActionEditorProps {
   onSave: () => void;
   /** Called on Ctrl+L with the selected text and a function to apply a replacement */
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
+  /** Called on Ctrl+Alt+A to open the alternative version panel */
+  onAltVersion?: (session: AltVersionSession) => void;
 }
 
-export const ActionEditor = memo(function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL }: ActionEditorProps) {
+export const ActionEditor = memo(function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL, onAltVersion }: ActionEditorProps) {
   const readingThemeOverrides = useMemo(() => ({
     fontSize: `${fontSize}px`,
     padding: `16px ${padding}px`,
@@ -40,6 +42,7 @@ export const ActionEditor = memo(function ActionEditor({ actionId, content, colo
       onChange={onChange}
       onSave={onSave}
       onCtrlL={onCtrlL}
+      onAltVersion={onAltVersion}
       theme="reading"
       readingThemeOverrides={readingThemeOverrides}
       layout="auto"

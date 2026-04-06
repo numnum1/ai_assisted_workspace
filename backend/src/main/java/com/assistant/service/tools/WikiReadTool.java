@@ -1,7 +1,6 @@
 package com.assistant.service.tools;
 
 import com.assistant.model.WikiEntry;
-import com.assistant.model.WikiFieldDef;
 import com.assistant.model.WikiType;
 import com.assistant.service.WikiService;
 import org.slf4j.Logger;
@@ -94,49 +93,11 @@ public class WikiReadTool extends AbstractTool {
             return "Error reading wiki entry: " + e.getMessage();
         }
 
-        return formatEntry(entry, type);
+        return wikiService.formatEntryForAi(entry, type);
     }
 
     @Override
     public String describe(String argsJson) {
         return "Reading wiki entry: " + extractArg(argsJson, "id");
-    }
-
-    private String formatEntry(WikiEntry entry, WikiType type) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Wiki Entry: ").append(entry.getTypeId()).append("/").append(entry.getId())
-          .append(" [").append(type.getName()).append("]\n\n");
-
-        Map<String, String> values = entry.getValues();
-        if (values == null || values.isEmpty()) {
-            sb.append("(no field values)");
-            return sb.toString();
-        }
-
-        // Use field labels from the type definition where available
-        List<WikiFieldDef> fields = type.getFields();
-        if (fields != null) {
-            for (WikiFieldDef field : fields) {
-                String value = values.get(field.getKey());
-                if (value != null && !value.isBlank()) {
-                    sb.append(field.getLabel()).append(": ").append(value).append("\n");
-                }
-            }
-            // Include any extra keys not defined in the type schema
-            for (Map.Entry<String, String> kv : values.entrySet()) {
-                boolean inSchema = fields.stream().anyMatch(f -> f.getKey().equals(kv.getKey()));
-                if (!inSchema && kv.getValue() != null && !kv.getValue().isBlank()) {
-                    sb.append(kv.getKey()).append(": ").append(kv.getValue()).append("\n");
-                }
-            }
-        } else {
-            for (Map.Entry<String, String> kv : values.entrySet()) {
-                if (kv.getValue() != null && !kv.getValue().isBlank()) {
-                    sb.append(kv.getKey()).append(": ").append(kv.getValue()).append("\n");
-                }
-            }
-        }
-
-        return sb.toString().stripTrailing();
     }
 }

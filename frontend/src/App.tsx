@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
@@ -11,14 +11,15 @@ import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
 import { ContextBar } from './components/chat/ContextBar.tsx';
 import { CommandPalette } from './components/git/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx';
+import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
 import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
 import { WikiBrowser } from './components/wiki/WikiBrowser.tsx';
 import { WikiEntryPopup } from './components/wiki/WikiEntryPopup.tsx';
 import { WikiTypeEditor } from './components/wiki/WikiTypeEditor.tsx';
 import { WikiTypePickerDialog } from './components/wiki/WikiTypePickerDialog.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, NoteProposal } from './types.ts';
-import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, AuthRequiredError } from './api.ts';
+import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, AltVersionSession, NoteProposal, LlmPublic } from './types.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, notesApi, llmApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -32,6 +33,46 @@ import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
 import { useFileEditor } from './hooks/useFileEditor.ts';
 import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
+import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
+import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
+
+const LLM_PREFS_KEY = 'chat-llm-prefs';
+const CHAT_TOOLS_DISABLED_KEY = 'chat-tools-disabled';
+
+function loadInitialToolsDisabled(): boolean {
+  try {
+    return localStorage.getItem(CHAT_TOOLS_DISABLED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function saveToolsDisabled(disabled: boolean) {
+  try {
+    localStorage.setItem(CHAT_TOOLS_DISABLED_KEY, disabled ? 'true' : 'false');
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null {
+  try {
+    const raw = localStorage.getItem(LLM_PREFS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean };
+    return { llmId: parsed.llmId, useReasoning: parsed.useReasoning };
+  } catch {
+    return null;
+  }
+}
+
+function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
+  try {
+    localStorage.setItem(LLM_PREFS_KEY, JSON.stringify({ llmId: llmId ?? null, useReasoning }));
+  } catch {
+    // localStorage full or unavailable — silently ignore
+  }
+}
 
 function App() {
   const project = useProject();
@@ -41,19 +82,74 @@ function App() {
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
+  const [quickChatOpen, setQuickChatOpen] = useState(false);
+  const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
+  const [llms, setLlms] = useState<LlmPublic[]>([]);
+  const [toolsDisabled, setToolsDisabled] = useState(loadInitialToolsDisabled);
+
+  const prefsHydratedRef = useRef(false);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
+  const handleToggleToolsDisabled = useCallback(() => setToolsDisabled((v) => !v), []);
+
+  const handleLlmChange = useCallback((id: string | undefined) => {
+    setModeLlmId(id);
+    if (id) {
+      const llm = llms.find((l) => l.id === id);
+      if (llm) {
+        const hasReasoning = !!llm.reasoningModel;
+        const hasFast = !!llm.fastModel;
+        if (!hasReasoning) {
+          setUseReasoning(false);
+        } else if (!hasFast) {
+          setUseReasoning(true);
+        }
+        // both available → keep current toggle state
+      }
+    } else {
+      const mode = modes.find((m) => m.id === selectedMode);
+      setUseReasoning(mode?.useReasoning ?? false);
+    }
+  }, [llms, modes, selectedMode]);
+
+  const reasoningAvailable = useMemo(() => {
+    if (!modeLlmId) return true;
+    const llm = llms.find((l) => l.id === modeLlmId);
+    return !llm || !!llm.reasoningModel;
+  }, [modeLlmId, llms]);
+
+  const fastAvailable = useMemo(() => {
+    if (!modeLlmId) return true;
+    const llm = llms.find((l) => l.id === modeLlmId);
+    return !llm || !!llm.fastModel;
+  }, [modeLlmId, llms]);
 
   const handleModeChange = useCallback((modeId: string, modeList?: typeof modes) => {
     setSelectedMode(modeId);
     const list = modeList ?? modes;
     const m = list.find(x => x.id === modeId);
-    setUseReasoning(m?.useReasoning ?? false);
-    setModeLlmId(m?.llmId ?? undefined);
-  }, [modes]);
+    const llmId = m?.llmId ?? undefined;
+    setModeLlmId(llmId);
 
-  const history = useChatHistory(selectedMode);
+    let newUseReasoning = m?.useReasoning ?? false;
+    if (llmId) {
+      const llm = llms.find((l) => l.id === llmId);
+      if (llm) {
+        const hasReasoning = !!llm.reasoningModel;
+        const hasFast = !!llm.fastModel;
+        if (!hasReasoning) {
+          newUseReasoning = false;
+        } else if (!hasFast) {
+          newUseReasoning = true;
+        }
+        // both available → use mode preference
+      }
+    }
+    setUseReasoning(newUseReasoning);
+  }, [modes, llms]);
+
+  const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages);
 
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
@@ -66,6 +162,9 @@ function App() {
   const [activeSelection, setActiveSelection] = useState<SelectionContext | null>(null);
   const activeSelectionReplaceFnRef = useRef<((from: number, to: number, text: string) => void) | null>(null);
   const chatFocusTriggerRef = useRef<(() => void) | null>(null);
+
+  // Ctrl+Alt+A: alternative version panel
+  const [altVersionSession, setAltVersionSession] = useState<AltVersionSession | null>(null);
 
   const leftPanelRef = usePanelRef();
   const rightPanelRef = usePanelRef();
@@ -85,6 +184,10 @@ function App() {
   const handleDismissSelection = useCallback(() => {
     setActiveSelection(null);
     activeSelectionReplaceFnRef.current = null;
+  }, []);
+
+  const handleAltVersion = useCallback((session: AltVersionSession) => {
+    setAltVersionSession(session);
   }, []);
 
   // Project root changes: reset structure and editor state
@@ -141,8 +244,69 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadModes();
+    prefsHydratedRef.current = false;
+    let cancelled = false;
+    const llmsRef: { current: LlmPublic[] } = { current: [] };
+    const llmsPromise = llmApi
+      .list()
+      .then((r) => {
+        if (!cancelled) {
+          setLlms(r.providers);
+          llmsRef.current = r.providers;
+          setWebSearchAvailable(!!r.webSearchAvailable);
+        }
+      })
+      .catch(console.error);
+
+    Promise.all([loadModes(), llmsPromise]).then(() => {
+      if (cancelled) return;
+      const prefs = loadLlmPrefs();
+      if (prefs) {
+        const { llmId, useReasoning: savedReasoning } = prefs;
+        if (llmId !== null) {
+          const llm = llmsRef.current.find((l) => l.id === llmId);
+          if (llm) {
+            setModeLlmId(llmId);
+            const hasReasoning = !!llm.reasoningModel;
+            const hasFast = !!llm.fastModel;
+            if (!hasReasoning) setUseReasoning(false);
+            else if (!hasFast) setUseReasoning(true);
+            else setUseReasoning(savedReasoning);
+          } else {
+            setUseReasoning(savedReasoning);
+          }
+        } else {
+          setUseReasoning(savedReasoning);
+        }
+      }
+      prefsHydratedRef.current = true;
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadModes, project.projectPath]);
+
+  useEffect(() => {
+    if (!prefsHydratedRef.current) return;
+    saveLlmPrefs(modeLlmId, useReasoning);
+  }, [modeLlmId, useReasoning]);
+
+  useEffect(() => {
+    saveToolsDisabled(toolsDisabled);
+  }, [toolsDisabled]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || (e.key !== 'e' && e.key !== 'E')) {
+        return;
+      }
+      e.preventDefault();
+      setQuickChatOpen((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -197,10 +361,38 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [wikiOpen, setWikiOpen] = useState(false);
   const [promptPackOpen, setPromptPackOpen] = useState(false);
+
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportChatFile = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = '';
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const text = evt.target?.result;
+          if (typeof text !== 'string') return;
+          const parsed = JSON.parse(text);
+          if (!Array.isArray(parsed)) {
+            window.alert('Invalid chat history file: expected a JSON array of conversations.');
+            return;
+          }
+          history.importConversations(parsed);
+        } catch {
+          window.alert('Failed to parse chat history file. Make sure it is a valid JSON file.');
+        }
+      };
+      reader.readAsText(file);
+    },
+    [history],
+  );
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
   const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
+  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
   const hasUncommitted = !gitStatus?.isClean;
 
   const showCredentialsDialog = useCallback((retry: () => void) => {
@@ -222,6 +414,32 @@ function App() {
       }
     }
   }, [showCredentialsDialog]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGitRevert = useCallback(
+    async (path: string, isDirectory: boolean) => {
+      const label = isDirectory ? `Ordner „${path}“` : `Datei „${path}“`;
+      if (
+        !window.confirm(
+          `Alle Änderungen in ${label} wirklich verwerfen?\nDieser Vorgang kann nicht rückgängig gemacht werden.`,
+        )
+      ) {
+        return;
+      }
+      try {
+        if (isDirectory) {
+          await gitApi.revertDirectory(path);
+        } else {
+          const isUntracked = gitStatus?.untracked?.includes(path) ?? false;
+          await gitApi.revertFile(path, isUntracked);
+        }
+        setTreeRefreshKey((k) => k + 1);
+        await fetchGitState();
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'Revert fehlgeschlagen');
+      }
+    },
+    [gitStatus, fetchGitState],
+  );
 
   useEffect(() => {
     fetchGitState();
@@ -298,6 +516,14 @@ function App() {
       icon: <Settings size={16} />,
       handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
     },
+    {
+      id: 'import-chat',
+      label: 'Import Chat History',
+      icon: <Upload size={16} />,
+      handler: () => {
+        importFileInputRef.current?.click();
+      },
+    },
     hasUncommitted
       ? {
           id: 'git-commit',
@@ -373,11 +599,68 @@ function App() {
       const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
-      chat.sendMessage(message, activeFile, selectedMode, refs.referencedFiles, mode?.name, mode?.color, useReasoning, modeLlmId, activeSelection ?? undefined, focusedField?.fieldKey ?? null);
+      chat.sendMessage(
+        message,
+        activeFile,
+        selectedMode,
+        refs.referencedFiles,
+        mode?.name,
+        mode?.color,
+        useReasoning,
+        modeLlmId,
+        activeSelection ?? undefined,
+        focusedField?.fieldKey ?? null,
+        toolsDisabled,
+      );
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
     },
-    [chat, selectedMode, modes, refs.referencedFiles, useReasoning, modeLlmId, activeSelection, selectedMeta, chapter.structureRoot, fileEditor.selectedPath, focusedField],
+    [
+      chat,
+      selectedMode,
+      modes,
+      refs.referencedFiles,
+      useReasoning,
+      modeLlmId,
+      activeSelection,
+      selectedMeta,
+      chapter.structureRoot,
+      fileEditor.selectedPath,
+      focusedField,
+      toolsDisabled,
+    ],
+  );
+
+  const handleEditMessage = useCallback(
+    (index: number, newContent: string) => {
+      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
+        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+        : (fileEditor.selectedPath ?? null);
+      chat.editMessage(index, newContent, {
+        activeFile,
+        mode: selectedMode,
+        referencedFiles: refs.referencedFiles,
+        useReasoning,
+        llmId: modeLlmId,
+        selectionContext: activeSelection ?? undefined,
+        activeFieldKey: focusedField?.fieldKey ?? null,
+        disableTools: toolsDisabled,
+      });
+      setActiveSelection(null);
+    },
+    [
+      chat,
+      selectedMode,
+      refs.referencedFiles,
+      useReasoning,
+      modeLlmId,
+      activeSelection,
+      selectedMeta,
+      chapter.structureRoot,
+      fileEditor.selectedPath,
+      focusedField,
+      toolsDisabled,
+    ],
   );
 
   const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
@@ -392,10 +675,15 @@ function App() {
         files,
         m?.name ?? 'Prompt-Paket',
         m?.color ?? '#f9e2af',
+        useReasoning,
+        modeLlmId,
+        undefined,
+        null,
+        toolsDisabled,
       );
       setPromptPackOpen(false);
     },
-    [chat, modes],
+    [chat, modes, useReasoning, modeLlmId, toolsDisabled],
   );
 
   useEffect(() => {
@@ -409,6 +697,10 @@ function App() {
 
   const handleNewChat = useCallback(() => {
     history.createConversation(selectedMode);
+  }, [history, selectedMode]);
+
+  const handleDiscardCurrentChat = useCallback(() => {
+    history.discardActiveAndCreateConversation(selectedMode);
   }, [history, selectedMode]);
 
   const handleSaveFreeNote = useCallback(async (note: NoteProposal) => {
@@ -432,10 +724,6 @@ function App() {
   const handleSwitchChat = useCallback((id: string) => {
     history.switchConversation(id);
   }, [history]);
-
-  const handleClearChat = useCallback(() => {
-    chat.clearChat();
-  }, [chat]);
 
   const activeChapterTitle = chapter.activeChapter?.meta.title ?? null;
 
@@ -519,6 +807,9 @@ function App() {
                 onClearOutlinerScope={outlinerScope.clearScopePath}
                 onSetOutlinerScope={outlinerScope.setScopePath}
                 onScopeInvalidated={outlinerScope.clearScopePath}
+                gitStatus={gitStatus ?? undefined}
+                onGitRevert={handleGitRevert}
+                onShowFileHistory={setFileHistoryPath}
               />
             </div>
 
@@ -595,6 +886,7 @@ function App() {
               onCloseFile={fileEditor.closeFile}
               onClearShadowError={fileEditor.clearShadowError}
               onCtrlL={handleCtrlL}
+              onAltVersion={handleAltVersion}
             />
           ) : (
             <MediaProjectEditor
@@ -611,6 +903,7 @@ function App() {
               onScrollTargetConsumed={chapter.clearScrollTarget}
               onEditorFocus={chapter.updateEditorPosition}
               onCtrlL={handleCtrlL}
+              onAltVersion={handleAltVersion}
             />
           )}
           </div>
@@ -638,18 +931,31 @@ function App() {
             activeConversationId={history.activeId}
             useReasoning={useReasoning}
             onToggleReasoning={handleToggleReasoning}
+            toolsDisabled={toolsDisabled}
+            onToggleToolsDisabled={handleToggleToolsDisabled}
+            reasoningAvailable={reasoningAvailable}
+            fastAvailable={fastAvailable}
             onModeChange={handleModeChange}
+            llms={llms}
+            selectedLlmId={modeLlmId}
+            onLlmChange={handleLlmChange}
             onSend={handleSendMessage}
             onStop={chat.stopStreaming}
-            onClear={handleClearChat}
+            onRetry={chat.retry}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
+            onEditMessage={handleEditMessage}
+            onDeleteMessage={chat.deleteMessage}
             onNewChat={handleNewChat}
+            onDiscardCurrentChat={handleDiscardCurrentChat}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
+            onToggleSavedToProject={history.toggleSavedToProject}
+            onClearAllBrowserChats={history.clearAllBrowserChats}
+            clearAllBrowserChatsDisabled={!project.projectPath || !history.hydrated}
             onOpenPromptPack={() => setPromptPackOpen(true)}
             structureRoot={chapter.structureRoot}
             activeSelection={activeSelection}
@@ -743,6 +1049,33 @@ function App() {
           }}
         />
       )}
+
+      {fileHistoryPath && (
+        <FileHistoryModal filePath={fileHistoryPath} onClose={() => setFileHistoryPath(null)} />
+      )}
+
+      {altVersionSession && (
+        <AlternativeVersionPanel
+          session={altVersionSession}
+          onClose={() => setAltVersionSession(null)}
+        />
+      )}
+
+      <QuickChatWindow
+        open={quickChatOpen}
+        onClose={() => setQuickChatOpen(false)}
+        llms={llms}
+        webSearchAvailable={webSearchAvailable}
+        toolsDisabled={toolsDisabled}
+      />
+
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".json,application/json"
+        style={{ display: 'none' }}
+        onChange={handleImportChatFile}
+      />
     </div>
   );
 }

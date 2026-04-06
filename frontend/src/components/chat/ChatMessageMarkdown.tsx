@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Replace, Copy, Check, HelpCircle, PenLine } from 'lucide-react';
+import { Replace, Copy, Check, HelpCircle, PenLine, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../../types.ts';
 
@@ -14,6 +14,51 @@ interface ChatMessageMarkdownProps {
   fieldLabels?: Record<string, string>;
   onSelectOption?: (option: string) => void;
   isAnswered?: boolean;
+}
+
+/** Closing markers: XML `</think>` or Cursor-style `\think}`. First match wins. */
+const THINK_END_RE = /<\/think>|\\think\}/i;
+
+/**
+ * Splits assistant content on the first closing think tag (models often omit the opening tag).
+ */
+function splitThinkContent(content: string): { thinkingText: string | null; responseContent: string } {
+  const match = THINK_END_RE.exec(content);
+  if (!match) {
+    return { thinkingText: null, responseContent: content };
+  }
+  const thinkingRaw = content.slice(0, match.index);
+  const after = content.slice(match.index + match[0].length);
+  const thinkingText = thinkingRaw.trim();
+  return {
+    thinkingText: thinkingText.length > 0 ? thinkingText : null,
+    responseContent: after.trim(),
+  };
+}
+
+function ThinkingChip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="chat-thinking">
+      <button
+        type="button"
+        className="chat-thinking-header"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <Brain size={14} aria-hidden />
+        <span>Denkprozess</span>
+        <span className="chat-thinking-chevron">
+          {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+        </span>
+      </button>
+      {open ? (
+        <div className="chat-thinking-body">
+          <pre>{text}</pre>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -285,10 +330,23 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
     },
   }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, isAnswered, onSelectOption]);
 
+  const thinkSplit = useMemo(() => splitThinkContent(processedContent), [processedContent]);
+  /**
+   * Before </think> arrives: stream the full content as normal markdown so the user
+   * sees the text appearing in real time.
+   * Once </think> is present: split — show the ThinkingChip and render only the
+   * response part (after the tag) as markdown.
+   */
+  const markdownSource =
+    thinkSplit.thinkingText !== null
+      ? thinkSplit.responseContent
+      : processedContent;
+
   return (
     <div className="chat-md">
+      {thinkSplit.thinkingText !== null && <ThinkingChip text={thinkSplit.thinkingText} />}
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-        {processedContent}
+        {markdownSource}
       </ReactMarkdown>
       {streamingCursor && <span className="chat-streaming-cursor" aria-hidden="true">▌</span>}
     </div>

@@ -4,6 +4,7 @@ import com.assistant.model.Mode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
+@DependsOn("userPreferencesService")
 public class ModeService {
 
     private static final Logger log = LoggerFactory.getLogger(ModeService.class);

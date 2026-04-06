@@ -1,14 +1,19 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil } from 'lucide-react';
-import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry } from '../../types.ts';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 'react';
+import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2, RotateCcw } from 'lucide-react';
+import type { ChatMessage, Mode, Conversation, SelectionContext, NoteProposal, WikiType, WikiEntry, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
+import { NewChatButton } from './NewChatButton.tsx';
+import { NewChatDialog } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
 import { NoteCard } from './NoteCard.tsx';
 import { wikiApi } from '../../api.ts';
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
+
+/** Assistant reply length (chars) below which we keep following the stream with auto-scroll. */
+const AUTOSCROLL_CHAR_LIMIT = 1500;
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -22,18 +27,26 @@ interface ChatPanelProps {
   activeConversationId: string;
   useReasoning: boolean;
   onToggleReasoning: () => void;
+  /** When true, LLM tools are disabled for this session (persisted in App). */
+  toolsDisabled?: boolean;
+  onToggleToolsDisabled?: () => void;
   onModeChange: (mode: string) => void;
   onSend: (message: string) => void;
   onStop: () => void;
-  onClear: () => void;
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
+  onEditMessage: (index: number, newContent: string) => void;
+  onDeleteMessage: (index: number) => void;
   onNewChat: () => void;
+  onDiscardCurrentChat: () => void;
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
+  onToggleSavedToProject: (id: string) => void;
+  onClearAllBrowserChats?: () => void;
+  clearAllBrowserChatsDisabled?: boolean;
   onOpenPromptPack?: () => void;
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
@@ -45,7 +58,66 @@ interface ChatPanelProps {
   wikiTypes?: WikiType[];
   onSaveFreeNote?: (note: NoteProposal) => Promise<void>;
   onAttachNoteToEntry?: (note: NoteProposal, typeId: string, entryId: string) => Promise<void>;
+  llms?: LlmPublic[];
+  selectedLlmId?: string;
+  onLlmChange?: (id: string | undefined) => void;
+  reasoningAvailable?: boolean;
+  fastAvailable?: boolean;
+  onRetry?: () => void;
 }
+
+interface MessageEditBoxProps {
+  initialContent: string;
+  onSave: (text: string) => void;
+  onCancel: () => void;
+}
+
+const MessageEditBox = memo(function MessageEditBox({ initialContent, onSave, onCancel }: MessageEditBoxProps) {
+  const [draft, setDraft] = useState(initialContent);
+
+  return (
+    <div className="chat-message-edit-wrap">
+      <textarea
+        className="chat-message-edit-textarea"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          e.target.style.height = 'auto';
+          e.target.style.height = `${e.target.scrollHeight}px`;
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+          else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSave(draft); }
+        }}
+        ref={(el) => {
+          if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+        }}
+        autoFocus
+      />
+      <div className="chat-edit-actions">
+        <button
+          type="button"
+          className="chat-edit-save-btn"
+          disabled={!draft.trim()}
+          onClick={() => onSave(draft)}
+          title="Speichern (Enter)"
+        >
+          <Check size={14} />
+          <span>Speichern</span>
+        </button>
+        <button
+          type="button"
+          className="chat-edit-cancel-btn"
+          onClick={onCancel}
+          title="Abbrechen (Esc)"
+        >
+          <X size={14} />
+          <span>Abbrechen</span>
+        </button>
+      </div>
+    </div>
+  );
+});
 
 function getContrastingTextColor(hexColor?: string): string | undefined {
   if (!hexColor || !/^#[0-9A-Fa-f]{6}$/.test(hexColor)) return undefined;
@@ -110,18 +182,25 @@ export function ChatPanel({
   activeConversationId,
   useReasoning,
   onToggleReasoning,
+  toolsDisabled = false,
+  onToggleToolsDisabled,
   onModeChange,
   onSend,
   onStop,
-  onClear,
   onAddFile,
   onRemoveFile,
   onForkFromMessage,
   onForkToNewConversation,
+  onEditMessage,
+  onDeleteMessage,
   onNewChat,
+  onDiscardCurrentChat,
   onSwitchChat,
   onDeleteChat,
   onRenameChat,
+  onToggleSavedToProject,
+  onClearAllBrowserChats,
+  clearAllBrowserChatsDisabled = true,
   onOpenPromptPack,
   structureRoot = null,
   activeSelection = null,
@@ -133,24 +212,145 @@ export function ChatPanel({
   wikiTypes = [],
   onSaveFreeNote,
   onAttachNoteToEntry,
+  llms = [],
+  selectedLlmId,
+  onLlmChange,
+  reasoningAvailable = true,
+  fastAvailable = true,
+  onRetry,
 }: ChatPanelProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const prevLastVisibleRoleRef = useRef<'user' | 'assistant' | undefined>(undefined);
+  const prevStreamingRef = useRef(false);
+  /** When false, stop auto-scrolling for the current stream (user scrolled up or reply grew too large). */
+  const autoScrollActiveRef = useRef(true);
+
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [renamingTitle, setRenamingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [dismissedNoteIds, setDismissedNoteIds] = useState<Set<string>>(new Set());
   const [wikiEntriesByType, setWikiEntriesByType] = useState<Record<string, WikiEntry[]>>({});
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const cancelEdit = useCallback(() => setEditingIdx(null), []);
+
+  const commitEdit = useCallback(
+    (originalIdx: number, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      onEditMessage(originalIdx, trimmed);
+      setEditingIdx(null);
+    },
+    [onEditMessage],
+  );
+
+  const handleNewChatClick = () => {
+    const hasMessages = messages.filter((m) => !m.hidden).length > 0;
+    if (hasMessages) {
+      setNewChatDialogOpen(true);
+    } else {
+      onNewChat();
+    }
+  };
+
+  const handleNewChatConfirm = (title: string) => {
+    setNewChatDialogOpen(false);
+    if (title.trim() && title.trim() !== activeTitle) {
+      onRenameChat(activeConversationId, title.trim());
+    }
+    onNewChat();
+  };
+
+  const handleNewChatDiscard = () => {
+    setNewChatDialogOpen(false);
+    onDiscardCurrentChat();
+  };
 
   useEffect(() => {
     setRenamingTitle(false);
   }, [activeConversationId]);
+
+  useEffect(() => {
+    setEditingIdx(null);
+  }, [activeConversationId]);
+
+  // After load / conversation switch: show the latest messages.
+  useLayoutEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const scrollToEnd = () => { el.scrollTop = el.scrollHeight; };
+    requestAnimationFrame(() => { requestAnimationFrame(scrollToEnd); });
+  }, [activeConversationId, messages.length]);
+
+  useEffect(() => {
+    prevLastVisibleRoleRef.current = undefined;
+    autoScrollActiveRef.current = true;
+  }, [activeConversationId]);
+
+  // Re-enable follow-scroll when a new stream starts.
+  useEffect(() => {
+    if (streaming && !prevStreamingRef.current) {
+      autoScrollActiveRef.current = true;
+    }
+    prevStreamingRef.current = streaming;
+  }, [streaming]);
+
+  // Once per sent user message: scroll to bottom.
+  useEffect(() => {
+    const visible = messages.filter((m) => !m.hidden);
+    const last = visible[visible.length - 1];
+    const role =
+      last?.role === 'user' ? 'user' : last?.role === 'assistant' ? 'assistant' : undefined;
+    const prev = prevLastVisibleRoleRef.current;
+    if (role === 'user' && prev !== 'user') {
+      const el = messagesScrollRef.current;
+      if (el) {
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
+    }
+    prevLastVisibleRoleRef.current = role;
+  }, [messages]);
+
+  // During streaming: auto-scroll for small/medium assistant replies; stop if reply is large or user scrolls up.
+  useEffect(() => {
+    if (!streaming) return;
+    const visible = messages.filter((m) => !m.hidden);
+    const last = visible[visible.length - 1];
+    if (!last || last.role !== 'assistant') return;
+    if (!autoScrollActiveRef.current) return;
+    if (last.content.length > AUTOSCROLL_CHAR_LIMIT) {
+      autoScrollActiveRef.current = false;
+      return;
+    }
+    const el = messagesScrollRef.current;
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+  }, [messages, streaming]);
+
+  // Disable follow-scroll when the user scrolls away from the bottom during streaming.
+  useEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el || !streaming) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom > 60) {
+        autoScrollActiveRef.current = false;
+      }
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [streaming]);
 
   // Reset dismissed notes when chat is cleared
   useEffect(() => {
@@ -158,6 +358,41 @@ export function ChatPanel({
       setDismissedNoteIds(new Set());
     }
   }, [messages.length]);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    const syncFullscreen = () => {
+      const fs =
+        document.fullscreenElement ??
+        (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+        null;
+      setIsFullscreen(!!panel && fs === panel);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+    };
+  }, []);
+
+  const toggleChatFullscreen = useCallback(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    const fs =
+      document.fullscreenElement ??
+      (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+      null;
+    if (fs === el) {
+      const exit = document.exitFullscreen?.bind(document) ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen?.bind(document);
+      if (exit) void exit().catch(() => { /* user gesture / policy */ });
+      return;
+    }
+    const req =
+      el.requestFullscreen?.bind(el) ??
+      (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen?.bind(el);
+    if (req) void req().catch(() => { /* unsupported or denied */ });
+  }, []);
 
   const handleLoadEntries = useCallback(async (typeId: string) => {
     if (wikiEntriesByType[typeId]) return;
@@ -172,10 +407,25 @@ export function ChatPanel({
   const noteProposalMap = extractNoteProposals(messages);
 
   return (
-    <div className="chat-panel">
+    <div ref={panelRef} className="chat-panel">
       <div className="chat-header">
         <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
         <div className="chat-header-actions">
+          {llms.length > 0 && onLlmChange && (
+            <select
+              className="chat-llm-select"
+              value={selectedLlmId ?? ''}
+              onChange={(e) => onLlmChange(e.target.value || undefined)}
+              title="LLM auswählen"
+            >
+              <option value="">— Standard —</option>
+              {llms.map((llm) => (
+                <option key={llm.id} value={llm.id}>
+                  {llm.name}
+                </option>
+              ))}
+            </select>
+          )}
           {onOpenPromptPack && (
             <button
               type="button"
@@ -187,15 +437,22 @@ export function ChatPanel({
             </button>
           )}
           <button
+            type="button"
+            className={`chat-history-btn ${isFullscreen ? 'active' : ''}`}
+            onClick={() => toggleChatFullscreen()}
+            title={isFullscreen ? 'Vollbild verlassen (Esc)' : 'Chat im Vollbild'}
+            aria-pressed={isFullscreen}
+          >
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+          <button
             className={`chat-history-btn ${historyOpen ? 'active' : ''}`}
             onClick={() => setHistoryOpen((prev) => !prev)}
             title="Chat-Historie"
           >
             <History size={14} />
           </button>
-          <button className="chat-clear-btn" onClick={onClear} title="Clear chat">
-            <Trash2 size={14} />
-          </button>
+          <NewChatButton onClick={handleNewChatClick} />
         </div>
         <div className="chat-header-title-row">
           {renamingTitle ? (
@@ -231,11 +488,14 @@ export function ChatPanel({
           onCreate={onNewChat}
           onDelete={onDeleteChat}
           onRename={onRenameChat}
+          onToggleSavedToProject={onToggleSavedToProject}
+          onClearAllBrowserChats={onClearAllBrowserChats}
+          clearAllBrowserDisabled={clearAllBrowserChatsDisabled}
           onClose={() => setHistoryOpen(false)}
         />
       )}
 
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesScrollRef}>
         {messages.filter((m) => !m.hidden).length === 0 && (
           <div className="chat-empty">
             <p>Start a conversation with your AI assistant.</p>
@@ -256,6 +516,9 @@ export function ChatPanel({
           .filter(({ msg }) => !msg.hidden)
           .map(({ msg, originalIdx }, visIdx, visArr) => {
           const prevUser = visIdx > 0 ? visArr[visIdx - 1].msg : null;
+          const isLastUserMsg =
+            msg.role === 'user' &&
+            !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === 'user');
           const showCopyForPromptPack =
             msg.role === 'assistant' &&
             msg.content.trim() &&
@@ -310,6 +573,12 @@ export function ChatPanel({
                       onSelectOption={onSend}
                       isAnswered={visIdx < visArr.length - 1 && visArr[visIdx + 1]?.msg.role === 'user'}
                     />
+                  ) : editingIdx === originalIdx ? (
+                    <MessageEditBox
+                      initialContent={msg.content}
+                      onSave={(text) => commitEdit(originalIdx, text)}
+                      onCancel={cancelEdit}
+                    />
                   ) : (
                     msg.content
                   )}
@@ -332,21 +601,55 @@ export function ChatPanel({
                     {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 )}
-                {visIdx > 0 && !streaming && (
+                {!streaming && (msg.role === 'user' || visIdx > 0) && editingIdx !== originalIdx && (
                   <div className="chat-fork-actions">
+                    {msg.role === 'user' && isLastUserMsg && (
+                      <button
+                        type="button"
+                        className="chat-fork-btn chat-resend-btn"
+                        onClick={() => onEditMessage(originalIdx, msg.content)}
+                        title="Nachricht erneut senden"
+                      >
+                        <RotateCcw size={12} />
+                      </button>
+                    )}
+                    {msg.role === 'user' && (
+                      <button
+                        type="button"
+                        className="chat-fork-btn chat-edit-btn"
+                        onClick={() => setEditingIdx(originalIdx)}
+                        title="Nachricht bearbeiten"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    )}
+                    {visIdx > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          className="chat-fork-btn"
+                          onClick={() => onForkFromMessage(originalIdx)}
+                          title="Hier abschneiden (in-place)"
+                        >
+                          <Scissors size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          className="chat-fork-btn"
+                          onClick={() => onForkToNewConversation(originalIdx)}
+                          title="Als neuen Chat forken"
+                        >
+                          <GitFork size={12} />
+                        </button>
+                      </>
+                    )}
                     <button
-                      className="chat-fork-btn"
-                      onClick={() => onForkFromMessage(originalIdx)}
-                      title="Hier abschneiden (in-place)"
+                      type="button"
+                      className="chat-fork-btn chat-fork-btn--danger"
+                      onClick={() => onDeleteMessage(originalIdx)}
+                      title="Nachricht löschen"
                     >
-                      <Scissors size={12} />
-                    </button>
-                    <button
-                      className="chat-fork-btn"
-                      onClick={() => onForkToNewConversation(originalIdx)}
-                      title="Als neuen Chat forken"
-                    >
-                      <GitFork size={12} />
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 )}
@@ -378,10 +681,26 @@ export function ChatPanel({
         )}
         {error && (
           <div className="chat-message error">
-            <div className="chat-message-content">Error: {error}</div>
+            <div className="chat-message-content">
+              {error === 'NETWORK_ERROR' ? (
+                <>
+                  <strong>Verbindungsproblem:</strong> Die KI-API ist nicht erreichbar.
+                  <br />
+                  Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.
+                </>
+              ) : error === 'MODEL_EMPTY_RESPONSE' ? (
+                'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+              ) : (
+                `Error: ${error}`
+              )}
+            </div>
+            {(error === 'MODEL_EMPTY_RESPONSE' || error === 'NETWORK_ERROR') && onRetry && (
+              <button className="chat-retry-btn" onClick={onRetry}>
+                Erneut versuchen
+              </button>
+            )}
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       <ChatInput
@@ -391,13 +710,27 @@ export function ChatPanel({
         referencedFiles={referencedFiles}
         onAddFile={onAddFile}
         onRemoveFile={onRemoveFile}
+        fullscreen={isFullscreen}
         structureRoot={structureRoot}
-        useReasoning={useReasoning}
+        useReasoning={useReasoning && reasoningAvailable}
         onToggleReasoning={onToggleReasoning}
+        toolsDisabled={toolsDisabled}
+        onToggleToolsDisabled={onToggleToolsDisabled}
+        reasoningAvailable={reasoningAvailable}
+        fastAvailable={fastAvailable}
         activeSelection={activeSelection}
         onDismissSelection={onDismissSelection}
         focusTriggerRef={chatFocusTriggerRef}
       />
+
+      {newChatDialogOpen && (
+        <NewChatDialog
+          currentTitle={activeTitle}
+          onConfirm={handleNewChatConfirm}
+          onDiscard={handleNewChatDiscard}
+          onCancel={() => setNewChatDialogOpen(false)}
+        />
+      )}
     </div>
   );
 }
