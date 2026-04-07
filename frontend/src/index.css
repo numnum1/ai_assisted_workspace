@@ -3007,47 +3007,95 @@ body.file-tree-native-dragging {
   letter-spacing: 0.03em;
 }
 
+.chat-clarification-question-group {
+  padding: 2px 0;
+}
+
+.chat-clarification-question-group + .chat-clarification-question-group {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  margin-top: 2px;
+}
+
 .chat-clarification-question {
   margin: 0;
-  padding: 8px 12px 6px;
+  padding: 8px 12px 5px;
   font-size: 13px;
   color: var(--text-primary);
   line-height: 1.5;
+  font-weight: 500;
 }
 
 .chat-clarification-options {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 10px 10px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 10px 8px;
 }
 
-.chat-clarification-btn {
-  display: inline-flex;
+.chat-clarification-option-row {
+  display: flex;
   align-items: center;
-  padding: 4px 12px;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s;
+  user-select: none;
+}
+
+.chat-clarification-option-row:not(.disabled):hover {
   background: color-mix(in srgb, var(--accent) 10%, var(--bg-tertiary));
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  border-radius: 14px;
+}
+
+.chat-clarification-option-row.selected {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-tertiary));
   color: var(--accent);
+}
+
+.chat-clarification-option-row.disabled {
+  cursor: default;
+}
+
+.chat-clarification-option-row input[type="radio"],
+.chat-clarification-option-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.chat-clarification-option-row.disabled input {
+  cursor: default;
+}
+
+.chat-clarification-footer {
+  padding: 4px 10px 10px;
+}
+
+.chat-clarification-submit {
+  width: 100%;
+  padding: 6px 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 5px;
+  color: #fff;
   font-size: 12px;
   font-family: inherit;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: opacity 0.15s;
 }
 
-.chat-clarification-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 22%, var(--bg-tertiary));
-  border-color: var(--accent);
+.chat-clarification-submit:hover:not(:disabled) {
+  opacity: 0.85;
 }
 
-.chat-clarification-btn:active:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 30%, var(--bg-tertiary));
-}
-
-.chat-clarification-btn:disabled {
+.chat-clarification-submit:disabled {
+  opacity: 0.4;
   cursor: default;
-  opacity: 0.55;
 }
 
 .chat-thinking {

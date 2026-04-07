@@ -9,6 +9,7 @@ import com.assistant.service.AiApiClient.ChatCompletionResult;
 import com.assistant.service.AiProviderService;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
+import com.assistant.service.tools.AskClarificationTool;
 import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -205,6 +206,19 @@ public class ChatController {
 
             log.info("Tool round {}: model requested {} tool call(s)", round + 1, result.toolCalls().size());
 
+            // Intercept ask_clarification before any messages are added to history
+            boolean hasClarification = result.toolCalls().stream()
+                    .anyMatch(tc -> AskClarificationTool.TOOL_NAME.equals(tc.getFunction().getName()));
+            if (hasClarification) {
+                ToolCall clarCall = result.toolCalls().stream()
+                        .filter(tc -> AskClarificationTool.TOOL_NAME.equals(tc.getFunction().getName()))
+                        .findFirst().orElseThrow();
+                preGeneratedContent = buildClarificationBlock(clarCall.getFunction().getArguments());
+                log.info("Tool round {}: ask_clarification intercepted — emitting clarification block as pre-generated content ({} chars)",
+                        round + 1, preGeneratedContent.length());
+                break;
+            }
+
             // Send tool call events for the frontend
             for (ToolCall tc : result.toolCalls()) {
                 String description = toolExecutor.describeToolCall(tc);
@@ -295,6 +309,23 @@ public class ChatController {
             String toolHistoryJson,
             String preGeneratedContent
     ) {}
+
+    /**
+     * Converts the JSON arguments of an {@code ask_clarification} tool call into a
+     * {@code clarification} fenced block that the frontend renders as a question form.
+     */
+    @SuppressWarnings("unchecked")
+    private String buildClarificationBlock(String argsJson) {
+        try {
+            Map<String, Object> args = objectMapper.readValue(argsJson, Map.class);
+            Object questions = args.get("questions");
+            String questionsJson = objectMapper.writeValueAsString(questions);
+            return "```clarification\n" + questionsJson + "\n```";
+        } catch (Exception e) {
+            log.warn("Failed to build clarification block from args, returning empty array: {}", argsJson, e);
+            return "```clarification\n[]\n```";
+        }
+    }
 
     /**
      * Omits {@link WebSearchTool} unless the client explicitly enables web search.

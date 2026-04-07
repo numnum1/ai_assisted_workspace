@@ -256,20 +256,19 @@ public class ContextService {
         systemPrompt.append("highlighted selection. The user will see a one-click 'Replace' button in the chat.\n");
         systemPrompt.append("You may include multiple `replace` blocks if you want to offer alternatives.\n\n");
 
-        // Clarification questions via multiple-choice
+        // Clarification questions via tool call
         systemPrompt.append("=== Clarification Questions ===\n");
-        systemPrompt.append("When you genuinely need more information before you can give a good answer, you may ask ");
-        systemPrompt.append("a clarification question by including exactly one fenced code block with the language tag `clarification`.\n");
-        systemPrompt.append("The block must contain a single JSON object on one line with these fields:\n");
+        systemPrompt.append("When you genuinely need more information before you can give a good answer, call the\n");
+        systemPrompt.append("`ask_clarification` tool. Pass a `questions` array — each entry has:\n");
         systemPrompt.append("  - \"question\": the question text (string)\n");
-        systemPrompt.append("  - \"options\": an array of 2–5 short answer options (strings)\n\n");
-        systemPrompt.append("Example:\n");
-        systemPrompt.append("```clarification\n");
-        systemPrompt.append("{\"question\": \"Welchen Ansatz bevorzugst du?\", \"options\": [\"Ansatz A\", \"Ansatz B\", \"Ich bin offen\"]}\n");
-        systemPrompt.append("```\n\n");
-        systemPrompt.append("The user will see the options as clickable buttons and can select one with a single click.\n");
-        systemPrompt.append("Use this sparingly — only when the ambiguity would lead to a significantly wrong or wasted answer.\n");
-        systemPrompt.append("Do NOT use it for simple tasks where a reasonable assumption can be made.\n\n");
+        systemPrompt.append("  - \"options\": an array of 2–5 short answer options (strings)\n");
+        systemPrompt.append("  - \"allow_multiple\": true if the user may pick more than one option (optional, default false)\n\n");
+        systemPrompt.append("Rules:\n");
+        systemPrompt.append("  - Call `ask_clarification` as your ONLY action — write NO other text before or after the tool call.\n");
+        systemPrompt.append("  - You may group several related questions into one call (1–3 questions max).\n");
+        systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
+        systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
+        systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
 
         int finalSystemPromptChars = systemPrompt.length();
         int estimatedSystemTokens = finalSystemPromptChars / 4;

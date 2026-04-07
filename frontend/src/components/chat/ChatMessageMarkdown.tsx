@@ -61,6 +61,135 @@ function ThinkingChip({ text }: { text: string }) {
   );
 }
 
+interface ClarificationQuestion {
+  question: string;
+  options: string[];
+  allow_multiple?: boolean;
+}
+
+function ClarificationBlock({
+  raw,
+  streamingCursor,
+  isAnswered,
+  onSelectOption,
+}: {
+  raw: string;
+  streamingCursor: boolean;
+  isAnswered: boolean;
+  onSelectOption?: (answer: string) => void;
+}) {
+  const questions = useMemo<ClarificationQuestion[] | null>(() => {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      // Single-object fallback (old format)
+      if (parsed && typeof parsed.question === 'string') return [parsed];
+      return null;
+    } catch {
+      return null;
+    }
+  }, [raw]);
+
+  const [selected, setSelected] = useState<Record<number, string[]>>({});
+  const [submitted, setSubmitted] = useState(false);
+
+  if (!questions) {
+    return (
+      <div className="chat-code-block">
+        <pre><code>{raw}</code></pre>
+      </div>
+    );
+  }
+
+  const disabled = streamingCursor || isAnswered || submitted;
+
+  const allAnswered = questions.every((_, idx) => (selected[idx]?.length ?? 0) > 0);
+
+  function toggleOption(qIdx: number, opt: string, allowMultiple: boolean) {
+    if (disabled) return;
+    setSelected((prev) => {
+      const current = prev[qIdx] ?? [];
+      if (allowMultiple) {
+        const next = current.includes(opt)
+          ? current.filter((o) => o !== opt)
+          : [...current, opt];
+        return { ...prev, [qIdx]: next };
+      }
+      return { ...prev, [qIdx]: [opt] };
+    });
+  }
+
+  function handleSubmit() {
+    if (!allAnswered || disabled) return;
+    const lines = questions!.map((q, idx) => {
+      const answers = selected[idx] ?? [];
+      const answerText = answers.join(', ');
+      if (questions!.length === 1 && !(q.allow_multiple)) {
+        return answerText;
+      }
+      return `${q.question} → ${answerText}`;
+    });
+    const message = lines.join('\n');
+    setSubmitted(true);
+    onSelectOption?.(message);
+  }
+
+  return (
+    <div className={`chat-clarification${disabled ? ' answered' : ''}`}>
+      <div className="chat-clarification-label">
+        <HelpCircle size={13} />
+        <span>Rückfrage</span>
+      </div>
+      {questions.map((q, qIdx) => {
+        const allowMultiple = q.allow_multiple ?? false;
+        const inputType = allowMultiple ? 'checkbox' : 'radio';
+        const groupName = `clarification-q-${qIdx}`;
+        return (
+          <div key={qIdx} className="chat-clarification-question-group">
+            <p className="chat-clarification-question">{q.question}</p>
+            <div className="chat-clarification-options">
+              {q.options.map((opt, oIdx) => {
+                const isSelected = (selected[qIdx] ?? []).includes(opt);
+                const id = `${groupName}-${oIdx}`;
+                return (
+                  <label
+                    key={oIdx}
+                    htmlFor={id}
+                    className={`chat-clarification-option-row${isSelected ? ' selected' : ''}${disabled ? ' disabled' : ''}`}
+                  >
+                    <input
+                      type={inputType}
+                      id={id}
+                      name={groupName}
+                      value={opt}
+                      checked={isSelected}
+                      disabled={disabled}
+                      onChange={() => toggleOption(qIdx, opt, allowMultiple)}
+                    />
+                    {opt}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {!isAnswered && !submitted && (
+        <div className="chat-clarification-footer">
+          <button
+            type="button"
+            className="chat-clarification-submit"
+            disabled={!allAnswered || disabled}
+            onClick={handleSubmit}
+          >
+            Antworten
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Converts misformatted field-update blocks to the correct format.
  * Pass 1: handles ```json or ``` fences containing field-update JSON.
@@ -274,43 +403,13 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
       }
 
       if (isClarificationBlock) {
-        const raw = String(children ?? '').trim();
-        let question = '';
-        let options: string[] = [];
-        try {
-          const parsed = JSON.parse(raw);
-          question = parsed.question ?? '';
-          options = Array.isArray(parsed.options) ? parsed.options : [];
-        } catch {
-          // Malformed JSON — render as plain code block so the raw content is still visible
-          return (
-            <div className="chat-code-block">
-              <pre><code>{raw}</code></pre>
-            </div>
-          );
-        }
-        const disabled = streamingCursor || isAnswered;
         return (
-          <div className={`chat-clarification${disabled ? ' answered' : ''}`}>
-            <div className="chat-clarification-label">
-              <HelpCircle size={13} />
-              <span>Rückfrage</span>
-            </div>
-            <p className="chat-clarification-question">{question}</p>
-            <div className="chat-clarification-options">
-              {options.map((opt, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="chat-clarification-btn"
-                  disabled={!!disabled}
-                  onClick={() => onSelectOption?.(opt)}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ClarificationBlock
+            raw={String(children ?? '').trim()}
+            streamingCursor={!!streamingCursor}
+            isAnswered={!!isAnswered}
+            onSelectOption={onSelectOption}
+          />
         );
       }
 
