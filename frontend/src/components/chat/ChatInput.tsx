@@ -436,7 +436,7 @@ export function ChatInput({
         {onToggleToolsDisabled && (
           <button
             type="button"
-            className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ''}`}
+            className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ' active'}`}
             onClick={onToggleToolsDisabled}
             title={
               toolsDisabled
@@ -534,7 +534,7 @@ export function ChatInput({
                 {onToggleToolsDisabled && (
                   <button
                     type="button"
-                    className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ''}`}
+                    className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ' active'}`}
                     onClick={onToggleToolsDisabled}
                     title={
                       toolsDisabled

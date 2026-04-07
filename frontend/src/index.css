@@ -4380,6 +4380,12 @@ body.file-tree-native-dragging {
   color: var(--accent);
 }
 
+.chat-tools-toggle-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-tertiary);
+}
+
 /* Tools aus: wie deaktiviert / zurückgenommen */
 .chat-tools-toggle-btn.chat-tools-toggle-btn--off {
   background: transparent;
