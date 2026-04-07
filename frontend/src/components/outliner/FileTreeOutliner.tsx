@@ -390,6 +390,11 @@ export function FileTreeOutliner({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['.']));
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
+  const prevProjectPathRef = useRef<string | null | undefined>(undefined);
+  const prevScopeToPathRef = useRef<string | null | undefined>(undefined);
+  const prevScopeForExpansionRef = useRef<string | null | undefined>(undefined);
 
   // Build the set of all changed file paths and the set of all folders that contain changes.
   const changedPaths = useMemo<Set<string>>(() => {
@@ -436,6 +441,9 @@ export function FileTreeOutliner({
 
   useEffect(() => {
     if (!root) return;
+    // Only reset expansion when scopeToPath itself changed, not on every tree reload
+    if (prevScopeForExpansionRef.current === scopeToPath) return;
+    prevScopeForExpansionRef.current = scopeToPath;
     if (scopeToPath && findNodeByPath(root, scopeToPath)) {
       setExpanded(new Set([scopeToPath]));
     } else if (!scopeToPath) {
@@ -456,8 +464,16 @@ export function FileTreeOutliner({
     if (!projectPath) {
       setRoot(null);
       setLoadError(null);
+      prevProjectPathRef.current = null;
+      prevScopeToPathRef.current = scopeToPath;
       return;
     }
+    const isHardReset =
+      projectPath !== prevProjectPathRef.current ||
+      scopeToPath !== prevScopeToPathRef.current;
+    prevProjectPathRef.current = projectPath;
+    prevScopeToPathRef.current = scopeToPath;
+
     let cancelled = false;
     filesApi
       .getTree()
@@ -465,9 +481,25 @@ export function FileTreeOutliner({
         if (!cancelled) {
           setRoot(tree);
           setLoadError(null);
-          const expandKey =
-            scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
-          setExpanded(new Set([expandKey]));
+          if (isHardReset) {
+            const expandKey =
+              scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
+            setExpanded(new Set([expandKey]));
+          } else {
+            // Mutation refresh: preserve expanded folders that still exist in the new tree
+            const preserved = new Set<string>();
+            for (const path of expandedRef.current) {
+              if (path === '.' || findNodeByPath(tree, path)) {
+                preserved.add(path);
+              }
+            }
+            if (preserved.size === 0) {
+              const expandKey =
+                scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
+              preserved.add(expandKey);
+            }
+            setExpanded(preserved);
+          }
         }
       })
       .catch((e) => {
