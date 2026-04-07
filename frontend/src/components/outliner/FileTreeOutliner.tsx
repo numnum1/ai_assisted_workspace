@@ -6,6 +6,7 @@ import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, Scro
 import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
 import { resolveLevelConfig } from '../../hooks/useWorkspaceLevelConfigMap.ts';
+import { readExpandedPaths, writeExpandedPaths } from '../../hooks/outlinerExpandedStorage.ts';
 
 function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
   if (root.path === targetPath) return root;
@@ -15,6 +16,10 @@ function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
     if (f) return f;
   }
   return null;
+}
+
+function isWikiFolder(node: FileNode): boolean {
+  return Boolean(node.directory && node.name.toLowerCase() === 'wiki');
 }
 
 function normalizeTreeItemName(raw: string): string | null {
@@ -258,6 +263,8 @@ function TreeNodeRow({
                 size={14}
                 className="file-tree-icon file-tree-icon--subproject"
               />
+            ) : isWikiFolder(node) ? (
+              <OutlinerIcon name="wiki" size={14} className="file-tree-icon" />
             ) : (
               <Folder size={14} className="file-tree-icon" />
             )
@@ -395,6 +402,8 @@ export function FileTreeOutliner({
   const prevProjectPathRef = useRef<string | null | undefined>(undefined);
   const prevScopeToPathRef = useRef<string | null | undefined>(undefined);
   const prevScopeForExpansionRef = useRef<string | null | undefined>(undefined);
+  /** Only persist expansion after tree load for this project (avoids writing previous project's set under new key). */
+  const expandedSyncProjectRef = useRef<string | null>(null);
 
   // Build the set of all changed file paths and the set of all folders that contain changes.
   const changedPaths = useMemo<Set<string>>(() => {
@@ -441,8 +450,13 @@ export function FileTreeOutliner({
 
   useEffect(() => {
     if (!root) return;
-    // Only reset expansion when scopeToPath itself changed, not on every tree reload
-    if (prevScopeForExpansionRef.current === scopeToPath) return;
+    const prev = prevScopeForExpansionRef.current;
+    // Same scope + new root (e.g. refresh): do not collapse — load effect / persistence owns expansion
+    if (prev === scopeToPath) return;
+    if (prev === undefined) {
+      prevScopeForExpansionRef.current = scopeToPath;
+      return;
+    }
     prevScopeForExpansionRef.current = scopeToPath;
     if (scopeToPath && findNodeByPath(root, scopeToPath)) {
       setExpanded(new Set([scopeToPath]));
@@ -464,6 +478,7 @@ export function FileTreeOutliner({
     if (!projectPath) {
       setRoot(null);
       setLoadError(null);
+      expandedSyncProjectRef.current = null;
       prevProjectPathRef.current = null;
       prevScopeToPathRef.current = scopeToPath;
       return;
@@ -471,6 +486,9 @@ export function FileTreeOutliner({
     const isHardReset =
       projectPath !== prevProjectPathRef.current ||
       scopeToPath !== prevScopeToPathRef.current;
+    if (isHardReset) {
+      expandedSyncProjectRef.current = null;
+    }
     prevProjectPathRef.current = projectPath;
     prevScopeToPathRef.current = scopeToPath;
 
@@ -484,7 +502,13 @@ export function FileTreeOutliner({
           if (isHardReset) {
             const expandKey =
               scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
-            setExpanded(new Set([expandKey]));
+            const stored =
+              projectPath != null ? readExpandedPaths(projectPath, scopeToPath) : [];
+            const merged = new Set<string>([expandKey]);
+            for (const p of stored) {
+              if (p === '.' || findNodeByPath(tree, p)) merged.add(p);
+            }
+            setExpanded(merged);
           } else {
             // Mutation refresh: preserve expanded folders that still exist in the new tree
             const preserved = new Set<string>();
@@ -500,6 +524,7 @@ export function FileTreeOutliner({
             }
             setExpanded(preserved);
           }
+          expandedSyncProjectRef.current = projectPath;
         }
       })
       .catch((e) => {
@@ -509,6 +534,11 @@ export function FileTreeOutliner({
       cancelled = true;
     };
   }, [projectPath, refreshNonce, scopeToPath]);
+
+  useEffect(() => {
+    if (!projectPath || expandedSyncProjectRef.current !== projectPath) return;
+    writeExpandedPaths(projectPath, scopeToPath, expanded);
+  }, [projectPath, scopeToPath, expanded]);
 
   const refreshAfterMutation = useCallback(() => {
     setMenu(null);
