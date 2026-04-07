@@ -100,7 +100,7 @@ interface ChangeCardProps {
   data: ChangeCardData;
   onApply?: (snapshotId: string) => void;
   onRevert?: (snapshotId: string, path: string, wasNew: boolean) => void;
-  /** Called after revert so the editor reloads the file */
+  /** Called after apply or revert so the editor and file tree refresh */
   onFileChanged?: (path: string) => void;
 }
 
@@ -176,9 +176,12 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
   const handleApply = async () => {
     setBusy(true);
     try {
-      await fetch(`/api/snapshots/${snapshotId}/apply`, { method: 'POST' });
-      setCardState('applied');
-      onApply?.(snapshotId);
+      const res = await fetch(`/api/snapshots/${snapshotId}/apply`, { method: 'POST' });
+      if (res.ok) {
+        setCardState('applied');
+        onApply?.(snapshotId);
+        onFileChanged?.(path);
+      }
     } finally {
       setBusy(false);
     }
