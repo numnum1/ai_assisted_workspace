@@ -828,6 +828,7 @@ function App() {
             onSelectTab={(path) => void fileEditor.openFile(path)}
             onCloseTab={fileEditor.closeTab}
             onCloseOtherTabs={fileEditor.closeOtherTabs}
+            onCloseAllTabs={fileEditor.closeAllTabs}
           />
           {searchOpen && (
             <SearchPanel

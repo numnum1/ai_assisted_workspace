@@ -87,6 +87,15 @@ export function useFileTabs(projectPath: string | null) {
     [tabs],
   );
 
+  const closeAllTabs = useCallback(() => {
+    if (tabs.length === 0) return;
+    if (tabs.some((t) => t.dirty)) {
+      if (!window.confirm('Ungespeicherte Änderungen in allen Tabs verwerfen?')) return;
+    }
+    setTabs([]);
+    setActiveTabPath(null);
+  }, [tabs]);
+
   const setContent = useCallback((next: string) => {
     setTabs((prev) =>
       prev.map((t) =>
@@ -161,6 +170,7 @@ export function useFileTabs(projectPath: string | null) {
     closeFile,
     closeTab,
     closeOtherTabs,
+    closeAllTabs,
     save,
     setContent,
     clearError: () => setError(null),

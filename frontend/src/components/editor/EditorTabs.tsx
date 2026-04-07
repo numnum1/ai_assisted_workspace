@@ -8,6 +8,7 @@ interface EditorTabsProps {
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
   onCloseOtherTabs: (keepPath: string) => void;
+  onCloseAllTabs: () => void;
 }
 
 function fileName(path: string): string {
@@ -20,6 +21,7 @@ export function EditorTabs({
   onSelectTab,
   onCloseTab,
   onCloseOtherTabs,
+  onCloseAllTabs,
 }: EditorTabsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
@@ -55,7 +57,6 @@ export function EditorTabs({
           title={tab.path}
           onClick={() => onSelectTab(tab.path)}
           onContextMenu={(e) => {
-            if (tabs.length <= 1) return;
             e.preventDefault();
             setMenu({ x: e.clientX, y: e.clientY, path: tab.path });
           }}
@@ -83,15 +84,28 @@ export function EditorTabs({
           onClick={(ev) => ev.stopPropagation()}
           onMouseDown={(ev) => ev.stopPropagation()}
         >
+          {tabs.length > 1 && (
+            <button
+              type="button"
+              className="file-tree-context-item"
+              onClick={() => {
+                onCloseOtherTabs(menu.path);
+                setMenu(null);
+              }}
+            >
+              Andere Tabs schließen
+            </button>
+          )}
+          {tabs.length > 1 && <div className="file-tree-context-separator" role="separator" />}
           <button
             type="button"
             className="file-tree-context-item"
             onClick={() => {
-              onCloseOtherTabs(menu.path);
+              onCloseAllTabs();
               setMenu(null);
             }}
           >
-            Andere Tabs schließen
+            Alle Tabs schließen
           </button>
         </div>
       )}
