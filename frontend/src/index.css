@@ -456,12 +456,9 @@ body {
   color: var(--accent);
 }
 
-.file-tree-row--draggable {
-  cursor: grab;
-}
-
-.file-tree-row--draggable:active {
-  cursor: grabbing;
+/* File tree: pointer at rest; grabbing only during native HTML5 drag to chat */
+body.file-tree-native-dragging {
+  cursor: grabbing !important;
 }
 
 .file-tree-scope-banner {

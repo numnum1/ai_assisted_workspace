@@ -22,6 +22,12 @@ function isWikiFolder(node: FileNode): boolean {
   return Boolean(node.directory && node.name.toLowerCase() === 'wiki');
 }
 
+const FILE_TREE_NATIVE_DRAGGING_CLASS = 'file-tree-native-dragging';
+
+function setFileTreeNativeDragCursor(active: boolean) {
+  document.body.classList.toggle(FILE_TREE_NATIVE_DRAGGING_CLASS, active);
+}
+
 function normalizeTreeItemName(raw: string): string | null {
   const t = raw.trim();
   if (!t) return null;
@@ -229,9 +235,11 @@ function TreeNodeRow({
             onClick={() => onOpenBookMeta(node.path, spType)}
             draggable
             onDragStart={(e) => {
+              setFileTreeNativeDragCursor(true);
               e.dataTransfer.setData('text/plain', rootMetaDragPath);
               e.dataTransfer.effectAllowed = 'copy';
             }}
+            onDragEnd={() => setFileTreeNativeDragCursor(false)}
           >
             <OutlinerIcon name={subLevelConfig.rootMetaIcon} size={13} />
           </button>
@@ -247,11 +255,13 @@ function TreeNodeRow({
           onDragStart={
             canDragToChat
               ? (e) => {
+                  setFileTreeNativeDragCursor(true);
                   e.dataTransfer.setData('text/plain', dragPayload);
                   e.dataTransfer.effectAllowed = 'copy';
                 }
               : undefined
           }
+          onDragEnd={canDragToChat ? () => setFileTreeNativeDragCursor(false) : undefined}
         >
           <span className="file-tree-chevron">
             {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}
@@ -404,6 +414,8 @@ export function FileTreeOutliner({
   const prevScopeForExpansionRef = useRef<string | null | undefined>(undefined);
   /** Only persist expansion after tree load for this project (avoids writing previous project's set under new key). */
   const expandedSyncProjectRef = useRef<string | null>(null);
+
+  useEffect(() => () => setFileTreeNativeDragCursor(false), []);
 
   // Build the set of all changed file paths and the set of all folders that contain changes.
   const changedPaths = useMemo<Set<string>>(() => {
