@@ -74,6 +74,19 @@ export function useFileTabs(projectPath: string | null) {
     if (activeTabPath) closeTab(activeTabPath);
   }, [activeTabPath, closeTab]);
 
+  const closeOtherTabs = useCallback(
+    (keepPath: string) => {
+      const others = tabs.filter((t) => t.path !== keepPath);
+      if (others.length === 0) return;
+      if (others.some((t) => t.dirty)) {
+        if (!window.confirm('Ungespeicherte Änderungen in den anderen Tabs verwerfen?')) return;
+      }
+      setTabs((prev) => prev.filter((t) => t.path === keepPath));
+      setActiveTabPath(keepPath);
+    },
+    [tabs],
+  );
+
   const setContent = useCallback((next: string) => {
     setTabs((prev) =>
       prev.map((t) =>
@@ -147,6 +160,7 @@ export function useFileTabs(projectPath: string | null) {
     openFile,
     closeFile,
     closeTab,
+    closeOtherTabs,
     save,
     setContent,
     clearError: () => setError(null),

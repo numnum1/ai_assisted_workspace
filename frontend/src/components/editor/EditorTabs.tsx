@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { FileTab } from '../../hooks/useFileTabs.ts';
 
@@ -7,14 +7,36 @@ interface EditorTabsProps {
   activeTabPath: string | null;
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
+  onCloseOtherTabs: (keepPath: string) => void;
 }
 
 function fileName(path: string): string {
   return path.split('/').pop() ?? path;
 }
 
-export function EditorTabs({ tabs, activeTabPath, onSelectTab, onCloseTab }: EditorTabsProps) {
+export function EditorTabs({
+  tabs,
+  activeTabPath,
+  onSelectTab,
+  onCloseTab,
+  onCloseOtherTabs,
+}: EditorTabsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
 
   if (tabs.length === 0) return null;
 
@@ -32,6 +54,11 @@ export function EditorTabs({ tabs, activeTabPath, onSelectTab, onCloseTab }: Edi
           className={`editor-tab ${tab.path === activeTabPath ? 'editor-tab--active' : ''}`}
           title={tab.path}
           onClick={() => onSelectTab(tab.path)}
+          onContextMenu={(e) => {
+            if (tabs.length <= 1) return;
+            e.preventDefault();
+            setMenu({ x: e.clientX, y: e.clientY, path: tab.path });
+          }}
         >
           <span className="editor-tab-name">
             {fileName(tab.path)}
@@ -49,6 +76,25 @@ export function EditorTabs({ tabs, activeTabPath, onSelectTab, onCloseTab }: Edi
           </button>
         </div>
       ))}
+      {menu && (
+        <div
+          className="file-tree-context-menu"
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(ev) => ev.stopPropagation()}
+          onMouseDown={(ev) => ev.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="file-tree-context-item"
+            onClick={() => {
+              onCloseOtherTabs(menu.path);
+              setMenu(null);
+            }}
+          >
+            Andere Tabs schließen
+          </button>
+        </div>
+      )}
     </div>
   );
 }
