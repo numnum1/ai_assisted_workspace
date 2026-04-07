@@ -106,6 +106,8 @@ interface ChangeCardProps {
 
 type CardState = 'pending' | 'applied' | 'reverted';
 
+const DISMISS_DELAY_MS = 1500;
+
 export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCardProps) {
   const { snapshotId, path, isNew, description } = data;
 
@@ -115,6 +117,7 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
   const [newContent, setNewContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const loadDiff = useCallback(async () => {
     if (diffLines !== null || loading) return;
@@ -124,16 +127,30 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
         fetch(`/api/snapshots/${snapshotId}`),
         fetch(`/api/files/content/${path}`),
       ]);
-      if (!snapshotRes.ok || !fileRes.ok) return;
+      if (!snapshotRes.ok || !fileRes.ok) {
+        setDismissed(true);
+        return;
+      }
       const snapshot = await snapshotRes.json();
       const fileJson = await fileRes.json();
       const fileText: string = fileJson.content ?? '';
       setNewContent(fileText);
       if (isNew) {
-        setDiffLines(fileText.split('\n').map((line) => ({ type: 'added' as const, content: line })));
+        const lines = fileText.split('\n').map((line) => ({ type: 'added' as const, content: line }));
+        if (lines.length === 0 || (lines.length === 1 && lines[0].content === '')) {
+          setDismissed(true);
+          return;
+        }
+        setDiffLines(lines);
       } else {
         const raw = computeDiff(snapshot.oldContent ?? '', fileText);
-        setDiffLines(collapseDiff(raw));
+        const collapsed = collapseDiff(raw);
+        const hasChanges = collapsed.some((l) => l.type !== 'context');
+        if (!hasChanges) {
+          setDismissed(true);
+          return;
+        }
+        setDiffLines(collapsed);
       }
     } finally {
       setLoading(false);
@@ -145,6 +162,13 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
       loadDiff();
     }
   }, [cardState, loadDiff]);
+
+  useEffect(() => {
+    if (cardState === 'applied' || cardState === 'reverted') {
+      const timer = setTimeout(() => setDismissed(true), DISMISS_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [cardState]);
 
   const handleApply = async () => {
     setBusy(true);
@@ -174,6 +198,8 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
 
   const addedCount = diffLines?.filter((l) => l.type === 'added').length ?? 0;
   const removedCount = diffLines?.filter((l) => l.type === 'removed').length ?? 0;
+
+  if (dismissed) return null;
 
   return (
     <div className={`change-card change-card--${cardState}`}>
