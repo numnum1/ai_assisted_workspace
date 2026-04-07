@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Check, RotateCcw, ChevronDown, ChevronRight, FileText, FilePlus } from 'lucide-react';
 
 interface DiffLine {
@@ -118,9 +118,12 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  /** Prevents more than one load attempt regardless of state changes. */
+  const loadAttemptedRef = useRef(false);
 
   const loadDiff = useCallback(async () => {
-    if (diffLines !== null || loading) return;
+    if (loadAttemptedRef.current) return;
+    loadAttemptedRef.current = true;
     setLoading(true);
     try {
       const [snapshotRes, fileRes] = await Promise.all([
@@ -155,7 +158,7 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
     } finally {
       setLoading(false);
     }
-  }, [snapshotId, path, isNew, diffLines, loading]);
+  }, [snapshotId, path, isNew]);
 
   useEffect(() => {
     if (cardState === 'pending') {
