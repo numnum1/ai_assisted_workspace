@@ -406,11 +406,10 @@ export function ChatInput({
           onDragOver={handleDragOver}
           placeholder={
             streaming
-              ? 'AI is responding...'
+              ? 'AI antwortet… (du kannst bereits tippen)'
               : (placeholderProp ??
                 'Nachricht...')
           }
-          disabled={streaming}
           rows={fullscreen ? 12 : 1}
         />
         <button
