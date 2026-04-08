@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ChatController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
-    private static final int MAX_TOOL_ROUNDS = 3;
+    private static final int MAX_TOOL_ROUNDS = 16;
 
     private final ContextService contextService;
     private final AiApiClient aiApiClient;
