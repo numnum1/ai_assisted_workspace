@@ -110,7 +110,7 @@ npm install
 
 ### 3. Development
 
-**Terminal 1 — backend (8080):**
+**Terminal 1 — backend (8012):**
 ```bash
 cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=local
@@ -132,7 +132,7 @@ cp -r dist/* ../backend/src/main/resources/static/
 cd ../backend && mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Open http://localhost:8080.
+Open http://localhost:8012.
 
 ## Repository layout
 
