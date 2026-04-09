@@ -1,8 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ClarificationQuestion } from './clarificationUtils.ts';
 
 const OTHER_LABEL = 'Andere…';
+
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('') as string[];
+
+function choiceLetter(i: number): string {
+  return i < LETTERS.length ? LETTERS[i]! : String(i + 1);
+}
 
 export interface SuggestedActionsCardProps {
   questions: ClarificationQuestion[];
@@ -16,6 +21,21 @@ function isCustomAnswer(q: ClarificationQuestion, answer: string | undefined): b
   return !q.options.includes(answer);
 }
 
+function buildMessage(
+  questions: ClarificationQuestion[],
+  selected: Record<number, string[]>,
+): string {
+  const lines = questions.map((q, idx) => {
+    const answers = selected[idx] ?? [];
+    const answerText = answers.join(', ');
+    if (questions.length === 1 && !q.allow_multiple) {
+      return answerText;
+    }
+    return `${q.question} → ${answerText}`;
+  });
+  return lines.join('\n');
+}
+
 export function SuggestedActionsCard({
   questions,
   onSubmit,
@@ -25,6 +45,13 @@ export function SuggestedActionsCard({
   const [otherOpen, setOtherOpen] = useState<Record<number, boolean>>({});
   const [otherDraft, setOtherDraft] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
+
+  const frozenRef = useRef(false);
+  frozenRef.current = disabled || submitted;
+
+  const autoSubmitMode =
+    questions.length === 1 && !(questions[0]?.allow_multiple ?? false);
+  const needsSubmitButton = !autoSubmitMode;
 
   useEffect(() => {
     setSelected({});
@@ -36,7 +63,7 @@ export function SuggestedActionsCard({
   useEffect(() => {
     const openIdx = Object.keys(otherOpen).find((k) => otherOpen[Number(k)]);
     if (openIdx !== undefined) {
-      document.getElementById(`suggested-other-${openIdx}`)?.focus();
+      document.getElementById(`sac-other-${openIdx}`)?.focus();
     }
   }, [otherOpen]);
 
@@ -44,11 +71,69 @@ export function SuggestedActionsCard({
 
   const allAnswered = questions.every((_, idx) => (selected[idx]?.length ?? 0) > 0);
 
+  const submitMessage = useCallback(
+    (message: string) => {
+      setSubmitted(true);
+      onSubmit(message);
+    },
+    [onSubmit],
+  );
+
+  const handleSubmit = useCallback(() => {
+    if (!allAnswered || frozen) return;
+    submitMessage(buildMessage(questions, selected));
+  }, [allAnswered, frozen, questions, selected, submitMessage]);
+
+  const selectPreset = useCallback((qIdx: number, opt: string, allowMultiple: boolean) => {
+    if (frozenRef.current) return;
+    setOtherOpen((o) => ({ ...o, [qIdx]: false }));
+    setSelected((prev) => {
+      const cur = prev[qIdx] ?? [];
+      if (allowMultiple) {
+        const next = cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt];
+        return { ...prev, [qIdx]: next };
+      }
+      return { ...prev, [qIdx]: [opt] };
+    });
+  }, []);
+
+  const onPresetClick = useCallback(
+    (qIdx: number, opt: string, q: ClarificationQuestion) => {
+      if (frozenRef.current) return;
+      const allowMultiple = q.allow_multiple ?? false;
+      if (!allowMultiple && questions.length === 1) {
+        setSubmitted(true);
+        onSubmit(opt);
+        return;
+      }
+      selectPreset(qIdx, opt, allowMultiple);
+    },
+    [questions.length, onSubmit, selectPreset],
+  );
+
+  const openOther = useCallback((qIdx: number, q: ClarificationQuestion) => {
+    if (frozenRef.current) return;
+    const allowMultiple = q.allow_multiple ?? false;
+    if (!allowMultiple) {
+      setSelected((prev) => ({ ...prev, [qIdx]: [] }));
+    }
+    setOtherOpen((o) => ({ ...o, [qIdx]: true }));
+  }, []);
+
   const commitOther = useCallback(
     (qIdx: number, q: ClarificationQuestion) => {
       const draft = (otherDraft[qIdx] ?? '').trim();
-      if (!draft || frozen) return;
+      if (!draft || frozenRef.current) return;
       const allowMultiple = q.allow_multiple ?? false;
+
+      if (!allowMultiple && questions.length === 1) {
+        setSubmitted(true);
+        onSubmit(draft);
+        setOtherDraft((d) => ({ ...d, [qIdx]: '' }));
+        setOtherOpen((o) => ({ ...o, [qIdx]: false }));
+        return;
+      }
+
       setSelected((prev) => {
         if (allowMultiple) {
           const cur = prev[qIdx] ?? [];
@@ -60,54 +145,50 @@ export function SuggestedActionsCard({
       setOtherDraft((d) => ({ ...d, [qIdx]: '' }));
       setOtherOpen((o) => ({ ...o, [qIdx]: false }));
     },
-    [otherDraft, frozen],
+    [otherDraft, questions.length, onSubmit],
   );
 
-  const togglePresetPill = (qIdx: number, opt: string, q: ClarificationQuestion) => {
-    if (frozen) return;
-    const allowMultiple = q.allow_multiple ?? false;
-    setOtherOpen((o) => ({ ...o, [qIdx]: false }));
-    setSelected((prev) => {
-      const cur = prev[qIdx] ?? [];
-      if (allowMultiple) {
-        const next = cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt];
-        return { ...prev, [qIdx]: next };
-      }
-      return { ...prev, [qIdx]: [opt] };
-    });
-  };
+  useEffect(() => {
+    if (!autoSubmitMode || frozen) return;
+    const q = questions[0]!;
 
-  const openOther = (qIdx: number, q: ClarificationQuestion) => {
-    if (frozen) return;
-    const allowMultiple = q.allow_multiple ?? false;
-    if (!allowMultiple) {
-      setSelected((prev) => ({ ...prev, [qIdx]: [] }));
-    }
-    setOtherOpen((o) => ({ ...o, [qIdx]: true }));
-  };
-
-  const handleSubmit = () => {
-    if (!allAnswered || frozen) return;
-    const lines = questions.map((q, idx) => {
-      const answers = selected[idx] ?? [];
-      const answerText = answers.join(', ');
-      if (questions.length === 1 && !q.allow_multiple) {
-        return answerText;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (frozenRef.current) return;
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.isContentEditable)
+      ) {
+        return;
       }
-      return `${q.question} → ${answerText}`;
-    });
-    const message = lines.join('\n');
-    setSubmitted(true);
-    onSubmit(message);
-  };
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.length !== 1) return;
+      const k = e.key.toUpperCase();
+      if (k < 'A' || k > 'Z') return;
+      const idx = k.charCodeAt(0) - 65;
+      const total = q.options.length + 1;
+      if (idx >= total) return;
+      e.preventDefault();
+      if (idx === q.options.length) {
+        openOther(0, q);
+      } else {
+        const opt = q.options[idx];
+        if (opt !== undefined) {
+          setSubmitted(true);
+          onSubmit(opt);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [autoSubmitMode, frozen, questions, onSubmit, openOther]);
 
   return (
-    <div className={`suggested-actions-card${frozen ? ' frozen' : ''}`}>
-      <div className="suggested-actions-card-header">
-        <MessageSquare size={14} aria-hidden />
-        <span>Rückfrage</span>
-      </div>
-      <div className="suggested-actions-card-body">
+    <div className={`sac-root${frozen ? ' frozen' : ''}`}>
+      <div className="sac-body">
         {questions.map((q, qIdx) => {
           const allowMultiple = q.allow_multiple ?? false;
           const sel = selected[qIdx] ?? [];
@@ -117,39 +198,57 @@ export function SuggestedActionsCard({
           const otherActiveMulti =
             allowMultiple && sel.some((s) => !q.options.includes(s));
 
+          const rows: { key: string; label: string; isOther: boolean; opt?: string }[] =
+            q.options.map((opt, i) => ({
+              key: `opt-${qIdx}-${i}`,
+              label: opt,
+              isOther: false,
+              opt,
+            }));
+          rows.push({
+            key: `other-${qIdx}`,
+            label: OTHER_LABEL,
+            isOther: true,
+          });
+
           return (
-            <div key={qIdx} className="suggested-actions-question-block">
-              <p className="suggested-actions-question">{q.question}</p>
-              <div className="suggested-actions-pills">
-                {q.options.map((opt) => {
-                  const isOn = sel.includes(opt);
+            <div key={qIdx} className="sac-block">
+              <p className="sac-question">{q.question}</p>
+              <div className="sac-options">
+                {rows.map((row, i) => {
+                  const letter = choiceLetter(i);
+                  const isOn = row.isOther
+                    ? open || otherActiveSingle || otherActiveMulti
+                    : row.opt !== undefined && sel.includes(row.opt);
                   return (
-                    <button
-                      key={opt}
-                      type="button"
-                      className={`suggested-actions-pill${isOn ? ' selected' : ''}`}
-                      disabled={frozen}
-                      onClick={() => togglePresetPill(qIdx, opt, q)}
-                    >
-                      {opt}
-                    </button>
+                    <div key={row.key} className="sac-option-wrap">
+                      <button
+                        type="button"
+                        className={`sac-option${isOn ? ' selected' : ''}`}
+                        disabled={frozen}
+                        onClick={() => {
+                          if (row.isOther) {
+                            openOther(qIdx, q);
+                          } else if (row.opt !== undefined) {
+                            onPresetClick(qIdx, row.opt, q);
+                          }
+                        }}
+                      >
+                        <span className="sac-letter" aria-hidden>
+                          {letter}
+                        </span>
+                        <span className="sac-option-text">{row.label}</span>
+                      </button>
+                    </div>
                   );
                 })}
-                <button
-                  type="button"
-                  className={`suggested-actions-pill suggested-actions-pill--other${open || otherActiveSingle || otherActiveMulti ? ' selected' : ''}`}
-                  disabled={frozen}
-                  onClick={() => openOther(qIdx, q)}
-                >
-                  {OTHER_LABEL}
-                </button>
               </div>
               {open ? (
-                <div className="suggested-actions-other-row">
+                <div className="sac-other-row">
                   <input
-                    id={`suggested-other-${qIdx}`}
+                    id={`sac-other-${qIdx}`}
                     type="text"
-                    className="suggested-actions-other-input"
+                    className="sac-other-input"
                     placeholder="Eigene Antwort…"
                     value={otherDraft[qIdx] ?? ''}
                     disabled={frozen}
@@ -169,7 +268,7 @@ export function SuggestedActionsCard({
                   />
                   <button
                     type="button"
-                    className="suggested-actions-other-confirm"
+                    className="sac-other-confirm"
                     disabled={frozen || !(otherDraft[qIdx] ?? '').trim()}
                     onClick={() => commitOther(qIdx, q)}
                   >
@@ -181,18 +280,18 @@ export function SuggestedActionsCard({
           );
         })}
       </div>
-      {!frozen && (
-        <div className="suggested-actions-card-footer">
+      {!frozen && needsSubmitButton ? (
+        <div className="sac-footer">
           <button
             type="button"
-            className="suggested-actions-submit"
+            className="sac-submit"
             disabled={!allAnswered}
             onClick={handleSubmit}
           >
             Antworten
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
