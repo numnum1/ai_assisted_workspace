@@ -3098,6 +3098,201 @@ body.file-tree-native-dragging {
   cursor: default;
 }
 
+/* Inline hint when clarification choices are shown in SuggestedActionsCard (Cursor-style). */
+.chat-clarification-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0.5em 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-secondary));
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.chat-clarification-compact svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.chat-clarification-compact-label {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.chat-clarification-compact-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.chat-clarification-compact-q {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+/* Suggested actions card above chat input */
+.suggested-actions-card {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.suggested-actions-card.frozen {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.suggested-actions-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.suggested-actions-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggested-actions-question-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.suggested-actions-question {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.suggested-actions-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.suggested-actions-pill {
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--text-muted));
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.suggested-actions-pill:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-tertiary));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.suggested-actions-pill.selected {
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-tertiary));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--accent);
+}
+
+.suggested-actions-pill:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.suggested-actions-pill--other {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.suggested-actions-other-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.suggested-actions-other-input {
+  flex: 1;
+  min-width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.suggested-actions-other-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.suggested-actions-other-confirm {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.suggested-actions-other-confirm:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.suggested-actions-card-footer {
+  margin-top: 10px;
+}
+
+.suggested-actions-submit {
+  width: 100%;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.suggested-actions-submit:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.suggested-actions-submit:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .chat-thinking {
   margin: 0 0 0.65em;
   border: 1px solid color-mix(in srgb, var(--text-muted) 35%, var(--border));

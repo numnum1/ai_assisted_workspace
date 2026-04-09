@@ -12,6 +12,9 @@ interface ChatMessageMarkdownProps {
   onReplace?: (text: string) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
+  /** When true, ```clarification blocks render as a compact hint (interaction lives in SuggestedActionsCard). */
+  suppressClarificationWidget?: boolean;
+  /** Legacy inline clarification (only when suppressClarificationWidget is false). */
   onSelectOption?: (option: string) => void;
   isAnswered?: boolean;
 }
@@ -67,6 +70,43 @@ interface ClarificationQuestion {
   allow_multiple?: boolean;
 }
 
+/** Non-interactive hint when clarification choices are shown in SuggestedActionsCard. */
+function ClarificationCompactHint({ raw }: { raw: string }) {
+  const questions = useMemo<ClarificationQuestion[] | null>(() => {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed.question === 'string') return [parsed];
+      return null;
+    } catch {
+      return null;
+    }
+  }, [raw]);
+
+  if (!questions?.length) {
+    return (
+      <div className="chat-clarification-compact">
+        <HelpCircle size={13} aria-hidden />
+        <span>Rückfrage</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="chat-clarification-compact">
+      <HelpCircle size={13} aria-hidden />
+      <span className="chat-clarification-compact-label">Rückfrage</span>
+      <div className="chat-clarification-compact-questions">
+        {questions.map((q, i) => (
+          <span key={i} className="chat-clarification-compact-q">
+            {q.question}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ClarificationBlock({
   raw,
   streamingCursor,
@@ -82,7 +122,6 @@ function ClarificationBlock({
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
-      // Single-object fallback (old format)
       if (parsed && typeof parsed.question === 'string') return [parsed];
       return null;
     } catch {
@@ -277,7 +316,17 @@ function fixFieldUpdateBlocks(content: string): string {
   return result.join('\n');
 }
 
-export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace, onApplyFieldUpdate, fieldLabels, onSelectOption, isAnswered }: ChatMessageMarkdownProps) {
+export function ChatMessageMarkdown({
+  content,
+  streamingCursor,
+  selectionContext,
+  onReplace,
+  onApplyFieldUpdate,
+  fieldLabels,
+  suppressClarificationWidget = false,
+  onSelectOption,
+  isAnswered,
+}: ChatMessageMarkdownProps) {
   const canReplace = !!(selectionContext && onReplace);
   const processedContent = useMemo(
     () => onApplyFieldUpdate ? fixFieldUpdateBlocks(content) : content,
@@ -403,9 +452,13 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
       }
 
       if (isClarificationBlock) {
+        const raw = String(children ?? '').trim();
+        if (suppressClarificationWidget) {
+          return <ClarificationCompactHint raw={raw} />;
+        }
         return (
           <ClarificationBlock
-            raw={String(children ?? '').trim()}
+            raw={raw}
             streamingCursor={!!streamingCursor}
             isAnswered={!!isAnswered}
             onSelectOption={onSelectOption}
@@ -427,7 +480,7 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
         </div>
       );
     },
-  }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, isAnswered, onSelectOption]);
+  }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, suppressClarificationWidget, isAnswered, onSelectOption]);
 
   const thinkSplit = useMemo(() => splitThinkContent(processedContent), [processedContent]);
   /**

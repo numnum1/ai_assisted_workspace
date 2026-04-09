@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2, RotateCcw } from 'lucide-react';
 import type { ChatMessage, Mode, Conversation, SelectionContext, LlmPublic } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
@@ -7,6 +7,8 @@ import { ChatHistory } from './ChatHistory.tsx';
 import { NewChatButton } from './NewChatButton.tsx';
 import { NewChatDialog } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
+import { SuggestedActionsCard } from './SuggestedActionsCard.tsx';
+import { parseClarificationQuestions, hasClarificationFence } from './clarificationUtils.ts';
 import { ChangeCard } from './ChangeCard.tsx';
 import type { ChangeCardData } from './ChangeCard.tsx';
 
@@ -190,6 +192,21 @@ export function ChatPanel({
   const [glossaryPopup, setGlossaryPopup] = useState<{ x: number; y: number; selectedText: string } | null>(null);
   const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string } | null>(null);
   const [glossarySaving, setGlosarySaving] = useState(false);
+
+  const pendingClarification = useMemo(() => {
+    const vis = messages
+      .map((m, originalIdx) => ({ m, originalIdx }))
+      .filter(({ m }) => !m.hidden);
+    const last = vis[vis.length - 1];
+    if (!last || last.m.role !== 'assistant') return null;
+    const qs = parseClarificationQuestions(last.m.content);
+    if (!qs?.length) return null;
+    const userAfter = messages
+      .slice(last.originalIdx + 1)
+      .some((m) => !m.hidden && m.role === 'user');
+    if (userAfter) return null;
+    return qs;
+  }, [messages]);
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
@@ -574,8 +591,7 @@ export function ChatPanel({
                         : undefined}
                       onApplyFieldUpdate={onApplyFieldUpdate}
                       fieldLabels={fieldLabels}
-                      onSelectOption={onSend}
-                      isAnswered={visIdx < visArr.length - 1 && visArr[visIdx + 1]?.msg.role === 'user'}
+                      suppressClarificationWidget={hasClarificationFence(msg.content)}
                     />
                   ) : editingIdx === originalIdx ? (
                     <MessageEditBox
@@ -690,6 +706,14 @@ export function ChatPanel({
           </div>
         )}
       </div>
+
+      {pendingClarification && pendingClarification.length > 0 ? (
+        <SuggestedActionsCard
+          questions={pendingClarification}
+          onSubmit={onSend}
+          disabled={streaming}
+        />
+      ) : null}
 
       <ChatInput
         onSend={onSend}
