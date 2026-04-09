@@ -26,6 +26,11 @@ public class SearchProjectTool extends AbstractTool {
     }
 
     @Override
+    public String getToolkit() {
+        return ToolkitIds.DATEISYSTEM;
+    }
+
+    @Override
     public Map<String, Object> getDefinition() {
         return Map.of(
             "type", "function",

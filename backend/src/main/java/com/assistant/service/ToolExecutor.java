@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +61,19 @@ public class ToolExecutor {
                 .filter(e -> !excluded.contains(e.getKey()))
                 .map(e -> e.getValue().getDefinition())
                 .toList();
+    }
+
+    /**
+     * Names of registered tools whose {@link Tool#getToolkit()} is in {@code toolkitIds}.
+     */
+    public Set<String> collectToolNamesInToolkits(Set<String> toolkitIds) {
+        if (toolkitIds == null || toolkitIds.isEmpty()) {
+            return Set.of();
+        }
+        return toolsByName.values().stream()
+                .filter(t -> toolkitIds.contains(t.getToolkit()))
+                .map(Tool::getName)
+                .collect(Collectors.toCollection(HashSet::new));
     }
 
     /** Executes the tool referenced by the given tool call. */

@@ -27,9 +27,9 @@ interface ChatPanelProps {
   activeConversationId: string;
   useReasoning: boolean;
   onToggleReasoning: () => void;
-  /** When true, LLM tools are disabled for this session (persisted in App). */
-  toolsDisabled?: boolean;
-  onToggleToolsDisabled?: () => void;
+  /** Toolkit ids disabled for this session (persisted in App). */
+  disabledToolkits?: ReadonlySet<string>;
+  onToggleToolkit?: (kitId: string) => void;
   onModeChange: (mode: string) => void;
   onSend: (message: string) => void;
   onStop: () => void;
@@ -138,8 +138,8 @@ export function ChatPanel({
   activeConversationId,
   useReasoning,
   onToggleReasoning,
-  toolsDisabled = false,
-  onToggleToolsDisabled,
+  disabledToolkits = new Set<string>(),
+  onToggleToolkit,
   onModeChange,
   onSend,
   onStop,
@@ -702,8 +702,8 @@ export function ChatPanel({
         structureRoot={structureRoot}
         useReasoning={useReasoning && reasoningAvailable}
         onToggleReasoning={onToggleReasoning}
-        toolsDisabled={toolsDisabled}
-        onToggleToolsDisabled={onToggleToolsDisabled}
+        disabledToolkits={disabledToolkits}
+        onToggleToolkit={onToggleToolkit}
         reasoningAvailable={reasoningAvailable}
         fastAvailable={fastAvailable}
         activeSelection={activeSelection}

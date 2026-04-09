@@ -23,8 +23,8 @@ export interface EditMessageSendParams {
   llmId?: string;
   selectionContext?: SelectionContext;
   activeFieldKey?: string | null;
-  /** When true, backend sends no tools to the LLM API. */
-  disableTools?: boolean;
+  /** Toolkit ids whose tools are omitted for this request. */
+  disabledToolkits?: string[];
 }
 
 function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
@@ -171,7 +171,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       llmId?: string,
       selectionContext?: SelectionContext,
       activeFieldKey?: string | null,
-      disableTools?: boolean,
+      disabledToolkits?: string[],
     ) => {
       syncEnabledRef.current = true;
       setError(null);
@@ -199,7 +199,9 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
         useReasoning: useReasoning ?? false,
         llmId: llmId,
-        ...(disableTools ? { disableTools: true } : {}),
+        ...(disabledToolkits != null && disabledToolkits.length > 0
+          ? { disabledToolkits: [...disabledToolkits] }
+          : {}),
       };
       lastStreamCallRef.current = { chatRequest: request, selectionContext };
 
@@ -334,7 +336,9 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
         useReasoning: sendParams.useReasoning ?? false,
         llmId: sendParams.llmId,
-        ...(sendParams.disableTools ? { disableTools: true } : {}),
+        ...(sendParams.disabledToolkits != null && sendParams.disabledToolkits.length > 0
+          ? { disabledToolkits: [...sendParams.disabledToolkits] }
+          : {}),
       };
 
       abortRef.current = attachAssistantStream(

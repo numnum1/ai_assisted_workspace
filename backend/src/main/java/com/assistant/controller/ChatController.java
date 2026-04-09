@@ -10,6 +10,7 @@ import com.assistant.service.AiProviderService;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
 import com.assistant.service.tools.AskClarificationTool;
+import com.assistant.service.tools.ToolkitIds;
 import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +27,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -328,17 +330,48 @@ public class ChatController {
     }
 
     /**
-     * Omits {@link WebSearchTool} unless the client explicitly enables web search.
+     * Tool list: respects {@link ChatRequest#isDisableTools()}, {@link ChatRequest#getDisabledToolkits()},
+     * and Quick Chat ({@code web_search} only when web toolkit is allowed).
      */
     private List<Map<String, Object>> toolsForRequest(ChatRequest request) {
+        log.trace("Resolving tools for request: disableTools={}, disabledToolkits={}, quickChat={}",
+                request.isDisableTools(), request.getDisabledToolkits(), request.isQuickChat());
         if (request.isDisableTools()) {
             log.info("Tools disabled for this request (no tool definitions sent to API)");
             return List.of();
         }
+        Set<String> disabledKits = normalizedDisabledToolkits(request);
         if (request.isQuickChat()) {
-            return toolExecutor.getToolDefinitionsForNames(List.of(WebSearchTool.TOOL_NAME));
+            if (disabledKits.contains(ToolkitIds.WEB)) {
+                log.info("Quick Chat: web toolkit disabled — no tool definitions sent to API");
+                return List.of();
+            }
+            List<Map<String, Object>> quick = toolExecutor.getToolDefinitionsForNames(List.of(WebSearchTool.TOOL_NAME));
+            log.info("Quick Chat: sending {} tool definition(s) to API", quick.size());
+            return quick;
         }
-        return toolExecutor.getToolDefinitionsExcluding(Set.of(WebSearchTool.TOOL_NAME));
+        Set<String> excludedNames = new HashSet<>();
+        excludedNames.add(WebSearchTool.TOOL_NAME);
+        excludedNames.addAll(toolExecutor.collectToolNamesInToolkits(disabledKits));
+        List<Map<String, Object>> defs = toolExecutor.getToolDefinitionsExcluding(excludedNames);
+        log.info(
+                "Standard chat: sending {} tool definition(s) to API (excluded names: {})",
+                defs.size(),
+                excludedNames);
+        return defs;
+    }
+
+    private static Set<String> normalizedDisabledToolkits(ChatRequest request) {
+        Set<String> out = new HashSet<>();
+        if (request.getDisabledToolkits() == null) {
+            return out;
+        }
+        for (String k : request.getDisabledToolkits()) {
+            if (k != null && !k.isBlank()) {
+                out.add(k.trim());
+            }
+        }
+        return out;
     }
 
     private String toContextJson(AssembledContext context, String llmId) {
@@ -364,12 +397,13 @@ public class ChatController {
     private void logIncomingChatRequest(ChatRequest request) {
         List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
         log.info(
-                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, disableTools={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, disableTools={}, disabledToolkits={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
                 request.getMode(),
                 request.getLlmId(),
                 request.isUseReasoning(),
                 request.isQuickChat(),
                 request.isDisableTools(),
+                request.getDisabledToolkits(),
                 request.getActiveFile(),
                 request.getActiveFieldKey(),
                 request.getReferencedFiles(),

@@ -1,3 +1,7 @@
+/** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
+export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant'] as const;
+export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
+
 export interface FileNode {
   name: string;
   path: string;
@@ -68,8 +72,11 @@ export interface ChatRequest {
   useReasoning?: boolean;
   /** Quick Chat: minimal context, web search only, no project tools. */
   quickChat?: boolean;
-  /** When true, backend omits tools from the API payload and strips tool instructions from the system prompt. */
-  disableTools?: boolean;
+  /**
+   * Toolkit ids (web, wiki, dateisystem, assistant) whose tools are omitted for this request.
+   * Empty or omitted means all toolkits enabled (subject to server Quick Chat / main-chat rules).
+   */
+  disabledToolkits?: string[];
   llmId?: string;
 }
 

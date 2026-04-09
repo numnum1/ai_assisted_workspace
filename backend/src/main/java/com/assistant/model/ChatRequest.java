@@ -23,6 +23,10 @@ public class ChatRequest {
      * When true, no tools are sent to the LLM API and tool instructions are omitted from the system prompt.
      */
     private boolean disableTools = false;
+    /**
+     * Toolkit ids (e.g. {@code web}, {@code wiki}) whose tools are omitted for this request.
+     */
+    private List<String> disabledToolkits = new ArrayList<>();
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
@@ -44,4 +48,8 @@ public class ChatRequest {
     public void setQuickChat(boolean quickChat) { this.quickChat = quickChat; }
     public boolean isDisableTools() { return disableTools; }
     public void setDisableTools(boolean disableTools) { this.disableTools = disableTools; }
+    public List<String> getDisabledToolkits() { return disabledToolkits; }
+    public void setDisabledToolkits(List<String> disabledToolkits) {
+        this.disabledToolkits = disabledToolkits != null ? disabledToolkits : new ArrayList<>();
+    }
 }

@@ -27,4 +27,12 @@ public interface Tool {
      * shown to the user via the {@code tool_call} SSE event.
      */
     String describe(String argsJson);
+
+    /**
+     * Logical group for UI toggles and request filtering (e.g. {@code web}, {@code wiki}).
+     * Default matches tools that did not override (clarification, glossary).
+     */
+    default String getToolkit() {
+        return ToolkitIds.ASSISTANT;
+    }
 }

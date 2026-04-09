@@ -1,9 +1,111 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Square, BookOpen, Zap, X, Maximize2, Wrench } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Send, Square, BookOpen, Zap, X, Maximize2, Wrench, Globe, FolderOpen, Sparkles } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
 import { wikiApi } from '../../api.ts';
 import type { SelectionContext } from '../../types.ts';
+import { CHAT_TOOLKIT_IDS } from '../../types.ts';
+
+const EMPTY_DISABLED_TOOLKITS = new Set<string>();
+
+const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'web', label: 'Web-Suche', icon: Globe },
+  { id: 'wiki', label: 'Wiki', icon: BookOpen },
+  { id: 'dateisystem', label: 'Dateisystem', icon: FolderOpen },
+  { id: 'assistant', label: 'Assistent', icon: Sparkles },
+];
+
+function ToolkitMenuButton({
+  disabledToolkits,
+  onToggleToolkit,
+  streaming,
+}: {
+  disabledToolkits: ReadonlySet<string>;
+  onToggleToolkit?: (kitId: string) => void;
+  streaming: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open]);
+
+  if (!onToggleToolkit) return null;
+
+  const n = disabledToolkits.size;
+  const total = CHAT_TOOLKIT_IDS.length;
+  let wrenchClass = 'chat-tools-toggle-btn';
+  if (n === total) wrenchClass += ' chat-tools-toggle-btn--off';
+  else if (n > 0) wrenchClass += ' chat-tools-toggle-btn--partial';
+  else wrenchClass += ' active';
+
+  const title =
+    n === 0
+      ? 'Toolkits — alle aktiv (klicken für Einstellungen)'
+      : n === total
+        ? 'Toolkits — alle aus (klicken für Einstellungen)'
+        : `Toolkits — ${total - n} von ${total} aktiv (klicken für Einstellungen)`;
+
+  return (
+    <div ref={wrapRef} className="chat-toolkit-wrap">
+      <button
+        type="button"
+        className={wrenchClass}
+        onClick={() => setOpen((o) => !o)}
+        title={title}
+        disabled={streaming}
+        aria-expanded={open}
+        aria-haspopup="true"
+      >
+        <Wrench size={15} />
+      </button>
+      {open && (
+        <div
+          className="chat-toolkit-popover"
+          role="menu"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <div className="chat-toolkit-popover-title">KI-Toolkits</div>
+          {TOOLKIT_ROWS.map(({ id, label, icon: Icon }) => {
+            const enabled = !disabledToolkits.has(id);
+            return (
+              <div key={id} className="chat-toolkit-row" role="none">
+                <Icon size={14} aria-hidden />
+                <span>{label}</span>
+                <button
+                  type="button"
+                  className={`chat-toolkit-row-toggle${enabled ? ' chat-toolkit-row-toggle--on' : ''}`}
+                  role="menuitem"
+                  onClick={() => onToggleToolkit(id)}
+                >
+                  {enabled ? 'An' : 'Aus'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type AutocompleteItem = {
   type: 'wiki';
@@ -58,9 +160,9 @@ interface ChatInputProps {
   /** Whether the reasoning model should be used for this message */
   useReasoning?: boolean;
   onToggleReasoning?: () => void;
-  /** When true, tools are off (API receives no tool definitions). */
-  toolsDisabled?: boolean;
-  onToggleToolsDisabled?: () => void;
+  /** Toolkit ids whose tools are omitted for requests (see CHAT_TOOLKIT_IDS). */
+  disabledToolkits?: ReadonlySet<string>;
+  onToggleToolkit?: (kitId: string) => void;
   /** False when the currently selected LLM has no reasoning configuration */
   reasoningAvailable?: boolean;
   /** False when the currently selected LLM has no fast configuration (reasoning-only) */
@@ -86,8 +188,8 @@ export function ChatInput({
   structureRoot = null,
   useReasoning = false,
   onToggleReasoning,
-  toolsDisabled = false,
-  onToggleToolsDisabled,
+  disabledToolkits = EMPTY_DISABLED_TOOLKITS,
+  onToggleToolkit,
   reasoningAvailable = true,
   fastAvailable = true,
   activeSelection = null,
@@ -432,22 +534,11 @@ export function ChatInput({
             <Zap size={15} />
           </button>
         )}
-        {onToggleToolsDisabled && (
-          <button
-            type="button"
-            className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ' active'}`}
-            onClick={onToggleToolsDisabled}
-            title={
-              toolsDisabled
-                ? 'Tools aus — KI-API ohne Function Calling (klicken zum Aktivieren)'
-                : 'Tools an — Wiki/Datei-Tools an die API senden (klicken zum Deaktivieren)'
-            }
-            disabled={streaming}
-            aria-pressed={!toolsDisabled}
-          >
-            <Wrench size={15} />
-          </button>
-        )}
+        <ToolkitMenuButton
+          disabledToolkits={disabledToolkits}
+          onToggleToolkit={onToggleToolkit}
+          streaming={streaming}
+        />
         {streaming ? (
           <button className="chat-send-btn stop" onClick={onStop} title="Stop">
             <Square size={16} />
@@ -530,21 +621,11 @@ export function ChatInput({
                     <Zap size={15} />
                   </button>
                 )}
-                {onToggleToolsDisabled && (
-                  <button
-                    type="button"
-                    className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ' active'}`}
-                    onClick={onToggleToolsDisabled}
-                    title={
-                      toolsDisabled
-                        ? 'Tools aus — KI-API ohne Function Calling (klicken zum Aktivieren)'
-                        : 'Tools an — Wiki/Datei-Tools an die API senden (klicken zum Deaktivieren)'
-                    }
-                    aria-pressed={!toolsDisabled}
-                  >
-                    <Wrench size={15} />
-                  </button>
-                )}
+                <ToolkitMenuButton
+                  disabledToolkits={disabledToolkits}
+                  onToggleToolkit={onToggleToolkit}
+                  streaming={streaming}
+                />
                 <button
                   type="button"
                   className="chat-send-btn"

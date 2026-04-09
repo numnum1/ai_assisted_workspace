@@ -5,6 +5,7 @@ import com.assistant.model.AssembledContext;
 import com.assistant.model.ChatMessage;
 import com.assistant.model.ChatRequest;
 import com.assistant.model.Mode;
+import com.assistant.service.tools.ToolkitIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -218,30 +219,43 @@ public class ContextService {
             systemPrompt.append("- You may discuss, ask questions, or offer alternatives in plain text before or after the block.\n\n");
         }
 
+        Set<String> disabledKits = disabledToolkitSet(request);
+        boolean wikiToolsOn = !disabledKits.contains(ToolkitIds.WIKI);
+        boolean filesystemToolsOn = !disabledKits.contains(ToolkitIds.DATEISYSTEM);
+        boolean assistantToolsOn = !disabledKits.contains(ToolkitIds.ASSISTANT);
+
         // Tool usage instructions (omitted when client disables tools — API must not advertise unavailable tools)
         if (!request.isDisableTools()) {
-            systemPrompt.append("=== Available Tools ===\n");
-            systemPrompt.append("You have access to these tools for reading project files and the wiki:\n\n");
-            systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
-            systemPrompt.append("Wiki entries are **Markdown files (`.md`)** stored under `wiki/` at the project root.\n");
-            systemPrompt.append("There are no JSON wiki files — always use `.md` when creating or updating a wiki entry.\n");
-            systemPrompt.append("Example path for a new character entry: `wiki/characters/lupusregina.md`\n\n");
-            systemPrompt.append("- wiki_search(query, limit?): Search the project wiki under `wiki/` for entries by text. " +
-                    "Returns matching file paths and a snippet.\n");
-            systemPrompt.append("- wiki_read(path): Read the full content of a wiki file by its path relative to the project root " +
-                    "(e.g. `wiki/characters/lupusregina.md`).\n\n");
-            systemPrompt.append("**Project files:**\n");
-            systemPrompt.append("- search_project(query): Search files/folders by **path and file name**.\n");
-            systemPrompt.append("- read_file(path): Read the full content of any project file by relative path.\n\n");
-            systemPrompt.append("**Glossary:**\n");
-            systemPrompt.append("- glossary_add(term, definition): Add a new term and definition to the project glossary " +
-                    "(.assistant/glossary.md). The glossary is always included in context — use this when you recognize a " +
-                    "recurring concept or project-specific term worth remembering.\n\n");
-            systemPrompt.append("**File Writing:**\n");
-            systemPrompt.append("- write_file(path, content, description): Write (create or overwrite) a project file. " +
-                    "Saves a revert snapshot automatically. Always provide the complete file content.\n");
-            systemPrompt.append("  - Wiki entries → `wiki/<subfolder>/<name>.md` (Markdown, **never** JSON)\n");
-            systemPrompt.append("  - The 'description' parameter is a short human-readable summary of what was changed and why.\n\n");
+            if (wikiToolsOn || filesystemToolsOn || assistantToolsOn) {
+                systemPrompt.append("=== Available Tools ===\n");
+                systemPrompt.append("You have access to these tools as enabled for this session:\n\n");
+                if (wikiToolsOn) {
+                    systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
+                    systemPrompt.append("Wiki entries are **Markdown files (`.md`)** stored under `wiki/` at the project root.\n");
+                    systemPrompt.append("There are no JSON wiki files — always use `.md` when creating or updating a wiki entry.\n");
+                    systemPrompt.append("Example path for a new character entry: `wiki/characters/lupusregina.md`\n\n");
+                    systemPrompt.append("- wiki_search(query, limit?): Search the project wiki under `wiki/` for entries by text. " +
+                            "Returns matching file paths and a snippet.\n");
+                    systemPrompt.append("- wiki_read(path): Read the full content of a wiki file by its path relative to the project root " +
+                            "(e.g. `wiki/characters/lupusregina.md`).\n\n");
+                }
+                if (filesystemToolsOn) {
+                    systemPrompt.append("**Project files:**\n");
+                    systemPrompt.append("- search_project(query): Search files/folders by **path and file name**.\n");
+                    systemPrompt.append("- read_file(path): Read the full content of any project file by relative path.\n\n");
+                    systemPrompt.append("**File Writing:**\n");
+                    systemPrompt.append("- write_file(path, content, description): Write (create or overwrite) a project file. " +
+                            "Saves a revert snapshot automatically. Always provide the complete file content.\n");
+                    systemPrompt.append("  - Wiki entries → `wiki/<subfolder>/<name>.md` (Markdown, **never** JSON)\n");
+                    systemPrompt.append("  - The 'description' parameter is a short human-readable summary of what was changed and why.\n\n");
+                }
+                if (assistantToolsOn) {
+                    systemPrompt.append("**Glossary:**\n");
+                    systemPrompt.append("- glossary_add(term, definition): Add a new term and definition to the project glossary " +
+                            "(.assistant/glossary.md). The glossary is always included in context — use this when you recognize a " +
+                            "recurring concept or project-specific term worth remembering.\n\n");
+                }
+            }
         }
 
         // Editor selection replacement capability
@@ -256,28 +270,33 @@ public class ContextService {
         systemPrompt.append("highlighted selection. The user will see a one-click 'Replace' button in the chat.\n");
         systemPrompt.append("You may include multiple `replace` blocks if you want to offer alternatives.\n\n");
 
-        // Clarification questions via tool call
-        systemPrompt.append("=== Clarification Questions ===\n");
-        systemPrompt.append("When you genuinely need more information before you can give a good answer, call the\n");
-        systemPrompt.append("`ask_clarification` tool. Pass a `questions` array — each entry has:\n");
-        systemPrompt.append("  - \"question\": the question text (string)\n");
-        systemPrompt.append("  - \"options\": an array of 2–5 short answer options (strings)\n");
-        systemPrompt.append("  - \"allow_multiple\": true if the user may pick more than one option (optional, default false)\n\n");
-        systemPrompt.append("Rules:\n");
-        systemPrompt.append("  - Call `ask_clarification` as your ONLY action — write NO other text before or after the tool call.\n");
-        systemPrompt.append("  - You may group several related questions into one call (1–3 questions max).\n");
-        systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
-        systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
-        systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
+        // Clarification questions via tool call (only when ask_clarification is available)
+        if (!request.isDisableTools() && assistantToolsOn) {
+            systemPrompt.append("=== Clarification Questions ===\n");
+            systemPrompt.append("When you genuinely need more information before you can give a good answer, call the\n");
+            systemPrompt.append("`ask_clarification` tool. Pass a `questions` array — each entry has:\n");
+            systemPrompt.append("  - \"question\": the question text (string)\n");
+            systemPrompt.append("  - \"options\": an array of 2–5 short answer options (strings)\n");
+            systemPrompt.append("  - \"allow_multiple\": true if the user may pick more than one option (optional, default false)\n\n");
+            systemPrompt.append("Rules:\n");
+            systemPrompt.append("  - Call `ask_clarification` as your ONLY action — write NO other text before or after the tool call.\n");
+            systemPrompt.append("  - You may group several related questions into one call (1–3 questions max).\n");
+            systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
+            systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
+            systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
+        }
 
         int finalSystemPromptChars = systemPrompt.length();
         int estimatedSystemTokens = finalSystemPromptChars / 4;
+        boolean toolInstructionsIncluded =
+                !request.isDisableTools() && (wikiToolsOn || filesystemToolsOn || assistantToolsOn);
         log.info(
-                "Final system prompt: {} chars (~{} tokens). disableTools={}, tool instructions block {}",
+                "Final system prompt: {} chars (~{} tokens). disableTools={}, disabledToolkits={}, tool instructions block {}",
                 finalSystemPromptChars,
                 estimatedSystemTokens,
                 request.isDisableTools(),
-                request.isDisableTools() ? "omitted" : "included");
+                request.getDisabledToolkits(),
+                toolInstructionsIncluded ? "included (partial or full)" : "omitted");
         if (estimatedSystemTokens > 60_000) {
             log.warn(
                     "System prompt is very large (~{} tokens) — this may cause context overflow for models with limited context windows!",
@@ -332,7 +351,8 @@ public class ContextService {
         AssembledContext context = new AssembledContext();
         List<ChatMessage> messages = new ArrayList<>();
 
-        String systemText = request.isDisableTools()
+        boolean quickChatNoTools = request.isDisableTools() || quickChatWebToolkitDisabled(request);
+        String systemText = quickChatNoTools
                 ? """
                 Du bist ein kompakter Hilfs-Assistent (Quick Chat) für kurze, selbstständige Fragen — z. B. Begriffe \
                 erklären, Formulierungen vorschlagen oder Fakten erläutern.
@@ -386,11 +406,13 @@ public class ContextService {
         context.setEstimatedTokens(estimateTokens(messages));
 
         log.info(
-                "Quick Chat context assembled: totalMessages={}, estimatedTokens={}, userChars={}, disableTools={}",
+                "Quick Chat context assembled: totalMessages={}, estimatedTokens={}, userChars={}, disableTools={}, disabledToolkits={}, quickChatNoWebTools={}",
                 messages.size(),
                 context.getEstimatedTokens(),
                 userText.length(),
-                request.isDisableTools());
+                request.isDisableTools(),
+                request.getDisabledToolkits(),
+                quickChatNoTools);
         log.trace("Finished successfully assembling Quick Chat context");
         return context;
     }
@@ -444,6 +466,30 @@ public class ContextService {
                 .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)
                 .sum();
         return totalChars / 4;
+    }
+
+    private static Set<String> disabledToolkitSet(ChatRequest request) {
+        Set<String> s = new HashSet<>();
+        if (request.getDisabledToolkits() != null) {
+            for (String k : request.getDisabledToolkits()) {
+                if (k != null && !k.isBlank()) {
+                    s.add(k.trim());
+                }
+            }
+        }
+        return s;
+    }
+
+    private static boolean quickChatWebToolkitDisabled(ChatRequest request) {
+        if (request.getDisabledToolkits() == null) {
+            return false;
+        }
+        for (String k : request.getDisabledToolkits()) {
+            if (k != null && ToolkitIds.WEB.equals(k.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

@@ -48,6 +48,11 @@ public class WebSearchTool extends AbstractTool {
     }
 
     @Override
+    public String getToolkit() {
+        return ToolkitIds.WEB;
+    }
+
+    @Override
     public Map<String, Object> getDefinition() {
         int cap = Math.min(15, Math.max(1, appConfig.getWebSearch().getMaxResults()));
         return Map.of(

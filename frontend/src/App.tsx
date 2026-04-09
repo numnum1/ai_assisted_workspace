@@ -15,6 +15,7 @@ import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
 import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
 import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, AltVersionSession, LlmPublic } from './types.ts';
+import { CHAT_TOOLKIT_IDS } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
@@ -34,19 +35,30 @@ import { AlternativeVersionPanel } from './components/editor/AlternativeVersionP
 import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
-const CHAT_TOOLS_DISABLED_KEY = 'chat-tools-disabled';
+const CHAT_DISABLED_TOOLKITS_KEY = 'chat-disabled-toolkits';
 
-function loadInitialToolsDisabled(): boolean {
+function loadInitialDisabledToolkits(): Set<string> {
   try {
-    return localStorage.getItem(CHAT_TOOLS_DISABLED_KEY) === 'true';
+    const raw = localStorage.getItem(CHAT_DISABLED_TOOLKITS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw) as unknown;
+      if (Array.isArray(arr)) {
+        return new Set(arr.filter((x): x is string => typeof x === 'string'));
+      }
+    }
+    if (localStorage.getItem('chat-tools-disabled') === 'true') {
+      localStorage.removeItem('chat-tools-disabled');
+      return new Set(CHAT_TOOLKIT_IDS);
+    }
   } catch {
-    return false;
+    /* ignore */
   }
+  return new Set();
 }
 
-function saveToolsDisabled(disabled: boolean) {
+function saveDisabledToolkits(s: Set<string>) {
   try {
-    localStorage.setItem(CHAT_TOOLS_DISABLED_KEY, disabled ? 'true' : 'false');
+    localStorage.setItem(CHAT_DISABLED_TOOLKITS_KEY, JSON.stringify([...s]));
   } catch {
     /* ignore */
   }
@@ -82,12 +94,22 @@ function App() {
   const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
-  const [toolsDisabled, setToolsDisabled] = useState(loadInitialToolsDisabled);
+  const [disabledToolkits, setDisabledToolkits] = useState(loadInitialDisabledToolkits);
 
   const prefsHydratedRef = useRef(false);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
-  const handleToggleToolsDisabled = useCallback(() => setToolsDisabled((v) => !v), []);
+  const handleToggleToolkit = useCallback((kitId: string) => {
+    setDisabledToolkits((prev) => {
+      const next = new Set(prev);
+      if (next.has(kitId)) {
+        next.delete(kitId);
+      } else {
+        next.add(kitId);
+      }
+      return next;
+    });
+  }, []);
 
   const handleLlmChange = useCallback((id: string | undefined) => {
     setModeLlmId(id);
@@ -288,8 +310,8 @@ function App() {
   }, [modeLlmId, useReasoning]);
 
   useEffect(() => {
-    saveToolsDisabled(toolsDisabled);
-  }, [toolsDisabled]);
+    saveDisabledToolkits(disabledToolkits);
+  }, [disabledToolkits]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -608,7 +630,7 @@ function App() {
         modeLlmId,
         activeSelection ?? undefined,
         focusedField?.fieldKey ?? null,
-        toolsDisabled,
+        [...disabledToolkits],
       );
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
@@ -625,7 +647,7 @@ function App() {
       chapter.structureRoot,
       fileEditor.selectedPath,
       focusedField,
-      toolsDisabled,
+      disabledToolkits,
     ],
   );
 
@@ -642,7 +664,7 @@ function App() {
         llmId: modeLlmId,
         selectionContext: activeSelection ?? undefined,
         activeFieldKey: focusedField?.fieldKey ?? null,
-        disableTools: toolsDisabled,
+        disabledToolkits: [...disabledToolkits],
       });
       setActiveSelection(null);
     },
@@ -657,7 +679,7 @@ function App() {
       chapter.structureRoot,
       fileEditor.selectedPath,
       focusedField,
-      toolsDisabled,
+      disabledToolkits,
     ],
   );
 
@@ -677,11 +699,11 @@ function App() {
         modeLlmId,
         undefined,
         null,
-        toolsDisabled,
+        [...disabledToolkits],
       );
       setPromptPackOpen(false);
     },
-    [chat, modes, useReasoning, modeLlmId, toolsDisabled],
+    [chat, modes, useReasoning, modeLlmId, disabledToolkits],
   );
 
   useEffect(() => {
@@ -926,8 +948,8 @@ function App() {
             activeConversationId={history.activeId}
             useReasoning={useReasoning}
             onToggleReasoning={handleToggleReasoning}
-            toolsDisabled={toolsDisabled}
-            onToggleToolsDisabled={handleToggleToolsDisabled}
+            disabledToolkits={disabledToolkits}
+            onToggleToolkit={handleToggleToolkit}
             reasoningAvailable={reasoningAvailable}
             fastAvailable={fastAvailable}
             onModeChange={handleModeChange}
@@ -984,7 +1006,7 @@ function App() {
             mode: selectedMode,
             referencedFiles: refs.referencedFiles,
             history: [],
-            disableTools: toolsDisabled,
+            disabledToolkits: [...disabledToolkits],
           });
           return result.contextBlocks ?? [];
         }}
@@ -1049,7 +1071,7 @@ function App() {
         onClose={() => setQuickChatOpen(false)}
         llms={llms}
         webSearchAvailable={webSearchAvailable}
-        toolsDisabled={toolsDisabled}
+        disabledToolkits={disabledToolkits}
       />
 
       <input
