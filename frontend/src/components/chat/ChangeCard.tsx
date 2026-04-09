@@ -96,30 +96,53 @@ export interface ChangeCardData {
   description: string;
 }
 
+export type CardState = 'pending' | 'applied' | 'reverted';
+
 interface ChangeCardProps {
   data: ChangeCardData;
   onApply?: (snapshotId: string) => void;
   onRevert?: (snapshotId: string, path: string, wasNew: boolean) => void;
   /** Called after apply or revert so the editor and file tree refresh */
   onFileChanged?: (path: string) => void;
+  /** When set (e.g. batch „Alle anwenden“), overrides local state for display and actions */
+  forcedCardState?: CardState;
+  /** Once per card: apply/revert success or card auto-dismissed (load fail, empty diff) — for bulk toolbar */
+  onSnapshotSettled?: (snapshotId: string) => void;
 }
-
-type CardState = 'pending' | 'applied' | 'reverted';
 
 const DISMISS_DELAY_MS = 1500;
 
-export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCardProps) {
+export function ChangeCard({
+  data,
+  onApply,
+  onRevert,
+  onFileChanged,
+  forcedCardState,
+  onSnapshotSettled,
+}: ChangeCardProps) {
   const { snapshotId, path, isNew, description } = data;
 
   const [cardState, setCardState] = useState<CardState>('pending');
+  const displayState: CardState = forcedCardState ?? cardState;
   const [expanded, setExpanded] = useState(true);
   const [diffLines, setDiffLines] = useState<DiffLine[] | null>(null);
-  const [newContent, setNewContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   /** Prevents more than one load attempt regardless of state changes. */
   const loadAttemptedRef = useRef(false);
+  const settledNotifiedRef = useRef(false);
+
+  const notifySnapshotSettled = useCallback(() => {
+    if (settledNotifiedRef.current) return;
+    settledNotifiedRef.current = true;
+    onSnapshotSettled?.(snapshotId);
+  }, [onSnapshotSettled, snapshotId]);
+
+  const dismissAndSettle = useCallback(() => {
+    notifySnapshotSettled();
+    setDismissed(true);
+  }, [notifySnapshotSettled]);
 
   const loadDiff = useCallback(async () => {
     if (loadAttemptedRef.current) return;
@@ -131,17 +154,16 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
         fetch(`/api/files/content/${path}`),
       ]);
       if (!snapshotRes.ok || !fileRes.ok) {
-        setDismissed(true);
+        dismissAndSettle();
         return;
       }
       const snapshot = await snapshotRes.json();
       const fileJson = await fileRes.json();
       const fileText: string = fileJson.content ?? '';
-      setNewContent(fileText);
       if (isNew) {
         const lines = fileText.split('\n').map((line) => ({ type: 'added' as const, content: line }));
         if (lines.length === 0 || (lines.length === 1 && lines[0].content === '')) {
-          setDismissed(true);
+          dismissAndSettle();
           return;
         }
         setDiffLines(lines);
@@ -150,7 +172,7 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
         const collapsed = collapseDiff(raw);
         const hasChanges = collapsed.some((l) => l.type !== 'context');
         if (!hasChanges) {
-          setDismissed(true);
+          dismissAndSettle();
           return;
         }
         setDiffLines(collapsed);
@@ -158,7 +180,7 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
     } finally {
       setLoading(false);
     }
-  }, [snapshotId, path, isNew]);
+  }, [snapshotId, path, isNew, dismissAndSettle]);
 
   useEffect(() => {
     if (cardState === 'pending') {
@@ -167,17 +189,18 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
   }, [cardState, loadDiff]);
 
   useEffect(() => {
-    if (cardState === 'applied' || cardState === 'reverted') {
+    if (displayState === 'applied' || displayState === 'reverted') {
       const timer = setTimeout(() => setDismissed(true), DISMISS_DELAY_MS);
       return () => clearTimeout(timer);
     }
-  }, [cardState]);
+  }, [displayState]);
 
   const handleApply = async () => {
     setBusy(true);
     try {
       const res = await fetch(`/api/snapshots/${snapshotId}/apply`, { method: 'POST' });
       if (res.ok) {
+        notifySnapshotSettled();
         setCardState('applied');
         onApply?.(snapshotId);
         onFileChanged?.(path);
@@ -193,6 +216,7 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
       const res = await fetch(`/api/snapshots/${snapshotId}/revert`, { method: 'POST' });
       if (res.ok) {
         const result = await res.json();
+        notifySnapshotSettled();
         setCardState('reverted');
         onRevert?.(snapshotId, path, result.wasNew);
         onFileChanged?.(path);
@@ -208,7 +232,7 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
   if (dismissed) return null;
 
   return (
-    <div className={`change-card change-card--${cardState}`}>
+    <div className={`change-card change-card--${displayState}`}>
       <div className="change-card-header" onClick={() => setExpanded((e) => !e)}>
         <span className="change-card-expand">
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -226,9 +250,9 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
             {removedCount > 0 && <span className="change-card-removed">−{removedCount}</span>}
           </span>
         )}
-        {cardState !== 'pending' && (
-          <span className={`change-card-status change-card-status--${cardState}`}>
-            {cardState === 'applied' ? '✓ Angenommen' : '↩ Rückgängig'}
+        {displayState !== 'pending' && (
+          <span className={`change-card-status change-card-status--${displayState}`}>
+            {displayState === 'applied' ? '✓ Angenommen' : '↩ Rückgängig'}
           </span>
         )}
       </div>
@@ -253,7 +277,7 @@ export function ChangeCard({ data, onApply, onRevert, onFileChanged }: ChangeCar
         </div>
       )}
 
-      {cardState === 'pending' && (
+      {displayState === 'pending' && (
         <div className="change-card-actions">
           <button
             className="change-card-btn change-card-btn--apply"

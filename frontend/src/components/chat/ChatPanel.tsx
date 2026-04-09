@@ -7,10 +7,18 @@ import { ChatHistory } from './ChatHistory.tsx';
 import { NewChatButton } from './NewChatButton.tsx';
 import { NewChatDialog } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
+import { ChatComposerCard } from './ChatComposerCard.tsx';
 import { SuggestedActionsCard } from './SuggestedActionsCard.tsx';
 import { parseClarificationQuestions, hasClarificationFence } from './clarificationUtils.ts';
-import { ChangeCard } from './ChangeCard.tsx';
-import type { ChangeCardData } from './ChangeCard.tsx';
+import type { CardState } from './ChangeCard.tsx';
+import { ChangeCardGroup } from './ChangeCardGroup.tsx';
+import { buildChatRenderUnits } from './chatRenderUnits.ts';
+import { WriteFileBatchComposerBar } from './WriteFileBatchComposerBar.tsx';
+import {
+  collectAllWriteFileItems,
+  getTrailingWriteFileBatch,
+  isSameWriteFileBatch,
+} from './writeFileBatchUtils.ts';
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
@@ -192,6 +200,68 @@ export function ChatPanel({
   const [glossaryPopup, setGlossaryPopup] = useState<{ x: number; y: number; selectedText: string } | null>(null);
   const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string } | null>(null);
   const [glossarySaving, setGlosarySaving] = useState(false);
+
+  const visibleEntries = useMemo(
+    () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
+    [messages],
+  );
+
+  const renderUnits = useMemo(() => buildChatRenderUnits(visibleEntries), [visibleEntries]);
+
+  const trailingWriteFileBatch = useMemo(
+    () => getTrailingWriteFileBatch(visibleEntries),
+    [visibleEntries],
+  );
+  const composerBatchKey =
+    trailingWriteFileBatch?.map((i) => i.data.snapshotId).join('\0') ?? '';
+  const [composerBatchForced, setComposerBatchForced] = useState<Record<string, CardState>>({});
+  const [toolbarSettledIds, setToolbarSettledIds] = useState(() => new Set<string>());
+  const [bulkDismissIds, setBulkDismissIds] = useState(() => new Set<string>());
+
+  const allWriteFileItems = useMemo(
+    () => collectAllWriteFileItems(visibleEntries),
+    [visibleEntries],
+  );
+  const pendingWriteFileItems = useMemo(
+    () => allWriteFileItems.filter((i) => !toolbarSettledIds.has(i.data.snapshotId)),
+    [allWriteFileItems, toolbarSettledIds],
+  );
+
+  useEffect(() => {
+    setComposerBatchForced({});
+  }, [composerBatchKey]);
+
+  useEffect(() => {
+    setToolbarSettledIds(new Set());
+    setBulkDismissIds(new Set());
+  }, [activeConversationId]);
+
+  const mergeComposerBatchForced = useCallback((patch: Record<string, CardState>) => {
+    setComposerBatchForced((p) => ({ ...p, ...patch }));
+  }, []);
+
+  const handleSnapshotSettled = useCallback((snapshotId: string) => {
+    setToolbarSettledIds((prev) => new Set(prev).add(snapshotId));
+  }, []);
+
+  const handleWriteFileBulkComplete = useCallback(
+    (patch: Record<string, CardState>) => {
+      mergeComposerBatchForced(patch);
+      const ids = Object.keys(patch);
+      if (ids.length === 0) return;
+      setToolbarSettledIds((prev) => {
+        const n = new Set(prev);
+        ids.forEach((id) => n.add(id));
+        return n;
+      });
+      setBulkDismissIds((prev) => {
+        const n = new Set(prev);
+        ids.forEach((id) => n.add(id));
+        return n;
+      });
+    },
+    [mergeComposerBatchForced],
+  );
 
   const pendingClarification = useMemo(() => {
     const vis = messages
@@ -504,11 +574,29 @@ export function ChatPanel({
             </p>
           </div>
         )}
-        {messages
-          .map((msg, originalIdx) => ({ msg, originalIdx }))
-          .filter(({ msg }) => !msg.hidden)
-          .map(({ msg, originalIdx }, visIdx, visArr) => {
-          const prevUser = visIdx > 0 ? visArr[visIdx - 1].msg : null;
+        {renderUnits.map((unit) => {
+          if (unit.type === 'writeFileGroup') {
+            const isComposerBatch = Boolean(
+              trailingWriteFileBatch &&
+                isSameWriteFileBatch(unit.items, trailingWriteFileBatch),
+            );
+            const visibleWriteItems = unit.items.filter(
+              (i) => !bulkDismissIds.has(i.data.snapshotId),
+            );
+            if (visibleWriteItems.length === 0) return null;
+            return (
+              <ChangeCardGroup
+                key={`wf-${unit.items.map((x) => x.originalIdx).join('-')}`}
+                items={visibleWriteItems}
+                onFileChanged={onFileChanged}
+                externalForced={isComposerBatch ? composerBatchForced : undefined}
+                onSnapshotSettled={handleSnapshotSettled}
+              />
+            );
+          }
+          const { visIdx, msg, originalIdx } = unit;
+          const visArr = visibleEntries;
+          const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
           const isLastUserMsg =
             msg.role === 'user' &&
             !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === 'user');
@@ -526,27 +614,6 @@ export function ChatPanel({
                 <span className="glossary-indicator-text">Glossar-Eintrag angelegt: <strong>{term}</strong></span>
               </div>
             );
-          }
-
-          if (msg.role === 'tool' && msg.content?.startsWith('write_file:success:')) {
-            const rest = msg.content.slice('write_file:success:'.length);
-            // format: {snapshotId}:{new|modified}:{path}:{description}
-            const parts = rest.split(':');
-            if (parts.length >= 4) {
-              const snapshotId = parts[0];
-              const isNew = parts[1] === 'new';
-              const path = parts[2];
-              const description = parts.slice(3).join(':');
-              const cardData: ChangeCardData = { snapshotId, path, isNew, description };
-              return (
-                <div key={originalIdx} className="change-card-wrapper">
-                  <ChangeCard
-                    data={cardData}
-                    onFileChanged={onFileChanged}
-                  />
-                </div>
-              );
-            }
           }
 
           return (
@@ -707,33 +774,46 @@ export function ChatPanel({
         )}
       </div>
 
-      {pendingClarification && pendingClarification.length > 0 ? (
-        <SuggestedActionsCard
-          questions={pendingClarification}
-          onSubmit={onSend}
-          disabled={streaming}
+      <div className="chat-composer-stack">
+        {pendingClarification && pendingClarification.length > 0 ? (
+          <ChatComposerCard>
+            <SuggestedActionsCard
+              questions={pendingClarification}
+              onSubmit={onSend}
+              disabled={streaming}
+            />
+          </ChatComposerCard>
+        ) : null}
+        {pendingWriteFileItems.length > 0 ? (
+          <ChatComposerCard>
+            <WriteFileBatchComposerBar
+              items={pendingWriteFileItems}
+              onBulkComplete={handleWriteFileBulkComplete}
+              onFileChanged={onFileChanged}
+              disabled={streaming}
+            />
+          </ChatComposerCard>
+        ) : null}
+        <ChatInput
+          onSend={onSend}
+          onStop={onStop}
+          streaming={streaming}
+          referencedFiles={referencedFiles}
+          onAddFile={onAddFile}
+          onRemoveFile={onRemoveFile}
+          fullscreen={isFullscreen}
+          structureRoot={structureRoot}
+          useReasoning={useReasoning && reasoningAvailable}
+          onToggleReasoning={onToggleReasoning}
+          disabledToolkits={disabledToolkits}
+          onToggleToolkit={onToggleToolkit}
+          reasoningAvailable={reasoningAvailable}
+          fastAvailable={fastAvailable}
+          activeSelection={activeSelection}
+          onDismissSelection={onDismissSelection}
+          focusTriggerRef={chatFocusTriggerRef}
         />
-      ) : null}
-
-      <ChatInput
-        onSend={onSend}
-        onStop={onStop}
-        streaming={streaming}
-        referencedFiles={referencedFiles}
-        onAddFile={onAddFile}
-        onRemoveFile={onRemoveFile}
-        fullscreen={isFullscreen}
-        structureRoot={structureRoot}
-        useReasoning={useReasoning && reasoningAvailable}
-        onToggleReasoning={onToggleReasoning}
-        disabledToolkits={disabledToolkits}
-        onToggleToolkit={onToggleToolkit}
-        reasoningAvailable={reasoningAvailable}
-        fastAvailable={fastAvailable}
-        activeSelection={activeSelection}
-        onDismissSelection={onDismissSelection}
-        focusTriggerRef={chatFocusTriggerRef}
-      />
+      </div>
 
       {newChatDialogOpen && (
         <NewChatDialog

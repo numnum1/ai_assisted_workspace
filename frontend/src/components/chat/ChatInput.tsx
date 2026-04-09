@@ -123,8 +123,8 @@ function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem
   ).slice(0, limit);
 }
 
-/** ~12 lines at 13px / 1.4 line-height + vertical padding; must match fullscreen .chat-textarea min-height */
-const CHAT_TEXTAREA_FULLSCREEN_MIN_PX = Math.round(16 + 12 * 1.4 * 13);
+/** Empty field: one line; padding 8+8 + 13px * 1.4 line-height ≈ 38px — keep in sync with .chat-textarea min-height */
+const CHAT_TEXTAREA_MIN_HEIGHT_PX = 38;
 
 function chatTextareaMaxHeightPx(fullscreen: boolean): number {
   if (!fullscreen) return 200;
@@ -223,9 +223,8 @@ export function ChatInput({
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
-    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
     const maxH = chatTextareaMaxHeightPx(fullscreen);
-    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
   }, [fullscreen]);
 
   useEffect(() => {
@@ -350,9 +349,8 @@ export function ChatInput({
     // Auto-resize
     const ta = e.target;
     ta.style.height = 'auto';
-    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
     const maxH = chatTextareaMaxHeightPx(fullscreen);
-    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
 
     // Detect @ pattern — stop at whitespace; ignore already-inserted paths (contain / or start with .)
     const textBefore = newText.slice(0, cursor);
@@ -497,62 +495,64 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="chat-input-row">
-        <textarea
-          ref={textareaRef}
-          className="chat-textarea"
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          placeholder={
-            streaming
-              ? 'AI antwortet… (du kannst bereits tippen)'
-              : (placeholderProp ??
-                'Nachricht...')
-          }
-          rows={fullscreen ? 12 : 1}
-        />
-        <button
-          type="button"
-          className="chat-expand-btn"
-          onClick={() => setExpandOpen(true)}
-          title="Prompt-Fenster öffnen (großes Eingabefeld)"
-          disabled={streaming}
-        >
-          <Maximize2 size={14} />
-        </button>
-        {onToggleReasoning && reasoningAvailable && fastAvailable && (
+      <div className="chat-input-toolbar-card">
+        <div className="chat-input-row">
+          <textarea
+            ref={textareaRef}
+            className="chat-textarea"
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            placeholder={
+              streaming
+                ? 'AI antwortet… (du kannst bereits tippen)'
+                : (placeholderProp ??
+                  'Nachricht...')
+            }
+            rows={1}
+          />
           <button
             type="button"
-            className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
-            onClick={onToggleReasoning}
-            title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+            className="chat-expand-btn"
+            onClick={() => setExpandOpen(true)}
+            title="Prompt-Fenster öffnen (großes Eingabefeld)"
             disabled={streaming}
           >
-            <Zap size={15} />
+            <Maximize2 size={14} />
           </button>
-        )}
-        <ToolkitMenuButton
-          disabledToolkits={disabledToolkits}
-          onToggleToolkit={onToggleToolkit}
-          streaming={streaming}
-        />
-        {streaming ? (
-          <button className="chat-send-btn stop" onClick={onStop} title="Stop">
-            <Square size={16} />
-          </button>
-        ) : (
-          <button
-            className="chat-send-btn"
-            onClick={handleSend}
-            disabled={!text.trim()}
-            title="Send (Enter)"
-          >
-            <Send size={16} />
-          </button>
-        )}
+          {onToggleReasoning && reasoningAvailable && fastAvailable && (
+            <button
+              type="button"
+              className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+              onClick={onToggleReasoning}
+              title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+              disabled={streaming}
+            >
+              <Zap size={15} />
+            </button>
+          )}
+          <ToolkitMenuButton
+            disabledToolkits={disabledToolkits}
+            onToggleToolkit={onToggleToolkit}
+            streaming={streaming}
+          />
+          {streaming ? (
+            <button className="chat-send-btn stop" onClick={onStop} title="Stop">
+              <Square size={16} />
+            </button>
+          ) : (
+            <button
+              className="chat-send-btn"
+              onClick={handleSend}
+              disabled={!text.trim()}
+              title="Send (Enter)"
+            >
+              <Send size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {expandOpen && createPortal(
@@ -610,31 +610,33 @@ export function ChatInput({
 
             <div className="chat-expand-modal-footer">
               <span className="chat-expand-hint">Strg+Enter zum Senden · Esc zum Schließen</span>
-              <div className="chat-expand-footer-actions">
-                {onToggleReasoning && reasoningAvailable && fastAvailable && (
+              <div className="chat-input-toolbar-card chat-expand-toolbar-card">
+                <div className="chat-expand-footer-actions">
+                  {onToggleReasoning && reasoningAvailable && fastAvailable && (
+                    <button
+                      type="button"
+                      className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+                      onClick={onToggleReasoning}
+                      title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+                    >
+                      <Zap size={15} />
+                    </button>
+                  )}
+                  <ToolkitMenuButton
+                    disabledToolkits={disabledToolkits}
+                    onToggleToolkit={onToggleToolkit}
+                    streaming={streaming}
+                  />
                   <button
                     type="button"
-                    className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
-                    onClick={onToggleReasoning}
-                    title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+                    className="chat-send-btn"
+                    onClick={handleSend}
+                    disabled={!text.trim()}
+                    title="Senden (Strg+Enter)"
                   >
-                    <Zap size={15} />
+                    <Send size={16} />
                   </button>
-                )}
-                <ToolkitMenuButton
-                  disabledToolkits={disabledToolkits}
-                  onToggleToolkit={onToggleToolkit}
-                  streaming={streaming}
-                />
-                <button
-                  type="button"
-                  className="chat-send-btn"
-                  onClick={handleSend}
-                  disabled={!text.trim()}
-                  title="Senden (Strg+Enter)"
-                >
-                  <Send size={16} />
-                </button>
+                </div>
               </div>
             </div>
           </div>

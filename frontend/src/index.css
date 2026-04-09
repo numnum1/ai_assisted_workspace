@@ -2388,6 +2388,62 @@ body.file-tree-native-dragging {
   padding: 4px 8px;
 }
 
+.change-card-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.change-card-batch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 8px;
+  margin: 0 8px 2px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent, #89b4fa) 8%, var(--surface1, #1e1e2e));
+  border: 1px solid color-mix(in srgb, var(--accent, #89b4fa) 25%, var(--border, #45475a));
+}
+
+.change-card-batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.change-card-batch-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.change-card-batch-btn--apply {
+  background: var(--green, #a6e3a1);
+  color: var(--surface0, #11111b);
+}
+
+.change-card-batch-btn--apply:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+.change-card-batch-btn--revert {
+  background: color-mix(in srgb, var(--red, #f38ba8) 22%, var(--surface2, #313244));
+  color: var(--text-primary, #cdd6f4);
+  border: 1px solid color-mix(in srgb, var(--red, #f38ba8) 45%, var(--border, #45475a));
+}
+
+.change-card-batch-btn--revert:not(:disabled):hover {
+  opacity: 0.92;
+}
+
 .change-card {
   border: 1px solid var(--border, #45475a);
   border-radius: 8px;
@@ -3137,18 +3193,34 @@ body.file-tree-native-dragging {
   font-size: 12px;
 }
 
-/* Suggested actions (clarification) above chat input — Cursor-style rows + letter badges */
-.sac-root {
+/* Composer stack: single separator from messages; holds one or more ChatComposerCard */
+.chat-composer-stack {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  margin: 0;
-  padding: 6px 10px 8px;
+  gap: 8px;
+  padding: 8px 12px 12px;
   border-top: 1px solid var(--border);
   background: var(--bg-secondary);
 }
 
-.sac-root.frozen {
+.chat-composer-card {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-primary) 55%, var(--bg-secondary));
+}
+
+/* Suggested actions — surface only (chrome from ChatComposerCard); frozen = no interaction */
+.sac-surface {
+  display: flex;
+  flex-direction: column;
+}
+
+.sac-surface.frozen {
   opacity: 0.65;
   pointer-events: none;
 }
@@ -3313,6 +3385,61 @@ body.file-tree-native-dragging {
 
 .sac-submit:disabled {
   opacity: 0.35;
+  cursor: default;
+}
+
+/* Multi write_file batch — composer strip (above ChatInput, like SuggestedActionsCard) */
+.wf-batch-composer {
+  width: 100%;
+}
+
+.wf-batch-composer-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.wf-batch-composer-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Pending write_file changes — bulk strip directly above ChatInput */
+.chat-pending-changes-bar .wf-batch-composer-title {
+  color: var(--text-secondary);
+}
+
+.wf-batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wf-batch-btn--revert {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-primary));
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.wf-batch-btn--revert:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--red, #f38ba8) 50%, var(--border));
+}
+
+.wf-batch-btn--revert:disabled {
+  opacity: 0.4;
   cursor: default;
 }
 
@@ -4383,15 +4510,23 @@ body.file-tree-native-dragging {
 
 .chat-input-container {
   position: relative;
-  padding: 8px 12px 12px;
-  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .chat-input-files {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 8px;
+}
+
+.chat-input-toolbar-card {
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .chat-input-row {
@@ -4402,6 +4537,8 @@ body.file-tree-native-dragging {
 
 .chat-textarea {
   flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 8px 12px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
@@ -4417,10 +4554,9 @@ body.file-tree-native-dragging {
   max-height: 200px;
 }
 
-/* Taller default input when chat panel is fullscreen (~12 lines; keep in sync with ChatInput resize math) */
+/* Fullscreen: same single-line min as normal; allow more vertical growth when typing */
 .chat-panel:fullscreen .chat-textarea,
 .chat-panel:-webkit-full-screen .chat-textarea {
-  min-height: calc(16px + 12 * 1.4em);
   max-height: min(50vh, 480px);
 }
 
@@ -4592,6 +4728,10 @@ body.file-tree-native-dragging {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.chat-expand-toolbar-card {
+  flex-shrink: 0;
 }
 
 .chat-reasoning-btn {

@@ -187,7 +187,7 @@ export function SuggestedActionsCard({
   }, [autoSubmitMode, frozen, questions, onSubmit, openOther]);
 
   return (
-    <div className={`sac-root${frozen ? ' frozen' : ''}`}>
+    <div className={`sac-surface${frozen ? ' frozen' : ''}`}>
       <div className="sac-body">
         {questions.map((q, qIdx) => {
           const allowMultiple = q.allow_multiple ?? false;
