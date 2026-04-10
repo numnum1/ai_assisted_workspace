@@ -14,7 +14,18 @@ import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx'
 import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
 import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
-import type { Mode, GitStatus, GitSyncStatus, MetaSelection, MetaNodeType, NodeMeta, SelectionContext, AltVersionSession, LlmPublic } from './types.ts';
+import type {
+  Mode,
+  GitStatus,
+  GitSyncStatus,
+  MetaSelection,
+  MetaNodeType,
+  NodeMeta,
+  SelectionContext,
+  AltVersionSession,
+  LlmPublic,
+  ChatSessionKind,
+} from './types.ts';
 import { CHAT_TOOLKIT_IDS } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
 import { Settings } from 'lucide-react';
@@ -33,6 +44,7 @@ import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
 import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
+import { parseSteeringPlanFromAssistant } from './components/chat/planFenceUtils.ts';
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
 const CHAT_DISABLED_TOOLKITS_KEY = 'chat-disabled-toolkits';
@@ -168,7 +180,15 @@ function App() {
   }, [modes, llms]);
 
   const history = useChatHistory(selectedMode, project.projectPath);
-  const chat = useChat(history.updateMessages);
+  const chat = useChat(history.updateMessages, {
+    onAssistantResponseComplete: (fullText, meta) => {
+      if (meta.sessionKind !== 'guided') return;
+      const parsed = parseSteeringPlanFromAssistant(fullText);
+      if (parsed) {
+        history.patchConversation(meta.conversationId, { steeringPlan: parsed });
+      }
+    },
+  });
 
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [workspaceModesRefreshNonce, setWorkspaceModesRefreshNonce] = useState(0);
@@ -619,6 +639,12 @@ function App() {
       const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
+      const conv = history.activeConversation;
+      const streamSession = {
+        conversationId: conv?.id ?? history.activeId,
+        sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
+        steeringPlan: conv?.steeringPlan,
+      };
       chat.sendMessage(
         message,
         activeFile,
@@ -631,6 +657,7 @@ function App() {
         activeSelection ?? undefined,
         focusedField?.fieldKey ?? null,
         [...disabledToolkits],
+        streamSession,
       );
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
@@ -648,6 +675,8 @@ function App() {
       fileEditor.selectedPath,
       focusedField,
       disabledToolkits,
+      history.activeConversation,
+      history.activeId,
     ],
   );
 
@@ -656,6 +685,7 @@ function App() {
       const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
+      const conv = history.activeConversation;
       chat.editMessage(index, newContent, {
         activeFile,
         mode: selectedMode,
@@ -665,6 +695,9 @@ function App() {
         selectionContext: activeSelection ?? undefined,
         activeFieldKey: focusedField?.fieldKey ?? null,
         disabledToolkits: [...disabledToolkits],
+        conversationId: conv?.id ?? history.activeId,
+        sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
+        steeringPlan: conv?.steeringPlan,
       });
       setActiveSelection(null);
     },
@@ -680,6 +713,8 @@ function App() {
       fileEditor.selectedPath,
       focusedField,
       disabledToolkits,
+      history.activeConversation,
+      history.activeId,
     ],
   );
 
@@ -688,6 +723,7 @@ function App() {
   const handlePromptPackGenerate = useCallback(
     (message: string, files: string[]) => {
       const m = modes.find(x => x.id === 'prompt-pack');
+      const conv = history.activeConversation;
       chat.sendMessage(
         message,
         null,
@@ -700,10 +736,14 @@ function App() {
         undefined,
         null,
         [...disabledToolkits],
+        {
+          conversationId: conv?.id ?? history.activeId,
+          sessionKind: 'standard',
+        },
       );
       setPromptPackOpen(false);
     },
-    [chat, modes, useReasoning, modeLlmId, disabledToolkits],
+    [chat, modes, useReasoning, modeLlmId, disabledToolkits, history.activeConversation, history.activeId],
   );
 
   useEffect(() => {
@@ -715,13 +755,19 @@ function App() {
     }
   }, [modes, selectedMode, handleModeChange]);
 
-  const handleNewChat = useCallback(() => {
-    history.createConversation(selectedMode);
-  }, [history, selectedMode]);
+  const handleNewChat = useCallback(
+    (sessionKind: ChatSessionKind = 'standard') => {
+      history.createConversation(selectedMode, undefined, undefined, sessionKind);
+    },
+    [history, selectedMode],
+  );
 
-  const handleDiscardCurrentChat = useCallback(() => {
-    history.discardActiveAndCreateConversation(selectedMode);
-  }, [history, selectedMode]);
+  const handleDiscardCurrentChat = useCallback(
+    (sessionKind: ChatSessionKind = 'standard') => {
+      history.discardActiveAndCreateConversation(selectedMode, sessionKind);
+    },
+    [history, selectedMode],
+  );
 
   const handleForkToNewConversation = useCallback((index: number) => {
     const forkedMessages = chat.messages.slice(0, index + 1);
@@ -730,7 +776,12 @@ function App() {
     const existingTitles = new Set(history.conversations.map((c) => c.title));
     let n = 1;
     while (existingTitles.has(`${base} (${n})`)) n++;
-    history.createConversation(selectedMode, forkedMessages, `${base} (${n})`);
+    const parent = history.activeConversation;
+    const sk = parent?.sessionKind ?? 'standard';
+    const newConv = history.createConversation(selectedMode, forkedMessages, `${base} (${n})`, sk);
+    if (sk === 'guided' && parent?.steeringPlan) {
+      history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
+    }
   }, [chat.messages, history, selectedMode]);
 
   const handleSwitchChat = useCallback((id: string) => {
@@ -967,6 +1018,8 @@ function App() {
             onDeleteMessage={chat.deleteMessage}
             onNewChat={handleNewChat}
             onDiscardCurrentChat={handleDiscardCurrentChat}
+            activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
+            steeringPlan={history.activeConversation?.steeringPlan ?? ''}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
@@ -999,6 +1052,7 @@ function App() {
           const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
             ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
             : (fileEditor.selectedPath ?? null);
+          const conv = history.activeConversation;
           const result = await chatApi.previewContext({
             message: '',
             activeFile,
@@ -1007,6 +1061,8 @@ function App() {
             referencedFiles: refs.referencedFiles,
             history: [],
             disabledToolkits: [...disabledToolkits],
+            sessionKind: conv?.sessionKind ?? 'standard',
+            steeringPlan: conv?.sessionKind === 'guided' ? conv.steeringPlan ?? null : undefined,
           });
           return result.contextBlocks ?? [];
         }}

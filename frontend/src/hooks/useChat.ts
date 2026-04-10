@@ -1,6 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
+import type {
+  ChatMessage,
+  ChatRequest,
+  ChatSessionKind,
+  ContextInfo,
+  SelectionContext,
+} from '../types.ts';
 import { streamChat } from '../api.ts';
 
 function isVisibleToolMessage(content: string | undefined): boolean {
@@ -25,6 +31,16 @@ export interface EditMessageSendParams {
   activeFieldKey?: string | null;
   /** Toolkit ids whose tools are omitted for this request. */
   disabledToolkits?: string[];
+  conversationId: string;
+  sessionKind: ChatSessionKind;
+  steeringPlan?: string;
+}
+
+/** Active conversation id + session kind; sent with each chat request for guided mode / plan persistence. */
+export interface ChatStreamSessionMeta {
+  conversationId: string;
+  sessionKind: ChatSessionKind;
+  steeringPlan?: string;
 }
 
 function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
@@ -68,6 +84,7 @@ function attachAssistantStream(
   requestBase: ChatRequest,
   selectionContext: SelectionContext | undefined,
   cbs: StreamCallbacks,
+  onAssistantComplete?: (fullAssistantText: string) => void,
 ): AbortController {
   let assistantContent = '';
 
@@ -84,9 +101,10 @@ function attachAssistantStream(
     (info) => {
       cbs.setContextInfo(info);
     },
-    () => {
+    (fullAssistantText) => {
       cbs.setStreaming(false);
       cbs.setToolActivity(null);
+      onAssistantComplete?.(fullAssistantText);
     },
     (err) => {
       cbs.setError(err.message);
@@ -122,16 +140,43 @@ function attachAssistantStream(
   );
 }
 
-export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
+export interface UseChatOptions {
+  onAssistantResponseComplete?: (
+    fullText: string,
+    meta: { conversationId: string; sessionKind: ChatSessionKind },
+  ) => void;
+}
+
+function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
+  if (!meta) {
+    return { sessionKind: 'standard' };
+  }
+  const sk = meta.sessionKind ?? 'standard';
+  if (sk === 'guided') {
+    return {
+      sessionKind: 'guided',
+      steeringPlan: meta.steeringPlan ?? null,
+    };
+  }
+  return { sessionKind: 'standard' };
+}
+
+export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, options?: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toolActivity, setToolActivity] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const lastStreamCallRef = useRef<{ chatRequest: ChatRequest; selectionContext?: SelectionContext } | null>(null);
+  const lastStreamCallRef = useRef<{
+    chatRequest: ChatRequest;
+    selectionContext?: SelectionContext;
+    streamMeta?: { conversationId: string; sessionKind: ChatSessionKind };
+  } | null>(null);
   const onMessagesChangeRef = useRef(onMessagesChange);
   onMessagesChangeRef.current = onMessagesChange;
+  const onAssistantResponseCompleteRef = useRef(options?.onAssistantResponseComplete);
+  onAssistantResponseCompleteRef.current = options?.onAssistantResponseComplete;
 
   // Tracks the evolving base message list during an active stream so that
   // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
@@ -172,6 +217,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       selectionContext?: SelectionContext,
       activeFieldKey?: string | null,
       disabledToolkits?: string[],
+      streamSession?: ChatStreamSessionMeta,
     ) => {
       syncEnabledRef.current = true;
       setError(null);
@@ -190,6 +236,11 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         currentBaseRef,
       };
 
+      const streamMeta =
+        streamSession != null
+          ? { conversationId: streamSession.conversationId, sessionKind: streamSession.sessionKind }
+          : undefined;
+
       const request: ChatRequest = {
         message: text,
         activeFile,
@@ -202,10 +253,17 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         ...(disabledToolkits != null && disabledToolkits.length > 0
           ? { disabledToolkits: [...disabledToolkits] }
           : {}),
+        ...buildSessionChatRequestFields(streamSession),
       };
-      lastStreamCallRef.current = { chatRequest: request, selectionContext };
+      lastStreamCallRef.current = { chatRequest: request, selectionContext, streamMeta };
 
-      abortRef.current = attachAssistantStream(request, selectionContext, streamCbs);
+      const onComplete =
+        streamMeta && onAssistantResponseCompleteRef.current
+          ? (fullText: string) =>
+              onAssistantResponseCompleteRef.current?.(fullText, streamMeta)
+          : undefined;
+
+      abortRef.current = attachAssistantStream(request, selectionContext, streamCbs, onComplete);
     },
     [messages],
   );
@@ -223,7 +281,11 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
     setStreaming(true);
     setToolActivity(null);
     let assistantContent = '';
-    const { chatRequest, selectionContext } = last;
+    const { chatRequest, selectionContext, streamMeta } = last;
+    const onComplete =
+      streamMeta && onAssistantResponseCompleteRef.current
+        ? (fullText: string) => onAssistantResponseCompleteRef.current?.(fullText, streamMeta)
+        : undefined;
     const controller = streamChat(
       chatRequest,
       (token) => {
@@ -237,9 +299,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       (info) => {
         setContextInfo(info);
       },
-      () => {
+      (fullAssistantText) => {
         setStreaming(false);
         setToolActivity(null);
+        onComplete?.(fullAssistantText);
       },
       (err) => {
         setError(err.message);
@@ -327,6 +390,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         currentBaseRef,
       };
 
+      const streamMeta = {
+        conversationId: sendParams.conversationId,
+        sessionKind: sendParams.sessionKind,
+      };
       const request: ChatRequest = {
         message: trimmed,
         activeFile: sendParams.activeFile,
@@ -339,12 +406,30 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         ...(sendParams.disabledToolkits != null && sendParams.disabledToolkits.length > 0
           ? { disabledToolkits: [...sendParams.disabledToolkits] }
           : {}),
+        ...buildSessionChatRequestFields({
+          conversationId: sendParams.conversationId,
+          sessionKind: sendParams.sessionKind,
+          steeringPlan: sendParams.steeringPlan,
+        }),
+      };
+
+      const onComplete =
+        onAssistantResponseCompleteRef.current != null
+          ? (fullText: string) =>
+              onAssistantResponseCompleteRef.current?.(fullText, streamMeta)
+          : undefined;
+
+      lastStreamCallRef.current = {
+        chatRequest: request,
+        selectionContext: sendParams.selectionContext,
+        streamMeta,
       };
 
       abortRef.current = attachAssistantStream(
         request,
         sendParams.selectionContext,
         streamCbs,
+        onComplete,
       );
     },
     [messages],

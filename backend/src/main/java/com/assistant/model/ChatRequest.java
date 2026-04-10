@@ -27,6 +27,14 @@ public class ChatRequest {
      * Toolkit ids (e.g. {@code web}, {@code wiki}) whose tools are omitted for this request.
      */
     private List<String> disabledToolkits = new ArrayList<>();
+    /**
+     * Chat session kind: {@code standard} (default) or {@code guided} (AI-led conversation with steering plan).
+     */
+    private String sessionKind = "standard";
+    /**
+     * Current steering plan markdown for guided sessions; injected into system prompt when non-blank.
+     */
+    private String steeringPlan;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
@@ -52,4 +60,10 @@ public class ChatRequest {
     public void setDisabledToolkits(List<String> disabledToolkits) {
         this.disabledToolkits = disabledToolkits != null ? disabledToolkits : new ArrayList<>();
     }
+    public String getSessionKind() { return sessionKind; }
+    public void setSessionKind(String sessionKind) {
+        this.sessionKind = sessionKind != null && !sessionKind.isBlank() ? sessionKind : "standard";
+    }
+    public String getSteeringPlan() { return steeringPlan; }
+    public void setSteeringPlan(String steeringPlan) { this.steeringPlan = steeringPlan; }
 }

@@ -258,6 +258,23 @@ public class ContextService {
             }
         }
 
+        if (GuidedSessionPrompts.isGuidedSession(request)) {
+            blockStart = systemPrompt.length();
+            String guided = GuidedSessionPrompts.guidedBehaviourBlock();
+            systemPrompt.append(guided);
+            blocks.add(new AssembledContext.ContextBlock("guided-instructions", "Guided session (AI-led)",
+                    guided, (systemPrompt.length() - blockStart) / 4));
+            log.debug("Injected guided session instructions: {} chars", guided.length());
+            String planSection = GuidedSessionPrompts.steeringPlanSection(request.getSteeringPlan());
+            if (!planSection.isEmpty()) {
+                blockStart = systemPrompt.length();
+                systemPrompt.append(planSection);
+                blocks.add(new AssembledContext.ContextBlock("steering-plan", "Aktueller Gesprächsplan",
+                        planSection.trim(), (systemPrompt.length() - blockStart) / 4));
+                log.debug("Injected steering plan: {} chars", planSection.length());
+            }
+        }
+
         // Editor selection replacement capability
         systemPrompt.append("=== Editor Selection Replacement ===\n");
         systemPrompt.append("If the user's message contains a [REFERENCED SELECTION] ... [END SELECTION] block, ");
@@ -281,8 +298,13 @@ public class ContextService {
             systemPrompt.append("Rules:\n");
             systemPrompt.append("  - Call `ask_clarification` as your ONLY action — write NO other text before or after the tool call.\n");
             systemPrompt.append("  - You may group several related questions into one call (1–3 questions max).\n");
-            systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
-            systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
+            if (GuidedSessionPrompts.isGuidedSession(request)) {
+                systemPrompt.append("  - **Guided session:** Use `ask_clarification` proactively to sharpen the goal, choose between directions, "
+                        + "and pace the conversation — not only when blocked. Offer an \"Egal / du entscheidest\" or similar escape option when helpful.\n");
+            } else {
+                systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
+                systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
+            }
             systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
         }
 

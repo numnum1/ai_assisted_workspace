@@ -22,6 +22,7 @@ A local, AI-powered Markdown workspace with a three-panel Cursor-style UI: file 
 - **Glossary in chat**: successful `glossary_add` shows a short indicator; you can select text in chat and use **„Als Glossar-Begriff speichern“** to append a term via the API
 - **Multiple LLM providers**: OpenAI-compatible endpoints in app data (`ai-providers.json`)
 - **Chat history**: per project in `.assistant/chat-history.json`
+- **Session kinds**: When starting a **new chat** (dialog after the current thread has messages), choose **Standard** or **Guided session**. Guided sessions add server-side behaviour so the assistant leads with a visible **steering plan** (Markdown). The model updates the plan using a fenced code block tagged `plan`; the latest plan is stored on the conversation and sent with each request.
 
 ### Modes
 Built-in chat modes change the system prompt (Story Review, Continuity Check, Spelling and Style, Brainstorm, Prompt-Paket, Struktur ausfüllen, …). Custom modes: `.assistant/modes/` or `backend/src/main/resources/modes/`.

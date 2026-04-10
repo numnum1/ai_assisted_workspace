@@ -1,5 +1,8 @@
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
 export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant'] as const;
+
+/** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
+export type ChatSessionKind = 'standard' | 'guided';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
 
 export interface FileNode {
@@ -78,6 +81,10 @@ export interface ChatRequest {
    */
   disabledToolkits?: string[];
   llmId?: string;
+  /** Default standard; guided injects steering behaviour and optional steeringPlan. */
+  sessionKind?: ChatSessionKind;
+  /** Persisted plan text for guided sessions; sent each request when set. */
+  steeringPlan?: string | null;
 }
 
 export interface ContextInfo {
@@ -118,6 +125,10 @@ export interface Conversation {
   mode: string;
   /** When true, conversation is written to `.assistant/chat-history.json` for Git sync */
   savedToProject?: boolean;
+  /** Omitted or standard = normal chat; guided = AI-led session with optional steeringPlan */
+  sessionKind?: ChatSessionKind;
+  /** Markdown steering plan maintained by the model (guided sessions) */
+  steeringPlan?: string;
 }
 
 export interface ProjectConfig {

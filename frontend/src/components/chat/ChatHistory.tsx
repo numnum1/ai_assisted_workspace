@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Trash2, MessageSquare, X, Pencil, FolderInput, FolderCheck, Eraser } from 'lucide-react';
-import type { Conversation } from '../../types.ts';
+import type { ChatSessionKind, Conversation } from '../../types.ts';
 import { NewChatButton } from './NewChatButton.tsx';
 
 interface ChatHistoryProps {
   conversations: Conversation[];
   activeId: string;
   onSelect: (id: string) => void;
-  onCreate: () => void;
+  onCreate: (sessionKind?: ChatSessionKind) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onToggleSavedToProject: (id: string) => void;
@@ -124,7 +124,7 @@ export function ChatHistory({
               <Eraser size={14} />
             </button>
           )}
-          <NewChatButton onClick={onCreate} />
+          <NewChatButton onClick={() => onCreate('standard')} />
           <button type="button" className="chat-history-close-btn" onClick={onClose} title="Schliessen">
             <X size={14} />
           </button>
@@ -173,7 +173,14 @@ export function ChatHistory({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    <div className="chat-history-item-title">{conv.title}</div>
+                    <div className="chat-history-item-title">
+                      <span>{conv.title}</span>
+                      {conv.sessionKind === 'guided' && (
+                        <span className="chat-history-guided-badge" title="Geführte Sitzung">
+                          Geführt
+                        </span>
+                      )}
+                    </div>
                   )}
                   <div className="chat-history-item-meta">
                     {conv.messages.filter((m) => !m.hidden).length} Nachrichten · {formatDate(conv.updatedAt)}

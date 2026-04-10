@@ -1,15 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
+import type { ChatSessionKind } from '../../types.ts';
+
+export interface NewChatConfirmPayload {
+  title: string;
+  sessionKind: ChatSessionKind;
+}
 
 interface NewChatDialogProps {
   currentTitle: string;
-  onConfirm: (title: string) => void;
-  onDiscard: () => void;
+  onConfirm: (payload: NewChatConfirmPayload) => void;
+  onDiscard: (payload: NewChatConfirmPayload) => void;
   onCancel: () => void;
 }
 
 export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: NewChatDialogProps) {
   const [title, setTitle] = useState(currentTitle);
+  const [sessionKind, setSessionKind] = useState<ChatSessionKind>('standard');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -17,8 +24,17 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
     inputRef.current?.select();
   }, []);
 
+  const buildPayload = (): NewChatConfirmPayload => ({
+    title: title.trim() || currentTitle,
+    sessionKind,
+  });
+
   const handleConfirm = () => {
-    onConfirm(title.trim() || currentTitle);
+    onConfirm(buildPayload());
+  };
+
+  const handleDiscard = () => {
+    onDiscard(buildPayload());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -57,6 +73,31 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
             onKeyDown={handleKeyDown}
             placeholder="Name des Chats…"
           />
+          <fieldset className="new-chat-dialog-session-fieldset">
+            <legend className="new-chat-dialog-session-legend">Sitzungsart</legend>
+            <label className="new-chat-dialog-radio-row">
+              <input
+                type="radio"
+                name="sessionKind"
+                checked={sessionKind === 'standard'}
+                onChange={() => setSessionKind('standard')}
+              />
+              <span>
+                <strong>Standard</strong> — freies Gespräch wie bisher
+              </span>
+            </label>
+            <label className="new-chat-dialog-radio-row">
+              <input
+                type="radio"
+                name="sessionKind"
+                checked={sessionKind === 'guided'}
+                onChange={() => setSessionKind('guided')}
+              />
+              <span>
+                <strong>Geführte Sitzung</strong> — die Assistentin strukturiert mit Arbeitsplan und Rückfragen
+              </span>
+            </label>
+          </fieldset>
         </div>
 
         <div className="new-chat-dialog-footer">
@@ -67,7 +108,7 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
             <button
               type="button"
               className="new-chat-dialog-btn-danger"
-              onClick={onDiscard}
+              onClick={handleDiscard}
               title="Aktuellen Chat löschen und neu starten"
             >
               <Trash2 size={13} />

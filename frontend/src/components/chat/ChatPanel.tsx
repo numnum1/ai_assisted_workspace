@@ -1,11 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2, RotateCcw } from 'lucide-react';
-import type { ChatMessage, Mode, Conversation, SelectionContext, LlmPublic } from '../../types.ts';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { ChatMessage, Mode, Conversation, SelectionContext, LlmPublic, ChatSessionKind } from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
 import { NewChatButton } from './NewChatButton.tsx';
-import { NewChatDialog } from './NewChatDialog.tsx';
+import { NewChatDialog, type NewChatConfirmPayload } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
 import { ChatComposerCard } from './ChatComposerCard.tsx';
 import { SuggestedActionsCard } from './SuggestedActionsCard.tsx';
@@ -49,8 +51,12 @@ interface ChatPanelProps {
   onForkToNewConversation: (index: number) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessage: (index: number) => void;
-  onNewChat: () => void;
-  onDiscardCurrentChat: () => void;
+  onNewChat: (sessionKind?: ChatSessionKind) => void;
+  onDiscardCurrentChat: (sessionKind?: ChatSessionKind) => void;
+  /** Active conversation session kind (for guided UI). */
+  activeSessionKind?: ChatSessionKind;
+  /** Persisted steering plan markdown (guided sessions). */
+  steeringPlan?: string;
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
@@ -182,6 +188,8 @@ export function ChatPanel({
   fastAvailable = true,
   onRetry,
   onFileChanged,
+  activeSessionKind = 'standard',
+  steeringPlan = '',
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -200,6 +208,7 @@ export function ChatPanel({
   const [glossaryPopup, setGlossaryPopup] = useState<{ x: number; y: number; selectedText: string } | null>(null);
   const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string } | null>(null);
   const [glossarySaving, setGlosarySaving] = useState(false);
+  const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
 
   const visibleEntries = useMemo(
     () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
@@ -336,21 +345,21 @@ export function ChatPanel({
     if (hasMessages) {
       setNewChatDialogOpen(true);
     } else {
-      onNewChat();
+      onNewChat('standard');
     }
   };
 
-  const handleNewChatConfirm = (title: string) => {
+  const handleNewChatConfirm = (payload: NewChatConfirmPayload) => {
     setNewChatDialogOpen(false);
-    if (title.trim() && title.trim() !== activeTitle) {
-      onRenameChat(activeConversationId, title.trim());
+    if (payload.title.trim() && payload.title.trim() !== activeTitle) {
+      onRenameChat(activeConversationId, payload.title.trim());
     }
-    onNewChat();
+    onNewChat(payload.sessionKind);
   };
 
-  const handleNewChatDiscard = () => {
+  const handleNewChatDiscard = (payload: NewChatConfirmPayload) => {
     setNewChatDialogOpen(false);
-    onDiscardCurrentChat();
+    onDiscardCurrentChat(payload.sessionKind);
   };
 
   useEffect(() => {
@@ -548,7 +557,7 @@ export function ChatPanel({
           conversations={conversations}
           activeId={activeConversationId}
           onSelect={onSwitchChat}
-          onCreate={onNewChat}
+          onCreate={(sk) => onNewChat(sk ?? 'standard')}
           onDelete={onDeleteChat}
           onRename={onRenameChat}
           onToggleSavedToProject={onToggleSavedToProject}
@@ -773,6 +782,34 @@ export function ChatPanel({
           </div>
         )}
       </div>
+
+      {activeSessionKind === 'guided' && (
+        <div className="chat-steering-plan-panel">
+          <button
+            type="button"
+            className="chat-steering-plan-toggle"
+            onClick={() => setSteeringPlanOpen((o) => !o)}
+            aria-expanded={steeringPlanOpen}
+          >
+            Arbeitsplan
+            <span className="chat-steering-plan-chevron">{steeringPlanOpen ? '▼' : '▶'}</span>
+          </button>
+          {steeringPlanOpen && (
+            <div className="chat-steering-plan-body">
+              {steeringPlan?.trim() ? (
+                <div className="chat-steering-plan-md">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{steeringPlan}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="chat-steering-plan-empty">
+                  Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als Markdown-Block mit
+                  Sprache <code>plan</code> an.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="chat-composer-stack">
         {pendingClarification && pendingClarification.length > 0 ? (

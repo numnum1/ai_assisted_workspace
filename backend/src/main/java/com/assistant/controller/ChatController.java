@@ -396,9 +396,12 @@ public class ChatController {
 
     private void logIncomingChatRequest(ChatRequest request) {
         List<ChatMessage> history = request.getHistory() != null ? request.getHistory() : List.of();
+        int steeringPlanLen = request.getSteeringPlan() != null ? request.getSteeringPlan().length() : 0;
         log.info(
-                "Incoming chat: mode={}, llmId={}, useReasoning={}, quickChat={}, disableTools={}, disabledToolkits={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
+                "Incoming chat: mode={}, sessionKind={}, steeringPlanChars={}, llmId={}, useReasoning={}, quickChat={}, disableTools={}, disabledToolkits={}, activeFile={}, activeFieldKey={}, referencedFiles={}, historyTurns={}, rawMessageLen={}",
                 request.getMode(),
+                request.getSessionKind(),
+                steeringPlanLen,
                 request.getLlmId(),
                 request.isUseReasoning(),
                 request.isQuickChat(),

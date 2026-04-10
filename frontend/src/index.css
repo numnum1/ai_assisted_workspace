@@ -3193,6 +3193,88 @@ body.file-tree-native-dragging {
   font-size: 12px;
 }
 
+/* Guided session: visible steering plan above composer */
+.chat-steering-plan-panel {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-secondary));
+}
+
+.chat-steering-plan-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.chat-steering-plan-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.chat-steering-plan-chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+.chat-steering-plan-body {
+  padding: 0 12px 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.chat-steering-plan-md {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.chat-steering-plan-md h1,
+.chat-steering-plan-md h2,
+.chat-steering-plan-md h3 {
+  font-size: 13px;
+  margin: 0.4em 0 0.2em;
+}
+
+.chat-steering-plan-md ul {
+  margin: 0.25em 0;
+  padding-left: 1.2em;
+}
+
+.chat-steering-plan-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.chat-steering-plan-empty code {
+  font-size: 11px;
+}
+
+.chat-history-guided-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-tertiary));
+  color: var(--accent);
+  vertical-align: middle;
+}
+
 /* Composer stack: single separator from messages; holds one or more ChatComposerCard */
 .chat-composer-stack {
   flex-shrink: 0;
@@ -4382,8 +4464,17 @@ body.file-tree-native-dragging {
 }
 
 .chat-history-item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 12px;
   color: var(--text-primary);
+}
+
+.chat-history-item-title > span:first-child {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8098,6 +8189,40 @@ body.file-tree-native-dragging {
 
 .new-chat-dialog-input:focus {
   border-color: var(--accent);
+}
+
+.new-chat-dialog-session-fieldset {
+  margin: 12px 0 0;
+  padding: 10px 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.new-chat-dialog-session-legend {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+
+.new-chat-dialog-radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.new-chat-dialog-radio-row input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.new-chat-dialog-radio-row strong {
+  display: block;
+  margin-bottom: 2px;
 }
 
 .new-chat-dialog-footer {

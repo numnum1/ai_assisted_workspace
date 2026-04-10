@@ -282,7 +282,7 @@ export function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,
   onContext: (info: { includedFiles: string[]; estimatedTokens: number; maxContextTokens?: number }) => void,
-  onDone: () => void,
+  onDone: (fullAssistantText: string) => void,
   onError: (err: Error) => void,
   onToolCall?: (description: string) => void,
   onContextUpdate?: (estimatedTokens: number) => void,
@@ -315,6 +315,7 @@ export function streamChat(
       let doneHandled = false;
       let errorHandled = false;
       let tokenCount = 0;
+      let fullAssistantText = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -349,7 +350,7 @@ export function streamChat(
                   );
                   onError(new Error('MODEL_EMPTY_RESPONSE'));
                 } else {
-                  onDone();
+                  onDone(fullAssistantText);
                 }
               }
               doneHandled = true;
@@ -375,6 +376,7 @@ export function streamChat(
             } else if (currentEvent === 'token') {
               tokenCount++;
               const unescaped = data.replace(/\\n/g, '\n');
+              fullAssistantText += unescaped;
               onToken(unescaped);
             }
             currentEvent = '';
@@ -386,7 +388,7 @@ export function streamChat(
           console.warn('[streamChat] SSE stream closed by server without a done event and 0 tokens received.');
           onError(new Error('MODEL_EMPTY_RESPONSE'));
         } else {
-          onDone();
+          onDone(fullAssistantText);
         }
       }
     })

@@ -119,7 +119,7 @@ export function useQuickChat() {
       () => {
         /* Quick Chat ignores context bar */
       },
-      () => {
+      (_fullAssistantText) => {
         setStreaming(false);
         setToolActivity(null);
       },
@@ -178,7 +178,7 @@ export function useQuickChat() {
         setToolActivity(null);
       },
       () => { /* Quick Chat ignores context bar */ },
-      () => {
+      (_fullAssistantText) => {
         setStreaming(false);
         setToolActivity(null);
       },

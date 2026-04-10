@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Conversation, ChatMessage } from '../types.ts';
+import type { ChatSessionKind, Conversation, ChatMessage } from '../types.ts';
 import { fetchProjectChatHistory, persistProjectChatHistory } from '../api.ts';
 
 /** Pre–per-project keys: one list for all folders (migrated once into first opened project) */
@@ -82,8 +82,8 @@ function generateTitle(messages: ChatMessage[]): string {
   return text.length > 50 ? text.slice(0, 50) + '…' : text;
 }
 
-function createEmptyConversation(mode: string): Conversation {
-  return {
+function createEmptyConversation(mode: string, sessionKind: ChatSessionKind = 'standard'): Conversation {
+  const base: Conversation = {
     id: crypto.randomUUID(),
     title: 'Neuer Chat',
     messages: [],
@@ -91,6 +91,10 @@ function createEmptyConversation(mode: string): Conversation {
     updatedAt: Date.now(),
     mode,
   };
+  if (sessionKind === 'guided') {
+    base.sessionKind = 'guided';
+  }
+  return base;
 }
 
 function hasVisibleMessages(c: Conversation): boolean {
@@ -282,8 +286,13 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   );
 
   const createConversation = useCallback(
-    (mode?: string, initialMessages?: ChatMessage[], title?: string) => {
-      const newConv = createEmptyConversation(mode ?? currentMode);
+    (
+      mode?: string,
+      initialMessages?: ChatMessage[],
+      title?: string,
+      sessionKind: ChatSessionKind = 'standard',
+    ) => {
+      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       if (initialMessages && initialMessages.length > 0) {
         newConv.messages = initialMessages;
         newConv.title = title ?? generateTitle(initialMessages);
@@ -309,10 +318,16 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     [activeId, currentMode],
   );
 
+  const patchConversation = useCallback((id: string, patch: Partial<Conversation>) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)),
+    );
+  }, []);
+
   /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
   const discardActiveAndCreateConversation = useCallback(
-    (mode?: string) => {
-      const newConv = createEmptyConversation(mode ?? currentMode);
+    (mode?: string, sessionKind: ChatSessionKind = 'standard') => {
+      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       setConversations((prev) => {
         const filtered = prev.filter((c) => c.id !== activeId);
         let updated = [newConv, ...filtered];
@@ -415,6 +430,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     hydrated,
     updateMessages,
     createConversation,
+    patchConversation,
     discardActiveAndCreateConversation,
     deleteConversation,
     switchConversation,
