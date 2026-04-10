@@ -3379,6 +3379,7 @@ body.file-tree-native-dragging {
 
 .plan-full-content {
   margin-top: 16px;
+  padding-left: 1cm;
   opacity: 0.85;
   font-size: 12px;
 }
