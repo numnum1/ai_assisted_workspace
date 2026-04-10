@@ -545,16 +545,6 @@ function App() {
     loadModes();
   }, [project, chapter, loadModes]);
 
-  const browseAndOpenProject = useCallback(async () => {
-    try {
-      const r = await projectApi.browse();
-      if (r.cancelled || !r.path) return;
-      await handleOpenProject(r.path);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [handleOpenProject]);
-
   const workspaceModeId = chapter.activeSubprojectType ?? 'default';
   const levelConfigByModeId = useWorkspaceLevelConfigMap(project.projectPath ?? null, workspaceModesRefreshNonce);
   const {
@@ -796,7 +786,7 @@ function App() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         actions={commandActions}
-        onOpenFolder={browseAndOpenProject}
+        onOpenFolder={handleOpenProject}
         onGitRefresh={fetchGitState}
         gitStatus={gitStatus ?? undefined}
         onAuthRequired={showCredentialsDialog}
