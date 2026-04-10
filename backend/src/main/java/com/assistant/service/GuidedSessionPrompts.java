@@ -50,7 +50,9 @@ public final class GuidedSessionPrompts {
                 If there is no plan yet, your first substantive assistant message should establish one using this format.
 
                 Outside the ```plan block you still write normally to the user (explanations, questions in prose). \
-                Do not duplicate the entire plan as unstructured prose unless a short summary helps.
+                Do not duplicate the entire plan as unstructured prose unless a short summary helps. \
+                The app shows the fenced plan in a dedicated panel, so the chat transcript should not repeat the plan \
+                outside that block.
 
                 """;
     }

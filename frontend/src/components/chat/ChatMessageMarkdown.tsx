@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Replace, Copy, Check, HelpCircle, PenLine, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../../types.ts';
+import { stripPlanFencesForDisplay } from './planFenceUtils.ts';
 
 interface ChatMessageMarkdownProps {
   content: string;
@@ -332,6 +333,10 @@ export function ChatMessageMarkdown({
     () => onApplyFieldUpdate ? fixFieldUpdateBlocks(content) : content,
     [content, onApplyFieldUpdate],
   );
+  const displayContent = useMemo(
+    () => stripPlanFencesForDisplay(processedContent, !!streamingCursor),
+    [processedContent, streamingCursor],
+  );
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = useCallback((text: string, key: string) => {
@@ -358,7 +363,17 @@ export function ChatMessageMarkdown({
       const isReplaceBlock = className === 'language-replace';
       const isClarificationBlock = className === 'language-clarification';
       const isFieldUpdateBlock = className === 'language-field-update';
-      const isCodeBlock = !isReplaceBlock && !isClarificationBlock && !isFieldUpdateBlock && /language-/.test(className ?? '');
+      const isPlanBlock = className === 'language-plan';
+      const isCodeBlock =
+        !isReplaceBlock &&
+        !isClarificationBlock &&
+        !isFieldUpdateBlock &&
+        !isPlanBlock &&
+        /language-/.test(className ?? '');
+
+      if (isPlanBlock) {
+        return null;
+      }
 
       if (isReplaceBlock) {
         const replaceText = String(children ?? '').replace(/\n$/, '');
@@ -482,7 +497,7 @@ export function ChatMessageMarkdown({
     },
   }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, suppressClarificationWidget, isAnswered, onSelectOption]);
 
-  const thinkSplit = useMemo(() => splitThinkContent(processedContent), [processedContent]);
+  const thinkSplit = useMemo(() => splitThinkContent(displayContent), [displayContent]);
   /**
    * Before </think> arrives: stream the full content as normal markdown so the user
    * sees the text appearing in real time.
@@ -492,7 +507,7 @@ export function ChatMessageMarkdown({
   const markdownSource =
     thinkSplit.thinkingText !== null
       ? thinkSplit.responseContent
-      : processedContent;
+      : displayContent;
 
   return (
     <div className="chat-md">
