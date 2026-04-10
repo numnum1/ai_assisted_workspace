@@ -44,3 +44,112 @@ export function isPlanCompleted(content: string): boolean {
          normalized.includes('der plan ist fertig') ||
          /##\s*status:?\s*abgeschlossen/i.test(content);
 }
+
+export interface ParsedSteeringPlan {
+  rawMarkdown: string;
+  isComplete: boolean;
+  title?: string;
+  status?: string;
+  currentStep?: number;
+  totalSteps?: number;
+  progress: number; // 0-100
+  steps: Array<{ text: string; isCurrent: boolean; isDone?: boolean }>;
+}
+
+/**
+ * Parses the steering plan markdown into structured data for the visual viewer.
+ * Extracts completion status, current step, and progress.
+ */
+export function parseSteeringPlan(planMarkdown: string | null): ParsedSteeringPlan {
+  if (!planMarkdown) {
+    return {
+      rawMarkdown: '',
+      isComplete: false,
+      progress: 0,
+      steps: []
+    };
+  }
+
+  const isComplete = isPlanCompleted(planMarkdown);
+  const lines = planMarkdown.split('\n');
+  let title = '';
+  let status = '';
+  let currentStep = 0;
+  let totalSteps = 0;
+  const steps: Array<{ text: string; isCurrent: boolean; isDone?: boolean }> = [];
+  let inVorgehenSection = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Extract title from ## Ziel
+    if (line.startsWith('## Ziel')) {
+      title = lines[i + 1]?.trim() || 'Plan';
+      i++;
+      continue;
+    }
+
+    // Extract status
+    if (line.startsWith('## Status') || line.includes('Status:')) {
+      status = line.includes('Abgeschlossen') || line.includes('abgeschlossen') ? 'Abgeschlossen' : 'In Bearbeitung';
+      continue;
+    }
+
+    // Parse Vorgehen steps
+    if (line.startsWith('## Vorgehen') || line.startsWith('## Vorgehen:')) {
+      inVorgehenSection = true;
+      continue;
+    }
+
+    if (inVorgehenSection) {
+      // Match numbered steps like "1. Do something → **Aktuell: 1**"
+      const stepMatch = line.match(/^(\d+)\.\s*(.+?)(?:\s*→\s*\*\*Aktuell:\s*(\d+)\*\*)?$/i);
+      if (stepMatch) {
+        const stepNum = parseInt(stepMatch[1], 10);
+        const stepText = stepMatch[2].trim();
+        const isCurrent = stepMatch[3] !== undefined || line.includes('**Aktuell:');
+
+        totalSteps = Math.max(totalSteps, stepNum);
+        if (isCurrent) currentStep = stepNum;
+
+        steps.push({
+          text: stepText,
+          isCurrent,
+          isDone: stepNum < currentStep || (isComplete && stepNum <= totalSteps)
+        });
+      } else if (line.match(/^\d+\./)) {
+        // Simple numbered line
+        const simpleMatch = line.match(/^(\d+)\.\s*(.+)$/);
+        if (simpleMatch) {
+          const stepNum = parseInt(simpleMatch[1], 10);
+          steps.push({
+            text: simpleMatch[2].trim(),
+            isCurrent: false,
+            isDone: isComplete
+          });
+          totalSteps = Math.max(totalSteps, stepNum);
+        }
+      } else if (line.startsWith('##') || line === '') {
+        // End of section
+        inVorgehenSection = false;
+      }
+    }
+  }
+
+  const progress = totalSteps > 0 
+    ? Math.round(((currentStep || (isComplete ? totalSteps : Math.max(1, steps.length))) / totalSteps) * 100)
+    : isComplete ? 100 : steps.length > 0 ? 40 : 25; // graceful default
+
+  return {
+    rawMarkdown: planMarkdown,
+    isComplete,
+    title: title || 'Arbeitsplan',
+    status: status || (isComplete ? 'Abgeschlossen' : 'In Bearbeitung'),
+    currentStep: currentStep || Math.max(1, steps.length),
+    totalSteps: totalSteps || Math.max(steps.length, 3),
+    progress: Math.min(Math.max(progress, 0), 100),
+    steps: steps.length > 0 ? steps : [
+      { text: 'Plan wird initialisiert – die KI erstellt den ersten Arbeitsplan...', isCurrent: true }
+    ]
+  };
+}

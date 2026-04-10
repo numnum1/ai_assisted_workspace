@@ -3261,6 +3261,136 @@ body.file-tree-native-dragging {
   font-size: 11px;
 }
 
+/* Visual steering plan viewer */
+.steering-plan-viewer {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.completion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #22c55e;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.plan-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.status-pill {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.status-pill.complete {
+  background: #22c55e;
+  color: white;
+}
+
+.status-pill.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+
+.step-counter {
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.plan-progress-container {
+  margin: 12px 0;
+}
+
+.plan-progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.plan-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #22c55e);
+  transition: width 0.4s ease;
+}
+
+.plan-progress-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.current-step-section {
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  margin: 12px 0;
+}
+
+.current-step-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.current-step-content {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.plan-full-content {
+  margin-top: 16px;
+  opacity: 0.85;
+  font-size: 12px;
+}
+
+.plan-full-content h1,
+.plan-full-content h2,
+.plan-full-content h3 {
+  font-size: 13px;
+  margin: 12px 0 6px;
+  color: var(--text-primary);
+}
+
 .chat-history-guided-badge {
   display: inline-block;
   margin-left: 6px;

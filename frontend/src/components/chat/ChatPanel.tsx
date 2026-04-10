@@ -21,6 +21,8 @@ import {
   getTrailingWriteFileBatch,
   isSameWriteFileBatch,
 } from './writeFileBatchUtils.ts';
+import { parseSteeringPlan, type ParsedSteeringPlan } from './planFenceUtils.ts';
+import { SteeringPlanViewer } from './SteeringPlanViewer.tsx';
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
@@ -209,6 +211,10 @@ export function ChatPanel({
   const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string } | null>(null);
   const [glossarySaving, setGlosarySaving] = useState(false);
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
+
+  const parsedSteeringPlan = useMemo((): ParsedSteeringPlan => {
+    return parseSteeringPlan(steeringPlan ?? null);
+  }, [steeringPlan]);
 
   const visibleEntries = useMemo(
     () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
@@ -797,9 +803,7 @@ export function ChatPanel({
           {steeringPlanOpen && (
             <div className="chat-steering-plan-body">
               {steeringPlan?.trim() ? (
-                <div className="chat-steering-plan-md">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{steeringPlan}</ReactMarkdown>
-                </div>
+                <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
               ) : (
                 <p className="chat-steering-plan-empty">
                   Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als Markdown-Block mit
