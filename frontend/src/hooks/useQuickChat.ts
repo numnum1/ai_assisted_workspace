@@ -137,7 +137,7 @@ export function useQuickChat() {
       (toolMessages) => {
         currentBaseRef.current = [
           ...currentBaseRef.current,
-          ...toolMessages.map((m) => ({ ...m, hidden: true })),
+          ...toolMessages.map((m) => ({ ...m, hidden: false })), // show tool messages for ToolCallDisplay in Quick Chat too
         ];
         setMessages(currentBaseRef.current);
       },
@@ -194,7 +194,7 @@ export function useQuickChat() {
       (toolMessages) => {
         currentBaseRef.current = [
           ...currentBaseRef.current,
-          ...toolMessages.map((m) => ({ ...m, hidden: true })),
+          ...toolMessages.map((m) => ({ ...m, hidden: false })), // show tool messages for ToolCallDisplay in Quick Chat too
         ];
         setMessages(currentBaseRef.current);
       },

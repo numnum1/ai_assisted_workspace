@@ -224,6 +224,7 @@ public class ChatController {
             // Send tool call events for the frontend
             for (ToolCall tc : result.toolCalls()) {
                 String description = toolExecutor.describeToolCall(tc);
+                log.trace("Emitting tool_call SSE event for round {}: {}", round + 1, description);
                 log.info("Tool call round {}: {}", round + 1, description);
                 log.debug(
                         "Tool call raw: name={}, id={}, arguments preview: {}",
@@ -239,7 +240,9 @@ public class ChatController {
 
             // Execute each tool and add results
             for (ToolCall tc : result.toolCalls()) {
+                log.trace("Starting execution of tool result for round {}: name={}", round + 1, tc.getFunction().getName());
                 String toolResult = toolExecutor.execute(tc);
+                log.trace("Finished tool execution for round {}: name={}, result length={}", round + 1, tc.getFunction().getName(), toolResult != null ? toolResult.length() : 0);
                 log.info(
                         "Tool result: name={}, id={}, {} chars, preview: {}",
                         tc.getFunction().getName(),

@@ -11,6 +11,7 @@ import { NewChatDialog, type NewChatConfirmPayload } from './NewChatDialog.tsx';
 import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
 import { ChatComposerCard } from './ChatComposerCard.tsx';
 import { SuggestedActionsCard } from './SuggestedActionsCard.tsx';
+import { ToolCallDisplay } from './ToolCallDisplay.tsx';
 import { parseClarificationQuestions, hasClarificationFence } from './clarificationUtils.ts';
 import type { CardState } from './ChangeCard.tsx';
 import { ChangeCardGroup } from './ChangeCardGroup.tsx';
@@ -609,6 +610,20 @@ export function ChatPanel({
               />
             );
           }
+
+          if (unit.type === 'toolCall') {
+            const isStreamingTool = streaming && unit.resultMsg === undefined;
+            return (
+              <ToolCallDisplay
+                key={`tool-${unit.assistantIdx}-${unit.toolCallIdx}`}
+                toolCall={unit.toolCall}
+                result={unit.resultMsg?.content}
+                isStreaming={isStreamingTool}
+                isLast={unit.toolCallIdx === (unit.toolCall as any).length - 1 || false}
+              />
+            );
+          }
+
           const { visIdx, msg, originalIdx } = unit;
           const visArr = visibleEntries;
           const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
@@ -629,6 +644,17 @@ export function ChatPanel({
                 <span className="glossary-indicator-text">Glossar-Eintrag angelegt: <strong>{term}</strong></span>
               </div>
             );
+          }
+
+          // Skip rendering tool result messages that are attached to a ToolCallDisplay
+          if (msg.role === 'tool' && msg.toolCallId) {
+            // Check if this tool result is already rendered by a preceding toolCall unit
+            const isAttachedToToolCall = renderUnits.some(u => 
+              u.type === 'toolCall' && (u as any).resultMsg?.toolCallId === msg.toolCallId
+            );
+            if (isAttachedToToolCall) {
+              return null;
+            }
           }
 
           return (

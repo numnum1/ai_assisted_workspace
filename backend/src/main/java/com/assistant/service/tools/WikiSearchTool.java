@@ -83,6 +83,7 @@ public class WikiSearchTool extends AbstractTool {
         }
 
         if (hits.isEmpty()) {
+            log.trace("Finished wiki_search: no results for query {}", query);
             return "No wiki entries found matching '" + query + "'.";
         }
 
@@ -100,7 +101,7 @@ public class WikiSearchTool extends AbstractTool {
         }
         sb.append("\nUse wiki_read with the path to get the full entry.");
 
-        log.trace("Finished wiki_search for '{}': {} hits", query, hits.size());
+        log.trace("Finished successfully wiki_search for '{}': {} hits", query, hits.size());
         return sb.toString();
     }
 

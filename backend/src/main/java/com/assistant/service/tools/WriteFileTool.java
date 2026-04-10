@@ -90,7 +90,7 @@ public class WriteFileTool extends AbstractTool {
             description = "File updated";
         }
 
-        log.trace("Received request to write_file: {}", path);
+        log.trace("Received request to write_file: path={}, description={}", path, description);
 
         boolean wasNew = !fileService.fileExists(path);
         String oldContent = null;
@@ -112,7 +112,7 @@ public class WriteFileTool extends AbstractTool {
 
         String snapshotId = snapshotService.save(path, oldContent != null ? oldContent : "", wasNew);
 
-        log.trace("Finished write_file: {} (snapshotId={})", path, snapshotId);
+        log.trace("Finished successfully write_file: path={}, snapshotId={}", path, snapshotId);
         return "write_file:success:" + snapshotId + ":" + (wasNew ? "new" : "modified") + ":" + path + ":" + description;
     }
 

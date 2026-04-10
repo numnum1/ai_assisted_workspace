@@ -11,7 +11,9 @@ import { streamChat } from '../api.ts';
 
 function isVisibleToolMessage(content: string | undefined): boolean {
   if (!content) return false;
-  return content.startsWith('glossary_add:success:') || content.startsWith('write_file:success:');
+  // Show all tool results by default so the new ToolCallDisplay can render them.
+  // Specific prefixes still get special card treatment in chatRenderUnits.
+  return true;
 }
 
 /**

@@ -72,9 +72,10 @@ public class WikiReadTool extends AbstractTool {
         try {
             String content = wikiService.readWikiFile(path);
             String result = wikiService.formatForAi(path, content);
-            log.trace("Finished wiki_read for path: {}", path);
+            log.trace("Finished successfully wiki_read for path: {}", path);
             return result;
         } catch (NoSuchElementException e) {
+            log.trace("Finished wiki_read: file not found for path {}", path);
             return "Wiki file not found: '" + path + "'. Use wiki_search to find available entries.";
         } catch (IOException e) {
             log.error("Error reading wiki file: {}", path, e);

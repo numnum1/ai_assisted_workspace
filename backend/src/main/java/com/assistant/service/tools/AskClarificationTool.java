@@ -82,6 +82,7 @@ public class AskClarificationTool extends AbstractTool {
 
     @Override
     public String describe(String argsJson) {
-        return "Rückfrage stellen";
+        log.trace("Generating description for ask_clarification with args: {}", argsJson);
+        return "Rückfrage an den Nutzer stellen";
     }
 }

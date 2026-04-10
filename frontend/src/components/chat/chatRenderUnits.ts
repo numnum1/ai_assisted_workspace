@@ -4,10 +4,14 @@ import { parseWriteFileToolMessage } from './writeFileToolParse.ts';
 
 export type ChatRenderUnit =
   | { type: 'writeFileGroup'; items: { originalIdx: number; data: ChangeCardData }[] }
+  | { type: 'toolCall'; assistantIdx: number; toolCallIdx: number; toolCall: any; resultMsg?: ChatMessage }
   | { type: 'message'; visIdx: number; msg: ChatMessage; originalIdx: number };
 
 /**
- * Merges consecutive {@code write_file:success} tool rows into one unit so the UI can show batch actions.
+ * Builds render units for the chat. Special handling for:
+ * - write_file success batches (ChangeCardGroup)
+ * - assistant messages with toolCalls (ToolCallDisplay units)
+ * - normal messages
  */
 export function buildChatRenderUnits(
   visible: { msg: ChatMessage; originalIdx: number }[],
@@ -16,6 +20,8 @@ export function buildChatRenderUnits(
   let i = 0;
   while (i < visible.length) {
     const { msg, originalIdx } = visible[i]!;
+
+    // Special case: write_file success messages → grouped cards
     const data = msg.role === 'tool' ? parseWriteFileToolMessage(msg.content) : null;
     if (data) {
       const items: { originalIdx: number; data: ChangeCardData }[] = [];
@@ -31,6 +37,28 @@ export function buildChatRenderUnits(
       i = j;
       continue;
     }
+
+    // New: assistant message with toolCalls → create ToolCallDisplay units
+    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+      msg.toolCalls.forEach((tc, toolCallIdx) => {
+        // Look for matching tool result message immediately after this assistant message
+        let resultMsg: ChatMessage | undefined = undefined;
+        const next = visible[i + 1];
+        if (next && next.msg.role === 'tool' && next.msg.toolCallId === tc.id) {
+          resultMsg = next.msg;
+        }
+        out.push({
+          type: 'toolCall',
+          assistantIdx: originalIdx,
+          toolCallIdx,
+          toolCall: tc,
+          resultMsg,
+        });
+      });
+      i += 1;
+      continue;
+    }
+
     out.push({ type: 'message', visIdx: i, msg, originalIdx });
     i += 1;
   }

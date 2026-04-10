@@ -58,11 +58,15 @@ public class ReadFileTool extends AbstractTool {
         if (path == null || path.isBlank()) {
             return "Error: missing 'path' parameter";
         }
+        log.trace("Received request to read_file: path={}", path);
         if (!fileService.fileExists(path)) {
+            log.trace("Finished read_file: file not found {}", path);
             return "File not found: " + path;
         }
         try {
-            return fileService.readFile(path);
+            String content = fileService.readFile(path);
+            log.trace("Finished successfully read_file: path={}, contentLength={}", path, content.length());
+            return content;
         } catch (IOException e) {
             log.error("Error reading file: {}", path, e);
             return "Error reading file: " + e.getMessage();

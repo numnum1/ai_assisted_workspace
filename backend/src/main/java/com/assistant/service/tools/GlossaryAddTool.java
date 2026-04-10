@@ -74,7 +74,7 @@ public class GlossaryAddTool extends AbstractTool {
         log.trace("Received request to execute glossary_add for term: {}", term);
         try {
             glossaryService.addEntry(term, definition);
-            log.trace("Finished glossary_add for term: {}", term);
+            log.trace("Finished successfully glossary_add for term: {}", term);
             return "glossary_add:success:" + term.trim();
         } catch (IOException e) {
             log.error("Error adding glossary entry: {}", term, e);

@@ -96,6 +96,7 @@ public class WebSearchTool extends AbstractTool {
         String depth = normalizeDepth(appConfig.getWebSearch().getSearchDepth());
         String key = appConfig.getWebSearch().getApiKey();
 
+        log.trace("Received request to web_search: query={}, maxResults={}", query, maxResults);
         log.info(
                 "Received web search request: queryLen={}, maxResults={}, depth={}, query preview: {}",
                 query.length(),
