@@ -31,3 +31,16 @@ export function parseSteeringPlanFromAssistant(content: string): string | null {
   const inner = m[1]?.trim();
   return inner && inner.length > 0 ? inner : null;
 }
+
+/**
+ * Detects if the assistant has declared the plan complete.
+ * Looks for phrases like "Der Plan ist abgeschlossen" or "## Status: Abgeschlossen".
+ */
+export function isPlanCompleted(content: string): boolean {
+  if (!content) return false;
+  const normalized = content.toLowerCase();
+  return normalized.includes('plan ist abgeschlossen') ||
+         normalized.includes('status: abgeschlossen') ||
+         normalized.includes('der plan ist fertig') ||
+         /##\s*status:?\s*abgeschlossen/i.test(content);
+}

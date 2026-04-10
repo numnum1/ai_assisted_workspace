@@ -34,11 +34,12 @@ public class AskClarificationTool extends AbstractTool {
                 "name", TOOL_NAME,
                 "description",
                     "Ask the user one or more clarification questions before proceeding with a task. " +
-                    "Use this tool when the user's request is genuinely ambiguous and a wrong assumption " +
-                    "would lead to a significantly wrong or wasted answer. " +
-                    "Do NOT use it for simple tasks where a reasonable assumption can be made. " +
+                    "In a guided session use this ONLY when a specific step in the steering plan is truly blocked and " +
+                    "cannot reasonably be advanced with a concrete proposal or assumption. " +
+                    "Do NOT use it as the default behavior or to ask what the user wants to discuss next. " +
                     "Call this tool INSTEAD of writing any response text — the questions will be " +
-                    "shown as a form and the user's answers will be sent back to you.",
+                    "shown as a form and the user's answers will be sent back to you. " +
+                    "Always follow up with an updated ```plan block after receiving answers.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(

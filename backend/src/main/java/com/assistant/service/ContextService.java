@@ -299,8 +299,9 @@ public class ContextService {
             systemPrompt.append("  - Call `ask_clarification` as your ONLY action — write NO other text before or after the tool call.\n");
             systemPrompt.append("  - You may group several related questions into one call (1–3 questions max).\n");
             if (GuidedSessionPrompts.isGuidedSession(request)) {
-                systemPrompt.append("  - **Guided session:** Use `ask_clarification` proactively to sharpen the goal, choose between directions, "
-                        + "and pace the conversation — not only when blocked. Offer an \"Egal / du entscheidest\" or similar escape option when helpful.\n");
+                systemPrompt.append("  - **Guided session:** Use `ask_clarification` ONLY when a specific step in the steering plan is truly blocked "
+                        + "and cannot be advanced with a concrete proposal or reasonable assumption. Do not use it to ask \"what next\" or what the user wants to discuss. "
+                        + "The primary behavior is to drive the plan forward. Offer an \"Egal / du entscheidest\" option when helpful.\n");
             } else {
                 systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
                 systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
