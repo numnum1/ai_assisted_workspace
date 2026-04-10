@@ -5763,9 +5763,117 @@ body.file-tree-native-dragging {
   font-style: italic;
 }
 
+.context-inspector-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.context-inspector-scroll {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.context-inspector-section-title {
+  padding: 6px 12px 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #888);
+  border-top: 1px solid var(--border, #45475a);
+  background: var(--surface1, #1e1e2e);
+}
+
 .context-inspector-blocks {
   overflow-y: auto;
   flex: 1;
+}
+
+.context-block-content--glossary {
+  max-height: 240px;
+}
+
+.context-inspector-blocks-inner .context-block:last-child {
+  border-bottom: none;
+}
+
+/* Glossar (Kontext-Inspector) */
+.glossar-context-view {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.glossar-context-view-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.glossar-context-view-refresh {
+  background: none;
+  border: none;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.glossar-context-view-refresh:not(:disabled):hover {
+  color: var(--text-primary, #cdd6f4);
+}
+
+.glossar-context-view-refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.glossar-context-view-loading {
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  font-style: italic;
+}
+
+.glossar-context-view-error {
+  font-size: 0.75rem;
+  color: var(--red, #f38ba8);
+}
+
+.glossar-context-view-empty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  font-style: italic;
+}
+
+.glossar-context-view-body {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #bac2de);
+}
+
+.glossar-context-view-body p {
+  margin: 0 0 0.5em;
+}
+
+.glossar-context-view-body p:last-child {
+  margin-bottom: 0;
+}
+
+.glossar-context-view-body ul,
+.glossar-context-view-body ol {
+  margin: 0 0 0.5em;
+  padding-left: 1.25em;
+}
+
+.glossar-context-view-body code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.9em;
+  background: var(--surface2, #313244);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
 }
 
 .context-block {

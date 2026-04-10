@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { FileText, ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import type { ContextInfo } from '../../types.ts';
+import { GlossarContextView } from './GlossarContextView.tsx';
 
 interface ContextBlock {
   type: string;
@@ -46,6 +47,7 @@ export function ContextBar({ contextInfo, activeFile, isDirty, onFetchContextBlo
   const [blocks, setBlocks] = useState<ContextBlock[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
+  const [glossaryExpanded, setGlossaryExpanded] = useState(false);
 
   const handleToggleInspector = useCallback(async () => {
     if (!inspectorOpen && !blocks && onFetchContextBlocks) {
@@ -132,37 +134,60 @@ export function ContextBar({ contextInfo, activeFile, isDirty, onFetchContextBlo
               {loading ? '…' : '↻'}
             </button>
           </div>
-          {loading && !blocks && (
-            <div className="context-inspector-loading">Lade Kontext…</div>
-          )}
-          {blocks && (
-            <div className="context-inspector-blocks">
-              {blocks.map((block, idx) => {
-                const key = `${block.type}-${idx}`;
-                const isExpanded = expandedBlock === key;
-                return (
-                  <div key={key} className="context-block">
-                    <div
-                      className="context-block-header"
-                      onClick={() => setExpandedBlock(isExpanded ? null : key)}
-                    >
-                      <span className="context-block-expand">
-                        {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                      </span>
-                      <span className="context-block-icon">{typeIcon(block.type)}</span>
-                      <span className="context-block-label">{block.label}</span>
-                      <span className="context-block-tokens">~{block.estimatedTokens.toLocaleString()} tok</span>
-                    </div>
-                    {isExpanded && (
-                      <div className="context-block-content">
-                        <pre>{block.content}</pre>
-                      </div>
-                    )}
+          <div className="context-inspector-body">
+            <div className="context-inspector-scroll">
+              <div className="context-block">
+                <div
+                  className="context-block-header"
+                  onClick={() => setGlossaryExpanded((v) => !v)}
+                >
+                  <span className="context-block-expand">
+                    {glossaryExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                  </span>
+                  <span className="context-block-icon">{typeIcon('glossary')}</span>
+                  <span className="context-block-label">Glossar</span>
+                </div>
+                {glossaryExpanded && (
+                  <div className="context-block-content context-block-content--glossary">
+                    <GlossarContextView expanded={glossaryExpanded} />
                   </div>
-                );
-              })}
+                )}
+              </div>
+
+              <div className="context-inspector-section-title">Kontext-Blöcke</div>
+              {loading && !blocks && (
+                <div className="context-inspector-loading">Lade Kontext…</div>
+              )}
+              {blocks && (
+                <div className="context-inspector-blocks-inner">
+                  {blocks.map((block, idx) => {
+                    const key = `${block.type}-${idx}`;
+                    const isExpanded = expandedBlock === key;
+                    return (
+                      <div key={key} className="context-block">
+                        <div
+                          className="context-block-header"
+                          onClick={() => setExpandedBlock(isExpanded ? null : key)}
+                        >
+                          <span className="context-block-expand">
+                            {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                          </span>
+                          <span className="context-block-icon">{typeIcon(block.type)}</span>
+                          <span className="context-block-label">{block.label}</span>
+                          <span className="context-block-tokens">~{block.estimatedTokens.toLocaleString()} tok</span>
+                        </div>
+                        {isExpanded && (
+                          <div className="context-block-content">
+                            <pre>{block.content}</pre>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>
