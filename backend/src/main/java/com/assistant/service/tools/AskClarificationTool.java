@@ -33,13 +33,13 @@ public class AskClarificationTool extends AbstractTool {
             "function", Map.of(
                 "name", TOOL_NAME,
                 "description",
-                    "Ask the user one or more clarification questions before proceeding with a task. " +
-                    "In a guided session use this ONLY when a specific step in the steering plan is truly blocked and " +
-                    "cannot reasonably be advanced with a concrete proposal or assumption. " +
-                    "Do NOT use it as the default behavior or to ask what the user wants to discuss next. " +
-                    "Call this tool INSTEAD of writing any response text — the questions will be " +
-                    "shown as a form and the user's answers will be sent back to you. " +
-                    "Always follow up with an updated ```plan block after receiving answers.",
+                    "Ask the user one or more clarification questions before proceeding. " +
+                    "In non-guided chat, use sparingly — when ambiguity would cause a materially wrong answer and a reasonable assumption is not enough. " +
+                    "In guided sessions, also use when the task involves design, modeling, class/API structure, or domain boundaries and the user left " +
+                    "important representation choices open: ask before finalizing a concrete schema or code; include an \"Egal / du entscheidest\" (or similar) option when helpful. " +
+                    "In guided mode, do not use this for generic \"what should we do next\" — drive the plan except where clarification is needed as above. " +
+                    "Call this tool as your ONLY action (no other assistant message text); the user answers in the next turn. " +
+                    "In guided sessions, after answers, follow up with an updated fenced `plan` block.",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(
