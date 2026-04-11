@@ -223,6 +223,49 @@ public class FileService {
         return newRelativePath;
     }
 
+    /**
+     * Moves a file or directory into an existing target folder (project-relative paths).
+     *
+     * @param sourceRelativePath    path of the file or folder to move
+     * @param targetParentRelativePath destination directory; {@code null}, blank, or "." means project root
+     * @return the new relative path of the moved entry
+     */
+    public String move(String sourceRelativePath, String targetParentRelativePath) throws IOException {
+        if (sourceRelativePath == null || sourceRelativePath.isBlank() || ".".equals(sourceRelativePath.trim())) {
+            throw new IOException("Cannot move project root");
+        }
+        Path root = getProjectRoot();
+        Path source = resolveAndValidate(sourceRelativePath);
+        String parentArg = targetParentRelativePath == null || targetParentRelativePath.isBlank()
+                ? "."
+                : targetParentRelativePath.trim();
+        Path targetDir = resolveRelativeDirectory(parentArg);
+        Path target = targetDir.resolve(source.getFileName()).normalize();
+        if (!target.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (source.equals(target)) {
+            return toProjectRelativePosix(root, source);
+        }
+        if (Files.isDirectory(source)) {
+            String srcRel = toProjectRelativePosix(root, source);
+            String tgtParentRel = toProjectRelativePosix(root, targetDir);
+            if (tgtParentRel.equals(srcRel) || tgtParentRel.startsWith(srcRel + "/")) {
+                throw new IOException("Cannot move a folder into itself or a subfolder");
+            }
+        }
+        if (Files.exists(target)) {
+            throw new IOException("Target already exists: " + toProjectRelativePosix(root, target));
+        }
+        Files.move(source, target);
+        return toProjectRelativePosix(root, target);
+    }
+
+    private static String toProjectRelativePosix(Path root, Path absolute) {
+        String s = root.relativize(absolute.normalize()).toString().replace('\\', '/');
+        return s.isEmpty() ? "." : s;
+    }
+
     private String joinPath(String parent, String name) {
         if (parent == null || parent.isEmpty() || ".".equals(parent)) {
             return name;

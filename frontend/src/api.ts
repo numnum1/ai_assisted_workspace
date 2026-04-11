@@ -82,6 +82,8 @@ export const filesApi = {
     post<{ status: string; path: string }>('/files/create-folder', { parentPath, name }),
   rename: (path: string, newName: string) =>
     post<{ status: string; path: string }>('/files/rename', { path, newName }),
+  move: (path: string, targetParentPath: string) =>
+    post<{ status: string; path: string }>('/files/move', { path, targetParentPath }),
 };
 
 /** Persisted chat subset for Git sync (see useChatHistory) */
