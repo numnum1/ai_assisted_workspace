@@ -51,7 +51,8 @@ public class WikiSearchTool extends AbstractTool {
                     "properties", Map.of(
                         "query", Map.of(
                             "type", "string",
-                            "description", "Search term matched against filenames and content (case-insensitive)"
+                            "description", "Search term matched against filenames and content (case-insensitive). " +
+                                    "In filenames, spaces match hyphens, underscores, and path slashes (e.g. \"Ember Kin\" matches ember-kin.md)."
                         ),
                         "limit", Map.of(
                             "type", "string",

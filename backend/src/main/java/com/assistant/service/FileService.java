@@ -1,6 +1,7 @@
 package com.assistant.service;
 
 import com.assistant.config.AppConfig;
+import com.assistant.util.FlexibleSearch;
 import com.assistant.model.FileNode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -364,12 +365,11 @@ public class FileService {
      */
     public List<String> searchFiles(String query) throws IOException {
         List<String> results = new ArrayList<>();
-        String lowerQuery = query.toLowerCase();
-        collectSearchResults(getProjectRoot(), getProjectRoot(), lowerQuery, results);
+        collectSearchResults(getProjectRoot(), getProjectRoot(), query, results);
         return results;
     }
 
-    private void collectSearchResults(Path current, Path root, String lowerQuery, List<String> results) throws IOException {
+    private void collectSearchResults(Path current, Path root, String query, List<String> results) throws IOException {
         try (Stream<Path> entries = Files.list(current)) {
             entries
                 .filter(p -> !isHidden(p))
@@ -378,12 +378,12 @@ public class FileService {
                     .thenComparing(p -> p.getFileName().toString().toLowerCase()))
                 .forEach(p -> {
                     String relative = root.relativize(p).toString().replace('\\', '/');
-                    if (relative.toLowerCase().contains(lowerQuery)) {
+                    if (FlexibleSearch.matchesFlexible(relative, query)) {
                         results.add(relative + (Files.isDirectory(p) ? "/" : ""));
                     }
                     if (Files.isDirectory(p)) {
                         try {
-                            collectSearchResults(p, root, lowerQuery, results);
+                            collectSearchResults(p, root, query, results);
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }

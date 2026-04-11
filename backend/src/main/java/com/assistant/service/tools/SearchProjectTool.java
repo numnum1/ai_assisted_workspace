@@ -45,7 +45,8 @@ public class SearchProjectTool extends AbstractTool {
                     "properties", Map.of(
                         "query", Map.of(
                             "type", "string",
-                            "description", "The search term to look for in file and folder names/paths (case-insensitive)"
+                            "description", "Search term for file and folder paths (case-insensitive). " +
+                                    "Spaces match hyphens, underscores, and slashes (e.g. \"my component\" matches my-component/)."
                         )
                     ),
                     "required", List.of("query")

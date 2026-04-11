@@ -1,5 +1,6 @@
 package com.assistant.service;
 
+import com.assistant.util.FlexibleSearch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -8,7 +9,6 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Wiki service that reads and searches Markdown files in the /wiki/ directory
@@ -103,7 +103,7 @@ public class WikiService {
 
             String filename = Paths.get(relPath).getFileName().toString();
             String filenameBase = filename.endsWith(".md") ? filename.substring(0, filename.length() - 3) : filename;
-            boolean nameMatch = filenameBase.toLowerCase().contains(lower);
+            boolean nameMatch = FlexibleSearch.matchesFlexible(filenameBase, query);
             boolean contentMatch = content.toLowerCase().contains(lower);
 
             if (nameMatch || contentMatch) {
