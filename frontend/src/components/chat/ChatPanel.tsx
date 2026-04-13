@@ -450,43 +450,34 @@ export function ChatPanel({
   }, [streaming]);
 
   useEffect(() => {
-    const panel = panelRef.current;
-    const syncFullscreen = () => {
-      const fs =
-        document.fullscreenElement ??
-        (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
-        null;
-      setIsFullscreen(!!panel && fs === panel);
-    };
-    document.addEventListener('fullscreenchange', syncFullscreen);
-    document.addEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+    if (!isFullscreen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.removeEventListener('fullscreenchange', syncFullscreen);
-      document.removeEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+      document.body.style.overflow = prevOverflow;
     };
-  }, []);
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('.chat-expand-overlay')) return;
+      if (document.querySelector('.new-chat-dialog-overlay')) return;
+      if (document.querySelector('.glossary-save-overlay')) return;
+      setIsFullscreen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isFullscreen]);
 
   const toggleChatFullscreen = useCallback(() => {
-    const el = panelRef.current;
-    if (!el) return;
-    const fs =
-      document.fullscreenElement ??
-      (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
-      null;
-    if (fs === el) {
-      const exit = document.exitFullscreen?.bind(document) ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen?.bind(document);
-      if (exit) void exit().catch(() => { /* user gesture / policy */ });
-      return;
-    }
-    const req =
-      el.requestFullscreen?.bind(el) ??
-      (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen?.bind(el);
-    if (req) void req().catch(() => { /* unsupported or denied */ });
+    setIsFullscreen((v) => !v);
   }, []);
 
 
   return (
-    <div ref={panelRef} className="chat-panel">
+    <div ref={panelRef} className={`chat-panel${isFullscreen ? ' chat-panel--expanded' : ''}`}>
       <div className="chat-header">
         <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
         <div className="chat-header-actions">
@@ -519,7 +510,7 @@ export function ChatPanel({
             type="button"
             className={`chat-history-btn ${isFullscreen ? 'active' : ''}`}
             onClick={() => toggleChatFullscreen()}
-            title={isFullscreen ? 'Vollbild verlassen (Esc)' : 'Chat im Vollbild'}
+            title={isFullscreen ? 'Vergrößerte Ansicht schließen (Esc)' : 'Chat vergrößern'}
             aria-pressed={isFullscreen}
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
