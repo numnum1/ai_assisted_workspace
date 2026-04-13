@@ -1,5 +1,20 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, memo } from 'react';
-import { Search, Scissors, GitFork, History, Copy, Check, Wand2, Pencil, Maximize2, Minimize2, X, Trash2, RotateCcw } from 'lucide-react';
+import {
+  Search,
+  Scissors,
+  GitFork,
+  History,
+  Copy,
+  Check,
+  Wand2,
+  Pencil,
+  Maximize2,
+  Minimize2,
+  X,
+  Trash2,
+  RotateCcw,
+  MessageSquare,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage, Mode, Conversation, SelectionContext, LlmPublic, ChatSessionKind } from '../../types.ts';
@@ -52,6 +67,8 @@ interface ChatPanelProps {
   onRemoveFile: (path: string) => void;
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
+  /** Start a new chat with system intro + parent transcript through this message index (inclusive). */
+  onStartThreadFromMessage: (messageIndex: number) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessage: (index: number) => void;
   onNewChat: (sessionKind?: ChatSessionKind) => void;
@@ -166,6 +183,7 @@ export function ChatPanel({
   onRemoveFile,
   onForkFromMessage,
   onForkToNewConversation,
+  onStartThreadFromMessage,
   onEditMessage,
   onDeleteMessage,
   onNewChat,
@@ -611,6 +629,11 @@ export function ChatPanel({
                 result={unit.resultMsg?.content}
                 isStreaming={isStreamingTool}
                 isLast={unit.toolCallIdx === (unit.toolCall as any).length - 1 || false}
+                onStartThread={
+                  !streaming && unit.toolCallIdx === 0
+                    ? () => onStartThreadFromMessage(unit.assistantIdx)
+                    : undefined
+                }
               />
             );
           }
@@ -671,13 +694,19 @@ export function ChatPanel({
                         </span>
                       )}
                     </span>
+                  ) : msg.role === 'system' ? (
+                    <span>Thread · Kontext</span>
                   ) : (
                     'Assistant'
                   )}
                 </div>
                 <div
                   className={
-                    msg.role === 'assistant' ? 'chat-message-content chat-message-md' : 'chat-message-content'
+                    msg.role === 'assistant'
+                      ? 'chat-message-content chat-message-md'
+                      : msg.role === 'system'
+                        ? 'chat-message-content chat-message-system-md chat-message-md'
+                        : 'chat-message-content'
                   }
                 >
                   {msg.role === 'assistant' ? (
@@ -692,6 +721,8 @@ export function ChatPanel({
                       fieldLabels={fieldLabels}
                       suppressClarificationWidget={hasClarificationFence(msg.content)}
                     />
+                  ) : msg.role === 'system' ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   ) : editingIdx === originalIdx ? (
                     <MessageEditBox
                       initialContent={msg.content}
@@ -720,8 +751,16 @@ export function ChatPanel({
                     {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 )}
-                {!streaming && (msg.role === 'user' || visIdx > 0) && editingIdx !== originalIdx && (
+                {!streaming && editingIdx !== originalIdx && (
                   <div className="chat-fork-actions">
+                    <button
+                      type="button"
+                      className="chat-fork-btn"
+                      onClick={() => onStartThreadFromMessage(originalIdx)}
+                      title="Thread starten (neuer Chat mit bisherigem Verlauf)"
+                    >
+                      <MessageSquare size={12} />
+                    </button>
                     {msg.role === 'user' && isLastUserMsg && (
                       <button
                         type="button"

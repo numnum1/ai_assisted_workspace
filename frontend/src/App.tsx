@@ -26,9 +26,11 @@ import type {
   AltVersionSession,
   LlmPublic,
   ChatSessionKind,
+  ChatMessage,
 } from './types.ts';
 import { CHAT_TOOLKIT_IDS } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
+import { buildThreadSystemContent, cloneChatMessages } from './components/chat/chatThreadUtils.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -886,6 +888,44 @@ function App() {
     }
   }, [chat.messages, history, selectedMode]);
 
+  /** New conversation: system intro + full parent transcript up to and including `messageIndex`. */
+  const handleStartThreadFromMessage = useCallback(
+    (messageIndex: number) => {
+      const parent = history.activeConversation;
+      if (!parent) return;
+      if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
+
+      const baseTitle = parent.title?.trim() || 'Chat';
+      const base = `${baseTitle}-Thread`;
+      const existingTitles = new Set(history.conversations.map((c) => c.title));
+      let n = 1;
+      while (existingTitles.has(`${base} (${n})`)) n++;
+
+      const transcript = cloneChatMessages(chat.messages.slice(0, messageIndex + 1));
+      const systemIntro: ChatMessage = {
+        role: 'system',
+        content: buildThreadSystemContent(baseTitle),
+      };
+      const initialMessages = [systemIntro, ...transcript];
+
+      const sk = parent.sessionKind ?? 'standard';
+      const newConv = history.createConversation(
+        selectedMode,
+        initialMessages,
+        `${base} (${n})`,
+        sk,
+      );
+      if (sk === 'guided' && parent.steeringPlan) {
+        history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
+      }
+      history.patchConversation(newConv.id, {
+        isThread: true,
+        parentConversationId: parent.id,
+      });
+    },
+    [chat.messages, history, selectedMode],
+  );
+
   const handleSwitchChat = useCallback((id: string) => {
     history.switchConversation(id);
   }, [history]);
@@ -1123,6 +1163,7 @@ function App() {
             onRemoveFile={refs.removeFile}
             onForkFromMessage={chat.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
+            onStartThreadFromMessage={handleStartThreadFromMessage}
             onEditMessage={handleEditMessage}
             onDeleteMessage={chat.deleteMessage}
             onNewChat={handleNewChat}

@@ -1,5 +1,17 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Play, CheckCircle2, AlertCircle, FileText, Search, Globe, BookOpen, Edit3 } from 'lucide-react';
+import { useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Play,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  Search,
+  Globe,
+  BookOpen,
+  Edit3,
+  MessageSquare,
+} from 'lucide-react';
 import type { ToolCall } from '../../types.ts';
 
 interface ToolCallDisplayProps {
@@ -7,13 +19,21 @@ interface ToolCallDisplayProps {
   result?: string;
   isStreaming?: boolean;
   isLast?: boolean;
+  /** First tool row of an assistant turn: start a thread from that assistant message index */
+  onStartThread?: () => void;
 }
 
 /**
  * Renders a single tool call similar to Cursor's UI.
  * Shows name, collapsible arguments, status, and result.
  */
-export function ToolCallDisplay({ toolCall, result, isStreaming = false, isLast = false }: ToolCallDisplayProps) {
+export function ToolCallDisplay({
+  toolCall,
+  result,
+  isStreaming = false,
+  isLast = false,
+  onStartThread,
+}: ToolCallDisplayProps) {
   const [isOpen, setIsOpen] = useState(true);
   const name = toolCall.function.name;
   const args = toolCall.function.arguments;
@@ -53,6 +73,19 @@ export function ToolCallDisplay({ toolCall, result, isStreaming = false, isLast 
           {status.icon}
           <span>{status.text}</span>
         </div>
+        {onStartThread && (
+          <button
+            type="button"
+            className="chat-tool-call-thread-btn"
+            title="Thread starten"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartThread();
+            }}
+          >
+            <MessageSquare size={14} />
+          </button>
+        )}
         <button type="button" className="chat-tool-call-toggle">
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>

@@ -47,6 +47,9 @@ export interface ChatStreamSessionMeta {
 
 function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
   return msgs.map((msg) => {
+    if (msg.role === 'system') {
+      return { role: 'system', content: msg.content };
+    }
     if (msg.role === 'user') {
       return {
         role: 'user',

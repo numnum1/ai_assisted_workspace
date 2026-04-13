@@ -49,7 +49,7 @@ export interface ToolCall {
 }
 
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'tool';
+  role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
   mode?: string;
   modeColor?: string;
@@ -129,6 +129,10 @@ export interface Conversation {
   sessionKind?: ChatSessionKind;
   /** Markdown steering plan maintained by the model (guided sessions) */
   steeringPlan?: string;
+  /** True when this conversation was started as a thread from another chat */
+  isThread?: boolean;
+  /** Parent conversation id when {@link isThread} is true */
+  parentConversationId?: string;
 }
 
 export interface ProjectConfig {

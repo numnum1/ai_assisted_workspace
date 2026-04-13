@@ -345,13 +345,22 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   const deleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => {
-        const filtered = prev.filter((c) => c.id !== id);
+        const deleted = prev.find((c) => c.id === id);
+        const idsToRemove = new Set<string>([id]);
+        if (deleted && !deleted.isThread) {
+          for (const c of prev) {
+            if (c.isThread && c.parentConversationId === id) {
+              idsToRemove.add(c.id);
+            }
+          }
+        }
+        const filtered = prev.filter((c) => !idsToRemove.has(c.id));
         if (filtered.length === 0) {
           const newConv = createEmptyConversation(currentMode);
           setActiveId(newConv.id);
           return [newConv];
         }
-        if (id === activeId) {
+        if (idsToRemove.has(activeId)) {
           setActiveId(filtered[0].id);
         }
         return filtered;
