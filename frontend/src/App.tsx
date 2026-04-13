@@ -877,6 +877,7 @@ function App() {
   );
 
   const handleForkToNewConversation = useCallback((index: number) => {
+    if (history.activeConversation?.isThread) return;
     const forkedMessages = chat.messages.slice(0, index + 1);
     const baseTitle = history.activeConversation?.title ?? 'Chat';
     const base = `${baseTitle}-fork`;
@@ -895,7 +896,7 @@ function App() {
   const handleStartThreadFromMessage = useCallback(
     (messageIndex: number) => {
       const parent = history.activeConversation;
-      if (!parent) return;
+      if (!parent || parent.isThread) return;
       if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
 
       const baseTitle = parent.title?.trim() || 'Chat';
@@ -1178,6 +1179,7 @@ function App() {
             onDiscardCurrentChat={handleDiscardCurrentChat}
             activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
             steeringPlan={history.activeConversation?.steeringPlan ?? ''}
+            activeIsThread={history.activeConversation?.isThread === true}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}

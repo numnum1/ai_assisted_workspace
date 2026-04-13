@@ -75,6 +75,8 @@ interface ChatPanelProps {
   onDiscardCurrentChat: (sessionKind?: ChatSessionKind) => void;
   /** Active conversation session kind (for guided UI). */
   activeSessionKind?: ChatSessionKind;
+  /** When true, thread/fork-from-message actions are hidden (not supported inside a thread). */
+  activeIsThread?: boolean;
   /** Persisted steering plan markdown (guided sessions). */
   steeringPlan?: string;
   onSwitchChat: (id: string) => void;
@@ -211,6 +213,7 @@ export function ChatPanel({
   onFileChanged,
   activeSessionKind = 'standard',
   steeringPlan = '',
+  activeIsThread = false,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -630,7 +633,7 @@ export function ChatPanel({
                 isStreaming={isStreamingTool}
                 isLast={unit.toolCallIdx === (unit.toolCall as any).length - 1 || false}
                 onStartThread={
-                  !streaming && unit.toolCallIdx === 0
+                  !activeIsThread && !streaming && unit.toolCallIdx === 0
                     ? () => onStartThreadFromMessage(unit.assistantIdx)
                     : undefined
                 }
@@ -753,14 +756,16 @@ export function ChatPanel({
                 )}
                 {!streaming && editingIdx !== originalIdx && (
                   <div className="chat-fork-actions">
-                    <button
-                      type="button"
-                      className="chat-fork-btn"
-                      onClick={() => onStartThreadFromMessage(originalIdx)}
-                      title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-                    >
-                      <MessageSquare size={12} />
-                    </button>
+                    {!activeIsThread && (
+                      <button
+                        type="button"
+                        className="chat-fork-btn"
+                        onClick={() => onStartThreadFromMessage(originalIdx)}
+                        title="Thread starten (neuer Chat mit bisherigem Verlauf)"
+                      >
+                        <MessageSquare size={12} />
+                      </button>
+                    )}
                     {msg.role === 'user' && isLastUserMsg && (
                       <button
                         type="button"
@@ -782,24 +787,24 @@ export function ChatPanel({
                       </button>
                     )}
                     {visIdx > 0 && (
-                      <>
-                        <button
-                          type="button"
-                          className="chat-fork-btn"
-                          onClick={() => onForkFromMessage(originalIdx)}
-                          title="Hier abschneiden (in-place)"
-                        >
-                          <Scissors size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          className="chat-fork-btn"
-                          onClick={() => onForkToNewConversation(originalIdx)}
-                          title="Als neuen Chat forken"
-                        >
-                          <GitFork size={12} />
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        className="chat-fork-btn"
+                        onClick={() => onForkFromMessage(originalIdx)}
+                        title="Hier abschneiden (in-place)"
+                      >
+                        <Scissors size={12} />
+                      </button>
+                    )}
+                    {visIdx > 0 && !activeIsThread && (
+                      <button
+                        type="button"
+                        className="chat-fork-btn"
+                        onClick={() => onForkToNewConversation(originalIdx)}
+                        title="Als neuen Chat forken"
+                      >
+                        <GitFork size={12} />
+                      </button>
                     )}
                     <button
                       type="button"
