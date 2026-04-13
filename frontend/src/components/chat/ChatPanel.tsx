@@ -39,6 +39,11 @@ import {
 } from './writeFileBatchUtils.ts';
 import { parseSteeringPlan, type ParsedSteeringPlan } from './planFenceUtils.ts';
 import { SteeringPlanViewer } from './SteeringPlanViewer.tsx';
+import {
+  buildConversationById,
+  listThreadsForRoot,
+  resolveThreadBranchRootId,
+} from './chatHistoryUtils.ts';
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
@@ -317,6 +322,25 @@ export function ChatPanel({
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
+  const threadRail = useMemo(() => {
+    const byId = buildConversationById(conversations);
+    const activeConv = byId.get(activeConversationId);
+    const rootId = resolveThreadBranchRootId(activeConv);
+    if (!rootId) {
+      return { showRail: false, rootConv: null as Conversation | null, threads: [] as Conversation[] };
+    }
+    const rootConv = byId.get(rootId) ?? null;
+    if (!rootConv || rootConv.isThread) {
+      return { showRail: false, rootConv, threads: [] as Conversation[] };
+    }
+    const threads = listThreadsForRoot(conversations, rootId);
+    return {
+      showRail: threads.length >= 1,
+      rootConv,
+      threads,
+    };
+  }, [conversations, activeConversationId]);
+
   const cancelEdit = useCallback(() => setEditingIdx(null), []);
 
   const commitEdit = useCallback(
@@ -586,7 +610,9 @@ export function ChatPanel({
         />
       )}
 
-      <div className="chat-messages" ref={messagesScrollRef} onMouseUp={handleMessagesMouseUp}>
+      <div className="chat-panel-body">
+        <div className="chat-panel-body-main">
+          <div className="chat-messages" ref={messagesScrollRef} onMouseUp={handleMessagesMouseUp}>
         {messages.filter((m) => !m.hidden).length === 0 && (
           <div className="chat-empty">
             <p>Start a conversation with your AI assistant.</p>
@@ -848,9 +874,9 @@ export function ChatPanel({
             )}
           </div>
         )}
-      </div>
+          </div>
 
-      {activeSessionKind === 'guided' && (
+          {activeSessionKind === 'guided' && (
         <div className="chat-steering-plan-panel">
           <button
             type="button"
@@ -915,6 +941,36 @@ export function ChatPanel({
           onDismissSelection={onDismissSelection}
           focusTriggerRef={chatFocusTriggerRef}
         />
+      </div>
+        </div>
+        {threadRail.showRail && threadRail.rootConv && (
+          <aside className="chat-threads-rail" aria-label="Threads">
+            <div className="chat-threads-rail-header">Threads</div>
+            <div className="chat-threads-rail-list">
+              <button
+                type="button"
+                className={`chat-threads-rail-item${threadRail.rootConv.id === activeConversationId ? ' active' : ''}`}
+                onClick={() => onSwitchChat(threadRail.rootConv.id)}
+                title={threadRail.rootConv.title}
+              >
+                <span className="chat-threads-rail-item-meta">Haupt-Chat</span>
+                <span className="chat-threads-rail-item-title">{threadRail.rootConv.title}</span>
+              </button>
+              {threadRail.threads.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`chat-threads-rail-item${t.id === activeConversationId ? ' active' : ''}`}
+                  onClick={() => onSwitchChat(t.id)}
+                  title={t.title}
+                >
+                  <span className="chat-threads-rail-item-meta">Thread</span>
+                  <span className="chat-threads-rail-item-title">{t.title}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
+        )}
       </div>
 
       {newChatDialogOpen && (
