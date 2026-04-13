@@ -123,13 +123,16 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   mode: string;
-  /** When true, conversation is written to `.assistant/chat-history.json` for Git sync */
+  /**
+   * When true on a root chat, it is written to `.assistant/chat-history.json` for Git sync.
+   * For {@link isThread} threads this flag is ignored; pinning follows the parent chain.
+   */
   savedToProject?: boolean;
   /** Omitted or standard = normal chat; guided = AI-led session with optional steeringPlan */
   sessionKind?: ChatSessionKind;
   /** Markdown steering plan maintained by the model (guided sessions) */
   steeringPlan?: string;
-  /** True when this conversation was started as a thread from another chat */
+  /** True when this conversation was started as a thread from another chat (project pin follows parent). */
   isThread?: boolean;
   /** Parent conversation id when {@link isThread} is true */
   parentConversationId?: string;

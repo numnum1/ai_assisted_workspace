@@ -368,7 +368,10 @@ function App() {
     const chatModes = modes.filter((m) => m.id !== 'prompt-pack');
     const conv = history.activeConversation;
     let desired: string;
-    if (!conversationHasVisibleMessages(conv)) {
+    /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
+    const trulyEmptyForModeSync =
+      !conversationHasVisibleMessages(conv) && conv.messages.length === 0;
+    if (trulyEmptyForModeSync) {
       desired = projectDefaultChatModeIdRef.current;
       if (!chatModes.some((m) => m.id === desired)) {
         desired = resolveDefaultModeId(chatModes, undefined);
@@ -888,7 +891,7 @@ function App() {
     }
   }, [chat.messages, history, selectedMode]);
 
-  /** New conversation: system intro + full parent transcript up to and including `messageIndex`. */
+  /** New conversation: parent transcript for API only (hidden); UI shows only new thread messages. */
   const handleStartThreadFromMessage = useCallback(
     (messageIndex: number) => {
       const parent = history.activeConversation;
@@ -905,12 +908,17 @@ function App() {
       const systemIntro: ChatMessage = {
         role: 'system',
         content: buildThreadSystemContent(baseTitle),
+        hidden: true,
       };
-      const initialMessages = [systemIntro, ...transcript];
+      const initialMessages: ChatMessage[] = [
+        systemIntro,
+        ...transcript.map((m) => ({ ...m, hidden: true })),
+      ];
 
       const sk = parent.sessionKind ?? 'standard';
+      const threadMode = parent.mode || selectedMode;
       const newConv = history.createConversation(
-        selectedMode,
+        threadMode,
         initialMessages,
         `${base} (${n})`,
         sk,

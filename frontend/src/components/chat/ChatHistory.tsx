@@ -249,21 +249,27 @@ export function ChatHistory({
           </div>
         </div>
         <div className="chat-history-item-actions">
-          <button
-            type="button"
-            className={`chat-history-action-btn ${conv.savedToProject ? 'chat-history-saved-active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSavedToProject(conv.id);
-            }}
-            title={
-              conv.savedToProject
-                ? 'Aus Projektdatei entfernen (nicht mehr per Git synchron)'
-                : 'Im Projekt speichern (.assistant/chat-history.json)'
-            }
-          >
-            {conv.savedToProject ? <FolderCheck size={12} /> : <FolderInput size={12} />}
-          </button>
+          {variant === 'root' ? (
+            <button
+              type="button"
+              className={`chat-history-action-btn ${conv.savedToProject ? 'chat-history-saved-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSavedToProject(conv.id);
+              }}
+              title={
+                conv.savedToProject
+                  ? 'Aus Projektdatei entfernen (nicht mehr per Git synchron)'
+                  : 'Im Projekt speichern (.assistant/chat-history.json)'
+              }
+            >
+              {conv.savedToProject ? <FolderCheck size={12} /> : <FolderInput size={12} />}
+            </button>
+          ) : (
+            <span className="chat-history-action-btn" style={{ visibility: 'hidden' }} aria-hidden>
+              <FolderInput size={12} />
+            </span>
+          )}
           <button
             type="button"
             className="chat-history-action-btn"

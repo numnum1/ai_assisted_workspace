@@ -1,4 +1,5 @@
 import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, Conversation } from './types.ts';
+import { buildConversationById, effectiveSavedToProject } from './components/chat/chatHistoryUtils.ts';
 
 const BASE = '/api';
 
@@ -104,9 +105,10 @@ export async function fetchProjectChatHistory(): Promise<Conversation[] | null> 
   }
 }
 
-/** Writes only conversations marked `savedToProject` (or `[]` if none). */
+/** Writes roots with `savedToProject` plus any threads whose parent chain is pinned. */
 export async function persistProjectChatHistory(conversations: Conversation[]): Promise<void> {
-  const payload = conversations.filter((c) => c.savedToProject === true);
+  const byId = buildConversationById(conversations);
+  const payload = conversations.filter((c) => effectiveSavedToProject(c, byId));
   await filesApi.saveContent(PROJECT_CHAT_HISTORY_PATH, JSON.stringify(payload));
 }
 

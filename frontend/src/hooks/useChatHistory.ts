@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ChatSessionKind, Conversation, ChatMessage } from '../types.ts';
 import { fetchProjectChatHistory, persistProjectChatHistory } from '../api.ts';
+import { buildConversationById, effectiveSavedToProject } from '../components/chat/chatHistoryUtils.ts';
 
 /** Pre–per-project keys: one list for all folders (migrated once into first opened project) */
 const LEGACY_STORAGE_KEY = 'chat-history';
@@ -98,7 +99,10 @@ function createEmptyConversation(mode: string, sessionKind: ChatSessionKind = 's
 }
 
 function hasVisibleMessages(c: Conversation): boolean {
-  return c.messages.some((m) => !m.hidden);
+  if (c.messages.some((m) => !m.hidden)) return true;
+  // Thread with only hidden parent bootstrap still counts as non-empty (do not drop tab).
+  if (c.isThread && c.messages.length > 0) return true;
+  return false;
 }
 
 function resolveActiveId(conversations: Conversation[], lastActiveId: string | null): string {
@@ -382,11 +386,13 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   }, []);
 
   const toggleSavedToProject = useCallback((id: string) => {
-    setConversations((prev) =>
-      prev.map((c) =>
+    setConversations((prev) => {
+      const target = prev.find((c) => c.id === id);
+      if (target?.isThread) return prev;
+      return prev.map((c) =>
         c.id === id ? { ...c, savedToProject: !c.savedToProject, updatedAt: Date.now() } : c,
-      ),
-    );
+      );
+    });
   }, []);
 
   /**
@@ -402,7 +408,9 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       projectTimerRef.current = null;
     }
     const newConv = createEmptyConversation(currentModeRef.current);
-    const pinned = conversationsRef.current.filter((c) => c.savedToProject === true);
+    const list = conversationsRef.current;
+    const byId = buildConversationById(list);
+    const pinned = list.filter((c) => effectiveSavedToProject(c, byId));
     const sortedPinned = [...pinned].sort((a, b) => b.updatedAt - a.updatedAt);
     const next = [newConv, ...sortedPinned].slice(0, MAX_CONVERSATIONS);
     setConversations(next);
