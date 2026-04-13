@@ -3560,10 +3560,16 @@ body.file-tree-native-dragging {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  max-height: min(45vh, 420px);
+  max-height: min(45dvh, 420px);
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 6px 10px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-primary) 55%, var(--bg-secondary));
+  border-color: #b8860b;
+  background: #11111b;
 }
 
 /* Suggested actions ÔÇö surface only (chrome from ChatComposerCard); frozen = no interaction */
