@@ -205,6 +205,7 @@ function App() {
   const [altVersionSession, setAltVersionSession] = useState<AltVersionSession | null>(null);
 
   const leftPanelRef = usePanelRef();
+  const centerPanelRef = usePanelRef();
   const rightPanelRef = usePanelRef();
 
   const handleCtrlL = useCallback((sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => {
@@ -332,18 +333,6 @@ function App() {
   useEffect(() => {
     saveDisabledToolkits(disabledToolkits);
   }, [disabledToolkits]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey || (e.key !== 'e' && e.key !== 'E')) {
-        return;
-      }
-      e.preventDefault();
-      setQuickChatOpen((v) => !v);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -500,6 +489,56 @@ function App() {
   }, []);
 
   const [centerPaneWide, setCenterPaneWide] = useState(false);
+
+  useEffect(() => {
+    const syncSidebarsWideState = () => {
+      const left = leftPanelRef.current;
+      const right = rightPanelRef.current;
+      if (left && right) setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
+    };
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) return;
+
+      if (e.altKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        setQuickChatOpen((v) => !v);
+        return;
+      }
+
+      if (!e.altKey || e.shiftKey) return;
+
+      const code = e.code;
+      if (code === 'Digit1' || code === 'Numpad1') {
+        e.preventDefault();
+        const p = leftPanelRef.current;
+        if (!p) return;
+        if (p.isCollapsed()) p.expand();
+        else p.collapse();
+        syncSidebarsWideState();
+        return;
+      }
+      if (code === 'Digit2' || code === 'Numpad2') {
+        e.preventDefault();
+        const p = centerPanelRef.current;
+        if (!p) return;
+        if (p.isCollapsed()) p.expand();
+        else p.collapse();
+        return;
+      }
+      if (code === 'Digit3' || code === 'Numpad3') {
+        e.preventDefault();
+        const p = rightPanelRef.current;
+        if (!p) return;
+        if (p.isCollapsed()) p.expand();
+        else p.collapse();
+        syncSidebarsWideState();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- panel refs stable; single global shortcut registration
+  }, []);
 
   const handleToggleCenterPanels = useCallback(() => {
     const left = leftPanelRef.current;
@@ -883,7 +922,14 @@ function App() {
 
         <Separator className="resize-handle" />
 
-        <Panel id="editor" defaultSize="45%" minSize="15%">
+        <Panel
+          id="editor"
+          panelRef={centerPanelRef}
+          defaultSize="45%"
+          minSize="15%"
+          collapsible
+          collapsedSize={0}
+        >
           <div className="center-editor-pane">
           <EditorTabs
             tabs={fileEditor.tabs}
