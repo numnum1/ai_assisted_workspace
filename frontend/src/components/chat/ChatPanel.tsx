@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, memo } from 'react';
+import type { RefObject } from 'react';
 import {
   Search,
   Scissors,
@@ -169,6 +170,370 @@ function getContrastingTextColor(hexColor?: string): string | undefined {
   return luminance > 0.6 ? '#1e1e2e' : '#f5f5ff';
 }
 
+const EMPTY_SNAPSHOT_DISMISS = new Set<string>();
+const EMPTY_COMPOSER_BATCH_FORCED: Record<string, CardState> = {};
+
+interface ChatMessagesPaneProps {
+  messages: ChatMessage[];
+  readOnly: boolean;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  onMouseUp?: () => void;
+  streaming: boolean;
+  error: string | null;
+  toolActivity: string | null;
+  activeIsThread: boolean;
+  editingIdx: number | null;
+  setEditingIdx: (idx: number | null) => void;
+  copiedIdx: number | null;
+  setCopiedIdx: (idx: number | null) => void;
+  bulkDismissIds: Set<string>;
+  composerBatchForced: Record<string, CardState>;
+  onFileChanged?: (path: string) => void;
+  onSnapshotSettled?: (snapshotId: string) => void;
+  onForkFromMessage: (index: number) => void;
+  onStartThreadFromMessage: (index: number) => void;
+  onForkToNewConversation: (index: number) => void;
+  onEditMessage: (index: number, content: string) => void;
+  onDeleteMessage: (index: number) => void;
+  commitEdit: (index: number, text: string) => void;
+  cancelEdit: () => void;
+  onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
+  onApplyFieldUpdate?: (field: string, value: string) => void;
+  fieldLabels?: Record<string, string>;
+  onRetry?: () => void;
+  onOpenPromptPack?: () => void;
+}
+
+function ChatMessagesPane({
+  messages,
+  readOnly,
+  scrollRef,
+  onMouseUp,
+  streaming,
+  error,
+  toolActivity,
+  activeIsThread,
+  editingIdx,
+  setEditingIdx,
+  copiedIdx,
+  setCopiedIdx,
+  bulkDismissIds,
+  composerBatchForced,
+  onFileChanged,
+  onSnapshotSettled,
+  onForkFromMessage,
+  onStartThreadFromMessage,
+  onForkToNewConversation,
+  onEditMessage,
+  onDeleteMessage,
+  commitEdit,
+  cancelEdit,
+  onReplaceSelection,
+  onApplyFieldUpdate,
+  fieldLabels,
+  onRetry,
+  onOpenPromptPack,
+}: ChatMessagesPaneProps) {
+  const visibleEntries = useMemo(
+    () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
+    [messages],
+  );
+  const renderUnits = useMemo(() => buildChatRenderUnits(visibleEntries), [visibleEntries]);
+  const trailingWriteFileBatch = useMemo(
+    () => getTrailingWriteFileBatch(visibleEntries),
+    [visibleEntries],
+  );
+
+  const dismissIds = readOnly ? EMPTY_SNAPSHOT_DISMISS : bulkDismissIds;
+  const batchForced = readOnly ? EMPTY_COMPOSER_BATCH_FORCED : composerBatchForced;
+  const fileCb = readOnly ? undefined : onFileChanged;
+  const snapshotCb = readOnly ? undefined : onSnapshotSettled;
+
+  return (
+    <div
+      className={`chat-messages${readOnly ? ' chat-messages--readonly' : ''}`}
+      ref={scrollRef}
+      onMouseUp={readOnly ? undefined : onMouseUp}
+    >
+      {messages.filter((m) => !m.hidden).length === 0 && (
+        <div className="chat-empty">
+          <p>Start a conversation with your AI assistant.</p>
+          <p className="chat-empty-hint">
+            Drag files from the project tree into the input area to reference them,
+            or use @filename syntax in your message.
+            {onOpenPromptPack && !readOnly && (
+              <>
+                {' '}
+                Für einen fertigen Export-Prompt nutze das Zauberstab-Symbol oben (Prompt-Paket).
+              </>
+            )}
+          </p>
+        </div>
+      )}
+      {renderUnits.map((unit) => {
+        if (unit.type === 'writeFileGroup') {
+          const isComposerBatch =
+            !readOnly &&
+            Boolean(
+              trailingWriteFileBatch && isSameWriteFileBatch(unit.items, trailingWriteFileBatch),
+            );
+          const visibleWriteItems = unit.items.filter((i) => !dismissIds.has(i.data.snapshotId));
+          if (visibleWriteItems.length === 0) return null;
+          return (
+            <ChangeCardGroup
+              key={`wf-${unit.items.map((x) => x.originalIdx).join('-')}`}
+              items={visibleWriteItems}
+              onFileChanged={fileCb}
+              externalForced={isComposerBatch ? batchForced : undefined}
+              onSnapshotSettled={snapshotCb}
+            />
+          );
+        }
+
+        if (unit.type === 'toolCall') {
+          const isStreamingTool = streaming && unit.resultMsg === undefined;
+          return (
+            <ToolCallDisplay
+              key={`tool-${unit.assistantIdx}-${unit.toolCallIdx}`}
+              toolCall={unit.toolCall}
+              result={unit.resultMsg?.content}
+              isStreaming={isStreamingTool}
+              isLast={unit.toolCallIdx === (unit.toolCall as unknown as { length: number }).length - 1 || false}
+              onStartThread={
+                !readOnly && !activeIsThread && !streaming && unit.toolCallIdx === 0
+                  ? () => onStartThreadFromMessage(unit.assistantIdx)
+                  : undefined
+              }
+            />
+          );
+        }
+
+        const { visIdx, msg, originalIdx } = unit;
+        const visArr = visibleEntries;
+        const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
+        const isLastUserMsg =
+          msg.role === 'user' && !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === 'user');
+        const showCopyForPromptPack =
+          msg.role === 'assistant' &&
+          msg.content.trim() &&
+          prevUser?.role === 'user' &&
+          prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
+
+        if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
+          const term = msg.content.slice('glossary_add:success:'.length);
+          return (
+            <div key={originalIdx} className="glossary-indicator">
+              <span className="glossary-indicator-icon">📖</span>
+              <span className="glossary-indicator-text">
+                Glossar-Eintrag angelegt: <strong>{term}</strong>
+              </span>
+            </div>
+          );
+        }
+
+        if (msg.role === 'tool' && msg.toolCallId) {
+          const isAttachedToToolCall = renderUnits.some(
+            (u) =>
+              u.type === 'toolCall' &&
+              (u as { resultMsg?: { toolCallId?: string } }).resultMsg?.toolCallId === msg.toolCallId,
+          );
+          if (isAttachedToToolCall) {
+            return null;
+          }
+        }
+
+        return (
+          <div key={originalIdx}>
+            <div
+              className={`chat-message ${msg.role}`}
+              style={
+                msg.role === 'user' && msg.modeColor
+                  ? {
+                      backgroundColor: msg.modeColor,
+                      borderLeftColor: msg.modeColor,
+                      color: getContrastingTextColor(msg.modeColor),
+                    }
+                  : undefined
+              }
+            >
+              <div
+                className="chat-message-role"
+                style={
+                  msg.role === 'user' && msg.modeColor
+                    ? { color: getContrastingTextColor(msg.modeColor) }
+                    : undefined
+                }
+              >
+                {msg.role === 'user' ? (
+                  <span>
+                    You
+                    {msg.mode && (
+                      <span
+                        className="chat-message-mode"
+                        style={{ color: getContrastingTextColor(msg.modeColor) }}
+                      >
+                        {' · '}
+                        {msg.mode}
+                      </span>
+                    )}
+                  </span>
+                ) : msg.role === 'system' ? (
+                  <span>Thread · Kontext</span>
+                ) : (
+                  'Assistant'
+                )}
+              </div>
+              <div
+                className={
+                  msg.role === 'assistant'
+                    ? 'chat-message-content chat-message-md'
+                    : msg.role === 'system'
+                      ? 'chat-message-content chat-message-system-md chat-message-md'
+                      : 'chat-message-content'
+                }
+              >
+                {msg.role === 'assistant' ? (
+                  <ChatMessageMarkdown
+                    content={msg.content}
+                    streamingCursor={!readOnly && streaming && originalIdx === messages.length - 1}
+                    selectionContext={msg.selectionContext}
+                    onReplace={
+                      !readOnly && msg.selectionContext && onReplaceSelection
+                        ? (text) => onReplaceSelection(text, msg.selectionContext!)
+                        : undefined
+                    }
+                    onApplyFieldUpdate={readOnly ? undefined : onApplyFieldUpdate}
+                    fieldLabels={fieldLabels}
+                    suppressClarificationWidget={hasClarificationFence(msg.content)}
+                  />
+                ) : msg.role === 'system' ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                ) : readOnly || editingIdx !== originalIdx ? (
+                  msg.content
+                ) : (
+                  <MessageEditBox
+                    initialContent={msg.content}
+                    onSave={(text) => commitEdit(originalIdx, text)}
+                    onCancel={cancelEdit}
+                  />
+                )}
+              </div>
+              {showCopyForPromptPack && (
+                <button
+                  type="button"
+                  className="copy-msg-btn"
+                  title="In Zwischenablage kopieren"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(msg.content);
+                      setCopiedIdx(originalIdx);
+                      setTimeout(() => setCopiedIdx(null), 2000);
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              )}
+              {!readOnly && !streaming && editingIdx !== originalIdx && (
+                <div className="chat-fork-actions">
+                  {!activeIsThread && (
+                    <button
+                      type="button"
+                      className="chat-fork-btn"
+                      onClick={() => onStartThreadFromMessage(originalIdx)}
+                      title="Thread starten (neuer Chat mit bisherigem Verlauf)"
+                    >
+                      <MessageSquare size={12} />
+                    </button>
+                  )}
+                  {msg.role === 'user' && isLastUserMsg && (
+                    <button
+                      type="button"
+                      className="chat-fork-btn chat-resend-btn"
+                      onClick={() => onEditMessage(originalIdx, msg.content)}
+                      title="Nachricht erneut senden"
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                  )}
+                  {msg.role === 'user' && (
+                    <button
+                      type="button"
+                      className="chat-fork-btn chat-edit-btn"
+                      onClick={() => setEditingIdx(originalIdx)}
+                      title="Nachricht bearbeiten"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  )}
+                  {visIdx > 0 && (
+                    <button
+                      type="button"
+                      className="chat-fork-btn"
+                      onClick={() => onForkFromMessage(originalIdx)}
+                      title="Hier abschneiden (in-place)"
+                    >
+                      <Scissors size={12} />
+                    </button>
+                  )}
+                  {visIdx > 0 && !activeIsThread && (
+                    <button
+                      type="button"
+                      className="chat-fork-btn"
+                      onClick={() => onForkToNewConversation(originalIdx)}
+                      title="Als neuen Chat forken"
+                    >
+                      <GitFork size={12} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="chat-fork-btn chat-fork-btn--danger"
+                    onClick={() => onDeleteMessage(originalIdx)}
+                    title="Nachricht löschen"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {!readOnly && toolActivity && streaming && (
+        <div className="chat-tool-activity">
+          <Search size={14} className="chat-tool-activity-icon" />
+          <span>{toolActivity}</span>
+        </div>
+      )}
+      {!readOnly && error && (
+        <div className="chat-message error">
+          <div className="chat-message-content">
+            {error === 'NETWORK_ERROR' ? (
+              <>
+                <strong>Verbindungsproblem:</strong> Die KI-API ist nicht erreichbar.
+                <br />
+                Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.
+              </>
+            ) : error === 'MODEL_EMPTY_RESPONSE' ? (
+              'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+            ) : (
+              `Error: ${error}`
+            )}
+          </div>
+          {(error === 'MODEL_EMPTY_RESPONSE' || error === 'NETWORK_ERROR') && onRetry && (
+            <button type="button" className="chat-retry-btn" onClick={onRetry}>
+              Erneut versuchen
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel({
   messages,
   streaming,
@@ -222,6 +587,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const parentMessagesScrollRef = useRef<HTMLDivElement>(null);
   const prevLastVisibleRoleRef = useRef<'user' | 'assistant' | undefined>(undefined);
   const prevStreamingRef = useRef(false);
   /** When false, stop auto-scrolling for the current stream (user scrolled up or reply grew too large). */
@@ -247,8 +613,6 @@ export function ChatPanel({
     () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
     [messages],
   );
-
-  const renderUnits = useMemo(() => buildChatRenderUnits(visibleEntries), [visibleEntries]);
 
   const trailingWriteFileBatch = useMemo(
     () => getTrailingWriteFileBatch(visibleEntries),
@@ -341,6 +705,8 @@ export function ChatPanel({
     };
   }, [conversations, activeConversationId]);
 
+  const showThreadSplit = Boolean(isFullscreen && activeIsThread && threadRail.rootConv);
+
   const cancelEdit = useCallback(() => setEditingIdx(null), []);
 
   const commitEdit = useCallback(
@@ -429,6 +795,18 @@ export function ChatPanel({
     const scrollToEnd = () => { el.scrollTop = el.scrollHeight; };
     requestAnimationFrame(() => { requestAnimationFrame(scrollToEnd); });
   }, [activeConversationId, messages.length]);
+
+  useLayoutEffect(() => {
+    if (!showThreadSplit) return;
+    const el = parentMessagesScrollRef.current;
+    if (!el) return;
+    const scrollToEnd = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToEnd);
+    });
+  }, [showThreadSplit, threadRail.rootConv?.id, threadRail.rootConv?.messages.length]);
 
   useEffect(() => {
     prevLastVisibleRoleRef.current = undefined;
@@ -520,9 +898,71 @@ export function ChatPanel({
     setIsFullscreen((v) => !v);
   }, []);
 
+  const interactiveMessagesEl = (
+    <ChatMessagesPane
+      messages={messages}
+      readOnly={false}
+      scrollRef={messagesScrollRef}
+      onMouseUp={handleMessagesMouseUp}
+      streaming={streaming}
+      error={error}
+      toolActivity={toolActivity}
+      activeIsThread={activeIsThread}
+      editingIdx={editingIdx}
+      setEditingIdx={setEditingIdx}
+      copiedIdx={copiedIdx}
+      setCopiedIdx={setCopiedIdx}
+      bulkDismissIds={bulkDismissIds}
+      composerBatchForced={composerBatchForced}
+      onFileChanged={onFileChanged}
+      onSnapshotSettled={handleSnapshotSettled}
+      onForkFromMessage={onForkFromMessage}
+      onStartThreadFromMessage={onStartThreadFromMessage}
+      onForkToNewConversation={onForkToNewConversation}
+      onEditMessage={onEditMessage}
+      onDeleteMessage={onDeleteMessage}
+      commitEdit={commitEdit}
+      cancelEdit={cancelEdit}
+      onReplaceSelection={onReplaceSelection}
+      onApplyFieldUpdate={onApplyFieldUpdate}
+      fieldLabels={fieldLabels}
+      onRetry={onRetry}
+      onOpenPromptPack={onOpenPromptPack}
+    />
+  );
+
+  const parentReadonlyMessagesEl =
+    showThreadSplit && threadRail.rootConv ? (
+      <ChatMessagesPane
+        messages={threadRail.rootConv.messages}
+        readOnly
+        scrollRef={parentMessagesScrollRef}
+        streaming={false}
+        error={null}
+        toolActivity={null}
+        activeIsThread={false}
+        editingIdx={null}
+        setEditingIdx={() => {}}
+        copiedIdx={null}
+        setCopiedIdx={() => {}}
+        bulkDismissIds={EMPTY_SNAPSHOT_DISMISS}
+        composerBatchForced={EMPTY_COMPOSER_BATCH_FORCED}
+        onForkFromMessage={() => {}}
+        onStartThreadFromMessage={() => {}}
+        onForkToNewConversation={() => {}}
+        onEditMessage={() => {}}
+        onDeleteMessage={() => {}}
+        commitEdit={() => {}}
+        cancelEdit={() => {}}
+        fieldLabels={fieldLabels}
+      />
+    ) : null;
 
   return (
-    <div ref={panelRef} className={`chat-panel${isFullscreen ? ' chat-panel--expanded' : ''}`}>
+    <div
+      ref={panelRef}
+      className={`chat-panel${isFullscreen ? ' chat-panel--expanded' : ''}${showThreadSplit ? ' chat-panel--thread-split' : ''}`}
+    >
       <div className="chat-header">
         <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
         <div className="chat-header-actions">
@@ -610,366 +1050,211 @@ export function ChatPanel({
         />
       )}
 
-      <div className="chat-panel-body">
-        <div className="chat-panel-body-main">
-          <div className="chat-messages" ref={messagesScrollRef} onMouseUp={handleMessagesMouseUp}>
-        {messages.filter((m) => !m.hidden).length === 0 && (
-          <div className="chat-empty">
-            <p>Start a conversation with your AI assistant.</p>
-            <p className="chat-empty-hint">
-              Drag files from the project tree into the input area to reference them,
-              or use @filename syntax in your message.
-              {onOpenPromptPack && (
-                <>
-                  {' '}
-                  Für einen fertigen Export-Prompt nutze das Zauberstab-Symbol oben (Prompt-Paket).
-                </>
-              )}
-            </p>
-          </div>
-        )}
-        {renderUnits.map((unit) => {
-          if (unit.type === 'writeFileGroup') {
-            const isComposerBatch = Boolean(
-              trailingWriteFileBatch &&
-                isSameWriteFileBatch(unit.items, trailingWriteFileBatch),
-            );
-            const visibleWriteItems = unit.items.filter(
-              (i) => !bulkDismissIds.has(i.data.snapshotId),
-            );
-            if (visibleWriteItems.length === 0) return null;
-            return (
-              <ChangeCardGroup
-                key={`wf-${unit.items.map((x) => x.originalIdx).join('-')}`}
-                items={visibleWriteItems}
-                onFileChanged={onFileChanged}
-                externalForced={isComposerBatch ? composerBatchForced : undefined}
-                onSnapshotSettled={handleSnapshotSettled}
-              />
-            );
-          }
-
-          if (unit.type === 'toolCall') {
-            const isStreamingTool = streaming && unit.resultMsg === undefined;
-            return (
-              <ToolCallDisplay
-                key={`tool-${unit.assistantIdx}-${unit.toolCallIdx}`}
-                toolCall={unit.toolCall}
-                result={unit.resultMsg?.content}
-                isStreaming={isStreamingTool}
-                isLast={unit.toolCallIdx === (unit.toolCall as any).length - 1 || false}
-                onStartThread={
-                  !activeIsThread && !streaming && unit.toolCallIdx === 0
-                    ? () => onStartThreadFromMessage(unit.assistantIdx)
-                    : undefined
-                }
-              />
-            );
-          }
-
-          const { visIdx, msg, originalIdx } = unit;
-          const visArr = visibleEntries;
-          const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
-          const isLastUserMsg =
-            msg.role === 'user' &&
-            !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === 'user');
-          const showCopyForPromptPack =
-            msg.role === 'assistant' &&
-            msg.content.trim() &&
-            prevUser?.role === 'user' &&
-            prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
-
-          if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
-            const term = msg.content.slice('glossary_add:success:'.length);
-            return (
-              <div key={originalIdx} className="glossary-indicator">
-                <span className="glossary-indicator-icon">📖</span>
-                <span className="glossary-indicator-text">Glossar-Eintrag angelegt: <strong>{term}</strong></span>
+      <div className={`chat-panel-body${showThreadSplit ? ' chat-panel-body--thread-split' : ''}`}>
+        {showThreadSplit && threadRail.rootConv ? (
+          <>
+            <div className="chat-thread-split-left">
+              <div className="chat-thread-split-pane-header">
+                <span className="chat-thread-split-pane-label">Haupt-Chat</span>
+                <span className="chat-thread-split-pane-title" title={threadRail.rootConv.title}>
+                  {threadRail.rootConv.title}
+                </span>
               </div>
-            );
-          }
-
-          // Skip rendering tool result messages that are attached to a ToolCallDisplay
-          if (msg.role === 'tool' && msg.toolCallId) {
-            // Check if this tool result is already rendered by a preceding toolCall unit
-            const isAttachedToToolCall = renderUnits.some(u => 
-              u.type === 'toolCall' && (u as any).resultMsg?.toolCallId === msg.toolCallId
-            );
-            if (isAttachedToToolCall) {
-              return null;
-            }
-          }
-
-          return (
-            <div key={originalIdx}>
-              <div
-                className={`chat-message ${msg.role}`}
-                style={msg.role === 'user' && msg.modeColor ? {
-                  backgroundColor: msg.modeColor,
-                  borderLeftColor: msg.modeColor,
-                  color: getContrastingTextColor(msg.modeColor),
-                } : undefined}
-              >
-                <div
-                  className="chat-message-role"
-                  style={msg.role === 'user' && msg.modeColor ? { color: getContrastingTextColor(msg.modeColor) } : undefined}
+              <div className="chat-thread-split-left-scroll">{parentReadonlyMessagesEl}</div>
+            </div>
+            <div className="chat-thread-split-right">
+              <div className="chat-thread-split-switcher" role="tablist" aria-label="Thread wechseln">
+                <button
+                  type="button"
+                  role="tab"
+                  className={`chat-thread-split-switcher-btn${threadRail.rootConv.id === activeConversationId ? ' active' : ''}`}
+                  onClick={() => onSwitchChat(threadRail.rootConv.id)}
+                  title={threadRail.rootConv.title}
                 >
-                  {msg.role === 'user' ? (
-                    <span>
-                      You
-                      {msg.mode && (
-                        <span className="chat-message-mode" style={{ color: getContrastingTextColor(msg.modeColor) }}>
-                          {' · '}{msg.mode}
-                        </span>
-                      )}
-                    </span>
-                  ) : msg.role === 'system' ? (
-                    <span>Thread · Kontext</span>
-                  ) : (
-                    'Assistant'
-                  )}
-                </div>
-                <div
-                  className={
-                    msg.role === 'assistant'
-                      ? 'chat-message-content chat-message-md'
-                      : msg.role === 'system'
-                        ? 'chat-message-content chat-message-system-md chat-message-md'
-                        : 'chat-message-content'
-                  }
-                >
-                  {msg.role === 'assistant' ? (
-                    <ChatMessageMarkdown
-                      content={msg.content}
-                      streamingCursor={streaming && originalIdx === messages.length - 1}
-                      selectionContext={msg.selectionContext}
-                      onReplace={msg.selectionContext && onReplaceSelection
-                        ? (text) => onReplaceSelection(text, msg.selectionContext!)
-                        : undefined}
-                      onApplyFieldUpdate={onApplyFieldUpdate}
-                      fieldLabels={fieldLabels}
-                      suppressClarificationWidget={hasClarificationFence(msg.content)}
-                    />
-                  ) : msg.role === 'system' ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                  ) : editingIdx === originalIdx ? (
-                    <MessageEditBox
-                      initialContent={msg.content}
-                      onSave={(text) => commitEdit(originalIdx, text)}
-                      onCancel={cancelEdit}
-                    />
-                  ) : (
-                    msg.content
-                  )}
-                </div>
-                {showCopyForPromptPack && (
+                  Haupt-Chat
+                </button>
+                {threadRail.threads.map((t) => (
                   <button
+                    key={t.id}
                     type="button"
-                    className="copy-msg-btn"
-                    title="In Zwischenablage kopieren"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(msg.content);
-                        setCopiedIdx(originalIdx);
-                        setTimeout(() => setCopiedIdx(null), 2000);
-                      } catch {
-                        /* ignore */
-                      }
-                    }}
+                    role="tab"
+                    className={`chat-thread-split-switcher-btn${t.id === activeConversationId ? ' active' : ''}`}
+                    onClick={() => onSwitchChat(t.id)}
+                    title={t.title}
                   >
-                    {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
+                    {t.title}
                   </button>
-                )}
-                {!streaming && editingIdx !== originalIdx && (
-                  <div className="chat-fork-actions">
-                    {!activeIsThread && (
-                      <button
-                        type="button"
-                        className="chat-fork-btn"
-                        onClick={() => onStartThreadFromMessage(originalIdx)}
-                        title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-                      >
-                        <MessageSquare size={12} />
-                      </button>
-                    )}
-                    {msg.role === 'user' && isLastUserMsg && (
-                      <button
-                        type="button"
-                        className="chat-fork-btn chat-resend-btn"
-                        onClick={() => onEditMessage(originalIdx, msg.content)}
-                        title="Nachricht erneut senden"
-                      >
-                        <RotateCcw size={12} />
-                      </button>
-                    )}
-                    {msg.role === 'user' && (
-                      <button
-                        type="button"
-                        className="chat-fork-btn chat-edit-btn"
-                        onClick={() => setEditingIdx(originalIdx)}
-                        title="Nachricht bearbeiten"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                    )}
-                    {visIdx > 0 && (
-                      <button
-                        type="button"
-                        className="chat-fork-btn"
-                        onClick={() => onForkFromMessage(originalIdx)}
-                        title="Hier abschneiden (in-place)"
-                      >
-                        <Scissors size={12} />
-                      </button>
-                    )}
-                    {visIdx > 0 && !activeIsThread && (
-                      <button
-                        type="button"
-                        className="chat-fork-btn"
-                        onClick={() => onForkToNewConversation(originalIdx)}
-                        title="Als neuen Chat forken"
-                      >
-                        <GitFork size={12} />
-                      </button>
-                    )}
+                ))}
+              </div>
+              <div className="chat-panel-body-main">
+                {interactiveMessagesEl}
+                {activeSessionKind === 'guided' && (
+                  <div className="chat-steering-plan-panel">
                     <button
                       type="button"
-                      className="chat-fork-btn chat-fork-btn--danger"
-                      onClick={() => onDeleteMessage(originalIdx)}
-                      title="Nachricht löschen"
+                      className="chat-steering-plan-toggle"
+                      onClick={() => setSteeringPlanOpen((o) => !o)}
+                      aria-expanded={steeringPlanOpen}
                     >
-                      <Trash2 size={12} />
+                      Arbeitsplan
+                      <span className="chat-steering-plan-chevron">{steeringPlanOpen ? '▼' : '▶'}</span>
                     </button>
+                    {steeringPlanOpen && (
+                      <div className="chat-steering-plan-body">
+                        {steeringPlan?.trim() ? (
+                          <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
+                        ) : (
+                          <p className="chat-steering-plan-empty">
+                            Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als
+                            Markdown-Block mit Sprache <code>plan</code> an.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
+                <div className="chat-composer-stack">
+                  {pendingClarification && pendingClarification.length > 0 ? (
+                    <ChatComposerCard>
+                      <SuggestedActionsCard
+                        questions={pendingClarification}
+                        onSubmit={onSend}
+                        disabled={streaming}
+                      />
+                    </ChatComposerCard>
+                  ) : null}
+                  {pendingWriteFileItems.length > 0 ? (
+                    <ChatComposerCard>
+                      <WriteFileBatchComposerBar
+                        items={pendingWriteFileItems}
+                        onBulkComplete={handleWriteFileBulkComplete}
+                        onFileChanged={onFileChanged}
+                        disabled={streaming}
+                      />
+                    </ChatComposerCard>
+                  ) : null}
+                  <ChatInput
+                    onSend={onSend}
+                    onStop={onStop}
+                    streaming={streaming}
+                    referencedFiles={referencedFiles}
+                    onAddFile={onAddFile}
+                    onRemoveFile={onRemoveFile}
+                    fullscreen={isFullscreen}
+                    structureRoot={structureRoot}
+                    useReasoning={useReasoning && reasoningAvailable}
+                    onToggleReasoning={onToggleReasoning}
+                    disabledToolkits={disabledToolkits}
+                    onToggleToolkit={onToggleToolkit}
+                    reasoningAvailable={reasoningAvailable}
+                    fastAvailable={fastAvailable}
+                    activeSelection={activeSelection}
+                    onDismissSelection={onDismissSelection}
+                    focusTriggerRef={chatFocusTriggerRef}
+                  />
+                </div>
               </div>
             </div>
-          );
-        })}
-        {toolActivity && streaming && (
-          <div className="chat-tool-activity">
-            <Search size={14} className="chat-tool-activity-icon" />
-            <span>{toolActivity}</span>
-          </div>
-        )}
-        {error && (
-          <div className="chat-message error">
-            <div className="chat-message-content">
-              {error === 'NETWORK_ERROR' ? (
-                <>
-                  <strong>Verbindungsproblem:</strong> Die KI-API ist nicht erreichbar.
-                  <br />
-                  Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.
-                </>
-              ) : error === 'MODEL_EMPTY_RESPONSE' ? (
-                'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
-              ) : (
-                `Error: ${error}`
+          </>
+        ) : (
+          <>
+            <div className="chat-panel-body-main">
+              {interactiveMessagesEl}
+              {activeSessionKind === 'guided' && (
+                <div className="chat-steering-plan-panel">
+                  <button
+                    type="button"
+                    className="chat-steering-plan-toggle"
+                    onClick={() => setSteeringPlanOpen((o) => !o)}
+                    aria-expanded={steeringPlanOpen}
+                  >
+                    Arbeitsplan
+                    <span className="chat-steering-plan-chevron">{steeringPlanOpen ? '▼' : '▶'}</span>
+                  </button>
+                  {steeringPlanOpen && (
+                    <div className="chat-steering-plan-body">
+                      {steeringPlan?.trim() ? (
+                        <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
+                      ) : (
+                        <p className="chat-steering-plan-empty">
+                          Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als Markdown-Block
+                          mit Sprache <code>plan</code> an.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
+              <div className="chat-composer-stack">
+                {pendingClarification && pendingClarification.length > 0 ? (
+                  <ChatComposerCard>
+                    <SuggestedActionsCard
+                      questions={pendingClarification}
+                      onSubmit={onSend}
+                      disabled={streaming}
+                    />
+                  </ChatComposerCard>
+                ) : null}
+                {pendingWriteFileItems.length > 0 ? (
+                  <ChatComposerCard>
+                    <WriteFileBatchComposerBar
+                      items={pendingWriteFileItems}
+                      onBulkComplete={handleWriteFileBulkComplete}
+                      onFileChanged={onFileChanged}
+                      disabled={streaming}
+                    />
+                  </ChatComposerCard>
+                ) : null}
+                <ChatInput
+                  onSend={onSend}
+                  onStop={onStop}
+                  streaming={streaming}
+                  referencedFiles={referencedFiles}
+                  onAddFile={onAddFile}
+                  onRemoveFile={onRemoveFile}
+                  fullscreen={isFullscreen}
+                  structureRoot={structureRoot}
+                  useReasoning={useReasoning && reasoningAvailable}
+                  onToggleReasoning={onToggleReasoning}
+                  disabledToolkits={disabledToolkits}
+                  onToggleToolkit={onToggleToolkit}
+                  reasoningAvailable={reasoningAvailable}
+                  fastAvailable={fastAvailable}
+                  activeSelection={activeSelection}
+                  onDismissSelection={onDismissSelection}
+                  focusTriggerRef={chatFocusTriggerRef}
+                />
+              </div>
             </div>
-            {(error === 'MODEL_EMPTY_RESPONSE' || error === 'NETWORK_ERROR') && onRetry && (
-              <button className="chat-retry-btn" onClick={onRetry}>
-                Erneut versuchen
-              </button>
+            {threadRail.showRail && threadRail.rootConv && (
+              <aside className="chat-threads-rail" aria-label="Threads">
+                <div className="chat-threads-rail-header">Threads</div>
+                <div className="chat-threads-rail-list">
+                  <button
+                    type="button"
+                    className={`chat-threads-rail-item${threadRail.rootConv.id === activeConversationId ? ' active' : ''}`}
+                    onClick={() => onSwitchChat(threadRail.rootConv.id)}
+                    title={threadRail.rootConv.title}
+                  >
+                    <span className="chat-threads-rail-item-meta">Haupt-Chat</span>
+                    <span className="chat-threads-rail-item-title">{threadRail.rootConv.title}</span>
+                  </button>
+                  {threadRail.threads.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`chat-threads-rail-item${t.id === activeConversationId ? ' active' : ''}`}
+                      onClick={() => onSwitchChat(t.id)}
+                      title={t.title}
+                    >
+                      <span className="chat-threads-rail-item-meta">Thread</span>
+                      <span className="chat-threads-rail-item-title">{t.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </aside>
             )}
-          </div>
-        )}
-          </div>
-
-          {activeSessionKind === 'guided' && (
-        <div className="chat-steering-plan-panel">
-          <button
-            type="button"
-            className="chat-steering-plan-toggle"
-            onClick={() => setSteeringPlanOpen((o) => !o)}
-            aria-expanded={steeringPlanOpen}
-          >
-            Arbeitsplan
-            <span className="chat-steering-plan-chevron">{steeringPlanOpen ? '▼' : '▶'}</span>
-          </button>
-          {steeringPlanOpen && (
-            <div className="chat-steering-plan-body">
-              {steeringPlan?.trim() ? (
-                <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
-              ) : (
-                <p className="chat-steering-plan-empty">
-                  Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als Markdown-Block mit
-                  Sprache <code>plan</code> an.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="chat-composer-stack">
-        {pendingClarification && pendingClarification.length > 0 ? (
-          <ChatComposerCard>
-            <SuggestedActionsCard
-              questions={pendingClarification}
-              onSubmit={onSend}
-              disabled={streaming}
-            />
-          </ChatComposerCard>
-        ) : null}
-        {pendingWriteFileItems.length > 0 ? (
-          <ChatComposerCard>
-            <WriteFileBatchComposerBar
-              items={pendingWriteFileItems}
-              onBulkComplete={handleWriteFileBulkComplete}
-              onFileChanged={onFileChanged}
-              disabled={streaming}
-            />
-          </ChatComposerCard>
-        ) : null}
-        <ChatInput
-          onSend={onSend}
-          onStop={onStop}
-          streaming={streaming}
-          referencedFiles={referencedFiles}
-          onAddFile={onAddFile}
-          onRemoveFile={onRemoveFile}
-          fullscreen={isFullscreen}
-          structureRoot={structureRoot}
-          useReasoning={useReasoning && reasoningAvailable}
-          onToggleReasoning={onToggleReasoning}
-          disabledToolkits={disabledToolkits}
-          onToggleToolkit={onToggleToolkit}
-          reasoningAvailable={reasoningAvailable}
-          fastAvailable={fastAvailable}
-          activeSelection={activeSelection}
-          onDismissSelection={onDismissSelection}
-          focusTriggerRef={chatFocusTriggerRef}
-        />
-      </div>
-        </div>
-        {threadRail.showRail && threadRail.rootConv && (
-          <aside className="chat-threads-rail" aria-label="Threads">
-            <div className="chat-threads-rail-header">Threads</div>
-            <div className="chat-threads-rail-list">
-              <button
-                type="button"
-                className={`chat-threads-rail-item${threadRail.rootConv.id === activeConversationId ? ' active' : ''}`}
-                onClick={() => onSwitchChat(threadRail.rootConv.id)}
-                title={threadRail.rootConv.title}
-              >
-                <span className="chat-threads-rail-item-meta">Haupt-Chat</span>
-                <span className="chat-threads-rail-item-title">{threadRail.rootConv.title}</span>
-              </button>
-              {threadRail.threads.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className={`chat-threads-rail-item${t.id === activeConversationId ? ' active' : ''}`}
-                  onClick={() => onSwitchChat(t.id)}
-                  title={t.title}
-                >
-                  <span className="chat-threads-rail-item-meta">Thread</span>
-                  <span className="chat-threads-rail-item-title">{t.title}</span>
-                </button>
-              ))}
-            </div>
-          </aside>
+          </>
         )}
       </div>
 
