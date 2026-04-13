@@ -3652,8 +3652,8 @@ body.file-tree-native-dragging {
   padding: 0 4px;
   border: 1px solid var(--border);
   border-radius: 3px;
-  background: color-mix(in srgb, var(--bg-tertiary) 85%, var(--border));
-  color: var(--text-muted);
+  background: #b8860b;
+  color: white;
   font-size: 11px;
   font-family: ui-monospace, monospace;
   font-weight: 600;
@@ -3661,7 +3661,7 @@ body.file-tree-native-dragging {
 }
 
 .sac-option.selected .sac-letter {
-  background: var(--accent);
+  background: #4e9ef5;
   border-color: var(--accent);
   color: #fff;
 }

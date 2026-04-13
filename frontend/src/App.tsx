@@ -16,6 +16,7 @@ import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal
 import type { CommandAction } from './components/git/CommandPalette.tsx';
 import type {
   Mode,
+  Conversation,
   GitStatus,
   GitSyncStatus,
   MetaSelection,
@@ -45,6 +46,36 @@ import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx
 import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
 import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
 import { parseSteeringPlanFromAssistant } from './components/chat/planFenceUtils.ts';
+
+/** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
+const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
+
+function resolveDefaultModeId(mds: Mode[], configured: string | undefined): string {
+  const id = configured?.trim() ?? '';
+  if (id && mds.some((m) => m.id === id)) return id;
+  if (mds.some((m) => m.id === 'review')) return 'review';
+  if (mds.length > 0) return mds[0].id;
+  return 'review';
+}
+
+function conversationHasVisibleMessages(conv: Conversation): boolean {
+  return conv.messages.some((m) => !m.hidden);
+}
+
+/** Main chat mode id from persisted conversation (excludes prompt-pack for the main selector). */
+function resolvePersistedChatModeId(conv: Conversation, chatModes: Mode[], allModes: Mode[]): string | null {
+  const isMain = (modeId: string) => chatModes.some((m) => m.id === modeId);
+  if (conv.mode && conv.mode !== 'prompt-pack' && isMain(conv.mode)) return conv.mode;
+
+  for (let i = conv.messages.length - 1; i >= 0; i--) {
+    const m = conv.messages[i];
+    if (m.hidden || m.role !== 'user' || !m.mode) continue;
+    if (m.mode === PROMPT_PACK_DISPLAY_NAME) continue;
+    const found = allModes.find((mode) => mode.name === m.mode);
+    if (found && found.id !== 'prompt-pack') return found.id;
+  }
+  return null;
+}
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
 const CHAT_DISABLED_TOOLKITS_KEY = 'chat-disabled-toolkits';
@@ -106,9 +137,13 @@ function App() {
   const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
+  const llmsRef = useRef(llms);
+  llmsRef.current = llms;
   const [disabledToolkits, setDisabledToolkits] = useState(loadInitialDisabledToolkits);
 
   const prefsHydratedRef = useRef(false);
+  /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
+  const projectDefaultChatModeIdRef = useRef('review');
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
   const handleToggleToolkit = useCallback((kitId: string) => {
@@ -179,6 +214,28 @@ function App() {
     setUseReasoning(newUseReasoning);
   }, [modes, llms]);
 
+  const applyLlmPrefsFromStorage = useCallback(() => {
+    const providers = llmsRef.current;
+    const prefs = loadLlmPrefs();
+    if (!prefs) return;
+    const { llmId, useReasoning: savedReasoning } = prefs;
+    if (llmId !== null) {
+      const llm = providers.find((l) => l.id === llmId);
+      if (llm) {
+        setModeLlmId(llmId);
+        const hasReasoning = !!llm.reasoningModel;
+        const hasFast = !!llm.fastModel;
+        if (!hasReasoning) setUseReasoning(false);
+        else if (!hasFast) setUseReasoning(true);
+        else setUseReasoning(savedReasoning);
+      } else {
+        setUseReasoning(savedReasoning);
+      }
+    } else {
+      setUseReasoning(savedReasoning);
+    }
+  }, []);
+
   const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages, {
     onAssistantResponseComplete: (fullText, meta) => {
@@ -189,6 +246,9 @@ function App() {
       }
     },
   });
+
+  /** Bumped after modes + LLM list load so chat mode can sync once project defaults are known. */
+  const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
 
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [workspaceModesRefreshNonce, setWorkspaceModesRefreshNonce] = useState(0);
@@ -248,14 +308,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
 
-  function resolveDefaultModeId(mds: Mode[], configured: string | undefined): string {
-    const id = configured?.trim() ?? '';
-    if (id && mds.some((m) => m.id === id)) return id;
-    if (mds.some((m) => m.id === 'review')) return 'review';
-    if (mds.length > 0) return mds[0].id;
-    return 'review';
-  }
-
   const loadModes = useCallback(async () => {
     try {
       const [mds, status] = await Promise.all([modesApi.getAll(), projectConfigApi.status()]);
@@ -272,6 +324,7 @@ function App() {
       }
       if (configured === 'prompt-pack') configured = undefined;
       const resolvedId = resolveDefaultModeId(chatModes, configured);
+      projectDefaultChatModeIdRef.current = resolvedId;
       const resolvedMode = chatModes.find(m => m.id === resolvedId);
       setSelectedMode(resolvedId);
       setUseReasoning(resolvedMode?.useReasoning ?? false);
@@ -284,7 +337,6 @@ function App() {
   useEffect(() => {
     prefsHydratedRef.current = false;
     let cancelled = false;
-    const llmsRef: { current: LlmPublic[] } = { current: [] };
     const llmsPromise = llmApi
       .list()
       .then((r) => {
@@ -298,32 +350,48 @@ function App() {
 
     Promise.all([loadModes(), llmsPromise]).then(() => {
       if (cancelled) return;
-      const prefs = loadLlmPrefs();
-      if (prefs) {
-        const { llmId, useReasoning: savedReasoning } = prefs;
-        if (llmId !== null) {
-          const llm = llmsRef.current.find((l) => l.id === llmId);
-          if (llm) {
-            setModeLlmId(llmId);
-            const hasReasoning = !!llm.reasoningModel;
-            const hasFast = !!llm.fastModel;
-            if (!hasReasoning) setUseReasoning(false);
-            else if (!hasFast) setUseReasoning(true);
-            else setUseReasoning(savedReasoning);
-          } else {
-            setUseReasoning(savedReasoning);
-          }
-        } else {
-          setUseReasoning(savedReasoning);
-        }
-      }
       prefsHydratedRef.current = true;
+      applyLlmPrefsFromStorage();
+      setModesAndLlmLoadGeneration((g) => g + 1);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [loadModes, project.projectPath]);
+  }, [loadModes, project.projectPath, applyLlmPrefsFromStorage]);
+
+  // Sync main chat Mode selector with the active conversation (initial load + chat switch).
+  useEffect(() => {
+    if (!history.hydrated || modes.length === 0) return;
+    const chatModes = modes.filter((m) => m.id !== 'prompt-pack');
+    const conv = history.activeConversation;
+    let desired: string;
+    if (!conversationHasVisibleMessages(conv)) {
+      desired = projectDefaultChatModeIdRef.current;
+      if (!chatModes.some((m) => m.id === desired)) {
+        desired = resolveDefaultModeId(chatModes, undefined);
+      }
+    } else {
+      const fromConv = resolvePersistedChatModeId(conv, chatModes, modes);
+      desired = fromConv ?? projectDefaultChatModeIdRef.current;
+      if (!chatModes.some((m) => m.id === desired)) {
+        desired = resolveDefaultModeId(chatModes, undefined);
+      }
+    }
+    handleModeChange(desired, modes);
+    if (prefsHydratedRef.current) {
+      applyLlmPrefsFromStorage();
+    }
+  }, [
+    history.hydrated,
+    history.activeId,
+    history.activeConversation.mode,
+    modes,
+    project.projectPath,
+    modesAndLlmLoadGeneration,
+    handleModeChange,
+    applyLlmPrefsFromStorage,
+  ]);
 
   useEffect(() => {
     if (!prefsHydratedRef.current) return;
@@ -688,6 +756,7 @@ function App() {
         [...disabledToolkits],
         streamSession,
       );
+      history.patchConversation(history.activeId, { mode: selectedMode });
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
     },
@@ -706,6 +775,7 @@ function App() {
       disabledToolkits,
       history.activeConversation,
       history.activeId,
+      history.patchConversation,
     ],
   );
 
@@ -728,6 +798,7 @@ function App() {
         sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: conv?.steeringPlan,
       });
+      history.patchConversation(history.activeId, { mode: selectedMode });
       setActiveSelection(null);
     },
     [
@@ -744,6 +815,7 @@ function App() {
       disabledToolkits,
       history.activeConversation,
       history.activeId,
+      history.patchConversation,
     ],
   );
 
@@ -770,9 +842,10 @@ function App() {
           sessionKind: 'standard',
         },
       );
+      history.patchConversation(history.activeId, { mode: 'prompt-pack' });
       setPromptPackOpen(false);
     },
-    [chat, modes, useReasoning, modeLlmId, disabledToolkits, history.activeConversation, history.activeId],
+    [chat, modes, useReasoning, modeLlmId, disabledToolkits, history.activeConversation, history.activeId, history.patchConversation],
   );
 
   useEffect(() => {
