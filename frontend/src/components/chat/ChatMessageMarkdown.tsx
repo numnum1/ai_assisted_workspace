@@ -69,23 +69,25 @@ function splitThinkContent(content: string): { thinkingText: string | null; resp
   };
 }
 
-function ThinkingChip({ text }: { text: string }) {
+/** While `streaming` is true, the body stays visible so reasoning text can grow token-by-token; otherwise use the user toggle. */
+function ThinkingChip({ text, streaming }: { text: string; streaming?: boolean }) {
   const [open, setOpen] = useState(false);
+  const expanded = !!streaming || open;
   return (
     <div className="chat-thinking">
       <button
         type="button"
         className="chat-thinking-header"
         onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
+        aria-expanded={expanded}
       >
         <Brain size={14} aria-hidden />
         <span>Denkprozess</span>
         <span className="chat-thinking-chevron">
-          {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+          {expanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
         </span>
       </button>
-      {open ? (
+      {expanded ? (
         <div className="chat-thinking-body">
           <pre>{text}</pre>
         </div>
@@ -539,7 +541,9 @@ export function ChatMessageMarkdown({
 
   return (
     <div className="chat-md">
-      {thinkSplit.thinkingText !== null && <ThinkingChip text={thinkSplit.thinkingText} />}
+      {thinkSplit.thinkingText !== null && (
+        <ThinkingChip text={thinkSplit.thinkingText} streaming={!!streamingCursor} />
+      )}
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
         {markdownSource}
       </ReactMarkdown>
