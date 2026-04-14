@@ -318,6 +318,16 @@ export const chatApi = {
     post<{ includedFiles: string[]; estimatedTokens: number; contextBlocks: ContextBlock[] }>('/chat/context-preview', body),
 };
 
+/**
+ * Yields one macrotask so React 18 can commit state updates between SSE tokens.
+ * Without this, many `onToken` calls from a single `reader.read()` chunk are batched into one paint.
+ */
+function yieldMacrotaskForTokenPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
 export function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,
@@ -418,6 +428,7 @@ export function streamChat(
               const unescaped = data.replace(/\\n/g, '\n');
               fullAssistantText += unescaped;
               onToken(unescaped);
+              await yieldMacrotaskForTokenPaint();
             }
             currentEvent = '';
           }

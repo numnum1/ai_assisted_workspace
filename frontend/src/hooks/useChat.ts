@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type {
   ChatMessage,
   ChatRequest,
@@ -7,14 +6,7 @@ import type {
   ContextInfo,
   SelectionContext,
 } from '../types.ts';
-import { streamChat } from '../api.ts';
-
-function isVisibleToolMessage(content: string | undefined): boolean {
-  if (!content) return false;
-  // Show all tool results by default so the new ToolCallDisplay can render them.
-  // Specific prefixes still get special card treatment in chatRenderUnits.
-  return true;
-}
+import { attachAssistantStream, type StreamCallbacks } from './assistantStream.ts';
 
 /**
  * Transforms the messages array into the history payload sent to the backend.
@@ -74,75 +66,6 @@ function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
     }
     return { role: msg.role, content: msg.content };
   });
-}
-
-type StreamCallbacks = {
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
-  setStreaming: (v: boolean) => void;
-  setError: (v: string | null) => void;
-  setToolActivity: (v: string | null) => void;
-  setContextInfo: Dispatch<SetStateAction<ContextInfo | null>>;
-  currentBaseRef: MutableRefObject<ChatMessage[]>;
-};
-
-function attachAssistantStream(
-  requestBase: ChatRequest,
-  selectionContext: SelectionContext | undefined,
-  cbs: StreamCallbacks,
-  onAssistantComplete?: (fullAssistantText: string) => void,
-): AbortController {
-  let assistantContent = '';
-
-  return streamChat(
-    requestBase,
-    (token) => {
-      assistantContent += token;
-      cbs.setMessages([
-        ...cbs.currentBaseRef.current,
-        { role: 'assistant', content: assistantContent, selectionContext },
-      ]);
-      cbs.setToolActivity(null);
-    },
-    (info) => {
-      cbs.setContextInfo(info);
-    },
-    (fullAssistantText) => {
-      cbs.setStreaming(false);
-      cbs.setToolActivity(null);
-      onAssistantComplete?.(fullAssistantText);
-    },
-    (err) => {
-      cbs.setError(err.message);
-      cbs.setStreaming(false);
-      cbs.setToolActivity(null);
-    },
-    (description) => {
-      cbs.setToolActivity(description);
-    },
-    (updatedTokens) => {
-      cbs.setContextInfo((prev) =>
-        prev ? { ...prev, estimatedTokens: updatedTokens } : prev,
-      );
-    },
-    (toolMessages) => {
-      cbs.currentBaseRef.current = [
-        ...cbs.currentBaseRef.current,
-        ...toolMessages.map((m) => ({ ...m, hidden: !isVisibleToolMessage(m.content) })),
-      ];
-      cbs.setMessages(cbs.currentBaseRef.current);
-    },
-    (resolved) => {
-      const base = [...cbs.currentBaseRef.current];
-      for (let i = base.length - 1; i >= 0; i--) {
-        if (base[i].role === 'user' && !base[i].hidden) {
-          base[i] = { ...base[i], resolvedContent: resolved };
-          break;
-        }
-      }
-      cbs.currentBaseRef.current = base;
-      cbs.setMessages(base);
-    },
-  );
 }
 
 export interface UseChatOptions {
@@ -285,63 +208,20 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     setError(null);
     setStreaming(true);
     setToolActivity(null);
-    let assistantContent = '';
     const { chatRequest, selectionContext, streamMeta } = last;
     const onComplete =
       streamMeta && onAssistantResponseCompleteRef.current
         ? (fullText: string) => onAssistantResponseCompleteRef.current?.(fullText, streamMeta)
         : undefined;
-    const controller = streamChat(
-      chatRequest,
-      (token) => {
-        assistantContent += token;
-        setMessages([
-          ...currentBaseRef.current,
-          { role: 'assistant', content: assistantContent, selectionContext },
-        ]);
-        setToolActivity(null);
-      },
-      (info) => {
-        setContextInfo(info);
-      },
-      (fullAssistantText) => {
-        setStreaming(false);
-        setToolActivity(null);
-        onComplete?.(fullAssistantText);
-      },
-      (err) => {
-        setError(err.message);
-        setStreaming(false);
-        setToolActivity(null);
-      },
-      (description) => {
-        setToolActivity(description);
-      },
-      (updatedTokens) => {
-        setContextInfo(prev =>
-          prev ? { ...prev, estimatedTokens: updatedTokens } : prev
-        );
-      },
-      (toolMessages) => {
-        currentBaseRef.current = [
-          ...currentBaseRef.current,
-          ...toolMessages.map((m) => ({ ...m, hidden: !isVisibleToolMessage(m.content) })),
-        ];
-        setMessages(currentBaseRef.current);
-      },
-      (resolved) => {
-        const base = [...currentBaseRef.current];
-        for (let i = base.length - 1; i >= 0; i--) {
-          if (base[i].role === 'user' && !base[i].hidden) {
-            base[i] = { ...base[i], resolvedContent: resolved };
-            break;
-          }
-        }
-        currentBaseRef.current = base;
-        setMessages(base);
-      },
-    );
-    abortRef.current = controller;
+    const streamCbs = {
+      setMessages,
+      setStreaming,
+      setError,
+      setToolActivity,
+      setContextInfo,
+      currentBaseRef,
+    };
+    abortRef.current = attachAssistantStream(chatRequest, selectionContext, streamCbs, onComplete);
   }, []);
 
   const forkFromMessage = useCallback((upToIndex: number) => {

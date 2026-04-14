@@ -40,6 +40,12 @@ public class ChatController {
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
     private static final int MAX_TOOL_ROUNDS = 16;
 
+    /**
+     * Codepoints per SSE {@code token} event when emitting {@code preGeneratedContent} (no second LLM call).
+     * UTF-16-safe boundaries via {@link String#offsetByCodePoints}.
+     */
+    private static final int PRE_GENERATED_SSE_CHUNK_CODE_POINTS = 48;
+
     private final ContextService contextService;
     private final AiApiClient aiApiClient;
     private final ToolExecutor toolExecutor;
@@ -109,11 +115,15 @@ public class ChatController {
 
                             Flux<ServerSentEvent<String>> tokenStream;
                             if (resolved.preGeneratedContent() != null) {
+                                String preGen = resolved.preGeneratedContent();
+                                int cp = preGen.codePointCount(0, preGen.length());
+                                int approxEvents = cp == 0 ? 1 : (cp + PRE_GENERATED_SSE_CHUNK_CODE_POINTS - 1) / PRE_GENERATED_SSE_CHUNK_CODE_POINTS;
                                 log.info(
-                                        "Emitting pre-generated content as token stream ({} chars), skipping second API call",
-                                        resolved.preGeneratedContent().length());
-                                tokenStream = Flux.just(ServerSentEvent.<String>builder()
-                                        .event("token").data(escapeForSse(resolved.preGeneratedContent())).build());
+                                        "Emitting pre-generated content as chunked SSE token stream ({} chars, {} codepoints, ~{} token events), skipping second API call",
+                                        preGen.length(),
+                                        cp,
+                                        approxEvents);
+                                tokenStream = tokenFluxFromPreGenerated(preGen);
                             } else {
                                 AtomicInteger streamChunks = new AtomicInteger();
                                 AtomicInteger streamChars = new AtomicInteger();
@@ -391,6 +401,33 @@ public class ChatController {
         }
         sb.append("}");
         return sb.toString();
+    }
+
+    /**
+     * Splits pre-generated assistant text into many SSE {@code token} events so the client can render incrementally.
+     * Empty or null yields a single empty token so {@code tokenCount} stays consistent with the {@code done} handshake.
+     */
+    private Flux<ServerSentEvent<String>> tokenFluxFromPreGenerated(String text) {
+        if (text == null || text.isEmpty()) {
+            return Flux.just(ServerSentEvent.<String>builder()
+                    .event("token")
+                    .data(escapeForSse(text == null ? "" : text))
+                    .build());
+        }
+        List<ServerSentEvent<String>> events = new ArrayList<>();
+        int i = 0;
+        while (i < text.length()) {
+            int remainingCp = text.codePointCount(i, text.length());
+            int takeCp = Math.min(PRE_GENERATED_SSE_CHUNK_CODE_POINTS, remainingCp);
+            int end = text.offsetByCodePoints(i, takeCp);
+            String segment = text.substring(i, end);
+            events.add(ServerSentEvent.<String>builder()
+                    .event("token")
+                    .data(escapeForSse(segment))
+                    .build());
+            i = end;
+        }
+        return Flux.fromIterable(events);
     }
 
     private String escapeForSse(String data) {

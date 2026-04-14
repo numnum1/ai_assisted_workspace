@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
-import type { ChatMessage, ChatRequest } from '../types.ts';
-import { streamChat } from '../api.ts';
+import type { Dispatch, SetStateAction } from 'react';
+import type { ChatMessage, ChatRequest, ContextInfo } from '../types.ts';
+import { attachAssistantStream } from './assistantStream.ts';
+
+const noopSetContextInfo: Dispatch<SetStateAction<ContextInfo | null>> = () => {};
 
 export const QUICK_CHAT_STORAGE_KEY = 'markdown-project-quick-chat-v1';
 
@@ -88,8 +91,6 @@ export function useQuickChat() {
     setMessages(currentBaseRef.current);
     setStreaming(true);
 
-    let assistantContent = '';
-
     const disabledToolkits = options?.disabledToolkits?.length
       ? [...options.disabledToolkits]
       : undefined;
@@ -109,52 +110,15 @@ export function useQuickChat() {
     };
     lastChatRequestRef.current = chatRequest;
 
-    const controller = streamChat(
-      chatRequest,
-      (token) => {
-        assistantContent += token;
-        setMessages([...currentBaseRef.current, { role: 'assistant', content: assistantContent }]);
-        setToolActivity(null);
-      },
-      () => {
-        /* Quick Chat ignores context bar */
-      },
-      (_fullAssistantText) => {
-        setStreaming(false);
-        setToolActivity(null);
-      },
-      (err) => {
-        setError(err.message);
-        setStreaming(false);
-        setToolActivity(null);
-      },
-      (description) => {
-        setToolActivity(description);
-      },
-      () => {
-        /* token estimate not shown in quick UI */
-      },
-      (toolMessages) => {
-        currentBaseRef.current = [
-          ...currentBaseRef.current,
-          ...toolMessages.map((m) => ({ ...m, hidden: false })), // show tool messages for ToolCallDisplay in Quick Chat too
-        ];
-        setMessages(currentBaseRef.current);
-      },
-      (resolved) => {
-        const base = [...currentBaseRef.current];
-        for (let i = base.length - 1; i >= 0; i--) {
-          if (base[i].role === 'user' && !base[i].hidden) {
-            base[i] = { ...base[i], resolvedContent: resolved };
-            break;
-          }
-        }
-        currentBaseRef.current = base;
-        setMessages(base);
-      },
-    );
-
-    abortRef.current = controller;
+    const streamCbs = {
+      setMessages,
+      setStreaming,
+      setError,
+      setToolActivity,
+      setContextInfo: noopSetContextInfo,
+      currentBaseRef,
+    };
+    abortRef.current = attachAssistantStream(chatRequest, undefined, streamCbs, undefined);
   }, [messages]);
 
   const stopStreaming = useCallback(() => {
@@ -169,48 +133,15 @@ export function useQuickChat() {
     setError(null);
     setStreaming(true);
     setToolActivity(null);
-    let assistantContent = '';
-    const controller = streamChat(
-      chatRequest,
-      (token) => {
-        assistantContent += token;
-        setMessages([...currentBaseRef.current, { role: 'assistant', content: assistantContent }]);
-        setToolActivity(null);
-      },
-      () => { /* Quick Chat ignores context bar */ },
-      (_fullAssistantText) => {
-        setStreaming(false);
-        setToolActivity(null);
-      },
-      (err) => {
-        setError(err.message);
-        setStreaming(false);
-        setToolActivity(null);
-      },
-      (description) => {
-        setToolActivity(description);
-      },
-      () => { /* token estimate not shown in quick UI */ },
-      (toolMessages) => {
-        currentBaseRef.current = [
-          ...currentBaseRef.current,
-          ...toolMessages.map((m) => ({ ...m, hidden: false })), // show tool messages for ToolCallDisplay in Quick Chat too
-        ];
-        setMessages(currentBaseRef.current);
-      },
-      (resolved) => {
-        const base = [...currentBaseRef.current];
-        for (let i = base.length - 1; i >= 0; i--) {
-          if (base[i].role === 'user' && !base[i].hidden) {
-            base[i] = { ...base[i], resolvedContent: resolved };
-            break;
-          }
-        }
-        currentBaseRef.current = base;
-        setMessages(base);
-      },
-    );
-    abortRef.current = controller;
+    const streamCbs = {
+      setMessages,
+      setStreaming,
+      setError,
+      setToolActivity,
+      setContextInfo: noopSetContextInfo,
+      currentBaseRef,
+    };
+    abortRef.current = attachAssistantStream(chatRequest, undefined, streamCbs, undefined);
   }, []);
 
   const clearMessages = useCallback(() => {
