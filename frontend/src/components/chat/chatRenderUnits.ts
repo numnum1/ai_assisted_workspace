@@ -1,11 +1,32 @@
-import type { ChatMessage } from '../../types.ts';
+import type { ChatMessage, ToolCall } from '../../types.ts';
 import type { ChangeCardData } from './ChangeCard.tsx';
 import { parseWriteFileToolMessage } from './writeFileToolParse.ts';
 
 export type ChatRenderUnit =
   | { type: 'writeFileGroup'; items: { originalIdx: number; data: ChangeCardData }[] }
-  | { type: 'toolCall'; assistantIdx: number; toolCallIdx: number; toolCall: any; resultMsg?: ChatMessage }
+  | {
+      type: 'toolCall';
+      assistantIdx: number;
+      toolCallIdx: number;
+      toolCallCount: number;
+      toolCall: ToolCall;
+      resultMsg?: ChatMessage;
+    }
   | { type: 'message'; visIdx: number; msg: ChatMessage; originalIdx: number };
+
+function findToolResult(
+  visible: { msg: ChatMessage; originalIdx: number }[],
+  assistantVisibleIndex: number,
+  toolCallId: string,
+): ChatMessage | undefined {
+  for (let k = assistantVisibleIndex + 1; k < visible.length; k++) {
+    const v = visible[k]!;
+    if (v.msg.role === 'tool' && v.msg.toolCallId === toolCallId) {
+      return v.msg;
+    }
+  }
+  return undefined;
+}
 
 /**
  * Builds render units for the chat. Special handling for:
@@ -38,23 +59,30 @@ export function buildChatRenderUnits(
       continue;
     }
 
-    // New: assistant message with toolCalls → create ToolCallDisplay units
     if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
-      msg.toolCalls.forEach((tc, toolCallIdx) => {
-        // Look for matching tool result message immediately after this assistant message
-        let resultMsg: ChatMessage | undefined = undefined;
-        const next = visible[i + 1];
-        if (next && next.msg.role === 'tool' && next.msg.toolCallId === tc.id) {
-          resultMsg = next.msg;
-        }
+      const toolCalls = msg.toolCalls;
+      const toolCallCount = toolCalls.length;
+
+      if (msg.content?.trim()) {
+        out.push({
+          type: 'message',
+          visIdx: i,
+          msg: { ...msg, toolCalls: undefined },
+          originalIdx,
+        });
+      }
+
+      for (let toolCallIdx = 0; toolCallIdx < toolCallCount; toolCallIdx++) {
+        const tc = toolCalls[toolCallIdx]!;
         out.push({
           type: 'toolCall',
           assistantIdx: originalIdx,
           toolCallIdx,
+          toolCallCount,
           toolCall: tc,
-          resultMsg,
+          resultMsg: findToolResult(visible, i, tc.id),
         });
-      });
+      }
       i += 1;
       continue;
     }

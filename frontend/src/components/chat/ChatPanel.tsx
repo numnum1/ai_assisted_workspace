@@ -310,7 +310,7 @@ function ChatMessagesPane({
               toolCall={unit.toolCall}
               result={unit.resultMsg?.content}
               isStreaming={isStreamingTool}
-              isLast={unit.toolCallIdx === (unit.toolCall as unknown as { length: number }).length - 1 || false}
+              isLast={unit.toolCallIdx === unit.toolCallCount - 1}
               onStartThread={
                 !readOnly && !activeIsThread && !streaming && unit.toolCallIdx === 0
                   ? () => onStartThreadFromMessage(unit.assistantIdx)

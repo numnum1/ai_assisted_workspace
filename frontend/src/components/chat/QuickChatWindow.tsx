@@ -1,7 +1,10 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { X, GripHorizontal, Trash2, Send, Square } from 'lucide-react';
 import type { LlmPublic } from '../../types.ts';
 import { projectConfigApi } from '../../api.ts';
+import { buildChatRenderUnits } from './chatRenderUnits.ts';
+import { ChangeCardGroup } from './ChangeCardGroup.tsx';
+import { ToolCallDisplay } from './ToolCallDisplay.tsx';
 import {
   useQuickChat,
   loadQuickChatPersisted,
@@ -133,6 +136,12 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
     sendMessage(t, kits ? { disabledToolkits: kits } : {});
   }, [draft, streaming, sendMessage, disabledToolkits]);
 
+  const visibleEntries = useMemo(
+    () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
+    [messages],
+  );
+  const renderUnits = useMemo(() => buildChatRenderUnits(visibleEntries), [visibleEntries]);
+
   if (!open) {
     return null;
   }
@@ -183,16 +192,60 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
             Kurze Fragen, Begriffe oder Formulierungen — ohne Projekt-Kontext. Mit Websuche (wenn konfiguriert).
           </p>
         )}
-        {messages
-          .filter((m) => !m.hidden)
-          .map((m, idx) => (
-            <div key={idx} className={`quick-chat-bubble quick-chat-bubble--${m.role}`}>
-              <div className="quick-chat-bubble-label">
-                {m.role === 'user' ? 'Du' : 'KI'}
+        {renderUnits.map((unit, mapIdx) => {
+          if (unit.type === 'writeFileGroup') {
+            return (
+              <ChangeCardGroup
+                key={`wf-${unit.items.map((x) => x.originalIdx).join('-')}`}
+                items={unit.items}
+              />
+            );
+          }
+          if (unit.type === 'toolCall') {
+            const isStreamingTool = streaming && unit.resultMsg === undefined;
+            return (
+              <div key={`tool-${unit.assistantIdx}-${unit.toolCallIdx}`} className="quick-chat-tool-call-wrap">
+                <ToolCallDisplay
+                  toolCall={unit.toolCall}
+                  result={unit.resultMsg?.content}
+                  isStreaming={isStreamingTool}
+                  isLast={unit.toolCallIdx === unit.toolCallCount - 1}
+                />
               </div>
-              <div className="quick-chat-bubble-text">{m.content}</div>
+            );
+          }
+          const { msg, originalIdx, visIdx } = unit;
+          if (msg.role === 'tool' && msg.toolCallId) {
+            const attached = renderUnits.some(
+              (u) => u.type === 'toolCall' && u.resultMsg?.toolCallId === msg.toolCallId,
+            );
+            if (attached) return null;
+          }
+          if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
+            const term = msg.content.slice('glossary_add:success:'.length);
+            return (
+              <div key={`g-${originalIdx}`} className="quick-chat-glossary">
+                <span className="quick-chat-glossary-icon" aria-hidden>
+                  📖
+                </span>
+                <span>
+                  Glossar: <strong>{term}</strong>
+                </span>
+              </div>
+            );
+          }
+          const label =
+            msg.role === 'user' ? 'Du' : msg.role === 'system' ? 'Kontext' : 'KI';
+          return (
+            <div
+              key={`m-${originalIdx}-${visIdx}-${mapIdx}`}
+              className={`quick-chat-bubble quick-chat-bubble--${msg.role}`}
+            >
+              <div className="quick-chat-bubble-label">{label}</div>
+              <div className="quick-chat-bubble-text">{msg.content}</div>
             </div>
-          ))}
+          );
+        })}
         {toolActivity && streaming && (
           <div className="quick-chat-tool">{toolActivity}</div>
         )}
