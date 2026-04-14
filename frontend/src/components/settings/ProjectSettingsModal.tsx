@@ -236,12 +236,6 @@ export function ProjectSettingsModal({
     }
   }, [initialized]);
 
-  useEffect(() => {
-    if (initialized && tab === 'agents') {
-      void loadAgents();
-    }
-  }, [initialized, tab, loadAgents]);
-
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -253,12 +247,16 @@ export function ProjectSettingsModal({
       setInitialized(status.initialized);
       if (llmsData) setLlmsState(llmsData);
       if (status.initialized) {
-        const [cfg, mds] = await Promise.all([
+        const [cfg, mds, agentList] = await Promise.all([
           projectConfigApi.get(),
           projectConfigApi.getModes(),
+          projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
         ]);
         setConfig(cfg);
         setModes(mds);
+        setAgents(agentList);
+      } else {
+        setAgents([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project settings');
@@ -282,8 +280,12 @@ export function ProjectSettingsModal({
       const cfg = await projectConfigApi.init();
       setConfig(cfg);
       setInitialized(true);
-      const mds = await projectConfigApi.getModes();
+      const [mds, agentList] = await Promise.all([
+        projectConfigApi.getModes(),
+        projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
+      ]);
       setModes(mds);
+      setAgents(agentList);
       onModesChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Initialization failed');
