@@ -28,6 +28,7 @@ import type {
   ChatSessionKind,
   ChatMessage,
 } from './types.ts';
+import type { NewChatConfirmPayload } from './components/chat/NewChatDialog.tsx';
 import { CHAT_TOOLKIT_IDS } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
 import { buildThreadSystemContent, cloneChatMessages } from './components/chat/chatThreadUtils.ts';
@@ -51,6 +52,14 @@ import {
   ensureSteeringPlanMarkedComplete,
   parseSteeringPlanFromAssistant,
 } from './components/chat/planFenceUtils.ts';
+import {
+  agentExecutionPartialFromParent,
+  applyGuidedAgentFromNewChatDialog,
+  buildAgentExecutionPatchFromGlobals,
+  conversationHasAgentExecution,
+  getEffectiveChatExecution,
+  isNewChatConfirmPayload,
+} from './components/chat/chatAgentUtils.ts';
 
 /** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
@@ -387,13 +396,23 @@ function App() {
       }
     }
     handleModeChange(desired, modes);
-    if (prefsHydratedRef.current) {
+    const convAfter = history.activeConversation;
+    if (conversationHasAgentExecution(convAfter)) {
+      if (convAfter.agentLlmId !== undefined) setModeLlmId(convAfter.agentLlmId);
+      if (convAfter.agentUseReasoning !== undefined) setUseReasoning(convAfter.agentUseReasoning);
+      if (convAfter.agentDisabledToolkits !== undefined) {
+        setDisabledToolkits(new Set(convAfter.agentDisabledToolkits));
+      }
+    } else if (prefsHydratedRef.current) {
       applyLlmPrefsFromStorage();
     }
   }, [
     history.hydrated,
     history.activeId,
     history.activeConversation.mode,
+    history.activeConversation.agentLlmId,
+    history.activeConversation.agentUseReasoning,
+    history.activeConversation.agentDisabledToolkits,
     modes,
     project.projectPath,
     modesAndLlmLoadGeneration,
@@ -409,6 +428,20 @@ function App() {
   useEffect(() => {
     saveDisabledToolkits(disabledToolkits);
   }, [disabledToolkits]);
+
+  /** Keep persisted agent execution in sync when the user changes LLM / reasoning / toolkits in the toolbar. */
+  useEffect(() => {
+    if (!history.hydrated) return;
+    const conv = history.activeConversation;
+    if (!conv || !conversationHasAgentExecution(conv)) return;
+    history.patchConversation(conv.id, {
+      ...buildAgentExecutionPatchFromGlobals({
+        llmId: modeLlmId,
+        useReasoning,
+        disabledToolkits,
+      }),
+    });
+  }, [modeLlmId, useReasoning, disabledToolkits, history.activeId, history.hydrated, history.patchConversation]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -745,6 +778,11 @@ function App() {
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
       const conv = history.activeConversation;
+      const exec = getEffectiveChatExecution(conv, {
+        llmId: modeLlmId,
+        useReasoning,
+        disabledToolkits,
+      });
       const streamSession = {
         conversationId: conv?.id ?? history.activeId,
         sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
@@ -757,11 +795,11 @@ function App() {
         refs.referencedFiles,
         mode?.name,
         mode?.color,
-        useReasoning,
-        modeLlmId,
+        exec.useReasoning,
+        exec.llmId,
         activeSelection ?? undefined,
         focusedField?.fieldKey ?? null,
-        [...disabledToolkits],
+        exec.disabledToolkits,
         streamSession,
       );
       history.patchConversation(history.activeId, { mode: selectedMode });
@@ -793,15 +831,20 @@ function App() {
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
       const conv = history.activeConversation;
+      const exec = getEffectiveChatExecution(conv, {
+        llmId: modeLlmId,
+        useReasoning,
+        disabledToolkits,
+      });
       chat.editMessage(index, newContent, {
         activeFile,
         mode: selectedMode,
         referencedFiles: refs.referencedFiles,
-        useReasoning,
-        llmId: modeLlmId,
+        useReasoning: exec.useReasoning,
+        llmId: exec.llmId,
         selectionContext: activeSelection ?? undefined,
         activeFieldKey: focusedField?.fieldKey ?? null,
-        disabledToolkits: [...disabledToolkits],
+        disabledToolkits: exec.disabledToolkits,
         conversationId: conv?.id ?? history.activeId,
         sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: conv?.steeringPlan,
@@ -833,6 +876,11 @@ function App() {
     (message: string, files: string[]) => {
       const m = modes.find(x => x.id === 'prompt-pack');
       const conv = history.activeConversation;
+      const exec = getEffectiveChatExecution(conv, {
+        llmId: modeLlmId,
+        useReasoning,
+        disabledToolkits,
+      });
       chat.sendMessage(
         message,
         null,
@@ -840,11 +888,11 @@ function App() {
         files,
         m?.name ?? 'Prompt-Paket',
         m?.color ?? '#f9e2af',
-        useReasoning,
-        modeLlmId,
+        exec.useReasoning,
+        exec.llmId,
         undefined,
         null,
-        [...disabledToolkits],
+        exec.disabledToolkits,
         {
           conversationId: conv?.id ?? history.activeId,
           sessionKind: 'standard',
@@ -866,17 +914,55 @@ function App() {
   }, [modes, selectedMode, handleModeChange]);
 
   const handleNewChat = useCallback(
-    (sessionKind: ChatSessionKind = 'standard') => {
-      history.createConversation(selectedMode, undefined, undefined, sessionKind);
+    (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => {
+      if (isNewChatConfirmPayload(kindOrPayload)) {
+        const newConv = history.createConversation(
+          selectedMode,
+          undefined,
+          undefined,
+          kindOrPayload.sessionKind,
+        );
+        applyGuidedAgentFromNewChatDialog(
+          newConv.id,
+          kindOrPayload,
+          selectedMode,
+          { llmId: modeLlmId, useReasoning, disabledToolkits },
+          history.patchConversation,
+        );
+        return;
+      }
+      const sk = (kindOrPayload as ChatSessionKind | undefined) ?? 'standard';
+      history.createConversation(selectedMode, undefined, undefined, sk);
     },
-    [history, selectedMode],
+    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits],
   );
 
   const handleDiscardCurrentChat = useCallback(
-    (sessionKind: ChatSessionKind = 'standard') => {
-      history.discardActiveAndCreateConversation(selectedMode, sessionKind);
+    (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => {
+      if (isNewChatConfirmPayload(kindOrPayload)) {
+        const newConv = history.discardActiveAndCreateConversation(
+          selectedMode,
+          kindOrPayload.sessionKind,
+        );
+        const t = kindOrPayload.title.trim();
+        if (t) {
+          history.patchConversation(newConv.id, { title: t });
+        }
+        applyGuidedAgentFromNewChatDialog(
+          newConv.id,
+          kindOrPayload,
+          selectedMode,
+          { llmId: modeLlmId, useReasoning, disabledToolkits },
+          history.patchConversation,
+        );
+        return;
+      }
+      history.discardActiveAndCreateConversation(
+        selectedMode,
+        (kindOrPayload as ChatSessionKind | undefined) ?? 'standard',
+      );
     },
-    [history, selectedMode],
+    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits],
   );
 
   const handleForkToNewConversation = useCallback((index: number) => {
@@ -892,6 +978,10 @@ function App() {
     const newConv = history.createConversation(selectedMode, forkedMessages, `${base} (${n})`, sk);
     if (sk === 'guided' && parent?.steeringPlan) {
       history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
+    }
+    const agentPatch = parent ? agentExecutionPartialFromParent(parent) : {};
+    if (Object.keys(agentPatch).length > 0) {
+      history.patchConversation(newConv.id, agentPatch);
     }
   }, [chat.messages, history, selectedMode]);
 
@@ -929,6 +1019,10 @@ function App() {
       );
       if (sk === 'guided' && parent.steeringPlan) {
         history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
+      }
+      const agentPatch = agentExecutionPartialFromParent(parent);
+      if (Object.keys(agentPatch).length > 0) {
+        history.patchConversation(newConv.id, agentPatch);
       }
       history.patchConversation(newConv.id, {
         isThread: true,
@@ -1226,6 +1320,11 @@ function App() {
             ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
             : (fileEditor.selectedPath ?? null);
           const conv = history.activeConversation;
+          const exec = getEffectiveChatExecution(conv, {
+            llmId: modeLlmId,
+            useReasoning,
+            disabledToolkits,
+          });
           const result = await chatApi.previewContext({
             message: '',
             activeFile,
@@ -1233,7 +1332,9 @@ function App() {
             mode: selectedMode,
             referencedFiles: refs.referencedFiles,
             history: [],
-            disabledToolkits: [...disabledToolkits],
+            useReasoning: exec.useReasoning,
+            llmId: exec.llmId,
+            disabledToolkits: exec.disabledToolkits,
             sessionKind: conv?.sessionKind ?? 'standard',
             steeringPlan: conv?.sessionKind === 'guided' ? conv.steeringPlan ?? null : undefined,
           });

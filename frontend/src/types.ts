@@ -136,6 +136,15 @@ export interface Conversation {
   isThread?: boolean;
   /** Parent conversation id when {@link isThread} is true */
   parentConversationId?: string;
+  /**
+   * When set: this guided (or other) conversation uses this LLM for sends instead of the global selector.
+   * Snapshot when starting an „Agent“ session from the new-chat dialog.
+   */
+  agentLlmId?: string;
+  /** When set: overrides global reasoning toggle for this conversation. */
+  agentUseReasoning?: boolean;
+  /** When set: fixed disabled toolkits for this conversation (same ids as global). */
+  agentDisabledToolkits?: ChatToolkitId[];
 }
 
 export interface ProjectConfig {

@@ -77,8 +77,8 @@ interface ChatPanelProps {
   onStartThreadFromMessage: (messageIndex: number) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessage: (index: number) => void;
-  onNewChat: (sessionKind?: ChatSessionKind) => void;
-  onDiscardCurrentChat: (sessionKind?: ChatSessionKind) => void;
+  onNewChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
+  onDiscardCurrentChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
   /** Active conversation session kind (for guided UI). */
   activeSessionKind?: ChatSessionKind;
   /** When true, thread/fork-from-message actions are hidden (not supported inside a thread). */
@@ -848,12 +848,12 @@ export function ChatPanel({
     if (payload.title.trim() && payload.title.trim() !== activeTitle) {
       onRenameChat(activeConversationId, payload.title.trim());
     }
-    onNewChat(payload.sessionKind);
+    onNewChat(payload);
   };
 
   const handleNewChatDiscard = (payload: NewChatConfirmPayload) => {
     setNewChatDialogOpen(false);
-    onDiscardCurrentChat(payload.sessionKind);
+    onDiscardCurrentChat(payload);
   };
 
   useEffect(() => {

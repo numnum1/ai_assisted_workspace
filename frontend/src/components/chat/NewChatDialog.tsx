@@ -5,6 +5,8 @@ import type { ChatSessionKind } from '../../types.ts';
 export interface NewChatConfirmPayload {
   title: string;
   sessionKind: ChatSessionKind;
+  /** Optional markdown; for guided sessions, stored as initial steering plan. */
+  initialSteeringPlan?: string;
 }
 
 interface NewChatDialogProps {
@@ -17,6 +19,7 @@ interface NewChatDialogProps {
 export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: NewChatDialogProps) {
   const [title, setTitle] = useState(currentTitle);
   const [sessionKind, setSessionKind] = useState<ChatSessionKind>('standard');
+  const [initialSteeringPlan, setInitialSteeringPlan] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -27,6 +30,7 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
   const buildPayload = (): NewChatConfirmPayload => ({
     title: title.trim() || currentTitle,
     sessionKind,
+    ...(sessionKind === 'guided' ? { initialSteeringPlan } : {}),
   });
 
   const handleConfirm = () => {
@@ -94,10 +98,31 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
                 onChange={() => setSessionKind('guided')}
               />
               <span>
-                <strong>Geführte Sitzung</strong> — die Assistentin strukturiert mit Arbeitsplan und Rückfragen
+                <strong>Geführte Sitzung (Agent)</strong> — Arbeitsplan, Modus, LLM und Tool-Toggles werden für
+                diese Sitzung gespeichert
               </span>
             </label>
           </fieldset>
+          {sessionKind === 'guided' && (
+            <div className="new-chat-dialog-guided-extra">
+              <label className="new-chat-dialog-plan-label" htmlFor="new-chat-initial-plan">
+                Arbeitsplan (optional, Markdown)
+              </label>
+              <textarea
+                id="new-chat-initial-plan"
+                className="new-chat-dialog-plan-textarea"
+                value={initialSteeringPlan}
+                onChange={(e) => setInitialSteeringPlan(e.target.value)}
+                placeholder="z. B. ## Ziel, ## Vorgehen … — kann leer bleiben; die Assistentin legt den Plan sonst an."
+                rows={6}
+                spellCheck={false}
+              />
+              <p className="new-chat-dialog-plan-hint">
+                Modus, gewähltes LLM und Tool-Leiste gelten wie in der Chat-Kopfzeile und werden beim Start
+                übernommen.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="new-chat-dialog-footer">
