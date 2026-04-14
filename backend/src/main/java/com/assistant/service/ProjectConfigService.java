@@ -1,6 +1,8 @@
 package com.assistant.service;
 
 import com.assistant.config.AppConfig;
+import com.assistant.model.AgentPreset;
+import com.assistant.model.AgentPresetsFile;
 import com.assistant.model.Mode;
 import com.assistant.model.ProjectConfig;
 import com.assistant.model.WorkspaceModeInfo;
@@ -8,6 +10,8 @@ import com.assistant.model.WorkspaceModeSchema;
 import com.assistant.model.WorkspaceModeSchema.MetaFieldPayload;
 import com.assistant.model.WorkspaceModeSchema.MetaTypeSchemaPayload;
 import com.assistant.model.WorkspaceModeSchema.WorkspaceLevelConfig;
+import com.assistant.service.tools.ToolkitIds;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -23,6 +27,7 @@ import java.util.Locale;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -35,11 +40,16 @@ public class ProjectConfigService {
     private static final String WORKSPACE_MODES_PREFIX = "workspace-modes/";
     /** User plugin YAMLs: {@code <appData>/workspace-modes/*.yaml} */
     private static final String USER_WORKSPACE_MODES_DIR = "workspace-modes";
+    private static final String AGENTS_JSON = "agents.json";
+    private static final Set<String> VALID_TOOLKIT_IDS = Set.of(
+            ToolkitIds.WEB, ToolkitIds.WIKI, ToolkitIds.DATEISYSTEM, ToolkitIds.ASSISTANT);
 
     private final AppConfig appConfig;
+    private final ObjectMapper objectMapper;
 
-    public ProjectConfigService(AppConfig appConfig) {
+    public ProjectConfigService(AppConfig appConfig, ObjectMapper objectMapper) {
         this.appConfig = appConfig;
+        this.objectMapper = objectMapper;
     }
 
     // ─── Path helpers ────────────────────────────────────────────────────────────
@@ -124,6 +134,114 @@ public class ProjectConfigService {
         if (!Files.exists(modeFile)) return false;
         Files.delete(modeFile);
         return true;
+    }
+
+    // ─── Agent presets (.assistant/agents.json) ───────────────────────────────────
+
+    public List<AgentPreset> listAgentPresets() {
+        if (!hasProjectConfig()) {
+            return List.of();
+        }
+        Path file = getAssistantDir().resolve(AGENTS_JSON);
+        if (!Files.isRegularFile(file)) {
+            return List.of();
+        }
+        try {
+            String json = Files.readString(file, StandardCharsets.UTF_8);
+            if (json.isBlank()) {
+                return List.of();
+            }
+            AgentPresetsFile wrapper = objectMapper.readValue(json, AgentPresetsFile.class);
+            if (wrapper.getAgents() == null) {
+                return List.of();
+            }
+            return new ArrayList<>(wrapper.getAgents());
+        } catch (Exception e) {
+            log.warn("Could not read {}: {}", AGENTS_JSON, e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Creates or replaces an agent preset by id.
+     */
+    public AgentPreset saveAgentPreset(String pathId, AgentPreset preset) throws IOException {
+        if (!hasProjectConfig()) {
+            throw new IllegalStateException("Project config not initialized");
+        }
+        validateAgentPathId(pathId);
+        preset.setId(pathId.trim());
+        normalizeAgentPreset(preset);
+        validateAgentPreset(preset);
+
+        List<AgentPreset> list = new ArrayList<>(listAgentPresets());
+        list.removeIf(a -> pathId.equals(a.getId()));
+        list.add(preset);
+        list.sort(Comparator.comparing(AgentPreset::getId, String.CASE_INSENSITIVE_ORDER));
+        writeAgentPresetsFile(list);
+        log.info("Saved agent preset id={}", pathId);
+        return preset;
+    }
+
+    public boolean deleteAgentPreset(String id) throws IOException {
+        if (!hasProjectConfig()) {
+            throw new IllegalStateException("Project config not initialized");
+        }
+        validateAgentPathId(id);
+        List<AgentPreset> list = new ArrayList<>(listAgentPresets());
+        boolean removed = list.removeIf(a -> id.equals(a.getId()));
+        if (!removed) {
+            return false;
+        }
+        writeAgentPresetsFile(list);
+        log.info("Deleted agent preset id={}", id);
+        return true;
+    }
+
+    private void writeAgentPresetsFile(List<AgentPreset> agents) throws IOException {
+        Path dir = getAssistantDir();
+        Files.createDirectories(dir);
+        AgentPresetsFile wrapper = new AgentPresetsFile();
+        wrapper.setVersion(1);
+        wrapper.setAgents(agents);
+        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
+        Files.writeString(dir.resolve(AGENTS_JSON), json, StandardCharsets.UTF_8);
+    }
+
+    private static void validateAgentPathId(String id) {
+        if (id == null || !id.matches("[a-zA-Z0-9_\\-]+")) {
+            throw new IllegalArgumentException("Invalid agent id: " + id);
+        }
+    }
+
+    private void normalizeAgentPreset(AgentPreset p) {
+        if (p.getLlmId() != null && p.getLlmId().isBlank()) {
+            p.setLlmId(null);
+        }
+        if (p.getDisabledToolkits() == null) {
+            p.setDisabledToolkits(new ArrayList<>());
+        }
+        if (p.getInitialSteeringPlan() != null && p.getInitialSteeringPlan().isBlank()) {
+            p.setInitialSteeringPlan(null);
+        }
+    }
+
+    private void validateAgentPreset(AgentPreset p) {
+        if (p.getName() == null || p.getName().isBlank()) {
+            throw new IllegalArgumentException("Agent name is required");
+        }
+        if (p.getModeId() == null || p.getModeId().isBlank()) {
+            throw new IllegalArgumentException("modeId is required");
+        }
+        Set<String> modeIds = getProjectModes().stream().map(Mode::getId).collect(Collectors.toSet());
+        if (!modeIds.contains(p.getModeId())) {
+            throw new IllegalArgumentException("Unknown modeId: " + p.getModeId());
+        }
+        for (String k : p.getDisabledToolkits()) {
+            if (k == null || k.isBlank() || !VALID_TOOLKIT_IDS.contains(k)) {
+                throw new IllegalArgumentException("Invalid disabledToolkit id: " + k);
+            }
+        }
     }
 
     // ─── Init ────────────────────────────────────────────────────────────────────

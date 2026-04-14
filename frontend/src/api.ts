@@ -1,4 +1,23 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, Conversation } from './types.ts';
+import type {
+  AgentPreset,
+  FileNode,
+  Mode,
+  ChatRequest,
+  GitStatus,
+  GitCommit,
+  GitSyncStatus,
+  ProjectConfig,
+  ChapterSummary,
+  ChapterNode,
+  SceneNode,
+  ActionNode,
+  NodeMeta,
+  WorkspaceModeSchema,
+  WorkspaceModeInfo,
+  LlmPublic,
+  LlmsListResponse,
+  Conversation,
+} from './types.ts';
 import { buildConversationById, effectiveSavedToProject } from './components/chat/chatHistoryUtils.ts';
 
 const BASE = '/api';
@@ -150,6 +169,23 @@ export const projectConfigApi = {
   getModes: () => get<Mode[]>('/project-config/modes'),
   saveMode: (id: string, mode: Mode) => put<Mode>(`/project-config/modes/${id}`, mode),
   deleteMode: (id: string) => fetch(`/api/project-config/modes/${id}`, { method: 'DELETE' }).then(r => r.json()),
+  listAgents: () => get<AgentPreset[]>('/project-config/agents'),
+  saveAgent: (id: string, preset: AgentPreset) =>
+    put<AgentPreset>(`/project-config/agents/${encodeURIComponent(id)}`, preset),
+  deleteAgent: (id: string) =>
+    fetch(`${BASE}/project-config/agents/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(async (r) => {
+      if (!r.ok) {
+        let detail = '';
+        try {
+          const d = await r.json();
+          detail = d.error ?? '';
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail || `DELETE project-config/agents/${id}: ${r.status}`);
+      }
+      return r.json() as Promise<{ status: string }>;
+    }),
 };
 
 export interface LlmCreateRequest {

@@ -18,7 +18,15 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ChatMessage, Mode, Conversation, SelectionContext, LlmPublic, ChatSessionKind } from '../../types.ts';
+import type {
+  AgentPreset,
+  ChatMessage,
+  Mode,
+  Conversation,
+  SelectionContext,
+  LlmPublic,
+  ChatSessionKind,
+} from '../../types.ts';
 import { ChatInput } from './ChatInput.tsx';
 import { ModeSelector } from './ModeSelector.tsx';
 import { ChatHistory } from './ChatHistory.tsx';
@@ -108,6 +116,8 @@ interface ChatPanelProps {
   fastAvailable?: boolean;
   onRetry?: () => void;
   onFileChanged?: (path: string) => void;
+  /** Project agent templates for optional selection when starting a guided chat. */
+  agentPresets?: AgentPreset[];
 }
 
 interface MessageEditBoxProps {
@@ -654,6 +664,7 @@ export function ChatPanel({
   fastAvailable = true,
   onRetry,
   onFileChanged,
+  agentPresets = [],
   activeSessionKind = 'standard',
   steeringPlan = '',
   onMarkSteeringPlanComplete,
@@ -1307,6 +1318,7 @@ export function ChatPanel({
       {newChatDialogOpen && (
         <NewChatDialog
           currentTitle={activeTitle}
+          agentPresets={agentPresets}
           onConfirm={handleNewChatConfirm}
           onDiscard={handleNewChatDiscard}
           onCancel={() => setNewChatDialogOpen(false)}

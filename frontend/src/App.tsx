@@ -15,6 +15,7 @@ import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
 import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
 import type { CommandAction } from './components/git/CommandPalette.tsx';
 import type {
+  AgentPreset,
   Mode,
   Conversation,
   GitStatus,
@@ -55,6 +56,7 @@ import {
 import {
   agentExecutionPartialFromParent,
   applyGuidedAgentFromNewChatDialog,
+  buildGuidedAgentPatchFromPreset,
   buildAgentExecutionPatchFromGlobals,
   conversationHasAgentExecution,
   getEffectiveChatExecution,
@@ -145,6 +147,7 @@ function App() {
   const chapter = useChapter();
   const refs = useReferencedFiles();
   const [modes, setModes] = useState<Mode[]>([]);
+  const [agentPresets, setAgentPresets] = useState<AgentPreset[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
   const [useReasoning, setUseReasoning] = useState(false);
   const [quickChatOpen, setQuickChatOpen] = useState(false);
@@ -328,6 +331,7 @@ function App() {
       setModes(mds);
       const chatModes = mds.filter(m => m.id !== 'prompt-pack');
       let configured: string | undefined;
+      let agents: AgentPreset[] = [];
       if (status.initialized) {
         try {
           const cfg = await projectConfigApi.get();
@@ -335,7 +339,13 @@ function App() {
         } catch {
           /* ignore */
         }
+        try {
+          agents = await projectConfigApi.listAgents();
+        } catch {
+          /* ignore */
+        }
       }
+      setAgentPresets(agents);
       if (configured === 'prompt-pack') configured = undefined;
       const resolvedId = resolveDefaultModeId(chatModes, configured);
       projectDefaultChatModeIdRef.current = resolvedId;
@@ -345,6 +355,7 @@ function App() {
       setModeLlmId(resolvedMode?.llmId ?? undefined);
     } catch (e) {
       console.error(e);
+      setAgentPresets([]);
     }
   }, []);
 
@@ -916,45 +927,74 @@ function App() {
   const handleNewChat = useCallback(
     (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => {
       if (isNewChatConfirmPayload(kindOrPayload)) {
+        const payload = kindOrPayload;
+        const preset =
+          payload.sessionKind === 'guided' && payload.agentPresetId
+            ? agentPresets.find((a) => a.id === payload.agentPresetId)
+            : undefined;
+        if (preset && payload.sessionKind === 'guided') {
+          handleModeChange(preset.modeId, modes);
+        }
+        const modeForCreate =
+          preset && payload.sessionKind === 'guided' ? preset.modeId : selectedMode;
+        const titleArg = payload.title.trim() || undefined;
         const newConv = history.createConversation(
-          selectedMode,
+          modeForCreate,
           undefined,
-          undefined,
-          kindOrPayload.sessionKind,
+          titleArg,
+          payload.sessionKind,
         );
-        applyGuidedAgentFromNewChatDialog(
-          newConv.id,
-          kindOrPayload,
-          selectedMode,
-          { llmId: modeLlmId, useReasoning, disabledToolkits },
-          history.patchConversation,
-        );
+        if (preset && payload.sessionKind === 'guided') {
+          history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset, payload.initialSteeringPlan));
+        } else {
+          applyGuidedAgentFromNewChatDialog(
+            newConv.id,
+            payload,
+            selectedMode,
+            { llmId: modeLlmId, useReasoning, disabledToolkits },
+            history.patchConversation,
+          );
+        }
         return;
       }
       const sk = (kindOrPayload as ChatSessionKind | undefined) ?? 'standard';
       history.createConversation(selectedMode, undefined, undefined, sk);
     },
-    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits],
+    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, handleModeChange, agentPresets],
   );
 
   const handleDiscardCurrentChat = useCallback(
     (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => {
       if (isNewChatConfirmPayload(kindOrPayload)) {
+        const payload = kindOrPayload;
+        const preset =
+          payload.sessionKind === 'guided' && payload.agentPresetId
+            ? agentPresets.find((a) => a.id === payload.agentPresetId)
+            : undefined;
+        if (preset && payload.sessionKind === 'guided') {
+          handleModeChange(preset.modeId, modes);
+        }
+        const modeForCreate =
+          preset && payload.sessionKind === 'guided' ? preset.modeId : selectedMode;
         const newConv = history.discardActiveAndCreateConversation(
-          selectedMode,
-          kindOrPayload.sessionKind,
+          modeForCreate,
+          payload.sessionKind,
         );
-        const t = kindOrPayload.title.trim();
+        const t = payload.title.trim();
         if (t) {
           history.patchConversation(newConv.id, { title: t });
         }
-        applyGuidedAgentFromNewChatDialog(
-          newConv.id,
-          kindOrPayload,
-          selectedMode,
-          { llmId: modeLlmId, useReasoning, disabledToolkits },
-          history.patchConversation,
-        );
+        if (preset && payload.sessionKind === 'guided') {
+          history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset, payload.initialSteeringPlan));
+        } else {
+          applyGuidedAgentFromNewChatDialog(
+            newConv.id,
+            payload,
+            selectedMode,
+            { llmId: modeLlmId, useReasoning, disabledToolkits },
+            history.patchConversation,
+          );
+        }
         return;
       }
       history.discardActiveAndCreateConversation(
@@ -962,7 +1002,7 @@ function App() {
         (kindOrPayload as ChatSessionKind | undefined) ?? 'standard',
       );
     },
-    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits],
+    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, handleModeChange, agentPresets],
   );
 
   const handleForkToNewConversation = useCallback((index: number) => {
@@ -1283,6 +1323,7 @@ function App() {
             onDeleteMessage={chat.deleteMessage}
             onNewChat={handleNewChat}
             onDiscardCurrentChat={handleDiscardCurrentChat}
+            agentPresets={agentPresets}
             activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
             steeringPlan={history.activeConversation?.steeringPlan ?? ''}
             activeIsThread={history.activeConversation?.isThread === true}

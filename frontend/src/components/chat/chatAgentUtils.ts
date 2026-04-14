@@ -1,4 +1,4 @@
-import type { ChatToolkitId, Conversation } from '../../types.ts';
+import type { AgentPreset, ChatToolkitId, Conversation } from '../../types.ts';
 import type { NewChatConfirmPayload } from './NewChatDialog.tsx';
 
 export function isNewChatConfirmPayload(x: unknown): x is NewChatConfirmPayload {
@@ -37,6 +37,27 @@ export function agentExecutionPartialFromParent(parent: Conversation): Partial<C
     out.agentDisabledToolkits = [...parent.agentDisabledToolkits];
   }
   return out;
+}
+
+/** Guided session patch from a project agent preset (optional dialog plan overrides preset default). */
+export function buildGuidedAgentPatchFromPreset(
+  preset: AgentPreset,
+  dialogInitialPlan: string | undefined,
+): Partial<Conversation> {
+  const dialog = dialogInitialPlan?.trim();
+  const fallback = preset.initialSteeringPlan?.trim();
+  const steeringPlan = dialog || fallback;
+  const patch: Partial<Conversation> = {
+    mode: preset.modeId,
+    agentUseReasoning: preset.useReasoning,
+    agentDisabledToolkits: [...(preset.disabledToolkits ?? [])] as ChatToolkitId[],
+    ...(steeringPlan ? { steeringPlan } : {}),
+  };
+  const lid = preset.llmId?.trim();
+  if (lid) {
+    patch.agentLlmId = lid;
+  }
+  return patch;
 }
 
 export function applyGuidedAgentFromNewChatDialog(

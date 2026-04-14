@@ -24,6 +24,17 @@ export interface Mode {
   llmId?: string;
 }
 
+/** Project-scoped guided chat agent template (`.assistant/agents.json`). */
+export interface AgentPreset {
+  id: string;
+  name: string;
+  modeId: string;
+  llmId?: string | null;
+  useReasoning: boolean;
+  disabledToolkits: ChatToolkitId[];
+  initialSteeringPlan?: string | null;
+}
+
 export interface SelectionContext {
   text: string;
   from: number;

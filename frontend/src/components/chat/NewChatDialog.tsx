@@ -1,25 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
-import type { ChatSessionKind } from '../../types.ts';
+import type { AgentPreset, ChatSessionKind } from '../../types.ts';
 
 export interface NewChatConfirmPayload {
   title: string;
   sessionKind: ChatSessionKind;
   /** Optional markdown; for guided sessions, stored as initial steering plan. */
   initialSteeringPlan?: string;
+  /** When set with guided session, {@link App} applies the matching project agent preset. */
+  agentPresetId?: string;
 }
 
 interface NewChatDialogProps {
   currentTitle: string;
+  agentPresets?: AgentPreset[];
   onConfirm: (payload: NewChatConfirmPayload) => void;
   onDiscard: (payload: NewChatConfirmPayload) => void;
   onCancel: () => void;
 }
 
-export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: NewChatDialogProps) {
+export function NewChatDialog({
+  currentTitle,
+  agentPresets = [],
+  onConfirm,
+  onDiscard,
+  onCancel,
+}: NewChatDialogProps) {
   const [title, setTitle] = useState(currentTitle);
   const [sessionKind, setSessionKind] = useState<ChatSessionKind>('standard');
   const [initialSteeringPlan, setInitialSteeringPlan] = useState('');
+  const [agentPresetId, setAgentPresetId] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -27,10 +37,24 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
     inputRef.current?.select();
   }, []);
 
+  const applyPresetToPlan = (presetId: string) => {
+    if (!presetId) {
+      setInitialSteeringPlan('');
+      return;
+    }
+    const p = agentPresets.find((a) => a.id === presetId);
+    setInitialSteeringPlan(p?.initialSteeringPlan ?? '');
+  };
+
   const buildPayload = (): NewChatConfirmPayload => ({
     title: title.trim() || currentTitle,
     sessionKind,
-    ...(sessionKind === 'guided' ? { initialSteeringPlan } : {}),
+    ...(sessionKind === 'guided'
+      ? {
+          initialSteeringPlan,
+          ...(agentPresetId ? { agentPresetId } : {}),
+        }
+      : {}),
   });
 
   const handleConfirm = () => {
@@ -84,7 +108,10 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
                 type="radio"
                 name="sessionKind"
                 checked={sessionKind === 'standard'}
-                onChange={() => setSessionKind('standard')}
+                onChange={() => {
+                  setSessionKind('standard');
+                  setAgentPresetId('');
+                }}
               />
               <span>
                 <strong>Standard</strong> — freies Gespräch wie bisher
@@ -105,6 +132,34 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
           </fieldset>
           {sessionKind === 'guided' && (
             <div className="new-chat-dialog-guided-extra">
+              {agentPresets.length > 0 && (
+                <>
+                  <label className="new-chat-dialog-plan-label" htmlFor="new-chat-agent-preset">
+                    Vorlage (optional)
+                  </label>
+                  <select
+                    id="new-chat-agent-preset"
+                    className="new-chat-dialog-input"
+                    value={agentPresetId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setAgentPresetId(id);
+                      applyPresetToPlan(id);
+                    }}
+                  >
+                    <option value="">— keine Vorlage —</option>
+                    {agentPresets.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.id})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="new-chat-dialog-plan-hint">
+                    Mit Vorlage werden Modus, LLM, Reasoning, deaktivierte Toolkits und der Arbeitsplan aus den
+                    Projekteinstellungen übernommen; du kannst den Plan hier noch anpassen.
+                  </p>
+                </>
+              )}
               <label className="new-chat-dialog-plan-label" htmlFor="new-chat-initial-plan">
                 Arbeitsplan (optional, Markdown)
               </label>
@@ -117,10 +172,12 @@ export function NewChatDialog({ currentTitle, onConfirm, onDiscard, onCancel }: 
                 rows={6}
                 spellCheck={false}
               />
-              <p className="new-chat-dialog-plan-hint">
-                Modus, gewähltes LLM und Tool-Leiste gelten wie in der Chat-Kopfzeile und werden beim Start
-                übernommen.
-              </p>
+              {!agentPresetId && (
+                <p className="new-chat-dialog-plan-hint">
+                  Ohne Vorlage gelten Modus, gewähltes LLM und Tool-Leiste wie in der Chat-Kopfzeile und werden beim
+                  Start übernommen.
+                </p>
+              )}
             </div>
           )}
         </div>

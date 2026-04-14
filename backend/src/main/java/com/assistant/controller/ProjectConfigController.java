@@ -1,11 +1,14 @@
 package com.assistant.controller;
 
+import com.assistant.model.AgentPreset;
 import com.assistant.model.Mode;
 import com.assistant.model.ProjectConfig;
 import com.assistant.model.WorkspaceModeInfo;
 import com.assistant.model.WorkspaceModeSchema;
 import com.assistant.service.ModeService;
 import com.assistant.service.ProjectConfigService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +25,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/project-config")
 public class ProjectConfigController {
+
+    private static final Logger log = LoggerFactory.getLogger(ProjectConfigController.class);
 
     private final ProjectConfigService projectConfigService;
     private final ModeService modeService;
@@ -170,6 +175,69 @@ public class ProjectConfigController {
             return ResponseEntity.ok(Map.of("status", "deleted"));
         } catch (IOException e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to delete mode: " + e.getMessage()));
+        }
+    }
+
+    // ─── Agent presets (.assistant/agents.json) ──────────────────────────────────
+
+    @GetMapping("/agents")
+    public ResponseEntity<List<AgentPreset>> listAgents() {
+        log.trace("Received request to list agent presets");
+        if (!projectConfigService.hasProjectConfig()) {
+            log.trace("Finished listing agent presets (no project config), count=0");
+            return ResponseEntity.ok(List.of());
+        }
+        List<AgentPreset> list = projectConfigService.listAgentPresets();
+        log.trace("Finished listing agent presets, count={}", list.size());
+        return ResponseEntity.ok(list);
+    }
+
+    @PutMapping("/agents/{id}")
+    public ResponseEntity<?> saveAgent(@PathVariable String id, @RequestBody AgentPreset body) {
+        log.trace("Received request to save agent preset id={}", id);
+        if (!projectConfigService.hasProjectConfig()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized."));
+        }
+        if (!isValidId(id)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid agent id: " + id));
+        }
+        try {
+            AgentPreset saved = projectConfigService.saveAgentPreset(id, body);
+            log.trace("Finished save agent preset id={}", id);
+            return ResponseEntity.ok(saved);
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation failed for agent {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IOException e) {
+            log.error("Failed to save agent preset id={}", id, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/agents/{id}")
+    public ResponseEntity<?> deleteAgent(@PathVariable String id) {
+        log.trace("Received request to delete agent preset id={}", id);
+        if (!projectConfigService.hasProjectConfig()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized."));
+        }
+        if (!isValidId(id)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid agent id: " + id));
+        }
+        try {
+            boolean deleted = projectConfigService.deleteAgentPreset(id);
+            if (!deleted) {
+                log.trace("Finished delete agent preset id={} (not found)", id);
+                return ResponseEntity.notFound().build();
+            }
+            log.trace("Finished delete agent preset id={}", id);
+            return ResponseEntity.ok(Map.of("status", "deleted"));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IOException e) {
+            log.error("Failed to delete agent preset id={}", id, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
