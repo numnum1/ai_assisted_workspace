@@ -56,6 +56,20 @@ import {
 
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
+function resolveGuidedExecutionSummary(
+  modes: Mode[],
+  selectedMode: string,
+  llms: LlmPublic[],
+  selectedLlmId: string | undefined,
+): { modeLabel: string; llmLabel: string } {
+  const modeLabel = modes.find((m) => m.id === selectedMode)?.name ?? selectedMode;
+  const lid = selectedLlmId?.trim();
+  const llmLabel = lid
+    ? (llms.find((l) => l.id === lid)?.name ?? lid)
+    : 'Standard';
+  return { modeLabel, llmLabel };
+}
+
 /** Assistant reply length (chars) below which we keep following the stream with auto-scroll. */
 const AUTOSCROLL_CHAR_LIMIT = 1500;
 
@@ -1045,15 +1059,38 @@ export function ChatPanel({
       />
     ) : null;
 
+  const guidedExecSummary =
+    activeSessionKind === 'guided'
+      ? resolveGuidedExecutionSummary(modes, selectedMode, llms, selectedLlmId)
+      : null;
+
   return (
     <div
       ref={panelRef}
       className={`chat-panel${isFullscreen ? ' chat-panel--expanded' : ''}${showThreadSplit ? ' chat-panel--thread-split' : ''}`}
     >
       <div className="chat-header">
-        <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
+        {guidedExecSummary ? (
+          <div
+            className="chat-guided-execution-summary"
+            role="status"
+            aria-label={`Geführte Sitzung: Modus ${guidedExecSummary.modeLabel}, LLM ${guidedExecSummary.llmLabel}`}
+            title={`Modus: ${guidedExecSummary.modeLabel} — LLM: ${guidedExecSummary.llmLabel}`}
+          >
+            <span className="chat-guided-execution-summary-text">
+              {guidedExecSummary.modeLabel}
+              <span className="chat-guided-execution-sep" aria-hidden>
+                {' '}
+                ·{' '}
+              </span>
+              {guidedExecSummary.llmLabel}
+            </span>
+          </div>
+        ) : (
+          <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
+        )}
         <div className="chat-header-actions">
-          {llms.length > 0 && onLlmChange && (
+          {!guidedExecSummary && llms.length > 0 && onLlmChange && (
             <select
               className="chat-llm-select"
               value={selectedLlmId ?? ''}

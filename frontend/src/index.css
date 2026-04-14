@@ -2031,6 +2031,27 @@ body.file-tree-native-dragging {
   border-bottom: 1px solid var(--border);
 }
 
+.chat-guided-execution-summary {
+  min-width: 0;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.chat-guided-execution-summary-text {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-guided-execution-sep {
+  opacity: 0.65;
+  font-weight: normal;
+}
+
 .chat-header-actions {
   display: flex;
   align-items: center;
