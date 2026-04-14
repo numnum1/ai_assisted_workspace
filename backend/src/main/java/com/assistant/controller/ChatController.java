@@ -5,8 +5,8 @@ import com.assistant.model.ChatMessage;
 import com.assistant.model.ChatRequest;
 import com.assistant.model.ToolCall;
 import com.assistant.service.AiApiClient;
-import com.assistant.service.AiApiClient.ChatCompletionResult;
 import com.assistant.service.AiProviderService;
+import com.assistant.service.ChatCompletionStreamParser;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
 import com.assistant.service.tools.AskClarificationTool;
@@ -24,14 +24,16 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import java.net.ConnectException;
 import java.net.UnknownHostException;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -94,93 +96,30 @@ public class ChatController {
                 resolvedUserContent != null ? resolvedUserContent.length() : 0,
                 previewForLog(resolvedUserContent, 600));
 
-        return Flux.concat(
-                Flux.just(ServerSentEvent.<String>builder()
-                        .event("context").data(toContextJson(context, llmId)).build()),
-                Flux.just(ServerSentEvent.<String>builder()
-                        .event("resolved_user_message").data(escapeForSse(resolvedUserContent != null ? resolvedUserContent : "")).build()),
-                Mono.fromCallable(() -> tools == null || tools.isEmpty()
-                                ? skipToolResolutionForDirectStreaming(context.getMessages())
-                                : resolveToolCalls(context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning))
-                        .flatMapMany(resolved -> {
-                            Flux<ServerSentEvent<String>> toolEvents = Flux.fromIterable(resolved.toolCallEvents());
-                            Flux<ServerSentEvent<String>> toolHistoryEvent = resolved.toolHistoryJson() != null
-                                    ? Flux.just(ServerSentEvent.<String>builder()
-                                            .event("tool_history").data(escapeForSse(resolved.toolHistoryJson())).build())
-                                    : Flux.empty();
-                            Flux<ServerSentEvent<String>> contextUpdateEvent = resolved.toolCallEvents().isEmpty()
-                                    ? Flux.empty()
-                                    : Flux.just(ServerSentEvent.<String>builder()
-                                            .event("context_update")
-                                            .data("{\"estimatedTokens\":" + contextService.estimateTokensForMessages(resolved.messages()) + "}")
-                                            .build());
+        Flux<ServerSentEvent<String>> assistantPhase =
+                (tools == null || tools.isEmpty())
+                        ? Mono.fromCallable(() -> skipToolResolutionForDirectStreaming(context.getMessages()))
+                                .flatMapMany(r -> resolvedToClientFlux(r, request, tools, llmId, useReasoning))
+                        : toolResolutionStreamingFlux(
+                                context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning, request);
 
-                            Flux<ServerSentEvent<String>> tokenStream;
-                            if (resolved.preGeneratedContent() != null) {
-                                String preGen = resolved.preGeneratedContent();
-                                int cp = preGen.codePointCount(0, preGen.length());
-                                int approxEvents = cp == 0 ? 1 : (cp + PRE_GENERATED_SSE_CHUNK_CODE_POINTS - 1) / PRE_GENERATED_SSE_CHUNK_CODE_POINTS;
-                                log.info(
-                                        "Emitting pre-generated content as chunked SSE token stream ({} chars, {} codepoints, ~{} token events), skipping second API call",
-                                        preGen.length(),
-                                        cp,
-                                        approxEvents);
-                                tokenStream = tokenFluxFromPreGenerated(preGen);
-                            } else {
-                                AtomicInteger streamChunks = new AtomicInteger();
-                                AtomicInteger streamChars = new AtomicInteger();
-                                log.info(
-                                        "Starting assistant token stream to client: toolCallSseEvents={}, messagesForApi={}",
-                                        resolved.toolCallEvents().size(),
-                                        resolved.messages().size());
-                                tokenStream = aiApiClient
-                                        .streamChat(resolved.messages(), tools, llmId, useReasoning)
-                                        .doOnNext(chunk -> {
-                                            streamChunks.incrementAndGet();
-                                            streamChars.addAndGet(chunk.length());
-                                        })
-                                        .doOnComplete(() -> {
-                                            int chunks = streamChunks.get();
-                                            int chars = streamChars.get();
-                                            if (chunks == 0) {
-                                                log.warn(
-                                                        "Assistant stream completed with 0 chunks and 0 characters — "
-                                                                + "model returned no content. Likely context overflow or content filter. "
-                                                                + "mode={}, llmId={}, messagesForApi={}",
-                                                        request.getMode(),
-                                                        llmId,
-                                                        resolved.messages().size());
-                                            } else {
-                                                log.info("Assistant stream finished: {} chunks, {} characters", chunks, chars);
-                                            }
-                                        })
-                                        .doOnError(e -> log.error(
-                                                "Assistant stream failed after {} chunks ({} chars so far)",
-                                                streamChunks.get(),
-                                                streamChars.get(),
-                                                e))
-                                        .map(chunk -> ServerSentEvent.<String>builder()
-                                                .event("token").data(escapeForSse(chunk)).build());
-                            }
-                            return Flux.concat(toolEvents, toolHistoryEvent, contextUpdateEvent, tokenStream);
-                        })
-                        .onErrorResume(e -> {
+        return Flux.concat(
+                        Flux.just(ServerSentEvent.<String>builder()
+                                .event("context").data(toContextJson(context, llmId)).build()),
+                        Flux.just(ServerSentEvent.<String>builder()
+                                .event("resolved_user_message")
+                                        .data(escapeForSse(resolvedUserContent != null ? resolvedUserContent : ""))
+                                        .build()),
+                        assistantPhase.onErrorResume(e -> {
                             log.error("Chat pipeline error (mode={}, llmId={})", request.getMode(), llmId, e);
                             return Flux.just(ServerSentEvent.<String>builder()
                                     .event("error").data(toErrorMessage(e)).build());
                         }),
-                Flux.just(ServerSentEvent.<String>builder()
-                        .event("done").data("[DONE]").build())
-        ).doOnComplete(() -> log.info("Chat SSE session completed (done event sent)"));
+                        Flux.just(ServerSentEvent.<String>builder()
+                                .event("done").data("[DONE]").build()))
+                .doOnComplete(() -> log.info("Chat SSE session completed (done event sent)"));
     }
 
-    /**
-     * Handles the tool calling loop: makes non-streaming calls to resolve tool calls,
-     * then returns the final messages list ready for streaming the final response.
-     *
-     * @param originalMessageCount size of the messages list before any tool rounds,
-     *                             used to extract only the new tool messages for tool_history
-     */
     /**
      * When the request sends no tool definitions to the model, skip the blocking
      * {@link AiApiClient#chatWithTools} round and stream the assistant reply directly from the provider
@@ -194,110 +133,258 @@ public class ChatController {
         return new ToolResolutionResult(new ArrayList<>(messages), List.of(), null, null);
     }
 
-    private ToolResolutionResult resolveToolCalls(List<ChatMessage> messages,
-                                                  int originalMessageCount,
-                                                  List<Map<String, Object>> tools,
-                                                  String llmId,
-                                                  boolean useReasoning) {
-        List<ChatMessage> currentMessages = new ArrayList<>(messages);
-        List<ServerSentEvent<String>> toolCallEvents = new ArrayList<>();
-        String preGeneratedContent = null;
+    /**
+     * Maps a resolved tool phase (pre-generated final text or a follow-up stream) to client SSE events.
+     */
+    private Flux<ServerSentEvent<String>> resolvedToClientFlux(
+            ToolResolutionResult resolved,
+            ChatRequest request,
+            List<Map<String, Object>> tools,
+            String llmId,
+            boolean useReasoning) {
+        Flux<ServerSentEvent<String>> toolEvents = Flux.fromIterable(resolved.toolCallEvents());
+        Flux<ServerSentEvent<String>> toolHistoryEvent = resolved.toolHistoryJson() != null
+                ? Flux.just(ServerSentEvent.<String>builder()
+                        .event("tool_history").data(escapeForSse(resolved.toolHistoryJson())).build())
+                : Flux.empty();
+        Flux<ServerSentEvent<String>> contextUpdateEvent = resolved.toolCallEvents().isEmpty()
+                ? Flux.empty()
+                : Flux.just(ServerSentEvent.<String>builder()
+                        .event("context_update")
+                        .data("{\"estimatedTokens\":" + contextService.estimateTokensForMessages(resolved.messages()) + "}")
+                        .build());
+
+        Flux<ServerSentEvent<String>> tokenStream;
+        if (resolved.preGeneratedContent() != null) {
+            String preGen = resolved.preGeneratedContent();
+            int cp = preGen.codePointCount(0, preGen.length());
+            int approxEvents = cp == 0 ? 1 : (cp + PRE_GENERATED_SSE_CHUNK_CODE_POINTS - 1) / PRE_GENERATED_SSE_CHUNK_CODE_POINTS;
+            log.info(
+                    "Emitting pre-generated content as chunked SSE token stream ({} chars, {} codepoints, ~{} token events), skipping second API call",
+                    preGen.length(),
+                    cp,
+                    approxEvents);
+            tokenStream = tokenFluxFromPreGenerated(preGen);
+        } else {
+            java.util.concurrent.atomic.AtomicInteger streamChunks = new java.util.concurrent.atomic.AtomicInteger();
+            java.util.concurrent.atomic.AtomicInteger streamChars = new java.util.concurrent.atomic.AtomicInteger();
+            log.info(
+                    "Starting assistant token stream to client: toolCallSseEvents={}, messagesForApi={}",
+                    resolved.toolCallEvents().size(),
+                    resolved.messages().size());
+            tokenStream = aiApiClient
+                    .streamChat(resolved.messages(), tools, llmId, useReasoning)
+                    .doOnNext(chunk -> {
+                        streamChunks.incrementAndGet();
+                        streamChars.addAndGet(chunk.length());
+                    })
+                    .doOnComplete(() -> {
+                        int chunks = streamChunks.get();
+                        int chars = streamChars.get();
+                        if (chunks == 0) {
+                            log.warn(
+                                    "Assistant stream completed with 0 chunks and 0 characters — "
+                                            + "model returned no content. Likely context overflow or content filter. "
+                                            + "mode={}, llmId={}, messagesForApi={}",
+                                    request.getMode(),
+                                    llmId,
+                                    resolved.messages().size());
+                        } else {
+                            log.info("Assistant stream finished: {} chunks, {} characters", chunks, chars);
+                        }
+                    })
+                    .doOnError(e -> log.error(
+                            "Assistant stream failed after {} chunks ({} chars so far)",
+                            streamChunks.get(),
+                            streamChars.get(),
+                            e))
+                    .map(chunk -> ServerSentEvent.<String>builder()
+                            .event("token").data(escapeForSse(chunk)).build());
+        }
+        return Flux.concat(toolEvents, toolHistoryEvent, contextUpdateEvent, tokenStream);
+    }
+
+    /**
+     * Tool rounds with {@code stream: true} to the provider: forward {@code delta.content} as SSE tokens immediately,
+     * accumulate {@code delta.tool_calls}, then run tools and continue until a text-only stop or ask_clarification.
+     */
+    private Flux<ServerSentEvent<String>> toolResolutionStreamingFlux(
+            List<ChatMessage> initialMessages,
+            int originalMessageCount,
+            List<Map<String, Object>> tools,
+            String llmId,
+            boolean useReasoning,
+            ChatRequest request) {
+        return Flux.create(
+                sink -> Schedulers.boundedElastic()
+                        .schedule(() -> {
+                            try {
+                                runStreamingToolLoop(
+                                        sink, new ArrayList<>(initialMessages), originalMessageCount, tools, llmId, useReasoning, request);
+                                sink.complete();
+                            } catch (Throwable t) {
+                                sink.error(t);
+                            }
+                        }),
+                FluxSink.OverflowStrategy.BUFFER);
+    }
+
+    private void runStreamingToolLoop(
+            FluxSink<ServerSentEvent<String>> sink,
+            List<ChatMessage> currentMessages,
+            int originalMessageCount,
+            List<Map<String, Object>> tools,
+            String llmId,
+            boolean useReasoning,
+            ChatRequest request) {
         log.info(
-                "Tool resolution: starting with {} messages (originalCount={}), {} tool definitions registered",
+                "Tool resolution (streaming): starting with {} messages (originalCount={}), {} tool definitions registered",
                 currentMessages.size(),
                 originalMessageCount,
                 tools != null ? tools.size() : 0);
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
-            ChatCompletionResult result = aiApiClient.chatWithTools(currentMessages, tools, llmId, useReasoning);
+            if (sink.isCancelled()) {
+                return;
+            }
+            ChatCompletionStreamParser parser = new ChatCompletionStreamParser(objectMapper);
+            log.trace("Received request to stream chat completion round {} with messages={}", round + 1, currentMessages.size());
+            aiApiClient
+                    .rawChatCompletionStreamLines(currentMessages, tools, llmId, useReasoning)
+                    .doOnNext(line -> {
+                        for (String frag : parser.consumeLine(line)) {
+                            sink.next(ServerSentEvent.<String>builder()
+                                    .event("token")
+                                    .data(escapeForSse(frag))
+                                    .build());
+                        }
+                    })
+                    .blockLast(Duration.ofMinutes(15));
 
-            if (!result.hasToolCalls()) {
-                if (result.content() != null && !result.content().isBlank()) {
-                    preGeneratedContent = result.content();
-                    log.info(
-                            "Tool round {}: model returned text only (no tool_calls), {} chars — reusing as pre-generated content",
-                            round + 1,
-                            result.content().length());
-                } else {
+            String fr = parser.getFinishReason();
+            List<ToolCall> toolCalls = parser.buildToolCallsOrEmpty();
+            String accumulated = parser.getAccumulatedAssistantContent();
+
+            if ("tool_calls".equals(fr) && toolCalls.isEmpty()) {
+                log.error(
+                        "Tool round {}: finish_reason=tool_calls but no parseable tool_calls — provider delta format may differ",
+                        round + 1);
+                return;
+            }
+
+            if (toolCalls.isEmpty()) {
+                if ("length".equals(fr)) {
                     log.warn(
-                            "Tool round {}: empty content AND no tool_calls — suspicious response, possible context overflow. "
-                                    + "messages={}, approxChars={}",
+                            "Tool round {}: finish_reason=length (no tool_calls), messages={}, approxChars={}",
                             round + 1,
                             currentMessages.size(),
                             currentMessages.stream()
                                     .mapToInt(m -> m.getContent() != null ? m.getContent().length() : 0)
                                     .sum());
+                } else if (accumulated == null || accumulated.isBlank()) {
+                    log.warn(
+                            "Tool round {}: stream ended with no content and no tool_calls — possible overflow or filter",
+                            round + 1);
+                } else {
+                    log.info(
+                            "Tool round {}: streaming finished with stop and no tool_calls ({} chars already sent as tokens)",
+                            round + 1,
+                            accumulated.length());
                 }
-                break;
+                log.trace("Finished successfully streaming tool round {} (text-only)", round + 1);
+                return;
             }
 
-            log.info("Tool round {}: model requested {} tool call(s)", round + 1, result.toolCalls().size());
+            log.info("Tool round {}: model requested {} tool call(s) (streaming accumulation)", round + 1, toolCalls.size());
 
-            // Intercept ask_clarification before any messages are added to history
-            boolean hasClarification = result.toolCalls().stream()
+            boolean hasClarification = toolCalls.stream()
                     .anyMatch(tc -> AskClarificationTool.TOOL_NAME.equals(tc.getFunction().getName()));
             if (hasClarification) {
-                ToolCall clarCall = result.toolCalls().stream()
+                ToolCall clarCall = toolCalls.stream()
                         .filter(tc -> AskClarificationTool.TOOL_NAME.equals(tc.getFunction().getName()))
-                        .findFirst().orElseThrow();
-                preGeneratedContent = buildClarificationBlock(clarCall.getFunction().getArguments());
-                log.info("Tool round {}: ask_clarification intercepted — emitting clarification block as pre-generated content ({} chars)",
-                        round + 1, preGeneratedContent.length());
-                break;
-            }
-
-            // Send tool call events for the frontend
-            for (ToolCall tc : result.toolCalls()) {
-                String description = toolExecutor.describeToolCall(tc);
-                log.trace("Emitting tool_call SSE event for round {}: {}", round + 1, description);
-                log.info("Tool call round {}: {}", round + 1, description);
-                log.debug(
-                        "Tool call raw: name={}, id={}, arguments preview: {}",
-                        tc.getFunction().getName(),
-                        tc.getId(),
-                        previewForLog(tc.getFunction().getArguments(), 1200));
-                toolCallEvents.add(ServerSentEvent.<String>builder()
-                        .event("tool_call").data(escapeForSse(description)).build());
-            }
-
-            // Add assistant message with tool calls
-            currentMessages.add(ChatMessage.assistantWithToolCalls(result.toolCalls()));
-
-            // Execute each tool and add results
-            for (ToolCall tc : result.toolCalls()) {
-                log.trace("Starting execution of tool result for round {}: name={}", round + 1, tc.getFunction().getName());
-                String toolResult = toolExecutor.execute(tc);
-                log.trace("Finished tool execution for round {}: name={}, result length={}", round + 1, tc.getFunction().getName(), toolResult != null ? toolResult.length() : 0);
+                        .findFirst()
+                        .orElseThrow();
+                String preGen = buildClarificationBlock(clarCall.getFunction().getArguments());
                 log.info(
-                        "Tool result: name={}, id={}, {} chars, preview: {}",
-                        tc.getFunction().getName(),
-                        tc.getId(),
-                        toolResult != null ? toolResult.length() : 0,
-                        previewForLog(toolResult, 1500));
-                currentMessages.add(ChatMessage.toolResult(tc.getId(), toolResult));
+                        "Tool round {}: ask_clarification intercepted — emitting clarification block as chunked tokens ({} chars)",
+                        round + 1,
+                        preGen.length());
+                tokenFluxFromPreGenerated(preGen).doOnNext(sink::next).blockLast(Duration.ofMinutes(2));
+                log.trace("Finished successfully after ask_clarification in round {}", round + 1);
+                return;
             }
+
+            emitToolExecutionAndHistory(sink, currentMessages, originalMessageCount, toolCalls, accumulated, round);
+        }
+        log.warn("Streaming tool loop stopped after {} rounds (max)", MAX_TOOL_ROUNDS);
+    }
+
+    private void emitToolExecutionAndHistory(
+            FluxSink<ServerSentEvent<String>> sink,
+            List<ChatMessage> currentMessages,
+            int originalMessageCount,
+            List<ToolCall> toolCalls,
+            String assistantStreamContent,
+            int round) {
+        for (ToolCall tc : toolCalls) {
+            String description = toolExecutor.describeToolCall(tc);
+            log.trace("Emitting tool_call SSE event for round {}: {}", round + 1, description);
+            log.info("Tool call round {}: {}", round + 1, description);
+            log.debug(
+                    "Tool call raw: name={}, id={}, arguments preview: {}",
+                    tc.getFunction().getName(),
+                    tc.getId(),
+                    previewForLog(tc.getFunction().getArguments(), 1200));
+            sink.next(ServerSentEvent.<String>builder()
+                    .event("tool_call")
+                    .data(escapeForSse(description))
+                    .build());
         }
 
-        int addedMessages = currentMessages.size() - originalMessageCount;
-        log.info(
-                "Tool resolution phase done: +{} intermediate message(s), total messages={}",
-                addedMessages,
-                currentMessages.size());
+        ChatMessage assistantMsg = new ChatMessage();
+        assistantMsg.setRole("assistant");
+        if (assistantStreamContent != null && !assistantStreamContent.isBlank()) {
+            assistantMsg.setContent(assistantStreamContent);
+        }
+        assistantMsg.setToolCalls(toolCalls);
+        currentMessages.add(assistantMsg);
 
-        // Build tool_history JSON from the intermediate messages added during tool rounds.
-        // These are the messages between the original message list and the final list.
-        String toolHistoryJson = null;
+        for (ToolCall tc : toolCalls) {
+            log.trace("Starting execution of tool result for round {}: name={}", round + 1, tc.getFunction().getName());
+            String toolResult = toolExecutor.execute(tc);
+            log.trace(
+                    "Finished tool execution for round {}: name={}, result length={}",
+                    round + 1,
+                    tc.getFunction().getName(),
+                    toolResult != null ? toolResult.length() : 0);
+            log.info(
+                    "Tool result: name={}, id={}, {} chars, preview: {}",
+                    tc.getFunction().getName(),
+                    tc.getId(),
+                    toolResult != null ? toolResult.length() : 0,
+                    previewForLog(toolResult, 1500));
+            currentMessages.add(ChatMessage.toolResult(tc.getId(), toolResult));
+        }
+
         if (currentMessages.size() > originalMessageCount) {
-            List<ChatMessage> toolMessages = currentMessages.subList(originalMessageCount, currentMessages.size());
+            List<ChatMessage> slice = currentMessages.subList(originalMessageCount, currentMessages.size());
             try {
-                toolHistoryJson = objectMapper.writeValueAsString(toolMessages);
+                String toolHistoryJson = objectMapper.writeValueAsString(slice);
                 log.debug("tool_history JSON length: {} chars", toolHistoryJson.length());
+                sink.next(ServerSentEvent.<String>builder()
+                        .event("tool_history")
+                        .data(escapeForSse(toolHistoryJson))
+                        .build());
             } catch (JsonProcessingException e) {
                 log.warn("Failed to serialize tool_history messages", e);
             }
         }
-
-        return new ToolResolutionResult(currentMessages, toolCallEvents, toolHistoryJson, preGeneratedContent);
+        int est = contextService.estimateTokensForMessages(currentMessages);
+        sink.next(ServerSentEvent.<String>builder()
+                .event("context_update")
+                .data("{\"estimatedTokens\":" + est + "}")
+                .build());
+        log.trace("Finished emitting tool execution and history for round {}", round + 1);
     }
 
     @PostMapping("/sync")
