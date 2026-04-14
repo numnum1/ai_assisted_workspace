@@ -313,6 +313,7 @@ public class ProjectConfigService {
                 mode.setAutoIncludes(list.stream().map(Object::toString).toList());
             }
             mode.setUseReasoning(booleanVal(data.get("useReasoning"), false));
+            mode.setAgentOnly(booleanVal(data.get("agentOnly"), false));
             Object llmId = data.get("llmId");
             if (llmId instanceof String s && !s.isBlank()) {
                 mode.setLlmId(s);
@@ -666,6 +667,7 @@ public class ProjectConfigService {
         data.put("systemPrompt", mode.getSystemPrompt() != null ? mode.getSystemPrompt() : "");
         data.put("autoIncludes", mode.getAutoIncludes() != null ? mode.getAutoIncludes() : List.of());
         data.put("useReasoning", mode.isUseReasoning());
+        data.put("agentOnly", mode.isAgentOnly());
         if (mode.getLlmId() != null && !mode.getLlmId().isBlank()) {
             data.put("llmId", mode.getLlmId());
         }

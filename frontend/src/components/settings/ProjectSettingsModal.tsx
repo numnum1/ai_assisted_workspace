@@ -59,6 +59,7 @@ interface ModeForm {
   systemPrompt: string;
   autoIncludes: string;
   useReasoning: boolean;
+  agentOnly: boolean;
   llmId: string;
 }
 
@@ -327,7 +328,16 @@ export function ProjectSettingsModal({
 
   const openNewMode = () => {
     setEditingModeId(null);
-    setModeForm({ id: '', name: '', color: '#89b4fa', systemPrompt: '', autoIncludes: '', useReasoning: false, llmId: '' });
+    setModeForm({
+      id: '',
+      name: '',
+      color: '#89b4fa',
+      systemPrompt: '',
+      autoIncludes: '',
+      useReasoning: false,
+      agentOnly: false,
+      llmId: '',
+    });
   };
 
   const openEditMode = (mode: Mode) => {
@@ -339,6 +349,7 @@ export function ProjectSettingsModal({
       systemPrompt: mode.systemPrompt || '',
       autoIncludes: (mode.autoIncludes || []).join('\n'),
       useReasoning: mode.useReasoning ?? false,
+      agentOnly: mode.agentOnly ?? false,
       llmId: mode.llmId ?? '',
     });
   };
@@ -355,6 +366,7 @@ export function ProjectSettingsModal({
         systemPrompt: modeForm.systemPrompt,
         autoIncludes: modeForm.autoIncludes.split('\n').map(s => s.trim()).filter(Boolean),
         useReasoning: modeForm.useReasoning,
+        agentOnly: modeForm.agentOnly,
         llmId: modeForm.llmId.trim() || undefined,
       };
       await projectConfigApi.saveMode(mode.id, mode);
@@ -700,9 +712,13 @@ export function ProjectSettingsModal({
                   onChange={e => setConfig(p => ({ ...p, defaultMode: e.target.value }))}
                 >
                   <option value="">Automatic (review, or first mode if review is missing)</option>
-                  {modes.map(m => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
-                  ))}
+                  {modes
+                    .filter((m) => m.id !== 'prompt-pack' && !m.agentOnly)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.id})
+                      </option>
+                    ))}
                 </select>
 
                 <p className="ps-hint">
@@ -811,6 +827,22 @@ export function ProjectSettingsModal({
                       placeholder="e.g. Game Design"
                     />
 
+                    <label className="ps-label">Verfügbarkeit im Chat</label>
+                    <p className="ps-hint">
+                      „Nur Agenten“: Modus erscheint nicht im Haupt-Chat-Modusmenü, bleibt aber für Agent-Vorlagen und
+                      geführte Chats wählbar.
+                    </p>
+                    <select
+                      className="ps-input"
+                      value={modeForm.agentOnly ? 'agent' : 'chat'}
+                      onChange={(e) =>
+                        setModeForm((p) => p && ({ ...p, agentOnly: e.target.value === 'agent' }))
+                      }
+                    >
+                      <option value="chat">Normaler Chat + Agenten</option>
+                      <option value="agent">Nur Agenten / geführte Chats</option>
+                    </select>
+
                     <label className="ps-label">Color</label>
                     <div className="ps-color-row">
                       <input
@@ -896,6 +928,15 @@ export function ProjectSettingsModal({
                             style={{ background: mode.color || '#89b4fa' }}
                           />
                           <span className="ps-list-item-name">{mode.name}</span>
+                          {mode.agentOnly && (
+                            <span
+                              className="ps-mode-agent-badge"
+                              title="Nur Agenten / geführte Chats"
+                              aria-label="Nur Agenten"
+                            >
+                              <Bot size={12} style={{ display: 'block', opacity: 0.85 }} />
+                            </span>
+                          )}
                           <span className="ps-list-item-id">{mode.id}</span>
                           <button
                             type="button"

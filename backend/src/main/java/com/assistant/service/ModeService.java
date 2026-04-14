@@ -79,6 +79,10 @@ public class ModeService {
                     if (useReasoning instanceof Boolean b) {
                         mode.setUseReasoning(b);
                     }
+                    Object agentOnly = data.get("agentOnly");
+                    if (agentOnly instanceof Boolean b) {
+                        mode.setAgentOnly(b);
+                    }
                     modes.put(id, mode);
                 }
             }

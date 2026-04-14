@@ -21,6 +21,8 @@ export interface Mode {
   autoIncludes: string[];
   color: string;
   useReasoning?: boolean;
+  /** When true, only agent presets / guided chats use this mode — hidden from the main chat mode menu. */
+  agentOnly?: boolean;
   llmId?: string;
 }
 

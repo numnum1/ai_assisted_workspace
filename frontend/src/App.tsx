@@ -66,6 +66,15 @@ import {
 /** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
 
+function nonPromptModes(mds: Mode[]): Mode[] {
+  return mds.filter((m) => m.id !== 'prompt-pack');
+}
+
+/** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
+function standardChatModes(mds: Mode[]): Mode[] {
+  return nonPromptModes(mds).filter((m) => !m.agentOnly);
+}
+
 function resolveDefaultModeId(mds: Mode[], configured: string | undefined): string {
   const id = configured?.trim() ?? '';
   if (id && mds.some((m) => m.id === id)) return id;
@@ -78,17 +87,26 @@ function conversationHasVisibleMessages(conv: Conversation): boolean {
   return conv.messages.some((m) => !m.hidden);
 }
 
-/** Main chat mode id from persisted conversation (excludes prompt-pack for the main selector). */
-function resolvePersistedChatModeId(conv: Conversation, chatModes: Mode[], allModes: Mode[]): string | null {
-  const isMain = (modeId: string) => chatModes.some((m) => m.id === modeId);
-  if (conv.mode && conv.mode !== 'prompt-pack' && isMain(conv.mode)) return conv.mode;
+/**
+ * Resolves mode id from persisted conversation (non–prompt-pack only).
+ * Agent-only modes are kept for guided sessions; for standard chat they are ignored.
+ */
+function resolvePersistedChatModeId(conv: Conversation, nonPrompt: Mode[], allModes: Mode[]): string | null {
+  const sessionKind = conv.sessionKind ?? 'standard';
+  const allowed = (modeId: string): boolean => {
+    const m = nonPrompt.find((x) => x.id === modeId);
+    if (!m) return false;
+    if (m.agentOnly && sessionKind !== 'guided') return false;
+    return true;
+  };
+  if (conv.mode && conv.mode !== 'prompt-pack' && allowed(conv.mode)) return conv.mode;
 
   for (let i = conv.messages.length - 1; i >= 0; i--) {
     const m = conv.messages[i];
     if (m.hidden || m.role !== 'user' || !m.mode) continue;
     if (m.mode === PROMPT_PACK_DISPLAY_NAME) continue;
     const found = allModes.find((mode) => mode.name === m.mode);
-    if (found && found.id !== 'prompt-pack') return found.id;
+    if (found && found.id !== 'prompt-pack' && allowed(found.id)) return found.id;
   }
   return null;
 }
@@ -329,7 +347,7 @@ function App() {
     try {
       const [mds, status] = await Promise.all([modesApi.getAll(), projectConfigApi.status()]);
       setModes(mds);
-      const chatModes = mds.filter(m => m.id !== 'prompt-pack');
+      const forDefault = standardChatModes(mds);
       let configured: string | undefined;
       let agents: AgentPreset[] = [];
       if (status.initialized) {
@@ -347,9 +365,13 @@ function App() {
       }
       setAgentPresets(agents);
       if (configured === 'prompt-pack') configured = undefined;
-      const resolvedId = resolveDefaultModeId(chatModes, configured);
+      if (configured) {
+        const cfgMode = mds.find((m) => m.id === configured);
+        if (cfgMode?.agentOnly) configured = undefined;
+      }
+      const resolvedId = resolveDefaultModeId(forDefault, configured);
       projectDefaultChatModeIdRef.current = resolvedId;
-      const resolvedMode = chatModes.find(m => m.id === resolvedId);
+      const resolvedMode = forDefault.find((m) => m.id === resolvedId);
       setSelectedMode(resolvedId);
       setUseReasoning(resolvedMode?.useReasoning ?? false);
       setModeLlmId(resolvedMode?.llmId ?? undefined);
@@ -388,22 +410,25 @@ function App() {
   // Sync main chat Mode selector with the active conversation (initial load + chat switch).
   useEffect(() => {
     if (!history.hydrated || modes.length === 0) return;
-    const chatModes = modes.filter((m) => m.id !== 'prompt-pack');
+    const nonPrompt = nonPromptModes(modes);
+    const standardSel = standardChatModes(modes);
     const conv = history.activeConversation;
+    const sessionKind = conv.sessionKind ?? 'standard';
+    const allowedForSession = sessionKind === 'guided' ? nonPrompt : standardSel;
     let desired: string;
     /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
     const trulyEmptyForModeSync =
       !conversationHasVisibleMessages(conv) && conv.messages.length === 0;
     if (trulyEmptyForModeSync) {
       desired = projectDefaultChatModeIdRef.current;
-      if (!chatModes.some((m) => m.id === desired)) {
-        desired = resolveDefaultModeId(chatModes, undefined);
+      if (!standardSel.some((m) => m.id === desired)) {
+        desired = resolveDefaultModeId(standardSel, undefined);
       }
     } else {
-      const fromConv = resolvePersistedChatModeId(conv, chatModes, modes);
+      const fromConv = resolvePersistedChatModeId(conv, nonPrompt, modes);
       desired = fromConv ?? projectDefaultChatModeIdRef.current;
-      if (!chatModes.some((m) => m.id === desired)) {
-        desired = resolveDefaultModeId(chatModes, undefined);
+      if (!allowedForSession.some((m) => m.id === desired)) {
+        desired = resolveDefaultModeId(allowedForSession, undefined);
       }
     }
     handleModeChange(desired, modes);
@@ -421,6 +446,7 @@ function App() {
     history.hydrated,
     history.activeId,
     history.activeConversation.mode,
+    history.activeConversation.sessionKind,
     history.activeConversation.agentLlmId,
     history.activeConversation.agentUseReasoning,
     history.activeConversation.agentDisabledToolkits,
@@ -881,7 +907,14 @@ function App() {
     ],
   );
 
-  const modesForChat = useMemo(() => modes.filter(m => m.id !== 'prompt-pack'), [modes]);
+  const modesForChat = useMemo(() => {
+    const base = standardChatModes(modes);
+    const cur = modes.find((m) => m.id === selectedMode);
+    if (cur?.agentOnly && !base.some((m) => m.id === cur.id)) {
+      return [...base, cur];
+    }
+    return base;
+  }, [modes, selectedMode]);
 
   const handlePromptPackGenerate = useCallback(
     (message: string, files: string[]) => {
@@ -918,9 +951,9 @@ function App() {
   useEffect(() => {
     if (!modes.length) return;
     if (selectedMode === 'prompt-pack') {
-      const chatModes = modes.filter(x => x.id !== 'prompt-pack');
-      const fallbackId = resolveDefaultModeId(chatModes, undefined);
-      handleModeChange(fallbackId, chatModes);
+      const std = standardChatModes(modes);
+      const fallbackId = resolveDefaultModeId(std, undefined);
+      handleModeChange(fallbackId, modes);
     }
   }, [modes, selectedMode, handleModeChange]);
 
@@ -958,7 +991,13 @@ function App() {
         return;
       }
       const sk = (kindOrPayload as ChatSessionKind | undefined) ?? 'standard';
-      history.createConversation(selectedMode, undefined, undefined, sk);
+      const std = standardChatModes(modes);
+      let modeForNew = selectedMode;
+      if (sk === 'standard' && !std.some((m) => m.id === modeForNew)) {
+        modeForNew = resolveDefaultModeId(std, undefined);
+        handleModeChange(modeForNew, modes);
+      }
+      history.createConversation(modeForNew, undefined, undefined, sk);
     },
     [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, handleModeChange, agentPresets],
   );
@@ -997,10 +1036,14 @@ function App() {
         }
         return;
       }
-      history.discardActiveAndCreateConversation(
-        selectedMode,
-        (kindOrPayload as ChatSessionKind | undefined) ?? 'standard',
-      );
+      const skDiscard = (kindOrPayload as ChatSessionKind | undefined) ?? 'standard';
+      const stdDiscard = standardChatModes(modes);
+      let modeDiscard = selectedMode;
+      if (skDiscard === 'standard' && !stdDiscard.some((m) => m.id === modeDiscard)) {
+        modeDiscard = resolveDefaultModeId(stdDiscard, undefined);
+        handleModeChange(modeDiscard, modes);
+      }
+      history.discardActiveAndCreateConversation(modeDiscard, skDiscard);
     },
     [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, handleModeChange, agentPresets],
   );
