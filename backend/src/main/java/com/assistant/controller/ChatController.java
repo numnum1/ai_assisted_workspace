@@ -99,7 +99,9 @@ public class ChatController {
                         .event("context").data(toContextJson(context, llmId)).build()),
                 Flux.just(ServerSentEvent.<String>builder()
                         .event("resolved_user_message").data(escapeForSse(resolvedUserContent != null ? resolvedUserContent : "")).build()),
-                Mono.fromCallable(() -> resolveToolCalls(context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning))
+                Mono.fromCallable(() -> tools == null || tools.isEmpty()
+                                ? skipToolResolutionForDirectStreaming(context.getMessages())
+                                : resolveToolCalls(context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning))
                         .flatMapMany(resolved -> {
                             Flux<ServerSentEvent<String>> toolEvents = Flux.fromIterable(resolved.toolCallEvents());
                             Flux<ServerSentEvent<String>> toolHistoryEvent = resolved.toolHistoryJson() != null
@@ -128,7 +130,7 @@ public class ChatController {
                                 AtomicInteger streamChunks = new AtomicInteger();
                                 AtomicInteger streamChars = new AtomicInteger();
                                 log.info(
-                                        "Starting assistant token stream after tool resolution: {} tool SSE events, messagesForApi={}",
+                                        "Starting assistant token stream to client: toolCallSseEvents={}, messagesForApi={}",
                                         resolved.toolCallEvents().size(),
                                         resolved.messages().size());
                                 tokenStream = aiApiClient
@@ -179,6 +181,19 @@ public class ChatController {
      * @param originalMessageCount size of the messages list before any tool rounds,
      *                             used to extract only the new tool messages for tool_history
      */
+    /**
+     * When the request sends no tool definitions to the model, skip the blocking
+     * {@link AiApiClient#chatWithTools} round and stream the assistant reply directly from the provider
+     * ({@code stream: true}), matching low-latency behaviour of a plain chat completion call.
+     */
+    private ToolResolutionResult skipToolResolutionForDirectStreaming(List<ChatMessage> messages) {
+        log.info(
+                "No tool definitions for this request — skipping blocking tool-resolution completion; "
+                        + "streaming assistant directly from API (messages={})",
+                messages.size());
+        return new ToolResolutionResult(new ArrayList<>(messages), List.of(), null, null);
+    }
+
     private ToolResolutionResult resolveToolCalls(List<ChatMessage> messages,
                                                   int originalMessageCount,
                                                   List<Map<String, Object>> tools,
