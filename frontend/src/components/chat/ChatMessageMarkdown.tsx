@@ -20,22 +20,51 @@ interface ChatMessageMarkdownProps {
   isAnswered?: boolean;
 }
 
-/** Closing markers: XML `</think>` or Cursor-style `\think}`. First match wins. */
-const THINK_END_RE = /<\/think>|\\think\}/i;
+/**
+ * Opening: `<thinking>` (common) or `<think>`.
+ * Closing: long `</think>` or short `</think>`, plus `\think}` (closing-only).
+ * Regex lists the long close first so a `…redacted_thinking…` close is not mistaken for the short `…think…` close.
+ */
+const THINK_OPEN_RE = /<think>|<thinking>/i;
+const THINK_CLOSE_RE = /<\/redacted_thinking>|<\/think>|\\think\}/i;
 
 /**
- * Splits assistant content on the first closing think tag (models often omit the opening tag).
+ * Extracts extended thinking: paired open/close tags (streaming-safe before close arrives).
+ * Legacy: no opening tag but a closing marker — everything before the first close is thinking (old model quirk).
  */
 function splitThinkContent(content: string): { thinkingText: string | null; responseContent: string } {
-  const match = THINK_END_RE.exec(content);
-  if (!match) {
+  const openMatch = THINK_OPEN_RE.exec(content);
+  if (openMatch) {
+    const openEnd = openMatch.index + openMatch[0].length;
+    const prefix = content.slice(0, openMatch.index).trimEnd();
+    const afterOpen = content.slice(openEnd);
+    const closeMatch = THINK_CLOSE_RE.exec(afterOpen);
+
+    if (closeMatch) {
+      const closeStart = openEnd + closeMatch.index;
+      const afterClose = content.slice(closeStart + closeMatch[0].length);
+      const thinkingInner = content.slice(openEnd, closeStart).trim();
+      const thinkingText = thinkingInner.length > 0 ? thinkingInner : null;
+      const tail = afterClose.trim();
+      const responseContent = [prefix, tail].filter((p) => p.length > 0).join('\n\n').trim();
+      return { thinkingText, responseContent };
+    }
+
+    // Streaming: opening tag seen, closing not yet — keep prefix in markdown, thinking in chip only.
+    const streamingBody = afterOpen.trimEnd();
+    const thinkingText = streamingBody.length > 0 ? streamingBody : '';
+    return { thinkingText, responseContent: prefix };
+  }
+
+  const endMatch = THINK_CLOSE_RE.exec(content);
+  if (!endMatch) {
     return { thinkingText: null, responseContent: content };
   }
-  const thinkingRaw = content.slice(0, match.index);
-  const after = content.slice(match.index + match[0].length);
-  const thinkingText = thinkingRaw.trim();
+  const thinkingRaw = content.slice(0, endMatch.index);
+  const after = content.slice(endMatch.index + endMatch[0].length);
+  const trimmedThink = thinkingRaw.trim();
   return {
-    thinkingText: thinkingText.length > 0 ? thinkingText : null,
+    thinkingText: trimmedThink.length > 0 ? trimmedThink : null,
     responseContent: after.trim(),
   };
 }
@@ -499,10 +528,9 @@ export function ChatMessageMarkdown({
 
   const thinkSplit = useMemo(() => splitThinkContent(displayContent), [displayContent]);
   /**
-   * Before </think> arrives: stream the full content as normal markdown so the user
-   * sees the text appearing in real time.
-   * Once </think> is present: split — show the ThinkingChip and render only the
-   * response part (after the tag) as markdown.
+   * With `<think>`: thinking streams into the chip only; markdown is prefix (if any)
+   * plus the answer after `</think>`. Legacy streams without an opening tag still
+   * show everything as markdown until the first closing marker, then split like before.
    */
   const markdownSource =
     thinkSplit.thinkingText !== null
