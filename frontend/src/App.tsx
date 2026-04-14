@@ -160,6 +160,40 @@ function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
   }
 }
 
+/** Compare disabled toolkit ids regardless of order or Set vs array (avoids update loops on new references). */
+function disabledToolkitsSignature(ids: ReadonlySet<string> | readonly string[] | undefined | null): string {
+  if (!ids) return '';
+  const list = [...ids];
+  if (list.length === 0) return '';
+  return [...list].sort().join('\0');
+}
+
+function disabledToolkitSetMatchesArray(s: ReadonlySet<string>, arr: readonly string[] | undefined): boolean {
+  return disabledToolkitsSignature(s) === disabledToolkitsSignature(arr);
+}
+
+function agentExecutionMatchesGlobals(
+  conv: Conversation,
+  globals: { llmId: string | undefined; useReasoning: boolean; disabledToolkits: ReadonlySet<string> },
+): boolean {
+  const patch = buildAgentExecutionPatchFromGlobals(globals);
+  return (
+    conv.agentLlmId === patch.agentLlmId &&
+    conv.agentUseReasoning === patch.agentUseReasoning &&
+    disabledToolkitsSignature(conv.agentDisabledToolkits) === disabledToolkitsSignature(patch.agentDisabledToolkits)
+  );
+}
+
+/** Fingerprint persisted agent fields so we can tell when the conversation (not the toolbar) changed. */
+function agentPersistSignature(conv: Conversation): string {
+  if (!conversationHasAgentExecution(conv)) return '';
+  return [
+    conv.agentLlmId ?? '∅',
+    conv.agentUseReasoning === undefined ? '∅' : String(conv.agentUseReasoning),
+    disabledToolkitsSignature(conv.agentDisabledToolkits),
+  ].join('|');
+}
+
 function App() {
   const project = useProject();
   const chapter = useChapter();
@@ -179,6 +213,9 @@ function App() {
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
   const projectDefaultChatModeIdRef = useRef('review');
+  /** Avoid toolbar ↔ conversation ping-pong: only pull agent fields from conv when conv or active chat actually changed. */
+  const prevModeSyncActiveIdRef = useRef<string | null>(null);
+  const prevAgentPersistSigRef = useRef('');
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
   const handleToggleToolkit = useCallback((kitId: string) => {
@@ -226,11 +263,9 @@ function App() {
   }, [modeLlmId, llms]);
 
   const handleModeChange = useCallback((modeId: string, modeList?: typeof modes) => {
-    setSelectedMode(modeId);
     const list = modeList ?? modes;
     const m = list.find(x => x.id === modeId);
     const llmId = m?.llmId ?? undefined;
-    setModeLlmId(llmId);
 
     let newUseReasoning = m?.useReasoning ?? false;
     if (llmId) {
@@ -246,7 +281,11 @@ function App() {
         // both available → use mode preference
       }
     }
-    setUseReasoning(newUseReasoning);
+
+    // Functional updates avoid redundant renders and break feedback loops with useChatHistory(currentMode).
+    setSelectedMode((prev) => (prev === modeId ? prev : modeId));
+    setModeLlmId((prev) => (prev === llmId ? prev : llmId));
+    setUseReasoning((prev) => (prev === newUseReasoning ? prev : newUseReasoning));
   }, [modes, llms]);
 
   const applyLlmPrefsFromStorage = useCallback(() => {
@@ -431,13 +470,50 @@ function App() {
         desired = resolveDefaultModeId(allowedForSession, undefined);
       }
     }
-    handleModeChange(desired, modes);
+    // Only apply mode row when the resolved id differs; otherwise handleModeChange would still
+    // rewrite llm/reasoning from the mode and fight the agent / prefs block below → update depth loops.
+    if (desired !== selectedMode) {
+      handleModeChange(desired, modes);
+    }
     const convAfter = history.activeConversation;
+
+    const activeIdNow = history.activeId;
+    const switchedConv = prevModeSyncActiveIdRef.current !== activeIdNow;
+    prevModeSyncActiveIdRef.current = activeIdNow;
+
+    const apSig = agentPersistSignature(convAfter);
+    const agentPersistChanged = prevAgentPersistSigRef.current !== apSig;
+    prevAgentPersistSigRef.current = apSig;
+
     if (conversationHasAgentExecution(convAfter)) {
-      if (convAfter.agentLlmId !== undefined) setModeLlmId(convAfter.agentLlmId);
-      if (convAfter.agentUseReasoning !== undefined) setUseReasoning(convAfter.agentUseReasoning);
-      if (convAfter.agentDisabledToolkits !== undefined) {
-        setDisabledToolkits(new Set(convAfter.agentDisabledToolkits));
+      const pullAgentFromConv = switchedConv || agentPersistChanged;
+
+      if (pullAgentFromConv) {
+        let gLlm: string | undefined = modeLlmId;
+        let gReason = useReasoning;
+        let gDisabled: ReadonlySet<string> = disabledToolkits;
+        if (convAfter.agentLlmId !== undefined) gLlm = convAfter.agentLlmId;
+        if (convAfter.agentUseReasoning !== undefined) gReason = convAfter.agentUseReasoning;
+        if (convAfter.agentDisabledToolkits !== undefined) {
+          gDisabled = new Set(convAfter.agentDisabledToolkits);
+        }
+        setModeLlmId((prev) => (prev === gLlm ? prev : gLlm));
+        setUseReasoning((prev) => (prev === gReason ? prev : gReason));
+        if (convAfter.agentDisabledToolkits !== undefined) {
+          setDisabledToolkits((prev) => {
+            if (disabledToolkitSetMatchesArray(prev, convAfter.agentDisabledToolkits)) return prev;
+            return new Set(convAfter.agentDisabledToolkits);
+          });
+        }
+        const target = { llmId: gLlm, useReasoning: gReason, disabledToolkits: gDisabled };
+        if (!agentExecutionMatchesGlobals(convAfter, target)) {
+          history.patchConversation(convAfter.id, buildAgentExecutionPatchFromGlobals(target));
+        }
+      } else {
+        const globals = { llmId: modeLlmId, useReasoning, disabledToolkits };
+        if (!agentExecutionMatchesGlobals(convAfter, globals)) {
+          history.patchConversation(convAfter.id, buildAgentExecutionPatchFromGlobals(globals));
+        }
       }
     } else if (prefsHydratedRef.current) {
       applyLlmPrefsFromStorage();
@@ -445,16 +521,21 @@ function App() {
   }, [
     history.hydrated,
     history.activeId,
+    history.patchConversation,
     history.activeConversation.mode,
     history.activeConversation.sessionKind,
     history.activeConversation.agentLlmId,
     history.activeConversation.agentUseReasoning,
-    history.activeConversation.agentDisabledToolkits,
+    disabledToolkitsSignature(history.activeConversation.agentDisabledToolkits),
     modes,
     project.projectPath,
     modesAndLlmLoadGeneration,
     handleModeChange,
     applyLlmPrefsFromStorage,
+    selectedMode,
+    modeLlmId,
+    useReasoning,
+    disabledToolkits,
   ]);
 
   useEffect(() => {
@@ -465,20 +546,6 @@ function App() {
   useEffect(() => {
     saveDisabledToolkits(disabledToolkits);
   }, [disabledToolkits]);
-
-  /** Keep persisted agent execution in sync when the user changes LLM / reasoning / toolkits in the toolbar. */
-  useEffect(() => {
-    if (!history.hydrated) return;
-    const conv = history.activeConversation;
-    if (!conv || !conversationHasAgentExecution(conv)) return;
-    history.patchConversation(conv.id, {
-      ...buildAgentExecutionPatchFromGlobals({
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      }),
-    });
-  }, [modeLlmId, useReasoning, disabledToolkits, history.activeId, history.hydrated, history.patchConversation]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
