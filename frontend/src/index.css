@@ -3950,23 +3950,6 @@ body.file-tree-native-dragging {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
 }
 
-.sac-other-confirm {
-  padding: 5px 10px;
-  border: none;
-  border-radius: 4px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.sac-other-confirm:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
 .sac-footer {
   display: flex;
   justify-content: flex-end;

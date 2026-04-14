@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ClarificationQuestion } from './clarificationUtils.ts';
 
 const OTHER_LABEL = 'Andere…';
@@ -19,6 +19,32 @@ export interface SuggestedActionsCardProps {
 function isCustomAnswer(q: ClarificationQuestion, answer: string | undefined): boolean {
   if (!answer) return false;
   return !q.options.includes(answer);
+}
+
+/** Answers as they would be after committing any open „Andere…“ draft (mirrors `commitOther`). */
+function effectiveSelected(
+  questions: ClarificationQuestion[],
+  selected: Record<number, string[]>,
+  otherOpen: Record<number, boolean>,
+  otherDraft: Record<number, string>,
+): Record<number, string[]> {
+  const out: Record<number, string[]> = {};
+  questions.forEach((q, idx) => {
+    const allowMultiple = q.allow_multiple ?? false;
+    const base = [...(selected[idx] ?? [])];
+    const open = otherOpen[idx] ?? false;
+    const draft = (otherDraft[idx] ?? '').trim();
+    if (open && draft) {
+      if (allowMultiple) {
+        out[idx] = base.includes(draft) ? base : [...base, draft];
+      } else {
+        out[idx] = [draft];
+      }
+    } else {
+      out[idx] = base;
+    }
+  });
+  return out;
 }
 
 function buildMessage(
@@ -69,7 +95,12 @@ export function SuggestedActionsCard({
 
   const frozen = disabled || submitted;
 
-  const allAnswered = questions.every((_, idx) => (selected[idx]?.length ?? 0) > 0);
+  const effective = useMemo(
+    () => effectiveSelected(questions, selected, otherOpen, otherDraft),
+    [questions, selected, otherOpen, otherDraft],
+  );
+
+  const allAnswered = questions.every((_, idx) => (effective[idx]?.length ?? 0) > 0);
 
   const submitMessage = useCallback(
     (message: string) => {
@@ -80,9 +111,12 @@ export function SuggestedActionsCard({
   );
 
   const handleSubmit = useCallback(() => {
-    if (!allAnswered || frozen) return;
-    submitMessage(buildMessage(questions, selected));
-  }, [allAnswered, frozen, questions, selected, submitMessage]);
+    if (frozen) return;
+    if (!questions.every((_, idx) => (effective[idx]?.length ?? 0) > 0)) return;
+    submitMessage(buildMessage(questions, effective));
+    setOtherOpen({});
+    setOtherDraft({});
+  }, [frozen, questions, effective, submitMessage]);
 
   const selectPreset = useCallback((qIdx: number, opt: string, allowMultiple: boolean) => {
     if (frozenRef.current) return;
@@ -265,15 +299,12 @@ export function SuggestedActionsCard({
                         setOtherOpen((o) => ({ ...o, [qIdx]: false }));
                       }
                     }}
+                    onBlur={() => {
+                      const draft = (otherDraft[qIdx] ?? '').trim();
+                      if (!draft || frozen) return;
+                      commitOther(qIdx, q);
+                    }}
                   />
-                  <button
-                    type="button"
-                    className="sac-other-confirm"
-                    disabled={frozen || !(otherDraft[qIdx] ?? '').trim()}
-                    onClick={() => commitOther(qIdx, q)}
-                  >
-                    OK
-                  </button>
                 </div>
               ) : null}
             </div>
