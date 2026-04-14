@@ -1195,7 +1195,7 @@ export function ChatPanel({
                       />
                     </ChatComposerCard>
                   ) : null}
-                  {pendingWriteFileItems.length > 0 ? (
+                  {pendingWriteFileItems.length > 0 && !streaming ? (
                     <ChatComposerCard>
                       <WriteFileBatchComposerBar
                         items={pendingWriteFileItems}
@@ -1252,7 +1252,7 @@ export function ChatPanel({
                     />
                   </ChatComposerCard>
                 ) : null}
-                {pendingWriteFileItems.length > 0 ? (
+                {pendingWriteFileItems.length > 0 && !streaming ? (
                   <ChatComposerCard>
                     <WriteFileBatchComposerBar
                       items={pendingWriteFileItems}
