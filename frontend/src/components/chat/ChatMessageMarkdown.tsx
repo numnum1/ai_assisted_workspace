@@ -1,10 +1,11 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, Fragment } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Replace, Copy, Check, HelpCircle, PenLine, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../../types.ts';
 import { stripPlanFencesForDisplay } from './planFenceUtils.ts';
+import { parseThinkSegments } from './thinkSegmentUtils.ts';
 
 interface ChatMessageMarkdownProps {
   content: string;
@@ -18,55 +19,6 @@ interface ChatMessageMarkdownProps {
   /** Legacy inline clarification (only when suppressClarificationWidget is false). */
   onSelectOption?: (option: string) => void;
   isAnswered?: boolean;
-}
-
-/**
- * Opening: `<thinking>` (common) or `<think>`.
- * Closing: long `</think>` or short `</think>`, plus `\think}` (closing-only).
- * Regex lists the long close first so a `…redacted_thinking…` close is not mistaken for the short `…think…` close.
- */
-const THINK_OPEN_RE = /<think>|<thinking>/i;
-const THINK_CLOSE_RE = /<\/redacted_thinking>|<\/think>|\\think\}/i;
-
-/**
- * Extracts extended thinking: paired open/close tags (streaming-safe before close arrives).
- * Legacy: no opening tag but a closing marker — everything before the first close is thinking (old model quirk).
- */
-function splitThinkContent(content: string): { thinkingText: string | null; responseContent: string } {
-  const openMatch = THINK_OPEN_RE.exec(content);
-  if (openMatch) {
-    const openEnd = openMatch.index + openMatch[0].length;
-    const prefix = content.slice(0, openMatch.index).trimEnd();
-    const afterOpen = content.slice(openEnd);
-    const closeMatch = THINK_CLOSE_RE.exec(afterOpen);
-
-    if (closeMatch) {
-      const closeStart = openEnd + closeMatch.index;
-      const afterClose = content.slice(closeStart + closeMatch[0].length);
-      const thinkingInner = content.slice(openEnd, closeStart).trim();
-      const thinkingText = thinkingInner.length > 0 ? thinkingInner : null;
-      const tail = afterClose.trim();
-      const responseContent = [prefix, tail].filter((p) => p.length > 0).join('\n\n').trim();
-      return { thinkingText, responseContent };
-    }
-
-    // Streaming: opening tag seen, closing not yet — keep prefix in markdown, thinking in chip only.
-    const streamingBody = afterOpen.trimEnd();
-    const thinkingText = streamingBody.length > 0 ? streamingBody : '';
-    return { thinkingText, responseContent: prefix };
-  }
-
-  const endMatch = THINK_CLOSE_RE.exec(content);
-  if (!endMatch) {
-    return { thinkingText: null, responseContent: content };
-  }
-  const thinkingRaw = content.slice(0, endMatch.index);
-  const after = content.slice(endMatch.index + endMatch[0].length);
-  const trimmedThink = thinkingRaw.trim();
-  return {
-    thinkingText: trimmedThink.length > 0 ? trimmedThink : null,
-    responseContent: after.trim(),
-  };
 }
 
 /** While `streaming` is true, the body stays visible so reasoning text can grow token-by-token; otherwise use the user toggle. */
@@ -528,25 +480,24 @@ export function ChatMessageMarkdown({
     },
   }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, suppressClarificationWidget, isAnswered, onSelectOption]);
 
-  const thinkSplit = useMemo(() => splitThinkContent(displayContent), [displayContent]);
-  /**
-   * With `<think>`: thinking streams into the chip only; markdown is prefix (if any)
-   * plus the answer after `</think>`. Legacy streams without an opening tag still
-   * show everything as markdown until the first closing marker, then split like before.
-   */
-  const markdownSource =
-    thinkSplit.thinkingText !== null
-      ? thinkSplit.responseContent
-      : displayContent;
+  const thinkSegments = useMemo(
+    () => parseThinkSegments(displayContent, !!streamingCursor),
+    [displayContent, streamingCursor],
+  );
 
   return (
     <div className="chat-md">
-      {thinkSplit.thinkingText !== null && (
-        <ThinkingChip text={thinkSplit.thinkingText} streaming={!!streamingCursor} />
-      )}
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-        {markdownSource}
-      </ReactMarkdown>
+      {thinkSegments.map((seg, i) => (
+        <Fragment key={i}>
+          {seg.kind === 'markdown' ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+              {seg.text}
+            </ReactMarkdown>
+          ) : (
+            <ThinkingChip text={seg.text} streaming={seg.streaming} />
+          )}
+        </Fragment>
+      ))}
       {streamingCursor && <span className="chat-streaming-cursor" aria-hidden="true">▌</span>}
     </div>
   );
