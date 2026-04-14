@@ -1,3 +1,10 @@
+/** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
+export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant'] as const;
+
+/** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
+export type ChatSessionKind = 'standard' | 'guided';
+export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
+
 export interface FileNode {
   name: string;
   path: string;
@@ -5,8 +12,6 @@ export interface FileNode {
   children: FileNode[] | null;
   /** Workspace mode id from `.subproject.json` when this directory is a subproject */
   subprojectType?: string | null;
-  /** True if a shadow meta-note file exists under `.wiki/files/` for this file */
-  hasShadow?: boolean;
 }
 
 export interface Mode {
@@ -15,9 +20,21 @@ export interface Mode {
   systemPrompt: string;
   autoIncludes: string[];
   color: string;
-  rules?: string[];
   useReasoning?: boolean;
+  /** When true, only agent presets / guided chats use this mode — hidden from the main chat mode menu. */
+  agentOnly?: boolean;
   llmId?: string;
+}
+
+/** Project-scoped guided chat agent template (`.assistant/agents.json`). */
+export interface AgentPreset {
+  id: string;
+  name: string;
+  modeId: string;
+  llmId?: string | null;
+  useReasoning: boolean;
+  disabledToolkits: ChatToolkitId[];
+  initialSteeringPlan?: string | null;
 }
 
 export interface SelectionContext {
@@ -45,7 +62,7 @@ export interface ToolCall {
 }
 
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'tool';
+  role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
   mode?: string;
   modeColor?: string;
@@ -71,9 +88,16 @@ export interface ChatRequest {
   useReasoning?: boolean;
   /** Quick Chat: minimal context, web search only, no project tools. */
   quickChat?: boolean;
-  /** When true, backend omits tools from the API payload and strips tool instructions from the system prompt. */
-  disableTools?: boolean;
+  /**
+   * Toolkit ids (web, wiki, dateisystem, assistant) whose tools are omitted for this request.
+   * Empty or omitted means all toolkits enabled (subject to server Quick Chat / main-chat rules).
+   */
+  disabledToolkits?: string[];
   llmId?: string;
+  /** Default standard; guided injects steering behaviour and optional steeringPlan. */
+  sessionKind?: ChatSessionKind;
+  /** Persisted plan text for guided sessions; sent each request when set. */
+  steeringPlan?: string | null;
 }
 
 export interface ContextInfo {
@@ -112,15 +136,34 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   mode: string;
-  /** When true, conversation is written to `.assistant/chat-history.json` for Git sync */
+  /**
+   * When true on a root chat, it is written to `.assistant/chat-history.json` for Git sync.
+   * For {@link isThread} threads this flag is ignored; pinning follows the parent chain.
+   */
   savedToProject?: boolean;
+  /** Omitted or standard = normal chat; guided = AI-led session with optional steeringPlan */
+  sessionKind?: ChatSessionKind;
+  /** Markdown steering plan maintained by the model (guided sessions) */
+  steeringPlan?: string;
+  /** True when this conversation was started as a thread from another chat (project pin follows parent). */
+  isThread?: boolean;
+  /** Parent conversation id when {@link isThread} is true */
+  parentConversationId?: string;
+  /**
+   * When set: this guided (or other) conversation uses this LLM for sends instead of the global selector.
+   * Snapshot when starting an „Agent“ session from the new-chat dialog.
+   */
+  agentLlmId?: string;
+  /** When set: overrides global reasoning toggle for this conversation. */
+  agentUseReasoning?: boolean;
+  /** When set: fixed disabled toolkits for this conversation (same ids as global). */
+  agentDisabledToolkits?: ChatToolkitId[];
 }
 
 export interface ProjectConfig {
   name: string;
   description: string;
   alwaysInclude: string[];
-  globalRules: string[];
   /** Mode id; empty means client uses review or first available mode */
   defaultMode?: string;
   /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
@@ -264,37 +307,3 @@ export interface MetaSelection {
   meta: NodeMeta;
 }
 
-// ─── Notes ────────────────────────────────────────────────────────────────────
-
-export interface NoteProposal {
-  id: string;
-  title: string;
-  content: string;
-  wikiHint?: string | null;
-  createdAt?: number;
-}
-
-// ─── Wiki ─────────────────────────────────────────────────────────────────────
-
-export interface WikiFieldDef {
-  key: string;
-  label: string;
-  type: string;
-  placeholder?: string;
-  defaultValue: string;
-  config?: Record<string, unknown>;
-}
-
-export interface WikiType {
-  id: string;
-  name: string;
-  fields: WikiFieldDef[];
-  /** When true, omit from @-mention picker */
-  excludeFromMentions?: boolean;
-}
-
-export interface WikiEntry {
-  id: string;
-  typeId: string;
-  values: Record<string, string>;
-}

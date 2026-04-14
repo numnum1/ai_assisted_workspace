@@ -1,13 +1,24 @@
-import { useState, useRef, useEffect } from 'react';
-import { Trash2, MessageSquare, X, Pencil, FolderInput, FolderCheck, Eraser } from 'lucide-react';
-import type { Conversation } from '../../types.ts';
+import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
+import type { MouseEvent, KeyboardEvent } from 'react';
+import {
+  Trash2,
+  MessageSquare,
+  X,
+  Pencil,
+  FolderInput,
+  FolderCheck,
+  Eraser,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
+import type { ChatSessionKind, Conversation } from '../../types.ts';
 import { NewChatButton } from './NewChatButton.tsx';
 
 interface ChatHistoryProps {
   conversations: Conversation[];
   activeId: string;
   onSelect: (id: string) => void;
-  onCreate: () => void;
+  onCreate: (sessionKind?: ChatSessionKind) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onToggleSavedToProject: (id: string) => void;
@@ -34,10 +45,10 @@ function groupByDate(convs: Conversation[]): { label: string; items: Conversatio
   const now = Date.now();
   const day = 86_400_000;
   const groupDefs = [
-    { label: 'Heute',       test: (t: number) => now - t < day },
-    { label: 'Gestern',     test: (t: number) => now - t >= day && now - t < 2 * day },
+    { label: 'Heute', test: (t: number) => now - t < day },
+    { label: 'Gestern', test: (t: number) => now - t >= day && now - t < 2 * day },
     { label: 'Diese Woche', test: (t: number) => now - t >= 2 * day && now - t < 7 * day },
-    { label: 'Älter',       test: (t: number) => now - t >= 7 * day },
+    { label: 'Älter', test: (t: number) => now - t >= 7 * day },
   ];
   const result: { label: string; items: Conversation[] }[] = [];
   for (const g of groupDefs) {
@@ -45,6 +56,30 @@ function groupByDate(convs: Conversation[]): { label: string; items: Conversatio
     if (matched.length > 0) result.push({ label: g.label, items: matched });
   }
   return result;
+}
+
+function partitionConversations(conversations: Conversation[]) {
+  const roots = conversations.filter((c) => !c.isThread);
+  const rootIds = new Set(roots.map((r) => r.id));
+  const threadList = conversations.filter((c) => Boolean(c.isThread && c.parentConversationId));
+  const threadsByParent = new Map<string, Conversation[]>();
+  for (const t of threadList) {
+    const pid = t.parentConversationId!;
+    if (!threadsByParent.has(pid)) threadsByParent.set(pid, []);
+    threadsByParent.get(pid)!.push(t);
+  }
+  for (const arr of threadsByParent.values()) {
+    arr.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+  const orphans = threadList.filter(
+    (t) => !t.parentConversationId || !rootIds.has(t.parentConversationId!),
+  );
+  orphans.sort((a, b) => b.updatedAt - a.updatedAt);
+  return { roots, threadsByParent, orphans };
+}
+
+function titleMatches(conv: Conversation, qLower: string): boolean {
+  return conv.title.toLowerCase().includes(qLower);
 }
 
 export function ChatHistory({
@@ -62,7 +97,51 @@ export function ChatHistory({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [filterText, setFilterText] = useState('');
+  /** User toggled chevrons only; see {@link expandedParentIds} for merged view. */
+  const [userExpandedParentIds, setUserExpandedParentIds] = useState<Set<string>>(() => new Set());
   const editRef = useRef<HTMLInputElement>(null);
+
+  const { roots, threadsByParent, orphans } = useMemo(
+    () => partitionConversations(conversations),
+    [conversations],
+  );
+
+  const filteredRoots = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    if (!q) return roots;
+    return roots.filter((r) => {
+      if (titleMatches(r, q)) return true;
+      const kids = threadsByParent.get(r.id) ?? [];
+      return kids.some((t) => titleMatches(t, q));
+    });
+  }, [roots, threadsByParent, filterText]);
+
+  const filteredOrphans = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    if (!q) return orphans;
+    return orphans.filter((o) => titleMatches(o, q));
+  }, [orphans, filterText]);
+
+  const groups = useMemo(() => groupByDate(filteredRoots), [filteredRoots]);
+
+  /** User toggles + auto-expand parent of active thread + search hits only on thread titles. */
+  const expandedParentIds = useMemo(() => {
+    const next = new Set(userExpandedParentIds);
+    const active = conversations.find((c) => c.id === activeId);
+    if (active?.isThread && active.parentConversationId) {
+      next.add(active.parentConversationId);
+    }
+    const q = filterText.trim().toLowerCase();
+    if (q) {
+      for (const r of roots) {
+        const kids = threadsByParent.get(r.id) ?? [];
+        const threadHit = kids.some((t) => titleMatches(t, q));
+        const rootHit = titleMatches(r, q);
+        if (threadHit && !rootHit) next.add(r.id);
+      }
+    }
+    return next;
+  }, [userExpandedParentIds, activeId, conversations, filterText, roots, threadsByParent]);
 
   useEffect(() => {
     if (editingId && editRef.current) {
@@ -71,32 +150,152 @@ export function ChatHistory({
     }
   }, [editingId]);
 
-  const handleStartRename = (conv: Conversation, e?: React.MouseEvent) => {
+  const handleStartRename = useCallback((conv: Conversation, e?: MouseEvent) => {
     e?.stopPropagation();
     setEditingId(conv.id);
     setEditTitle(conv.title);
-  };
+  }, []);
 
-  const commitRename = () => {
+  const commitRename = useCallback(() => {
     if (editingId && editTitle.trim()) {
       onRename(editingId, editTitle.trim());
     }
     setEditingId(null);
+  }, [editingId, editTitle, onRename]);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        commitRename();
+      } else if (e.key === 'Escape') {
+        setEditingId(null);
+      }
+    },
+    [commitRename],
+  );
+
+  const toggleParentExpanded = useCallback((parentId: string, e: MouseEvent) => {
+    e.stopPropagation();
+    setUserExpandedParentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
+    });
+  }, []);
+
+  const childThreadsFor = useCallback(
+    (parentId: string) => threadsByParent.get(parentId) ?? [],
+    [threadsByParent],
+  );
+
+  const renderRow = (
+    conv: Conversation,
+    options: {
+      variant: 'root' | 'thread' | 'orphan';
+      chevron?: ReactNode;
+    },
+  ) => {
+    const { variant, chevron } = options;
+    const isChild = variant === 'thread';
+    const itemClass =
+      `chat-history-item ${conv.id === activeId ? 'active' : ''}` +
+      (isChild ? ' chat-history-thread-child' : '') +
+      (variant === 'orphan' ? ' chat-history-thread-orphan' : '');
+
+    return (
+      <div
+        key={conv.id}
+        className={itemClass}
+        onClick={() => {
+          if (editingId === conv.id) return;
+          onSelect(conv.id);
+          onClose();
+        }}
+        onDoubleClick={(e) => handleStartRename(conv, e)}
+      >
+        {chevron ?? <span className="chat-history-chevron-spacer" aria-hidden />}
+        <div className="chat-history-item-icon">
+          <MessageSquare size={14} />
+        </div>
+        <div className="chat-history-item-content">
+          {editingId === conv.id ? (
+            <input
+              ref={editRef}
+              className="chat-history-rename-input"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <div className="chat-history-item-title">
+              <span>{conv.title}</span>
+              {isChild || variant === 'orphan' ? (
+                <span className="chat-history-thread-badge" title="Thread">
+                  Thread
+                </span>
+              ) : null}
+              {conv.sessionKind === 'guided' && (
+                <span className="chat-history-guided-badge" title="Geführte Sitzung">
+                  Geführt
+                </span>
+              )}
+            </div>
+          )}
+          <div className="chat-history-item-meta">
+            {conv.messages.filter((m) => !m.hidden).length} Nachrichten · {formatDate(conv.updatedAt)}
+          </div>
+        </div>
+        <div className="chat-history-item-actions">
+          {variant === 'root' ? (
+            <button
+              type="button"
+              className={`chat-history-action-btn ${conv.savedToProject ? 'chat-history-saved-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSavedToProject(conv.id);
+              }}
+              title={
+                conv.savedToProject
+                  ? 'Aus Projektdatei entfernen (nicht mehr per Git synchron)'
+                  : 'Im Projekt speichern (.assistant/chat-history.json)'
+              }
+            >
+              {conv.savedToProject ? <FolderCheck size={12} /> : <FolderInput size={12} />}
+            </button>
+          ) : (
+            <span className="chat-history-action-btn" style={{ visibility: 'hidden' }} aria-hidden>
+              <FolderInput size={12} />
+            </span>
+          )}
+          <button
+            type="button"
+            className="chat-history-action-btn"
+            onClick={(e) => handleStartRename(conv, e)}
+            title="Umbenennen"
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            type="button"
+            className="chat-history-delete-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(conv.id);
+            }}
+            title="Chat loeschen"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+    );
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      commitRename();
-    } else if (e.key === 'Escape') {
-      setEditingId(null);
-    }
-  };
-
-  const filtered = filterText.trim()
-    ? conversations.filter((c) => c.title.toLowerCase().includes(filterText.toLowerCase()))
-    : conversations;
-
-  const groups = groupByDate(filtered);
+  const showOrphansSection = filteredOrphans.length > 0;
+  const listEmpty = groups.length === 0 && !showOrphansSection;
 
   return (
     <div className="chat-history-panel">
@@ -124,7 +323,7 @@ export function ChatHistory({
               <Eraser size={14} />
             </button>
           )}
-          <NewChatButton onClick={onCreate} />
+          <NewChatButton onClick={() => onCreate('standard')} />
           <button type="button" className="chat-history-close-btn" onClick={onClose} title="Schliessen">
             <X size={14} />
           </button>
@@ -141,84 +340,47 @@ export function ChatHistory({
       </div>
 
       <div className="chat-history-list">
-        {groups.length === 0 && (
-          <div className="chat-history-empty">Keine Chats gefunden.</div>
-        )}
+        {listEmpty && <div className="chat-history-empty">Keine Chats gefunden.</div>}
         {groups.map((group) => (
           <div key={group.label}>
             <div className="chat-history-group-label">{group.label}</div>
-            {group.items.map((conv) => (
-              <div
-                key={conv.id}
-                className={`chat-history-item ${conv.id === activeId ? 'active' : ''}`}
-                onClick={() => {
-                  if (editingId === conv.id) return;
-                  onSelect(conv.id);
-                  onClose();
-                }}
-                onDoubleClick={(e) => handleStartRename(conv, e)}
-              >
-                <div className="chat-history-item-icon">
-                  <MessageSquare size={14} />
-                </div>
-                <div className="chat-history-item-content">
-                  {editingId === conv.id ? (
-                    <input
-                      ref={editRef}
-                      className="chat-history-rename-input"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={commitRename}
-                      onKeyDown={handleKeyDown}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <div className="chat-history-item-title">{conv.title}</div>
+            {group.items.map((conv) => {
+              const kids = childThreadsFor(conv.id);
+              const hasKids = kids.length > 0;
+              const expanded = expandedParentIds.has(conv.id);
+              const chevron = hasKids ? (
+                <button
+                  type="button"
+                  className="chat-history-chevron-btn"
+                  title={expanded ? 'Threads einklappen' : 'Threads aufklappen'}
+                  onClick={(e) => toggleParentExpanded(conv.id, e)}
+                >
+                  {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+              ) : (
+                <span className="chat-history-chevron-spacer" aria-hidden />
+              );
+
+              return (
+                <div key={conv.id} className="chat-history-parent-block">
+                  {renderRow(conv, { variant: 'root', chevron })}
+                  {hasKids && expanded && (
+                    <div className="chat-history-thread-children">
+                      {kids.map((t) => renderRow(t, { variant: 'thread' }))}
+                    </div>
                   )}
-                  <div className="chat-history-item-meta">
-                    {conv.messages.filter((m) => !m.hidden).length} Nachrichten · {formatDate(conv.updatedAt)}
-                  </div>
                 </div>
-                <div className="chat-history-item-actions">
-                  <button
-                    type="button"
-                    className={`chat-history-action-btn ${conv.savedToProject ? 'chat-history-saved-active' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleSavedToProject(conv.id);
-                    }}
-                    title={
-                      conv.savedToProject
-                        ? 'Aus Projektdatei entfernen (nicht mehr per Git synchron)'
-                        : 'Im Projekt speichern (.assistant/chat-history.json)'
-                    }
-                  >
-                    {conv.savedToProject ? <FolderCheck size={12} /> : <FolderInput size={12} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="chat-history-action-btn"
-                    onClick={(e) => handleStartRename(conv, e)}
-                    title="Umbenennen"
-                  >
-                    <Pencil size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="chat-history-delete-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(conv.id);
-                    }}
-                    title="Chat loeschen"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ))}
+
+        {showOrphansSection && (
+          <div className="chat-history-orphans-section">
+            <div className="chat-history-group-label">Threads ohne zugehörigen Chat</div>
+            {filteredOrphans.map((o) => renderRow(o, { variant: 'orphan' }))}
+          </div>
+        )}
       </div>
     </div>
   );

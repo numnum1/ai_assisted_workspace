@@ -1,6 +1,8 @@
 package com.assistant.service;
 
 import com.assistant.config.AppConfig;
+import com.assistant.model.AgentPreset;
+import com.assistant.model.AgentPresetsFile;
 import com.assistant.model.Mode;
 import com.assistant.model.ProjectConfig;
 import com.assistant.model.WorkspaceModeInfo;
@@ -8,6 +10,8 @@ import com.assistant.model.WorkspaceModeSchema;
 import com.assistant.model.WorkspaceModeSchema.MetaFieldPayload;
 import com.assistant.model.WorkspaceModeSchema.MetaTypeSchemaPayload;
 import com.assistant.model.WorkspaceModeSchema.WorkspaceLevelConfig;
+import com.assistant.service.tools.ToolkitIds;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -23,6 +27,7 @@ import java.util.Locale;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -32,20 +37,24 @@ public class ProjectConfigService {
     private static final String ASSISTANT_DIR = ".assistant";
     private static final String PROJECT_YAML = "project.yaml";
     private static final String MODES_DIR = "modes";
-    private static final String RULES_DIR = "rules";
     private static final String WORKSPACE_MODES_PREFIX = "workspace-modes/";
     /** User plugin YAMLs: {@code <appData>/workspace-modes/*.yaml} */
     private static final String USER_WORKSPACE_MODES_DIR = "workspace-modes";
+    private static final String AGENTS_JSON = "agents.json";
+    private static final Set<String> VALID_TOOLKIT_IDS = Set.of(
+            ToolkitIds.WEB, ToolkitIds.WIKI, ToolkitIds.DATEISYSTEM, ToolkitIds.ASSISTANT);
 
     private final AppConfig appConfig;
+    private final ObjectMapper objectMapper;
 
-    public ProjectConfigService(AppConfig appConfig) {
+    public ProjectConfigService(AppConfig appConfig, ObjectMapper objectMapper) {
         this.appConfig = appConfig;
+        this.objectMapper = objectMapper;
     }
 
     // ─── Path helpers ────────────────────────────────────────────────────────────
 
-    private Path getAssistantDir() {
+    public Path getAssistantDir() {
         String projectPath = appConfig.getProject().getPath();
         if (projectPath == null || projectPath.isBlank()) {
             throw new IllegalStateException("No project is open");
@@ -127,68 +136,112 @@ public class ProjectConfigService {
         return true;
     }
 
-    // ─── Rules ───────────────────────────────────────────────────────────────────
+    // ─── Agent presets (.assistant/agents.json) ───────────────────────────────────
 
-    public List<String> getRuleNames() {
-        if (!hasProjectConfig()) return List.of();
-        Path rulesDir = getAssistantDir().resolve(RULES_DIR);
-        if (!Files.isDirectory(rulesDir)) return List.of();
-        try (Stream<Path> entries = Files.list(rulesDir)) {
-            return entries
-                .filter(p -> p.getFileName().toString().endsWith(".md"))
-                .sorted(Comparator.comparing(p -> p.getFileName().toString()))
-                .map(p -> RULES_DIR + "/" + p.getFileName().toString())
-                .toList();
-        } catch (IOException e) {
-            log.warn("Could not list rules directory: {}", e.getMessage());
+    public List<AgentPreset> listAgentPresets() {
+        if (!hasProjectConfig()) {
+            return List.of();
+        }
+        Path file = getAssistantDir().resolve(AGENTS_JSON);
+        if (!Files.isRegularFile(file)) {
+            return List.of();
+        }
+        try {
+            String json = Files.readString(file, StandardCharsets.UTF_8);
+            if (json.isBlank()) {
+                return List.of();
+            }
+            AgentPresetsFile wrapper = objectMapper.readValue(json, AgentPresetsFile.class);
+            if (wrapper.getAgents() == null) {
+                return List.of();
+            }
+            return new ArrayList<>(wrapper.getAgents());
+        } catch (Exception e) {
+            log.warn("Could not read {}: {}", AGENTS_JSON, e.getMessage());
             return List.of();
         }
     }
 
     /**
-     * Reads the given rule paths (relative to .assistant/) and returns their content.
-     * Each entry in the returned map: path -> content.
+     * Creates or replaces an agent preset by id.
      */
-    public Map<String, String> getRuleContents(List<String> rulePaths) {
-        if (rulePaths == null || rulePaths.isEmpty()) return Map.of();
-        Path assistantDir = getAssistantDir();
-        Map<String, String> result = new LinkedHashMap<>();
-        for (String rulePath : rulePaths) {
-            Path file = assistantDir.resolve(rulePath).normalize();
-            if (!file.startsWith(assistantDir)) {
-                log.warn("Rule path escapes .assistant/ directory: {}", rulePath);
-                continue;
-            }
-            if (!Files.exists(file)) {
-                log.debug("Rule file not found: {}", rulePath);
-                continue;
-            }
-            try {
-                result.put(rulePath, Files.readString(file, StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                log.warn("Could not read rule {}: {}", rulePath, e.getMessage());
-            }
+    public AgentPreset saveAgentPreset(String pathId, AgentPreset preset) throws IOException {
+        if (!hasProjectConfig()) {
+            throw new IllegalStateException("Project config not initialized");
         }
-        return result;
+        validateAgentPathId(pathId);
+        preset.setId(pathId.trim());
+        normalizeAgentPreset(preset);
+        validateAgentPreset(preset);
+
+        List<AgentPreset> list = new ArrayList<>(listAgentPresets());
+        list.removeIf(a -> pathId.equals(a.getId()));
+        list.add(preset);
+        list.sort(Comparator.comparing(AgentPreset::getId, String.CASE_INSENSITIVE_ORDER));
+        writeAgentPresetsFile(list);
+        log.info("Saved agent preset id={}", pathId);
+        return preset;
     }
 
-    public void saveRule(String name, String content) throws IOException {
-        Path rulesDir = getAssistantDir().resolve(RULES_DIR);
-        Files.createDirectories(rulesDir);
-        String filename = name.endsWith(".md") ? name : name + ".md";
-        Path ruleFile = rulesDir.resolve(filename);
-        if (!ruleFile.startsWith(rulesDir)) {
-            throw new IOException("Invalid rule name: " + name);
+    public boolean deleteAgentPreset(String id) throws IOException {
+        if (!hasProjectConfig()) {
+            throw new IllegalStateException("Project config not initialized");
         }
-        Files.writeString(ruleFile, content, StandardCharsets.UTF_8);
-    }
-
-    public boolean deleteRule(String name) throws IOException {
-        String filename = name.endsWith(".md") ? name : name + ".md";
-        Path ruleFile = getAssistantDir().resolve(RULES_DIR).resolve(filename);
-        if (!Files.exists(ruleFile)) return false;
-        Files.delete(ruleFile);
+        validateAgentPathId(id);
+        List<AgentPreset> list = new ArrayList<>(listAgentPresets());
+        boolean removed = list.removeIf(a -> id.equals(a.getId()));
+        if (!removed) {
+            return false;
+        }
+        writeAgentPresetsFile(list);
+        log.info("Deleted agent preset id={}", id);
         return true;
+    }
+
+    private void writeAgentPresetsFile(List<AgentPreset> agents) throws IOException {
+        Path dir = getAssistantDir();
+        Files.createDirectories(dir);
+        AgentPresetsFile wrapper = new AgentPresetsFile();
+        wrapper.setVersion(1);
+        wrapper.setAgents(agents);
+        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
+        Files.writeString(dir.resolve(AGENTS_JSON), json, StandardCharsets.UTF_8);
+    }
+
+    private static void validateAgentPathId(String id) {
+        if (id == null || !id.matches("[a-zA-Z0-9_\\-]+")) {
+            throw new IllegalArgumentException("Invalid agent id: " + id);
+        }
+    }
+
+    private void normalizeAgentPreset(AgentPreset p) {
+        if (p.getLlmId() != null && p.getLlmId().isBlank()) {
+            p.setLlmId(null);
+        }
+        if (p.getDisabledToolkits() == null) {
+            p.setDisabledToolkits(new ArrayList<>());
+        }
+        if (p.getInitialSteeringPlan() != null && p.getInitialSteeringPlan().isBlank()) {
+            p.setInitialSteeringPlan(null);
+        }
+    }
+
+    private void validateAgentPreset(AgentPreset p) {
+        if (p.getName() == null || p.getName().isBlank()) {
+            throw new IllegalArgumentException("Agent name is required");
+        }
+        if (p.getModeId() == null || p.getModeId().isBlank()) {
+            throw new IllegalArgumentException("modeId is required");
+        }
+        Set<String> modeIds = getProjectModes().stream().map(Mode::getId).collect(Collectors.toSet());
+        if (!modeIds.contains(p.getModeId())) {
+            throw new IllegalArgumentException("Unknown modeId: " + p.getModeId());
+        }
+        for (String k : p.getDisabledToolkits()) {
+            if (k == null || k.isBlank() || !VALID_TOOLKIT_IDS.contains(k)) {
+                throw new IllegalArgumentException("Invalid disabledToolkit id: " + k);
+            }
+        }
     }
 
     // ─── Init ────────────────────────────────────────────────────────────────────
@@ -207,7 +260,6 @@ public class ProjectConfigService {
         }
 
         Files.createDirectories(assistantDir.resolve(MODES_DIR));
-        Files.createDirectories(assistantDir.resolve(RULES_DIR));
 
         ProjectConfig config = new ProjectConfig();
         String projectPath = appConfig.getProject().getPath();
@@ -260,11 +312,8 @@ public class ProjectConfigService {
             if (autoIncludes instanceof List<?> list) {
                 mode.setAutoIncludes(list.stream().map(Object::toString).toList());
             }
-            Object rules = data.get("rules");
-            if (rules instanceof List<?> list) {
-                mode.setRules(list.stream().map(Object::toString).toList());
-            }
             mode.setUseReasoning(booleanVal(data.get("useReasoning"), false));
+            mode.setAgentOnly(booleanVal(data.get("agentOnly"), false));
             Object llmId = data.get("llmId");
             if (llmId instanceof String s && !s.isBlank()) {
                 mode.setLlmId(s);
@@ -287,10 +336,6 @@ public class ProjectConfigService {
         if (alwaysInclude instanceof List<?> list) {
             config.setAlwaysInclude(list.stream().map(Object::toString).toList());
         }
-        Object globalRules = data.get("globalRules");
-        if (globalRules instanceof List<?> list) {
-            config.setGlobalRules(list.stream().map(Object::toString).toList());
-        }
         Object defaultMode = data.get("defaultMode");
         if (defaultMode != null) {
             config.setDefaultMode(defaultMode.toString());
@@ -307,7 +352,6 @@ public class ProjectConfigService {
         data.put("name", config.getName() != null ? config.getName() : "");
         data.put("description", config.getDescription() != null ? config.getDescription() : "");
         data.put("alwaysInclude", config.getAlwaysInclude() != null ? config.getAlwaysInclude() : List.of());
-        data.put("globalRules", config.getGlobalRules() != null ? config.getGlobalRules() : List.of());
         data.put("defaultMode", config.getDefaultMode() != null ? config.getDefaultMode() : "");
         data.put("workspaceMode", config.getWorkspaceMode() != null ? config.getWorkspaceMode() : "default");
         return buildYaml().dump(data);
@@ -622,8 +666,8 @@ public class ProjectConfigService {
         data.put("color", mode.getColor() != null ? mode.getColor() : "#89b4fa");
         data.put("systemPrompt", mode.getSystemPrompt() != null ? mode.getSystemPrompt() : "");
         data.put("autoIncludes", mode.getAutoIncludes() != null ? mode.getAutoIncludes() : List.of());
-        data.put("rules", mode.getRules() != null ? mode.getRules() : List.of());
         data.put("useReasoning", mode.isUseReasoning());
+        data.put("agentOnly", mode.isAgentOnly());
         if (mode.getLlmId() != null && !mode.getLlmId().isBlank()) {
             data.put("llmId", mode.getLlmId());
         }

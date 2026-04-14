@@ -1,285 +1,169 @@
 package com.assistant.service;
 
-import com.assistant.model.WikiEntry;
-import com.assistant.model.WikiFieldDef;
-import com.assistant.model.WikiType;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.assistant.util.FlexibleSearch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.text.Normalizer;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-import java.util.stream.Stream;
 
+/**
+ * Wiki service that reads and searches Markdown files in the /wiki/ directory
+ * at the project root. Entries are plain Markdown files — no JSON schema.
+ */
 @Service
 public class WikiService {
 
-    private static final String WIKI_DIR = ".wiki";
-    private static final String TYPES_DIR = ".wiki/types";
-    private static final String ENTRIES_DIR = ".wiki/entries";
+    private static final Logger log = LoggerFactory.getLogger(WikiService.class);
+    private static final String WIKI_DIR = "wiki";
 
     private final FileService fileService;
-    private final ObjectMapper objectMapper;
 
-    public WikiService(FileService fileService, ObjectMapper objectMapper) {
+    public WikiService(FileService fileService) {
         this.fileService = fileService;
-        this.objectMapper = objectMapper;
     }
-
-    // ─── Path helpers ─────────────────────────────────────────────────────────
 
     private Path wikiRoot() {
         return fileService.getProjectRoot().resolve(WIKI_DIR);
     }
 
-    private Path typesDir() {
-        return fileService.getProjectRoot().resolve(TYPES_DIR);
-    }
+    // ─── Listing ──────────────────────────────────────────────────────────────
 
-    private Path entriesDir() {
-        return fileService.getProjectRoot().resolve(ENTRIES_DIR);
-    }
-
-    private Path typeFile(String typeId) {
-        return typesDir().resolve(typeId + ".json");
-    }
-
-    private Path entryDir(String typeId) {
-        return entriesDir().resolve(typeId);
-    }
-
-    private Path entryFile(String typeId, String entryId) {
-        return entryDir(typeId).resolve(entryId + ".json");
-    }
-
-    private void ensureTypesDir() throws IOException {
-        Files.createDirectories(typesDir());
-    }
-
-    private void ensureEntryDir(String typeId) throws IOException {
-        Files.createDirectories(entryDir(typeId));
-    }
-
-    // ─── ID generation ────────────────────────────────────────────────────────
-
-    private String slugify(String name) {
-        String normalized = Normalizer.normalize(name, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "");
-        return normalized.toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-|-$", "");
-    }
-
-    private String uniqueTypeId(String base) throws IOException {
-        String id = base;
-        int counter = 2;
-        while (Files.exists(typeFile(id))) {
-            id = base + "-" + counter++;
-        }
-        return id;
-    }
-
-    private String uniqueEntryId(String typeId, String base) throws IOException {
-        String id = base;
-        int counter = 2;
-        while (Files.exists(entryFile(typeId, id))) {
-            id = base + "-" + counter++;
-        }
-        return id;
-    }
-
-    // ─── Type CRUD ────────────────────────────────────────────────────────────
-
-    public List<WikiType> listTypes() throws IOException {
-        if (!Files.isDirectory(typesDir())) {
+    /**
+     * Returns relative paths (from wiki root) of all .md files in /wiki/.
+     * E.g. "characters/lupusregina.md"
+     */
+    public List<String> listWikiFiles() throws IOException {
+        log.trace("Received request to list wiki files");
+        Path root = wikiRoot();
+        if (!Files.isDirectory(root)) {
+            log.trace("Wiki directory does not exist, returning empty list");
             return Collections.emptyList();
         }
-        List<WikiType> result = new ArrayList<>();
-        try (Stream<Path> files = Files.list(typesDir())) {
-            List<Path> sorted = files
-                    .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .sorted(Comparator.comparing(p -> p.getFileName().toString()))
-                    .toList();
-            for (Path p : sorted) {
-                String content = Files.readString(p);
-                result.add(objectMapper.readValue(content, WikiType.class));
+        List<String> result = new ArrayList<>();
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                if (file.getFileName().toString().endsWith(".md")) {
+                    result.add(root.relativize(file).toString().replace('\\', '/'));
+                }
+                return FileVisitResult.CONTINUE;
             }
-        }
+        });
+        result.sort(String::compareTo);
+        log.trace("Finished listing wiki files: {} found", result.size());
         return result;
     }
 
-    public WikiType getType(String typeId) throws IOException {
-        Path file = typeFile(typeId);
+    // ─── Read ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Reads a wiki file by relative path (e.g. "characters/lupusregina.md").
+     * Strips the .md extension if not supplied.
+     */
+    public String readWikiFile(String relativePath) throws IOException {
+        log.trace("Received request to read wiki file: {}", relativePath);
+        String normalized = normalize(relativePath);
+        Path file = wikiRoot().resolve(normalized);
         if (!Files.exists(file)) {
-            throw new NoSuchElementException("Wiki type not found: " + typeId);
+            throw new NoSuchElementException("Wiki file not found: " + relativePath);
         }
-        return objectMapper.readValue(Files.readString(file), WikiType.class);
+        String content = Files.readString(file);
+        log.trace("Finished reading wiki file: {}", relativePath);
+        return content;
     }
 
-    public WikiType createType(String name) throws IOException {
-        return createType(name, null);
-    }
+    // ─── Search ───────────────────────────────────────────────────────────────
 
-    public WikiType createType(String name, List<WikiFieldDef> fields) throws IOException {
-        ensureTypesDir();
-        String id = uniqueTypeId(slugify(name.isBlank() ? "type" : name));
-        List<WikiFieldDef> resolvedFields = (fields != null && !fields.isEmpty())
-                ? new ArrayList<>(fields)
-                : List.of(
-                    new WikiFieldDef("name", "Name", "input", "Name...", ""),
-                    new WikiFieldDef("description", "Beschreibung", "textarea", "Beschreibung...", "")
-                  );
-        WikiType type = new WikiType(id, name, resolvedFields);
-        Files.writeString(typeFile(id), objectMapper.writeValueAsString(type));
-        return type;
-    }
+    public record WikiSearchHit(String path, String title, String snippet) {}
 
-    public WikiType updateType(String typeId, WikiType updated) throws IOException {
-        if (!Files.exists(typeFile(typeId))) {
-            throw new NoSuchElementException("Wiki type not found: " + typeId);
-        }
-        updated.setId(typeId);
-        Files.writeString(typeFile(typeId), objectMapper.writeValueAsString(updated));
-        return updated;
-    }
+    /**
+     * Searches all wiki files for the given query (case-insensitive) in filename and content.
+     * Returns up to maxResults hits.
+     */
+    public List<WikiSearchHit> searchWiki(String query, int maxResults) throws IOException {
+        log.trace("Received request to search wiki for: {}", query);
+        List<String> files = listWikiFiles();
+        String lower = query.toLowerCase();
+        List<WikiSearchHit> hits = new ArrayList<>();
 
-    public void deleteType(String typeId) throws IOException {
-        Path tFile = typeFile(typeId);
-        if (Files.exists(tFile)) {
-            Files.delete(tFile);
-        }
-        Path eDir = entryDir(typeId);
-        if (Files.isDirectory(eDir)) {
-            deleteRecursively(eDir);
-        }
-    }
+        for (String relPath : files) {
+            if (hits.size() >= maxResults) break;
+            Path file = wikiRoot().resolve(relPath);
+            String content;
+            try {
+                content = Files.readString(file);
+            } catch (IOException e) {
+                log.warn("Could not read wiki file: {}", relPath);
+                continue;
+            }
 
-    // ─── Entry CRUD ───────────────────────────────────────────────────────────
+            String filename = Paths.get(relPath).getFileName().toString();
+            String filenameBase = filename.endsWith(".md") ? filename.substring(0, filename.length() - 3) : filename;
+            boolean nameMatch = FlexibleSearch.matchesFlexible(filenameBase, query);
+            boolean contentMatch = content.toLowerCase().contains(lower);
 
-    public List<WikiEntry> listEntries(String typeId) throws IOException {
-        Path dir = entryDir(typeId);
-        if (!Files.isDirectory(dir)) {
-            return Collections.emptyList();
-        }
-        List<WikiEntry> result = new ArrayList<>();
-        try (Stream<Path> paths = Files.walk(dir)) {
-            List<Path> sorted = paths
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .sorted(Comparator.comparing(p -> dir.relativize(p).toString()))
-                    .toList();
-            for (Path p : sorted) {
-                String content = Files.readString(p);
-                WikiEntry entry = objectMapper.readValue(content, WikiEntry.class);
-                // Use path-based id so getEntry/updateEntry/deleteEntry can find files in subfolders
-                String relativePath = dir.relativize(p).toString().replace('\\', '/');
-                String pathBasedId = relativePath.substring(0, relativePath.length() - 5); // strip ".json"
-                entry.setId(pathBasedId);
-                result.add(entry);
+            if (nameMatch || contentMatch) {
+                String title = extractTitle(content, filenameBase);
+                String snippet = contentMatch ? extractSnippet(content, lower) : "";
+                hits.add(new WikiSearchHit(relPath, title, snippet));
             }
         }
-        return result;
-    }
 
-    public WikiEntry getEntry(String typeId, String entryId) throws IOException {
-        Path file = entryFile(typeId, entryId);
-        if (!Files.exists(file)) {
-            throw new NoSuchElementException("Wiki entry not found: " + typeId + "/" + entryId);
-        }
-        return objectMapper.readValue(Files.readString(file), WikiEntry.class);
-    }
-
-    public WikiEntry createEntry(String typeId, String name) throws IOException {
-        WikiType type = getType(typeId);
-        ensureEntryDir(typeId);
-        String id = uniqueEntryId(typeId, slugify(name.isBlank() ? "entry" : name));
-        Map<String, String> values = new LinkedHashMap<>();
-        for (WikiFieldDef field : type.getFields()) {
-            values.put(field.getKey(), field.getDefaultValue() != null ? field.getDefaultValue() : "");
-        }
-        if (values.containsKey("name")) {
-            values.put("name", name);
-        }
-        WikiEntry entry = new WikiEntry(id, typeId, values);
-        Files.writeString(entryFile(typeId, id), objectMapper.writeValueAsString(entry));
-        return entry;
-    }
-
-    public WikiEntry updateEntry(String typeId, String entryId, Map<String, String> values) throws IOException {
-        Path file = entryFile(typeId, entryId);
-        if (!Files.exists(file)) {
-            throw new NoSuchElementException("Wiki entry not found: " + typeId + "/" + entryId);
-        }
-        WikiEntry entry = objectMapper.readValue(Files.readString(file), WikiEntry.class);
-        entry.setValues(values);
-        Files.writeString(file, objectMapper.writeValueAsString(entry));
-        return entry;
-    }
-
-    public void deleteEntry(String typeId, String entryId) throws IOException {
-        Path file = entryFile(typeId, entryId);
-        if (Files.exists(file)) {
-            Files.delete(file);
-        }
+        log.trace("Finished wiki search for '{}': {} hits", query, hits.size());
+        return hits;
     }
 
     // ─── AI formatting ────────────────────────────────────────────────────────
 
     /**
-     * Formats a wiki entry for inclusion in an AI prompt, omitting fields with blank values.
+     * Formats a wiki file for inclusion in an AI prompt.
      */
-    public String formatEntryForAi(WikiEntry entry, WikiType type) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Wiki Entry: ").append(entry.getTypeId()).append("/").append(entry.getId())
-          .append(" [").append(type.getName()).append("]\n\n");
-
-        Map<String, String> values = entry.getValues();
-        if (values == null || values.isEmpty()) {
-            sb.append("(no field values)");
-            return sb.toString();
-        }
-
-        List<WikiFieldDef> fields = type.getFields();
-        if (fields != null) {
-            for (WikiFieldDef field : fields) {
-                String value = values.get(field.getKey());
-                if (value != null && !value.isBlank()) {
-                    sb.append(field.getLabel()).append(": ").append(value).append("\n");
-                }
-            }
-            for (Map.Entry<String, String> kv : values.entrySet()) {
-                boolean inSchema = fields.stream().anyMatch(f -> f.getKey().equals(kv.getKey()));
-                if (!inSchema && kv.getValue() != null && !kv.getValue().isBlank()) {
-                    sb.append(kv.getKey()).append(": ").append(kv.getValue()).append("\n");
-                }
-            }
-        } else {
-            for (Map.Entry<String, String> kv : values.entrySet()) {
-                if (kv.getValue() != null && !kv.getValue().isBlank()) {
-                    sb.append(kv.getKey()).append(": ").append(kv.getValue()).append("\n");
-                }
-            }
-        }
-
-        return sb.toString().stripTrailing();
+    public String formatForAi(String relativePath, String content) {
+        return "Wiki: " + relativePath + "\n\n" + content;
     }
 
-    // ─── Helper ───────────────────────────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private void deleteRecursively(Path path) throws IOException {
-        Files.walkFileTree(path, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
-                Files.delete(file);
-                return FileVisitResult.CONTINUE;
+    private String normalize(String path) {
+        String p = path.replace('\\', '/').trim();
+        if (!p.endsWith(".md")) p = p + ".md";
+        return p;
+    }
+
+    private String extractTitle(String content, String fallback) {
+        for (String line : content.split("\n", 20)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("# ")) return trimmed.substring(2).trim();
+            if (trimmed.startsWith("name:")) {
+                String value = trimmed.substring(5).trim();
+                if (!value.isBlank()) return value;
             }
-            @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                if (exc != null) throw exc;
-                Files.delete(dir);
-                return FileVisitResult.CONTINUE;
-            }
-        });
+        }
+        return fallback;
+    }
+
+    private String extractSnippet(String content, String lowerQuery) {
+        String lowerContent = content.toLowerCase();
+        int idx = lowerContent.indexOf(lowerQuery);
+        if (idx < 0) return "";
+        int start = Math.max(0, idx - 40);
+        int end = Math.min(content.length(), idx + lowerQuery.length() + 80);
+        String snippet = content.substring(start, end).replace('\n', ' ').trim();
+        if (start > 0) snippet = "..." + snippet;
+        if (end < content.length()) snippet = snippet + "...";
+        return snippet;
+    }
+
+    // ─── Legacy migration helper ───────────────────────────────────────────────
+
+    /**
+     * Returns the legacy .wiki/entries path for migration purposes.
+     */
+    public Path getLegacyEntriesDir() {
+        return fileService.getProjectRoot().resolve(".wiki").resolve("entries");
     }
 }

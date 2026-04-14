@@ -117,6 +117,43 @@ public class AiApiClient {
     }
 
     /**
+     * Raw NDJSON/SSE lines from {@code /v1/chat/completions} with {@code stream: true}, including lines that only
+     * carry {@code tool_calls} deltas. Intended for {@link ChatCompletionStreamParser} in the chat tool loop.
+     */
+    public Flux<String> rawChatCompletionStreamLines(
+            List<ChatMessage> messages, List<Map<String, Object>> tools, String llmId, boolean useReasoning) {
+        ResolvedAiCredentials cred = aiProviderService.getResolved(llmId, useReasoning);
+        Map<String, Object> requestBody = buildRequestBody(messages, tools, true, cred.model());
+        log.info(
+                "AI API stream (raw SSE lines, tools+stream): baseUrl={}, model={}, messages={}, tools={}, totalApproxChars={}",
+                cred.apiUrl(),
+                cred.model(),
+                messages.size(),
+                tools != null ? tools.size() : 0,
+                countApproxCharsInMessages(messages));
+        return clientFor(cred).post()
+                .uri("/v1/chat/completions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .retrieve()
+                .onStatus(status -> status.isError(), resp ->
+                        resp.bodyToMono(String.class)
+                                .defaultIfEmpty("")
+                                .map(body -> new RuntimeException(
+                                        "AI API error " + resp.statusCode().value() + ": " + body)))
+                .bodyToFlux(String.class)
+                .filter(line -> !line.isBlank() && !line.equals("[DONE]"))
+                .doOnNext(line -> {
+                    if (line.contains("\"finish_reason\"") && line.contains("\"length\"")) {
+                        log.warn(
+                                "AI stream (raw): finish_reason=length — messages={}, approxChars={}",
+                                messages.size(),
+                                countApproxCharsInMessages(messages));
+                    }
+                });
+    }
+
+    /**
      * Non-streaming chat completion that may return tool calls.
      * Returns a ChatCompletionResult which contains either content or tool calls.
      */

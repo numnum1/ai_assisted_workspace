@@ -26,6 +26,11 @@ public class SearchProjectTool extends AbstractTool {
     }
 
     @Override
+    public String getToolkit() {
+        return ToolkitIds.DATEISYSTEM;
+    }
+
+    @Override
     public Map<String, Object> getDefinition() {
         return Map.of(
             "type", "function",
@@ -40,7 +45,8 @@ public class SearchProjectTool extends AbstractTool {
                     "properties", Map.of(
                         "query", Map.of(
                             "type", "string",
-                            "description", "The search term to look for in file and folder names/paths (case-insensitive)"
+                            "description", "Search term for file and folder paths (case-insensitive). " +
+                                    "Spaces match hyphens, underscores, and slashes (e.g. \"my component\" matches my-component/)."
                         )
                     ),
                     "required", List.of("query")
@@ -55,15 +61,18 @@ public class SearchProjectTool extends AbstractTool {
         if (query == null || query.isBlank()) {
             return "Error: missing 'query' parameter";
         }
+        log.trace("Received request to search_project with query: {}", query);
         try {
             List<String> results = fileService.searchFiles(query);
             if (results.isEmpty()) {
+                log.trace("Finished search_project: no results for query {}", query);
                 return "No files or folders matching '" + query + "' found in the project.";
             }
             StringBuilder sb = new StringBuilder("Found " + results.size() + " result(s):\n");
             for (String path : results) {
                 sb.append("  ").append(path).append("\n");
             }
+            log.trace("Finished successfully search_project: {} results for query {}", results.size(), query);
             return sb.toString();
         } catch (IOException e) {
             log.error("Error searching files for query: {}", query, e);

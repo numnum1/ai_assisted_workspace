@@ -1,4 +1,24 @@
-import type { FileNode, Mode, ChatRequest, GitStatus, GitCommit, GitSyncStatus, ProjectConfig, ChapterSummary, ChapterNode, SceneNode, ActionNode, NodeMeta, WikiType, WikiEntry, WorkspaceModeSchema, WorkspaceModeInfo, LlmPublic, LlmsListResponse, NoteProposal, Conversation } from './types.ts';
+import type {
+  AgentPreset,
+  FileNode,
+  Mode,
+  ChatRequest,
+  GitStatus,
+  GitCommit,
+  GitSyncStatus,
+  ProjectConfig,
+  ChapterSummary,
+  ChapterNode,
+  SceneNode,
+  ActionNode,
+  NodeMeta,
+  WorkspaceModeSchema,
+  WorkspaceModeInfo,
+  LlmPublic,
+  LlmsListResponse,
+  Conversation,
+} from './types.ts';
+import { buildConversationById, effectiveSavedToProject } from './components/chat/chatHistoryUtils.ts';
 
 const BASE = '/api';
 
@@ -82,6 +102,8 @@ export const filesApi = {
     post<{ status: string; path: string }>('/files/create-folder', { parentPath, name }),
   rename: (path: string, newName: string) =>
     post<{ status: string; path: string }>('/files/rename', { path, newName }),
+  move: (path: string, targetParentPath: string) =>
+    post<{ status: string; path: string }>('/files/move', { path, targetParentPath }),
 };
 
 /** Persisted chat subset for Git sync (see useChatHistory) */
@@ -102,9 +124,10 @@ export async function fetchProjectChatHistory(): Promise<Conversation[] | null> 
   }
 }
 
-/** Writes only conversations marked `savedToProject` (or `[]` if none). */
+/** Writes roots with `savedToProject` plus any threads whose parent chain is pinned. */
 export async function persistProjectChatHistory(conversations: Conversation[]): Promise<void> {
-  const payload = conversations.filter((c) => c.savedToProject === true);
+  const byId = buildConversationById(conversations);
+  const payload = conversations.filter((c) => effectiveSavedToProject(c, byId));
   await filesApi.saveContent(PROJECT_CHAT_HISTORY_PATH, JSON.stringify(payload));
 }
 
@@ -146,10 +169,23 @@ export const projectConfigApi = {
   getModes: () => get<Mode[]>('/project-config/modes'),
   saveMode: (id: string, mode: Mode) => put<Mode>(`/project-config/modes/${id}`, mode),
   deleteMode: (id: string) => fetch(`/api/project-config/modes/${id}`, { method: 'DELETE' }).then(r => r.json()),
-  getRules: () => get<string[]>('/project-config/rules'),
-  getRuleContent: (name: string) => get<{ name: string; content: string }>(`/project-config/rules/${name}`),
-  saveRule: (name: string, content: string) => put<{ status: string; name: string }>(`/project-config/rules/${name}`, { content }),
-  deleteRule: (name: string) => fetch(`/api/project-config/rules/${name}`, { method: 'DELETE' }).then(r => r.json()),
+  listAgents: () => get<AgentPreset[]>('/project-config/agents'),
+  saveAgent: (id: string, preset: AgentPreset) =>
+    put<AgentPreset>(`/project-config/agents/${encodeURIComponent(id)}`, preset),
+  deleteAgent: (id: string) =>
+    fetch(`${BASE}/project-config/agents/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(async (r) => {
+      if (!r.ok) {
+        let detail = '';
+        try {
+          const d = await r.json();
+          detail = d.error ?? '';
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail || `DELETE project-config/agents/${id}: ${r.status}`);
+      }
+      return r.json() as Promise<{ status: string }>;
+    }),
 };
 
 export interface LlmCreateRequest {
@@ -264,63 +300,39 @@ export const subprojectApi = {
 };
 
 export const wikiApi = {
-  listTypes: () =>
-    get<WikiType[]>('/wiki/types'),
-  createType: (name: string, fields?: WikiType['fields']) =>
-    post<WikiType>('/wiki/types', fields ? { name, fields } : { name }),
-  getType: (typeId: string) =>
-    get<WikiType>(`/wiki/types/${typeId}`),
-  updateType: (typeId: string, type: WikiType) =>
-    put<WikiType>(`/wiki/types/${typeId}`, type),
-  deleteType: (typeId: string) =>
-    del<{ status: string }>(`/wiki/types/${typeId}`),
-  listEntries: (typeId: string) =>
-    get<WikiEntry[]>(`/wiki/types/${typeId}/entries`),
-  createEntry: (typeId: string, name: string) =>
-    post<WikiEntry>(`/wiki/types/${typeId}/entries`, { name }),
-  getEntry: (typeId: string, entryId: string) =>
-    get<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`),
-  updateEntry: (typeId: string, entryId: string, values: Record<string, string>) =>
-    put<WikiEntry>(`/wiki/types/${typeId}/entries/${entryId}`, { values }),
-  deleteEntry: (typeId: string, entryId: string) =>
-    del<{ status: string }>(`/wiki/types/${typeId}/entries/${entryId}`),
+  listFiles: () =>
+    get<string[]>('/wiki/files'),
+  search: (q: string, limit?: number) =>
+    get<Array<{ path: string; title: string; snippet: string }>>(`/wiki/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`),
 };
 
-export const shadowApi = {
-  list: () => get<{ paths: string[] }>('/shadow/list'),
-  get: (path: string) =>
-    get<{ exists: boolean; content: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
-  save: (path: string, content: string) =>
-    put<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`, { content }),
-  delete: (path: string) =>
-    del<{ status: string; path: string }>(`/shadow/content/${encodeFilePathForApi(path)}`),
-};
+export interface ContextBlock {
+  type: string;
+  label: string;
+  content: string;
+  estimatedTokens: number;
+}
 
 export const chatApi = {
   previewContext: (body: ChatRequest) =>
-    post<{ includedFiles: string[]; estimatedTokens: number }>('/chat/context-preview', body),
+    post<{ includedFiles: string[]; estimatedTokens: number; contextBlocks: ContextBlock[] }>('/chat/context-preview', body),
 };
 
-export const notesApi = {
-  saveFree: (note: NoteProposal) =>
-    post<NoteProposal>('/notes/free', note),
-  listFree: () =>
-    get<NoteProposal[]>('/notes/free'),
-  deleteFree: (id: string) =>
-    del<{ status: string; id: string }>(`/notes/free/${encodeURIComponent(id)}`),
-  attachToEntry: (typeId: string, entryId: string, note: NoteProposal) =>
-    post<NoteProposal>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`, note),
-  listForEntry: (typeId: string, entryId: string) =>
-    get<NoteProposal[]>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}`),
-  deleteFromEntry: (typeId: string, entryId: string, id: string) =>
-    del<{ status: string; id: string }>(`/notes/entry/${encodeURIComponent(typeId)}/${encodeURIComponent(entryId)}/${encodeURIComponent(id)}`),
-};
+/**
+ * Yields one macrotask so React 18 can commit state updates between SSE tokens.
+ * Without this, many `onToken` calls from a single `reader.read()` chunk are batched into one paint.
+ */
+function yieldMacrotaskForTokenPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
 
 export function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,
   onContext: (info: { includedFiles: string[]; estimatedTokens: number; maxContextTokens?: number }) => void,
-  onDone: () => void,
+  onDone: (fullAssistantText: string) => void,
   onError: (err: Error) => void,
   onToolCall?: (description: string) => void,
   onContextUpdate?: (estimatedTokens: number) => void,
@@ -353,6 +365,7 @@ export function streamChat(
       let doneHandled = false;
       let errorHandled = false;
       let tokenCount = 0;
+      let fullAssistantText = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -387,7 +400,7 @@ export function streamChat(
                   );
                   onError(new Error('MODEL_EMPTY_RESPONSE'));
                 } else {
-                  onDone();
+                  onDone(fullAssistantText);
                 }
               }
               doneHandled = true;
@@ -413,7 +426,9 @@ export function streamChat(
             } else if (currentEvent === 'token') {
               tokenCount++;
               const unescaped = data.replace(/\\n/g, '\n');
+              fullAssistantText += unescaped;
               onToken(unescaped);
+              await yieldMacrotaskForTokenPaint();
             }
             currentEvent = '';
           }
@@ -424,7 +439,7 @@ export function streamChat(
           console.warn('[streamChat] SSE stream closed by server without a done event and 0 tokens received.');
           onError(new Error('MODEL_EMPTY_RESPONSE'));
         } else {
-          onDone();
+          onDone(fullAssistantText);
         }
       }
     })

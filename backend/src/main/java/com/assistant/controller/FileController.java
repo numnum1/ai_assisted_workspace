@@ -3,6 +3,8 @@ package com.assistant.controller;
 import com.assistant.model.FileNode;
 import com.assistant.service.FileService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +16,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/files")
 public class FileController {
+
+    private static final Logger log = LoggerFactory.getLogger(FileController.class);
 
     private final FileService fileService;
 
@@ -89,6 +93,24 @@ public class FileController {
         }
         String newPath = fileService.rename(path, newName);
         return ResponseEntity.ok(Map.of("status", "renamed", "path", newPath));
+    }
+
+    @PostMapping("/move")
+    public ResponseEntity<Map<String, String>> move(@RequestBody Map<String, String> body) throws IOException {
+        String path = body.get("path");
+        String targetParentPath = body.get("targetParentPath");
+        if (path == null || targetParentPath == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "path and targetParentPath are required"));
+        }
+        log.trace("Received request POST /api/files/move: path={}, targetParentPath={}", path, targetParentPath);
+        try {
+            String newPath = fileService.move(path, targetParentPath);
+            log.trace("Finished POST /api/files/move: path={} -> {}", path, newPath);
+            return ResponseEntity.ok(Map.of("status", "moved", "path", newPath));
+        } catch (IOException e) {
+            log.error("POST /api/files/move failed: path={}, targetParentPath={}", path, targetParentPath, e);
+            throw e;
+        }
     }
 
     private String extractPath(HttpServletRequest request, String prefix) {

@@ -1,11 +1,14 @@
 package com.assistant.controller;
 
+import com.assistant.model.AgentPreset;
 import com.assistant.model.Mode;
 import com.assistant.model.ProjectConfig;
 import com.assistant.model.WorkspaceModeInfo;
 import com.assistant.model.WorkspaceModeSchema;
 import com.assistant.service.ModeService;
 import com.assistant.service.ProjectConfigService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,9 +21,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+
 @RestController
 @RequestMapping("/api/project-config")
 public class ProjectConfigController {
+
+    private static final Logger log = LoggerFactory.getLogger(ProjectConfigController.class);
 
     private final ProjectConfigService projectConfigService;
     private final ModeService modeService;
@@ -172,57 +178,66 @@ public class ProjectConfigController {
         }
     }
 
-    // ─── Rules ───────────────────────────────────────────────────────────────────
+    // ─── Agent presets (.assistant/agents.json) ──────────────────────────────────
 
-    @GetMapping("/rules")
-    public ResponseEntity<List<String>> getRules() {
-        return ResponseEntity.ok(projectConfigService.getRuleNames());
+    @GetMapping("/agents")
+    public ResponseEntity<List<AgentPreset>> listAgents() {
+        log.trace("Received request to list agent presets");
+        if (!projectConfigService.hasProjectConfig()) {
+            log.trace("Finished listing agent presets (no project config), count=0");
+            return ResponseEntity.ok(List.of());
+        }
+        List<AgentPreset> list = projectConfigService.listAgentPresets();
+        log.trace("Finished listing agent presets, count={}", list.size());
+        return ResponseEntity.ok(list);
     }
 
-    @GetMapping("/rules/{name}")
-    public ResponseEntity<?> getRule(@PathVariable String name) {
+    @PutMapping("/agents/{id}")
+    public ResponseEntity<?> saveAgent(@PathVariable String id, @RequestBody AgentPreset body) {
+        log.trace("Received request to save agent preset id={}", id);
         if (!projectConfigService.hasProjectConfig()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized."));
         }
-        if (!isValidId(name)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid rule name: " + name));
+        if (!isValidId(id)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid agent id: " + id));
         }
-        Map<String, String> contents = projectConfigService.getRuleContents(List.of("rules/" + name + ".md"));
-        String key = "rules/" + name + ".md";
-        if (!contents.containsKey(key)) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(Map.of("name", name, "content", contents.get(key)));
-    }
-
-    @PutMapping("/rules/{name}")
-    public ResponseEntity<?> saveRule(@PathVariable String name, @RequestBody Map<String, String> body) {
-        if (!projectConfigService.hasProjectConfig()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized. Call /init first."));
-        }
-        if (!isValidId(name)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid rule name: " + name));
-        }
-        String content = body.getOrDefault("content", "");
         try {
-            projectConfigService.saveRule(name, content);
-            return ResponseEntity.ok(Map.of("status", "saved", "name", name));
+            AgentPreset saved = projectConfigService.saveAgentPreset(id, body);
+            log.trace("Finished save agent preset id={}", id);
+            return ResponseEntity.ok(saved);
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation failed for agent {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (IOException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to save rule: " + e.getMessage()));
+            log.error("Failed to save agent preset id={}", id, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
-    @DeleteMapping("/rules/{name}")
-    public ResponseEntity<?> deleteRule(@PathVariable String name) {
+    @DeleteMapping("/agents/{id}")
+    public ResponseEntity<?> deleteAgent(@PathVariable String id) {
+        log.trace("Received request to delete agent preset id={}", id);
         if (!projectConfigService.hasProjectConfig()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Project config not initialized."));
         }
+        if (!isValidId(id)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid agent id: " + id));
+        }
         try {
-            boolean deleted = projectConfigService.deleteRule(name);
-            if (!deleted) return ResponseEntity.notFound().build();
+            boolean deleted = projectConfigService.deleteAgentPreset(id);
+            if (!deleted) {
+                log.trace("Finished delete agent preset id={} (not found)", id);
+                return ResponseEntity.notFound().build();
+            }
+            log.trace("Finished delete agent preset id={}", id);
             return ResponseEntity.ok(Map.of("status", "deleted"));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (IOException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to delete rule: " + e.getMessage()));
+            log.error("Failed to delete agent preset id={}", id, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 

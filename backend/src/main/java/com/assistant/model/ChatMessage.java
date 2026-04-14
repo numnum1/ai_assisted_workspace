@@ -1,5 +1,6 @@
 package com.assistant.model;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,17 +46,24 @@ public class ChatMessage {
      */
     public Map<String, Object> toApiMap() {
         if ("assistant".equals(role) && toolCalls != null && !toolCalls.isEmpty()) {
-            return Map.of(
-                "role", role,
-                "tool_calls", toolCalls.stream().map(tc -> Map.of(
-                    "id", tc.getId(),
-                    "type", tc.getType(),
-                    "function", Map.of(
-                        "name", tc.getFunction().getName(),
-                        "arguments", tc.getFunction().getArguments()
-                    )
-                )).toList()
-            );
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("role", role);
+            if (content != null && !content.isBlank()) {
+                out.put("content", content);
+            }
+            out.put(
+                    "tool_calls",
+                    toolCalls.stream()
+                            .map(
+                                    tc -> Map.of(
+                                            "id", tc.getId(),
+                                            "type", tc.getType(),
+                                            "function",
+                                            Map.of(
+                                                    "name", tc.getFunction().getName(),
+                                                    "arguments", tc.getFunction().getArguments())))
+                            .toList());
+            return out;
         }
         if ("tool".equals(role) && toolCallId != null) {
             return Map.of(

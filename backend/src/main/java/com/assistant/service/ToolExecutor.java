@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,11 +63,24 @@ public class ToolExecutor {
                 .toList();
     }
 
+    /**
+     * Names of registered tools whose {@link Tool#getToolkit()} is in {@code toolkitIds}.
+     */
+    public Set<String> collectToolNamesInToolkits(Set<String> toolkitIds) {
+        if (toolkitIds == null || toolkitIds.isEmpty()) {
+            return Set.of();
+        }
+        return toolsByName.values().stream()
+                .filter(t -> toolkitIds.contains(t.getToolkit()))
+                .map(Tool::getName)
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
     /** Executes the tool referenced by the given tool call. */
     public String execute(ToolCall toolCall) {
         String name = toolCall.getFunction().getName();
         String args = toolCall.getFunction().getArguments();
-        log.debug("Executing tool: name={}, argsLength={}", name, args != null ? args.length() : 0);
+        log.trace("Received request to execute tool: name={}, args={}", name, args);
         Tool tool = toolsByName.get(name);
         if (tool == null) {
             log.warn("Unknown tool requested: {}", name);
@@ -75,6 +89,7 @@ public class ToolExecutor {
         long t0 = System.nanoTime();
         String out = tool.execute(args);
         long ms = (System.nanoTime() - t0) / 1_000_000L;
+        log.trace("Finished successfully executing tool: name={}, durationMs={}, resultChars={}", name, ms, out != null ? out.length() : 0);
         log.info(
                 "Tool executed: name={}, durationMs={}, resultChars={}",
                 name,
@@ -86,6 +101,8 @@ public class ToolExecutor {
     /** Returns a human-readable description of the tool call for the SSE event. */
     public String describeToolCall(ToolCall toolCall) {
         String name = toolCall.getFunction().getName();
+        String args = toolCall.getFunction().getArguments();
+        log.trace("Generating description for tool call: name={}, args preview={}", name, args != null ? args.substring(0, Math.min(100, args.length())) : "null");
         Tool tool = toolsByName.get(name);
         if (tool == null) {
             return "Running: " + name;

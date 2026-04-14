@@ -1,126 +1,73 @@
 package com.assistant.controller;
 
-import com.assistant.model.WikiEntry;
-import com.assistant.model.WikiFieldDef;
-import com.assistant.model.WikiType;
 import com.assistant.service.WikiService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
+/**
+ * REST controller for the wiki system.
+ * Wiki entries are Markdown files in the /wiki/ directory at the project root.
+ */
 @RestController
 @RequestMapping("/api/wiki")
 public class WikiController {
 
+    private static final Logger log = LoggerFactory.getLogger(WikiController.class);
+
     private final WikiService wikiService;
-    private final ObjectMapper objectMapper;
 
-    public WikiController(WikiService wikiService, ObjectMapper objectMapper) {
+    public WikiController(WikiService wikiService) {
         this.wikiService = wikiService;
-        this.objectMapper = objectMapper;
     }
 
-    // ─── Types ────────────────────────────────────────────────────────────────
-
-    @GetMapping("/types")
-    public ResponseEntity<List<WikiType>> listTypes() throws IOException {
-        return ResponseEntity.ok(wikiService.listTypes());
+    /**
+     * Lists all wiki files as relative paths from the /wiki/ directory.
+     */
+    @GetMapping("/files")
+    public ResponseEntity<List<String>> listWikiFiles() throws IOException {
+        log.trace("Received request to list wiki files");
+        List<String> files = wikiService.listWikiFiles();
+        log.trace("Finished listing wiki files: {} entries", files.size());
+        return ResponseEntity.ok(files);
     }
 
-    @PostMapping("/types")
-    public ResponseEntity<?> createType(@RequestBody Map<String, Object> body) throws IOException {
-        Object nameObj = body.get("name");
-        if (nameObj == null || nameObj.toString().isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "name is required"));
+    /**
+     * Searches wiki files by filename and content.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<WikiService.WikiSearchHit>> searchWiki(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "20") int limit) throws IOException {
+        log.trace("Received request to search wiki: q={}", q);
+        if (q == null || q.isBlank()) {
+            return ResponseEntity.badRequest().build();
         }
-        String name = nameObj.toString();
-        Object fieldsObj = body.get("fields");
-        List<WikiFieldDef> fields = null;
-        if (fieldsObj != null) {
-            fields = objectMapper.convertValue(fieldsObj,
-                objectMapper.getTypeFactory().constructCollectionType(List.class, WikiFieldDef.class));
-        }
-        return ResponseEntity.ok(wikiService.createType(name, fields));
+        List<WikiService.WikiSearchHit> hits = wikiService.searchWiki(q, Math.min(limit, 50));
+        log.trace("Finished wiki search for '{}': {} hits", q, hits.size());
+        return ResponseEntity.ok(hits);
     }
 
-    @GetMapping("/types/{typeId}")
-    public ResponseEntity<?> getType(@PathVariable String typeId) throws IOException {
+    /**
+     * Reads a single wiki file by relative path (e.g. "characters/lupusregina.md").
+     */
+    @GetMapping("/files/**")
+    public ResponseEntity<?> readWikiFile(@RequestParam(required = false) String path) throws IOException {
+        if (path == null || path.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "path parameter is required"));
+        }
+        log.trace("Received request to read wiki file: {}", path);
         try {
-            return ResponseEntity.ok(wikiService.getType(typeId));
-        } catch (NoSuchElementException e) {
+            String content = wikiService.readWikiFile(path);
+            log.trace("Finished reading wiki file: {}", path);
+            return ResponseEntity.ok(Map.of("path", path, "content", content));
+        } catch (java.util.NoSuchElementException e) {
             return ResponseEntity.notFound().build();
         }
-    }
-
-    @PutMapping("/types/{typeId}")
-    public ResponseEntity<?> updateType(@PathVariable String typeId, @RequestBody WikiType body) throws IOException {
-        try {
-            return ResponseEntity.ok(wikiService.updateType(typeId, body));
-        } catch (NoSuchElementException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    @DeleteMapping("/types/{typeId}")
-    public ResponseEntity<?> deleteType(@PathVariable String typeId) throws IOException {
-        wikiService.deleteType(typeId);
-        return ResponseEntity.ok(Map.of("status", "deleted", "typeId", typeId));
-    }
-
-    // ─── Entries ──────────────────────────────────────────────────────────────
-
-    @GetMapping("/types/{typeId}/entries")
-    public ResponseEntity<List<WikiEntry>> listEntries(@PathVariable String typeId) throws IOException {
-        return ResponseEntity.ok(wikiService.listEntries(typeId));
-    }
-
-    @PostMapping("/types/{typeId}/entries")
-    public ResponseEntity<?> createEntry(@PathVariable String typeId, @RequestBody Map<String, String> body) throws IOException {
-        String name = body.get("name");
-        if (name == null || name.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "name is required"));
-        }
-        try {
-            return ResponseEntity.ok(wikiService.createEntry(typeId, name));
-        } catch (NoSuchElementException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    @GetMapping("/types/{typeId}/entries/{entryId}")
-    public ResponseEntity<?> getEntry(@PathVariable String typeId, @PathVariable String entryId) throws IOException {
-        try {
-            return ResponseEntity.ok(wikiService.getEntry(typeId, entryId));
-        } catch (NoSuchElementException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    @PutMapping("/types/{typeId}/entries/{entryId}")
-    public ResponseEntity<?> updateEntry(
-            @PathVariable String typeId,
-            @PathVariable String entryId,
-            @RequestBody Map<String, Object> body) throws IOException {
-        @SuppressWarnings("unchecked")
-        Map<String, String> values = (Map<String, String>) body.get("values");
-        if (values == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "values is required"));
-        }
-        try {
-            return ResponseEntity.ok(wikiService.updateEntry(typeId, entryId, values));
-        } catch (NoSuchElementException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    @DeleteMapping("/types/{typeId}/entries/{entryId}")
-    public ResponseEntity<?> deleteEntry(@PathVariable String typeId, @PathVariable String entryId) throws IOException {
-        wikiService.deleteEntry(typeId, entryId);
-        return ResponseEntity.ok(Map.of("status", "deleted", "entryId", entryId));
     }
 }

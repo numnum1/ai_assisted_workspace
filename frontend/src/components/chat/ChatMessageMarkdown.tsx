@@ -1,9 +1,11 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, Fragment } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Replace, Copy, Check, HelpCircle, PenLine, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../../types.ts';
+import { stripPlanFencesForDisplay } from './planFenceUtils.ts';
+import { parseThinkSegments } from './thinkSegmentUtils.ts';
 
 interface ChatMessageMarkdownProps {
   content: string;
@@ -12,51 +14,201 @@ interface ChatMessageMarkdownProps {
   onReplace?: (text: string) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
+  /** When true, ```clarification blocks render as a compact hint (interaction lives in SuggestedActionsCard). */
+  suppressClarificationWidget?: boolean;
+  /** Legacy inline clarification (only when suppressClarificationWidget is false). */
   onSelectOption?: (option: string) => void;
   isAnswered?: boolean;
 }
 
-/** Closing markers: XML `</think>` or Cursor-style `\think}`. First match wins. */
-const THINK_END_RE = /<\/think>|\\think\}/i;
-
-/**
- * Splits assistant content on the first closing think tag (models often omit the opening tag).
- */
-function splitThinkContent(content: string): { thinkingText: string | null; responseContent: string } {
-  const match = THINK_END_RE.exec(content);
-  if (!match) {
-    return { thinkingText: null, responseContent: content };
-  }
-  const thinkingRaw = content.slice(0, match.index);
-  const after = content.slice(match.index + match[0].length);
-  const thinkingText = thinkingRaw.trim();
-  return {
-    thinkingText: thinkingText.length > 0 ? thinkingText : null,
-    responseContent: after.trim(),
-  };
-}
-
-function ThinkingChip({ text }: { text: string }) {
+/** While `streaming` is true, the body stays visible so reasoning text can grow token-by-token; otherwise use the user toggle. */
+function ThinkingChip({ text, streaming }: { text: string; streaming?: boolean }) {
   const [open, setOpen] = useState(false);
+  const expanded = !!streaming || open;
   return (
     <div className="chat-thinking">
       <button
         type="button"
         className="chat-thinking-header"
         onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
+        aria-expanded={expanded}
       >
         <Brain size={14} aria-hidden />
         <span>Denkprozess</span>
         <span className="chat-thinking-chevron">
-          {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+          {expanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
         </span>
       </button>
-      {open ? (
+      {expanded ? (
         <div className="chat-thinking-body">
           <pre>{text}</pre>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+interface ClarificationQuestion {
+  question: string;
+  options: string[];
+  allow_multiple?: boolean;
+}
+
+/** Non-interactive hint when clarification choices are shown in SuggestedActionsCard. */
+function ClarificationCompactHint({ raw }: { raw: string }) {
+  const questions = useMemo<ClarificationQuestion[] | null>(() => {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed.question === 'string') return [parsed];
+      return null;
+    } catch {
+      return null;
+    }
+  }, [raw]);
+
+  if (!questions?.length) {
+    return (
+      <div className="chat-clarification-compact">
+        <HelpCircle size={13} aria-hidden />
+        <span>Rückfrage</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="chat-clarification-compact">
+      <HelpCircle size={13} aria-hidden />
+      <span className="chat-clarification-compact-label">Rückfrage</span>
+      <div className="chat-clarification-compact-questions">
+        {questions.map((q, i) => (
+          <span key={i} className="chat-clarification-compact-q">
+            {q.question}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClarificationBlock({
+  raw,
+  streamingCursor,
+  isAnswered,
+  onSelectOption,
+}: {
+  raw: string;
+  streamingCursor: boolean;
+  isAnswered: boolean;
+  onSelectOption?: (answer: string) => void;
+}) {
+  const questions = useMemo<ClarificationQuestion[] | null>(() => {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed.question === 'string') return [parsed];
+      return null;
+    } catch {
+      return null;
+    }
+  }, [raw]);
+
+  const [selected, setSelected] = useState<Record<number, string[]>>({});
+  const [submitted, setSubmitted] = useState(false);
+
+  if (!questions) {
+    return (
+      <div className="chat-code-block">
+        <pre><code>{raw}</code></pre>
+      </div>
+    );
+  }
+
+  const disabled = streamingCursor || isAnswered || submitted;
+
+  const allAnswered = questions.every((_, idx) => (selected[idx]?.length ?? 0) > 0);
+
+  function toggleOption(qIdx: number, opt: string, allowMultiple: boolean) {
+    if (disabled) return;
+    setSelected((prev) => {
+      const current = prev[qIdx] ?? [];
+      if (allowMultiple) {
+        const next = current.includes(opt)
+          ? current.filter((o) => o !== opt)
+          : [...current, opt];
+        return { ...prev, [qIdx]: next };
+      }
+      return { ...prev, [qIdx]: [opt] };
+    });
+  }
+
+  function handleSubmit() {
+    if (!allAnswered || disabled) return;
+    const lines = questions!.map((q, idx) => {
+      const answers = selected[idx] ?? [];
+      const answerText = answers.join(', ');
+      if (questions!.length === 1 && !(q.allow_multiple)) {
+        return answerText;
+      }
+      return `${q.question} → ${answerText}`;
+    });
+    const message = lines.join('\n');
+    setSubmitted(true);
+    onSelectOption?.(message);
+  }
+
+  return (
+    <div className={`chat-clarification${disabled ? ' answered' : ''}`}>
+      <div className="chat-clarification-label">
+        <HelpCircle size={13} />
+        <span>Rückfrage</span>
+      </div>
+      {questions.map((q, qIdx) => {
+        const allowMultiple = q.allow_multiple ?? false;
+        const inputType = allowMultiple ? 'checkbox' : 'radio';
+        const groupName = `clarification-q-${qIdx}`;
+        return (
+          <div key={qIdx} className="chat-clarification-question-group">
+            <p className="chat-clarification-question">{q.question}</p>
+            <div className="chat-clarification-options">
+              {q.options.map((opt, oIdx) => {
+                const isSelected = (selected[qIdx] ?? []).includes(opt);
+                const id = `${groupName}-${oIdx}`;
+                return (
+                  <label
+                    key={oIdx}
+                    htmlFor={id}
+                    className={`chat-clarification-option-row${isSelected ? ' selected' : ''}${disabled ? ' disabled' : ''}`}
+                  >
+                    <input
+                      type={inputType}
+                      id={id}
+                      name={groupName}
+                      value={opt}
+                      checked={isSelected}
+                      disabled={disabled}
+                      onChange={() => toggleOption(qIdx, opt, allowMultiple)}
+                    />
+                    {opt}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {!isAnswered && !submitted && (
+        <div className="chat-clarification-footer">
+          <button
+            type="button"
+            className="chat-clarification-submit"
+            disabled={!allAnswered || disabled}
+            onClick={handleSubmit}
+          >
+            Antworten
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -148,11 +300,25 @@ function fixFieldUpdateBlocks(content: string): string {
   return result.join('\n');
 }
 
-export function ChatMessageMarkdown({ content, streamingCursor, selectionContext, onReplace, onApplyFieldUpdate, fieldLabels, onSelectOption, isAnswered }: ChatMessageMarkdownProps) {
+export function ChatMessageMarkdown({
+  content,
+  streamingCursor,
+  selectionContext,
+  onReplace,
+  onApplyFieldUpdate,
+  fieldLabels,
+  suppressClarificationWidget = false,
+  onSelectOption,
+  isAnswered,
+}: ChatMessageMarkdownProps) {
   const canReplace = !!(selectionContext && onReplace);
   const processedContent = useMemo(
     () => onApplyFieldUpdate ? fixFieldUpdateBlocks(content) : content,
     [content, onApplyFieldUpdate],
+  );
+  const displayContent = useMemo(
+    () => stripPlanFencesForDisplay(processedContent, !!streamingCursor),
+    [processedContent, streamingCursor],
   );
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -180,7 +346,17 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
       const isReplaceBlock = className === 'language-replace';
       const isClarificationBlock = className === 'language-clarification';
       const isFieldUpdateBlock = className === 'language-field-update';
-      const isCodeBlock = !isReplaceBlock && !isClarificationBlock && !isFieldUpdateBlock && /language-/.test(className ?? '');
+      const isPlanBlock = className === 'language-plan';
+      const isCodeBlock =
+        !isReplaceBlock &&
+        !isClarificationBlock &&
+        !isFieldUpdateBlock &&
+        !isPlanBlock &&
+        /language-/.test(className ?? '');
+
+      if (isPlanBlock) {
+        return null;
+      }
 
       if (isReplaceBlock) {
         const replaceText = String(children ?? '').replace(/\n$/, '');
@@ -275,42 +451,16 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
 
       if (isClarificationBlock) {
         const raw = String(children ?? '').trim();
-        let question = '';
-        let options: string[] = [];
-        try {
-          const parsed = JSON.parse(raw);
-          question = parsed.question ?? '';
-          options = Array.isArray(parsed.options) ? parsed.options : [];
-        } catch {
-          // Malformed JSON — render as plain code block so the raw content is still visible
-          return (
-            <div className="chat-code-block">
-              <pre><code>{raw}</code></pre>
-            </div>
-          );
+        if (suppressClarificationWidget) {
+          return <ClarificationCompactHint raw={raw} />;
         }
-        const disabled = streamingCursor || isAnswered;
         return (
-          <div className={`chat-clarification${disabled ? ' answered' : ''}`}>
-            <div className="chat-clarification-label">
-              <HelpCircle size={13} />
-              <span>Rückfrage</span>
-            </div>
-            <p className="chat-clarification-question">{question}</p>
-            <div className="chat-clarification-options">
-              {options.map((opt, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="chat-clarification-btn"
-                  disabled={!!disabled}
-                  onClick={() => onSelectOption?.(opt)}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ClarificationBlock
+            raw={raw}
+            streamingCursor={!!streamingCursor}
+            isAnswered={!!isAnswered}
+            onSelectOption={onSelectOption}
+          />
         );
       }
 
@@ -328,26 +478,26 @@ export function ChatMessageMarkdown({ content, streamingCursor, selectionContext
         </div>
       );
     },
-  }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, isAnswered, onSelectOption]);
+  }), [canReplace, onReplace, onApplyFieldUpdate, fieldLabels, copiedKey, handleCopy, streamingCursor, suppressClarificationWidget, isAnswered, onSelectOption]);
 
-  const thinkSplit = useMemo(() => splitThinkContent(processedContent), [processedContent]);
-  /**
-   * Before </think> arrives: stream the full content as normal markdown so the user
-   * sees the text appearing in real time.
-   * Once </think> is present: split — show the ThinkingChip and render only the
-   * response part (after the tag) as markdown.
-   */
-  const markdownSource =
-    thinkSplit.thinkingText !== null
-      ? thinkSplit.responseContent
-      : processedContent;
+  const thinkSegments = useMemo(
+    () => parseThinkSegments(displayContent, !!streamingCursor),
+    [displayContent, streamingCursor],
+  );
 
   return (
     <div className="chat-md">
-      {thinkSplit.thinkingText !== null && <ThinkingChip text={thinkSplit.thinkingText} />}
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-        {markdownSource}
-      </ReactMarkdown>
+      {thinkSegments.map((seg, i) => (
+        <Fragment key={i}>
+          {seg.kind === 'markdown' ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+              {seg.text}
+            </ReactMarkdown>
+          ) : (
+            <ThinkingChip text={seg.text} streaming={seg.streaming} />
+          )}
+        </Fragment>
+      ))}
       {streamingCursor && <span className="chat-streaming-cursor" aria-hidden="true">▌</span>}
     </div>
   );

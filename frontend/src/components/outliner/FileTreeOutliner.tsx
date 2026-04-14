@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type DragEvent, type MouseEvent } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
 import { filesApi, subprojectApi, chapterApi } from '../../api.ts';
+import { convertWikiOrFlatJsonToMarkdown } from '../../utils/legacyWikiJsonToMarkdown.ts';
 import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, ScrollTarget, GitStatus } from '../../types.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
 import { resolveLevelConfig } from '../../hooks/useWorkspaceLevelConfigMap.ts';
+import { readExpandedPaths, writeExpandedPaths } from '../../hooks/outlinerExpandedStorage.ts';
 
 function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
   if (root.path === targetPath) return root;
@@ -14,6 +16,33 @@ function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
     if (f) return f;
   }
   return null;
+}
+
+function isWikiFolder(node: FileNode): boolean {
+  return Boolean(node.directory && node.name.toLowerCase() === 'wiki');
+}
+
+const FILE_TREE_NATIVE_DRAGGING_CLASS = 'file-tree-native-dragging';
+
+/** Internal tree move payload (separate from `text/plain` for chat). */
+const FILE_TREE_INTERNAL_DRAG_MIME = 'application/x-markdown-editor-file-tree';
+
+function pathTrimSlashes(p: string): string {
+  if (p === '.' || p === '') return '.';
+  const t = p.replace(/\/+$/, '');
+  return t === '' ? '.' : t;
+}
+
+function canDropTreeItemOntoFolder(sourcePath: string, sourceIsDir: boolean, targetParentPath: string): boolean {
+  const src = pathTrimSlashes(sourcePath);
+  const tgt = pathTrimSlashes(targetParentPath);
+  if (src === tgt) return false;
+  if (sourceIsDir && (tgt === src || tgt.startsWith(`${src}/`))) return false;
+  return true;
+}
+
+function setFileTreeNativeDragCursor(active: boolean) {
+  document.body.classList.toggle(FILE_TREE_NATIVE_DRAGGING_CLASS, active);
 }
 
 function normalizeTreeItemName(raw: string): string | null {
@@ -73,8 +102,6 @@ export interface FileTreeOutlinerProps {
   onSetOutlinerScope?: (relativeSubprojectPath: string) => void;
   /** Called when saved scope no longer exists or is not a subproject */
   onScopeInvalidated?: () => void;
-  /** Called when user wants to open a file and immediately show its shadow meta-note panel */
-  onOpenFileMeta?: (path: string) => void;
   /** Current git status — used to render change indicators in the tree */
   gitStatus?: GitStatus;
   /** Discard git changes for this file or folder (right-click) */
@@ -89,7 +116,15 @@ interface ContextMenuState {
   path: string;
   directory: boolean;
   subprojectType: string | null | undefined;
-  hasShadow: boolean;
+}
+
+interface TreeMoveDnDProps {
+  mimeType: string;
+  dropTargetPath: string | null;
+  onDragSourceStart: (path: string, isDirectory: boolean) => void;
+  onDragSourceEnd: () => void;
+  onFolderDragOver: (e: DragEvent, folderPath: string) => void;
+  onFolderDrop: (e: DragEvent, folderPath: string) => void;
 }
 
 function TreeNodeRow({
@@ -112,6 +147,7 @@ function TreeNodeRow({
   inlineChaptersRefreshNonce,
   changedPaths,
   dirtyFolders,
+  treeMoveDnD,
 }: {
   node: FileNode;
   depth: number;
@@ -138,6 +174,7 @@ function TreeNodeRow({
   inlineChaptersRefreshNonce: number;
   changedPaths: Set<string>;
   dirtyFolders: Set<string>;
+  treeMoveDnD: TreeMoveDnDProps;
 }) {
   const isDir = node.directory;
   const isOpen = expanded.has(node.path);
@@ -196,16 +233,25 @@ function TreeNodeRow({
 
   const rootMetaDragPath = projectRelativeRootMetaPath(node.path, subLevelConfig.rootMetaRelativePath);
 
+  const dropHighlight = isDir && treeMoveDnD.dropTargetPath === node.path ? ' file-tree-row--drop-target' : '';
+  const folderMoveHandlers = isDir
+    ? {
+        onDragOver: (e: DragEvent) => treeMoveDnD.onFolderDragOver(e, node.path),
+        onDrop: (e: DragEvent) => treeMoveDnD.onFolderDrop(e, node.path),
+      }
+    : {};
+
   return (
     <>
       {splitSubprojectMeta ? (
         <div className="file-tree-subproject-row-wrap">
           <button
             type="button"
-            className={`${rowClass} file-tree-subproject-row-main`}
+            className={`${rowClass} file-tree-subproject-row-main${dropHighlight}`}
             style={rowPad}
             onClick={handleClick}
             onContextMenu={(e) => onContextMenu(e, node)}
+            {...folderMoveHandlers}
           >
             <span className="file-tree-chevron">
               {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}
@@ -226,9 +272,11 @@ function TreeNodeRow({
             onClick={() => onOpenBookMeta(node.path, spType)}
             draggable
             onDragStart={(e) => {
+              setFileTreeNativeDragCursor(true);
               e.dataTransfer.setData('text/plain', rootMetaDragPath);
               e.dataTransfer.effectAllowed = 'copy';
             }}
+            onDragEnd={() => setFileTreeNativeDragCursor(false)}
           >
             <OutlinerIcon name={subLevelConfig.rootMetaIcon} size={13} />
           </button>
@@ -236,7 +284,7 @@ function TreeNodeRow({
       ) : (
         <button
           type="button"
-          className={rowClass}
+          className={`${rowClass}${dropHighlight}`}
           style={rowPad}
           onClick={handleClick}
           onContextMenu={(e) => onContextMenu(e, node)}
@@ -244,11 +292,26 @@ function TreeNodeRow({
           onDragStart={
             canDragToChat
               ? (e) => {
+                  setFileTreeNativeDragCursor(true);
+                  treeMoveDnD.onDragSourceStart(node.path, isDir);
                   e.dataTransfer.setData('text/plain', dragPayload);
-                  e.dataTransfer.effectAllowed = 'copy';
+                  e.dataTransfer.setData(
+                    treeMoveDnD.mimeType,
+                    JSON.stringify({ path: node.path, isDirectory: isDir }),
+                  );
+                  e.dataTransfer.effectAllowed = 'copyMove';
                 }
               : undefined
           }
+          onDragEnd={
+            canDragToChat
+              ? () => {
+                  setFileTreeNativeDragCursor(false);
+                  treeMoveDnD.onDragSourceEnd();
+                }
+              : undefined
+          }
+          {...folderMoveHandlers}
         >
           <span className="file-tree-chevron">
             {isDir ? (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="file-tree-chevron-spacer" />}
@@ -260,6 +323,8 @@ function TreeNodeRow({
                 size={14}
                 className="file-tree-icon file-tree-icon--subproject"
               />
+            ) : isWikiFolder(node) ? (
+              <OutlinerIcon name="wiki" size={14} className="file-tree-icon" />
             ) : (
               <Folder size={14} className="file-tree-icon" />
             )
@@ -268,9 +333,6 @@ function TreeNodeRow({
           )}
           <span className="file-tree-name">{node.name}</span>
           {hasGitChange && <span className="tree-node-git-dot" title={isDir ? 'Ordner enthält Änderungen' : 'Datei geändert'} />}
-          {!isDir && node.hasShadow && (
-            <span className="file-tree-shadow-dot" title="Hat Meta-Notiz" />
-          )}
           {isSubproject && <span className="file-tree-subproject-badge" title="Medien-Projekt">●</span>}
         </button>
       )}
@@ -296,6 +358,7 @@ function TreeNodeRow({
           inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
           changedPaths={changedPaths}
           dirtyFolders={dirtyFolders}
+          treeMoveDnD={treeMoveDnD}
         />
       ))}
       {isSubproject && isOpen && onActivateSubprojectStructure && runSubprojectMutation && onSubprojectStructureChanged && (
@@ -353,6 +416,7 @@ function TreeNodeRow({
                     inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
                     changedPaths={changedPaths}
                     dirtyFolders={dirtyFolders}
+                    treeMoveDnD={treeMoveDnD}
                   />
                 ))}
             </>
@@ -386,7 +450,6 @@ export function FileTreeOutliner({
   onClearOutlinerScope,
   onSetOutlinerScope,
   onScopeInvalidated,
-  onOpenFileMeta,
   gitStatus,
   onGitRevert,
   onShowFileHistory,
@@ -396,6 +459,17 @@ export function FileTreeOutliner({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['.']));
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
+  const prevProjectPathRef = useRef<string | null | undefined>(undefined);
+  const prevScopeToPathRef = useRef<string | null | undefined>(undefined);
+  const prevScopeForExpansionRef = useRef<string | null | undefined>(undefined);
+  /** Only persist expansion after tree load for this project (avoids writing previous project's set under new key). */
+  const expandedSyncProjectRef = useRef<string | null>(null);
+  const treeDragSourceRef = useRef<{ path: string; isDirectory: boolean } | null>(null);
+  const [treeDropTarget, setTreeDropTarget] = useState<string | null>(null);
+
+  useEffect(() => () => setFileTreeNativeDragCursor(false), []);
 
   // Build the set of all changed file paths and the set of all folders that contain changes.
   const changedPaths = useMemo<Set<string>>(() => {
@@ -442,6 +516,14 @@ export function FileTreeOutliner({
 
   useEffect(() => {
     if (!root) return;
+    const prev = prevScopeForExpansionRef.current;
+    // Same scope + new root (e.g. refresh): do not collapse — load effect / persistence owns expansion
+    if (prev === scopeToPath) return;
+    if (prev === undefined) {
+      prevScopeForExpansionRef.current = scopeToPath;
+      return;
+    }
+    prevScopeForExpansionRef.current = scopeToPath;
     if (scopeToPath && findNodeByPath(root, scopeToPath)) {
       setExpanded(new Set([scopeToPath]));
     } else if (!scopeToPath) {
@@ -462,8 +544,20 @@ export function FileTreeOutliner({
     if (!projectPath) {
       setRoot(null);
       setLoadError(null);
+      expandedSyncProjectRef.current = null;
+      prevProjectPathRef.current = null;
+      prevScopeToPathRef.current = scopeToPath;
       return;
     }
+    const isHardReset =
+      projectPath !== prevProjectPathRef.current ||
+      scopeToPath !== prevScopeToPathRef.current;
+    if (isHardReset) {
+      expandedSyncProjectRef.current = null;
+    }
+    prevProjectPathRef.current = projectPath;
+    prevScopeToPathRef.current = scopeToPath;
+
     let cancelled = false;
     filesApi
       .getTree()
@@ -471,9 +565,32 @@ export function FileTreeOutliner({
         if (!cancelled) {
           setRoot(tree);
           setLoadError(null);
-          const expandKey =
-            scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
-          setExpanded(new Set([expandKey]));
+          if (isHardReset) {
+            const expandKey =
+              scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
+            const stored =
+              projectPath != null ? readExpandedPaths(projectPath, scopeToPath) : [];
+            const merged = new Set<string>([expandKey]);
+            for (const p of stored) {
+              if (p === '.' || findNodeByPath(tree, p)) merged.add(p);
+            }
+            setExpanded(merged);
+          } else {
+            // Mutation refresh: preserve expanded folders that still exist in the new tree
+            const preserved = new Set<string>();
+            for (const path of expandedRef.current) {
+              if (path === '.' || findNodeByPath(tree, path)) {
+                preserved.add(path);
+              }
+            }
+            if (preserved.size === 0) {
+              const expandKey =
+                scopeToPath && findNodeByPath(tree, scopeToPath) ? scopeToPath : '.';
+              preserved.add(expandKey);
+            }
+            setExpanded(preserved);
+          }
+          expandedSyncProjectRef.current = projectPath;
         }
       })
       .catch((e) => {
@@ -483,6 +600,11 @@ export function FileTreeOutliner({
       cancelled = true;
     };
   }, [projectPath, refreshNonce, scopeToPath]);
+
+  useEffect(() => {
+    if (!projectPath || expandedSyncProjectRef.current !== projectPath) return;
+    writeExpandedPaths(projectPath, scopeToPath, expanded);
+  }, [projectPath, scopeToPath, expanded]);
 
   const refreshAfterMutation = useCallback(() => {
     setMenu(null);
@@ -519,7 +641,6 @@ export function FileTreeOutliner({
       path: node.path,
       directory: node.directory,
       subprojectType: node.subprojectType,
-      hasShadow: node.hasShadow ?? false,
     });
   }, []);
 
@@ -533,6 +654,76 @@ export function FileTreeOutliner({
       }
     },
     [refreshAfterMutation],
+  );
+
+  const onTreeMoveDragSourceStart = useCallback((path: string, isDirectory: boolean) => {
+    treeDragSourceRef.current = { path, isDirectory };
+  }, []);
+
+  const onTreeMoveDragSourceEnd = useCallback(() => {
+    treeDragSourceRef.current = null;
+    setTreeDropTarget(null);
+  }, []);
+
+  const onTreeMoveFolderDragOver = useCallback((e: DragEvent, folderPath: string) => {
+    const mimeLc = FILE_TREE_INTERNAL_DRAG_MIME.toLowerCase();
+    if (!Array.from(e.dataTransfer.types).some((t) => t.toLowerCase() === mimeLc)) return;
+    const src = treeDragSourceRef.current;
+    if (!src) return;
+    if (!canDropTreeItemOntoFolder(src.path, src.isDirectory, folderPath)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setTreeDropTarget(folderPath);
+  }, []);
+
+  const onTreeMoveFolderDrop = useCallback(
+    (e: DragEvent, folderPath: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setTreeDropTarget(null);
+      const raw = e.dataTransfer.getData(FILE_TREE_INTERNAL_DRAG_MIME);
+      treeDragSourceRef.current = null;
+      if (!raw) return;
+      let sourcePath: string;
+      let sourceIsDir: boolean;
+      try {
+        const p = JSON.parse(raw) as { path?: string; isDirectory?: boolean };
+        if (typeof p.path !== 'string') return;
+        sourcePath = p.path;
+        sourceIsDir = Boolean(p.isDirectory);
+      } catch {
+        return;
+      }
+      if (!canDropTreeItemOntoFolder(sourcePath, sourceIsDir, folderPath)) return;
+      void runMutation(async () => {
+        const { path: newPath } = await filesApi.move(sourcePath, folderPath);
+        onFsChange?.({ renamed: { from: sourcePath, to: newPath } });
+        setExpanded((prev) => {
+          const next = new Set(prev);
+          next.add(folderPath);
+          return next;
+        });
+      });
+    },
+    [runMutation, onFsChange],
+  );
+
+  const treeMoveDnD = useMemo<TreeMoveDnDProps>(
+    () => ({
+      mimeType: FILE_TREE_INTERNAL_DRAG_MIME,
+      dropTargetPath: treeDropTarget,
+      onDragSourceStart: onTreeMoveDragSourceStart,
+      onDragSourceEnd: onTreeMoveDragSourceEnd,
+      onFolderDragOver: onTreeMoveFolderDragOver,
+      onFolderDrop: onTreeMoveFolderDrop,
+    }),
+    [
+      treeDropTarget,
+      onTreeMoveDragSourceStart,
+      onTreeMoveDragSourceEnd,
+      onTreeMoveFolderDragOver,
+      onTreeMoveFolderDrop,
+    ],
   );
 
   const handleNewFolder = (parentPath: string) => {
@@ -597,6 +788,45 @@ export function FileTreeOutliner({
     }
   };
 
+  const handleConvertJsonToMarkdown = useCallback(
+    async (jsonPath: string) => {
+      setMenu(null);
+      try {
+        const { content } = await filesApi.getContent(jsonPath);
+        const result = convertWikiOrFlatJsonToMarkdown(content);
+        if (!result) {
+          window.alert(
+            'Die Datei ist kein erkanntes Wiki-JSON.\n\nErwartet wird z. B. { "id", "typeId", "values": { … } } oder ein flaches JSON-Objekt mit String-Feldern.',
+          );
+          return;
+        }
+        const outPath = jsonPath.replace(/\.json$/i, '.md');
+        if (outPath === jsonPath) {
+          window.alert('Nur Dateien mit der Endung .json können konvertiert werden.');
+          return;
+        }
+        try {
+          await filesApi.getContent(outPath);
+          if (
+            !window.confirm(
+              `Die Datei „${outPath}“ existiert bereits.\n\nÜberschreiben?`,
+            )
+          ) {
+            return;
+          }
+        } catch {
+          /* target does not exist */
+        }
+        await filesApi.saveContent(outPath, result.markdown);
+        refreshAfterMutation();
+        onSelectFile(outPath);
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'Konvertierung fehlgeschlagen');
+      }
+    },
+    [onSelectFile, refreshAfterMutation],
+  );
+
   const handleNewChapterInSubproject = (path: string, type: string) => {
     const { chapter } = resolveLevelConfig(levelConfigByModeId, type);
     const title = window.prompt(`Titel (${chapter.label}):`, chapter.labelNew);
@@ -655,6 +885,7 @@ export function FileTreeOutliner({
             inlineChaptersRefreshNonce={inlineChaptersRefreshNonce}
             changedPaths={changedPaths}
             dirtyFolders={dirtyFolders}
+            treeMoveDnD={treeMoveDnD}
           />
         )}
       </div>
@@ -690,35 +921,30 @@ export function FileTreeOutliner({
               </button>
             </>
           )}
-          {!menu.directory && onOpenFileMeta && (
-            <>
+          {!menu.directory &&
+            ((onShowFileHistory && gitStatus?.isRepo) || menu.path.toLowerCase().endsWith('.json')) && (
               <div className="file-tree-context-separator" role="separator" />
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => {
-                  onOpenFileMeta(menu.path);
-                  setMenu(null);
-                }}
-              >
-                {menu.hasShadow ? 'Meta-Notiz bearbeiten' : 'Meta-Notiz anlegen'}
-              </button>
-            </>
-          )}
+            )}
           {!menu.directory && onShowFileHistory && gitStatus?.isRepo && (
-            <>
-              <div className="file-tree-context-separator" role="separator" />
-              <button
-                type="button"
-                className="file-tree-context-item"
-                onClick={() => {
-                  onShowFileHistory(menu.path);
-                  setMenu(null);
-                }}
-              >
-                Verlauf anzeigen
-              </button>
-            </>
+            <button
+              type="button"
+              className="file-tree-context-item"
+              onClick={() => {
+                onShowFileHistory(menu.path);
+                setMenu(null);
+              }}
+            >
+              Verlauf anzeigen
+            </button>
+          )}
+          {!menu.directory && menu.path.toLowerCase().endsWith('.json') && (
+            <button
+              type="button"
+              className="file-tree-context-item"
+              onClick={() => void handleConvertJsonToMarkdown(menu.path)}
+            >
+              Nach Markdown konvertieren…
+            </button>
           )}
           {onGitRevert &&
             (menu.directory ? dirtyFolders.has(menu.path) : changedPaths.has(menu.path)) && (

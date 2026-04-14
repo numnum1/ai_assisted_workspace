@@ -1,6 +1,7 @@
 package com.assistant.service;
 
 import com.assistant.config.AppConfig;
+import com.assistant.util.FlexibleSearch;
 import com.assistant.model.FileNode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,12 +25,10 @@ public class FileService {
 
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
-    private final ShadowWikiService shadowWikiService;
 
-    public FileService(AppConfig appConfig, ObjectMapper objectMapper, ShadowWikiService shadowWikiService) {
+    public FileService(AppConfig appConfig, ObjectMapper objectMapper) {
         this.appConfig = appConfig;
         this.objectMapper = objectMapper;
-        this.shadowWikiService = shadowWikiService;
     }
 
     public Path getProjectRoot() {
@@ -76,9 +75,7 @@ public class FileService {
 
         FileNode node = new FileNode(current.getFileName().toString(), relativePath, Files.isDirectory(current));
 
-        if (!Files.isDirectory(current) && !".".equals(relativePath)) {
-            node.setHasShadow(shadowWikiService.exists(relativePath));
-        }
+
 
         if (Files.isDirectory(current)) {
             Path marker = current.resolve(".subproject.json");
@@ -159,7 +156,6 @@ public class FileService {
         } else {
             Files.delete(file);
         }
-        shadowWikiService.deleteIfExists(relativePath);
     }
 
     private void deleteRecursively(Path path) throws IOException {
@@ -225,12 +221,50 @@ public class FileService {
         }
         Files.move(source, target);
         String newRelativePath = root.relativize(target).toString().replace('\\', '/');
-        if (Files.isDirectory(target)) {
-            shadowWikiService.renameDirIfExists(relativePath, newName);
-        } else {
-            shadowWikiService.renameFileIfExists(relativePath, newName);
-        }
         return newRelativePath;
+    }
+
+    /**
+     * Moves a file or directory into an existing target folder (project-relative paths).
+     *
+     * @param sourceRelativePath    path of the file or folder to move
+     * @param targetParentRelativePath destination directory; {@code null}, blank, or "." means project root
+     * @return the new relative path of the moved entry
+     */
+    public String move(String sourceRelativePath, String targetParentRelativePath) throws IOException {
+        if (sourceRelativePath == null || sourceRelativePath.isBlank() || ".".equals(sourceRelativePath.trim())) {
+            throw new IOException("Cannot move project root");
+        }
+        Path root = getProjectRoot();
+        Path source = resolveAndValidate(sourceRelativePath);
+        String parentArg = targetParentRelativePath == null || targetParentRelativePath.isBlank()
+                ? "."
+                : targetParentRelativePath.trim();
+        Path targetDir = resolveRelativeDirectory(parentArg);
+        Path target = targetDir.resolve(source.getFileName()).normalize();
+        if (!target.startsWith(root)) {
+            throw new IOException("Access denied: path escapes project root");
+        }
+        if (source.equals(target)) {
+            return toProjectRelativePosix(root, source);
+        }
+        if (Files.isDirectory(source)) {
+            String srcRel = toProjectRelativePosix(root, source);
+            String tgtParentRel = toProjectRelativePosix(root, targetDir);
+            if (tgtParentRel.equals(srcRel) || tgtParentRel.startsWith(srcRel + "/")) {
+                throw new IOException("Cannot move a folder into itself or a subfolder");
+            }
+        }
+        if (Files.exists(target)) {
+            throw new IOException("Target already exists: " + toProjectRelativePosix(root, target));
+        }
+        Files.move(source, target);
+        return toProjectRelativePosix(root, target);
+    }
+
+    private static String toProjectRelativePosix(Path root, Path absolute) {
+        String s = root.relativize(absolute.normalize()).toString().replace('\\', '/');
+        return s.isEmpty() ? "." : s;
     }
 
     private String joinPath(String parent, String name) {
@@ -331,12 +365,11 @@ public class FileService {
      */
     public List<String> searchFiles(String query) throws IOException {
         List<String> results = new ArrayList<>();
-        String lowerQuery = query.toLowerCase();
-        collectSearchResults(getProjectRoot(), getProjectRoot(), lowerQuery, results);
+        collectSearchResults(getProjectRoot(), getProjectRoot(), query, results);
         return results;
     }
 
-    private void collectSearchResults(Path current, Path root, String lowerQuery, List<String> results) throws IOException {
+    private void collectSearchResults(Path current, Path root, String query, List<String> results) throws IOException {
         try (Stream<Path> entries = Files.list(current)) {
             entries
                 .filter(p -> !isHidden(p))
@@ -345,18 +378,74 @@ public class FileService {
                     .thenComparing(p -> p.getFileName().toString().toLowerCase()))
                 .forEach(p -> {
                     String relative = root.relativize(p).toString().replace('\\', '/');
-                    if (relative.toLowerCase().contains(lowerQuery)) {
+                    if (FlexibleSearch.matchesFlexible(relative, query)) {
                         results.add(relative + (Files.isDirectory(p) ? "/" : ""));
                     }
                     if (Files.isDirectory(p)) {
                         try {
-                            collectSearchResults(p, root, lowerQuery, results);
+                            collectSearchResults(p, root, query, results);
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
                     }
                 });
         }
+    }
+
+    public record ContentSearchHit(String path, int line, String preview) {}
+
+    /**
+     * Searches file content for a query string (case-insensitive).
+     * Returns up to maxResults hits with file path, line number, and a short preview.
+     */
+    public List<ContentSearchHit> searchInFiles(String query, int maxResults) throws IOException {
+        List<ContentSearchHit> results = new ArrayList<>();
+        String lowerQuery = query.toLowerCase();
+        Path root = getProjectRoot();
+        collectContentHits(root, root, lowerQuery, results, maxResults);
+        return results;
+    }
+
+    private void collectContentHits(Path current, Path root, String lowerQuery,
+                                     List<ContentSearchHit> results, int maxResults) throws IOException {
+        if (results.size() >= maxResults) return;
+        try (Stream<Path> entries = Files.list(current)) {
+            List<Path> sorted = entries
+                .filter(p -> !isHidden(p))
+                .sorted(Comparator
+                    .comparing((Path p) -> !Files.isDirectory(p))
+                    .thenComparing(p -> p.getFileName().toString().toLowerCase()))
+                .toList();
+            for (Path p : sorted) {
+                if (results.size() >= maxResults) return;
+                if (Files.isDirectory(p)) {
+                    collectContentHits(p, root, lowerQuery, results, maxResults);
+                } else {
+                    String ext = p.getFileName().toString();
+                    if (!isTextFile(ext)) continue;
+                    String rel = root.relativize(p).toString().replace('\\', '/');
+                    try {
+                        var lines = Files.readAllLines(p, StandardCharsets.UTF_8);
+                        for (int i = 0; i < lines.size() && results.size() < maxResults; i++) {
+                            if (lines.get(i).toLowerCase().contains(lowerQuery)) {
+                                results.add(new ContentSearchHit(rel, i + 1, lines.get(i).trim()));
+                            }
+                        }
+                    } catch (Exception ignored) {
+                        // Skip unreadable files
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isTextFile(String filename) {
+        String lower = filename.toLowerCase();
+        return lower.endsWith(".md") || lower.endsWith(".txt") || lower.endsWith(".yaml")
+                || lower.endsWith(".yml") || lower.endsWith(".json") || lower.endsWith(".ts")
+                || lower.endsWith(".tsx") || lower.endsWith(".js") || lower.endsWith(".jsx")
+                || lower.endsWith(".java") || lower.endsWith(".xml") || lower.endsWith(".html")
+                || lower.endsWith(".css") || lower.endsWith(".toml") || lower.endsWith(".properties");
     }
 
     private Path resolveAndValidate(String relativePath) throws IOException {

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { BookOpen, Layers, AlignLeft, Sword, Music, Disc, FileText, Folder, Minus } from 'lucide-react';
+import { BookOpen, Layers, AlignLeft, Sword, Music, Disc, FileText, Folder, Minus, Library } from 'lucide-react';
 
 const ICON_MAP: Record<string, LucideIcon> = {
   book: BookOpen,
@@ -11,6 +11,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'file-text': FileText,
   folder: Folder,
   minus: Minus,
+  wiki: Library,
 };
 
 export function OutlinerIcon({ name, size, className }: { name: string; size: number; className?: string }) {

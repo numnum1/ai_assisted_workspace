@@ -5,25 +5,19 @@ import com.assistant.model.AssembledContext;
 import com.assistant.model.ChatMessage;
 import com.assistant.model.ChatRequest;
 import com.assistant.model.Mode;
-import com.assistant.model.WikiEntry;
-import com.assistant.model.WikiType;
+import com.assistant.service.tools.ToolkitIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 
 @Service
 public class ContextService {
 
     private static final Logger log = LoggerFactory.getLogger(ContextService.class);
-
-    private static final Pattern WIKI_ENTRY_PATH = Pattern.compile(
-            "^\\.wiki/entries/([^/]+)/(.+)\\.json$"
-    );
 
     private final FileService fileService;
     private final ModeService modeService;
@@ -31,20 +25,20 @@ public class ContextService {
     private final AppConfig appConfig;
     private final ProjectConfigService projectConfigService;
     private final ChapterService chapterService;
-    private final WikiService wikiService;
+    private final GlossaryService glossaryService;
 
     public ContextService(FileService fileService, ModeService modeService,
                           ReferenceResolver referenceResolver, AppConfig appConfig,
                           ProjectConfigService projectConfigService,
                           ChapterService chapterService,
-                          WikiService wikiService) {
+                          GlossaryService glossaryService) {
         this.fileService = fileService;
         this.modeService = modeService;
         this.referenceResolver = referenceResolver;
         this.appConfig = appConfig;
         this.projectConfigService = projectConfigService;
         this.chapterService = chapterService;
-        this.wikiService = wikiService;
+        this.glossaryService = glossaryService;
     }
 
     public AssembledContext assemble(ChatRequest request) {
@@ -61,6 +55,7 @@ public class ContextService {
         AssembledContext context = new AssembledContext();
         List<ChatMessage> messages = new ArrayList<>();
         Set<String> includedFiles = new LinkedHashSet<>();
+        List<AssembledContext.ContextBlock> blocks = new ArrayList<>();
 
         // 1. Build system prompt from mode
         Mode mode = request.getMode() != null
@@ -71,20 +66,33 @@ public class ContextService {
         }
 
         StringBuilder systemPrompt = new StringBuilder();
+        int blockStart = 0;
         systemPrompt.append(mode.getSystemPrompt()).append("\n\n");
+        blocks.add(new AssembledContext.ContextBlock("mode", "Mode: " + (mode.getName() != null ? mode.getName() : "default"),
+                mode.getSystemPrompt(), (systemPrompt.length() - blockStart) / 4));
         log.debug("System prompt after mode base: {} chars", systemPrompt.length());
 
-        // 2. Inject rules (global + per-mode) right after the mode system prompt
-        appendRules(systemPrompt, mode);
-        log.debug("System prompt after rules injection: {} chars", systemPrompt.length());
-
-        // 2b. Inject workspace mode system prompt addition
+        // 2. Inject workspace mode system prompt addition
         if (projectConfigService.hasProjectConfig()) {
             com.assistant.model.WorkspaceModeSchema wsMode = projectConfigService.getWorkspaceModeSchema();
             String addition = wsMode.getSystemPromptAddition();
             if (addition != null && !addition.isBlank()) {
+                blockStart = systemPrompt.length();
                 systemPrompt.append(addition).append("\n\n");
+                blocks.add(new AssembledContext.ContextBlock("workspace-mode", "Workspace Mode",
+                        addition, (systemPrompt.length() - blockStart) / 4));
             }
+        }
+
+        // 2b. Inject glossary if it exists
+        String glossaryContent = glossaryService.readGlossary();
+        if (glossaryContent != null && !glossaryContent.isBlank()) {
+            blockStart = systemPrompt.length();
+            systemPrompt.append("=== Glossary ===\n");
+            systemPrompt.append(glossaryContent).append("\n\n");
+            blocks.add(new AssembledContext.ContextBlock("glossary", "Glossary (.assistant/glossary.md)",
+                    glossaryContent, (systemPrompt.length() - blockStart) / 4));
+            log.debug("Injected glossary: {} chars", glossaryContent.length());
         }
 
         // 3. Determine "always include" files: prefer project config, fall back to application.yml
@@ -103,46 +111,53 @@ public class ContextService {
         // Deduplicate
         Set<String> seen = new LinkedHashSet<>(alwaysInclude);
 
-        systemPrompt.append("=== Story structure (ids ↔ titles) ===\n");
-        systemPrompt.append("Use these ids with read_story_text(chapter_id, scene_id?). ");
-        systemPrompt.append("Human titles are in meta JSON, not in file names — use search_story_structure " +
-                "when you need to find a node by title or description.\n");
-        int beforeStory = systemPrompt.length();
+        blockStart = systemPrompt.length();
+        systemPrompt.append("=== Project Structure ===\n");
+        StringBuilder storyStructure = new StringBuilder();
         try {
-            systemPrompt.append(chapterService.buildStoryStructureOverview());
+            String structureContent = chapterService.buildStoryStructureOverview();
+            systemPrompt.append(structureContent);
+            storyStructure.append(structureContent);
         } catch (IOException e) {
             log.warn("Could not read story structure overview", e);
             systemPrompt.append("[Could not read story structure]\n");
         }
         log.debug("System prompt after story structure: {} chars (+{} for story overview)",
-                systemPrompt.length(), systemPrompt.length() - beforeStory);
+                systemPrompt.length(), systemPrompt.length() - blockStart);
         systemPrompt.append("\n");
+        blocks.add(new AssembledContext.ContextBlock("structure", "Project Structure",
+                storyStructure.toString(), (systemPrompt.length() - blockStart) / 4));
 
         // Build project file listing
+        blockStart = systemPrompt.length();
         systemPrompt.append("=== Project Files ===\n");
-        int beforeTree = systemPrompt.length();
+        StringBuilder fileTreeContent = new StringBuilder();
         try {
             var tree = fileService.getFileTree();
             appendTreeListing(systemPrompt, tree, "");
+            appendTreeListing(fileTreeContent, tree, "");
         } catch (IOException e) {
             log.warn("Could not read project file tree", e);
             systemPrompt.append("[Could not read project structure]\n");
         }
         log.debug("System prompt after file tree: {} chars (+{} for tree)",
-                systemPrompt.length(), systemPrompt.length() - beforeTree);
+                systemPrompt.length(), systemPrompt.length() - blockStart);
         systemPrompt.append("\n");
+        blocks.add(new AssembledContext.ContextBlock("file-tree", "Project Files (tree)",
+                fileTreeContent.toString(), (systemPrompt.length() - blockStart) / 4));
 
         // Include always-included files
         log.debug("Always-include files to inject: {}", seen);
         for (String filePath : seen) {
             try {
                 if (fileService.fileExists(filePath)) {
-                    int before = systemPrompt.length();
+                    blockStart = systemPrompt.length();
                     String content = fileService.readFile(filePath);
                     systemPrompt.append("=== ").append(filePath).append(" ===\n");
                     systemPrompt.append(content).append("\n\n");
                     includedFiles.add(filePath);
-                    log.debug("Injected always-include file '{}': {} chars", filePath, systemPrompt.length() - before);
+                    blocks.add(new AssembledContext.ContextBlock("file", filePath, content, (systemPrompt.length() - blockStart) / 4));
+                    log.debug("Injected always-include file '{}': {} chars", filePath, systemPrompt.length() - blockStart);
                 } else {
                     log.debug("Always-include file '{}' not found, skipping", filePath);
                 }
@@ -152,32 +167,37 @@ public class ContextService {
             }
         }
 
-        // Include active file — always read fresh from disk so the AI sees the current state
+        // Active file content: only when the user opened a dedicated meta field editor (activeFieldKey).
+        // Otherwise do not attach the passively open tab — use @-references or read_file.
+        String activeFieldKey = request.getActiveFieldKey();
+        boolean focusedMetaField = activeFieldKey != null && !activeFieldKey.isBlank();
         String activeFile = request.getActiveFile();
-        if (activeFile != null && !activeFile.isBlank() && !seen.contains(activeFile)) {
+        if (focusedMetaField && activeFile != null && !activeFile.isBlank() && !seen.contains(activeFile)) {
             try {
                 if (fileService.fileExists(activeFile)) {
-                    int before = systemPrompt.length();
+                    blockStart = systemPrompt.length();
                     String content = fileService.readFile(activeFile);
                     systemPrompt.append("=== Active File: ").append(activeFile).append(" ===\n");
                     systemPrompt.append(content).append("\n\n");
                     includedFiles.add(activeFile);
-                    log.debug("Injected active file '{}': {} chars", activeFile, systemPrompt.length() - before);
+                    blocks.add(new AssembledContext.ContextBlock("active-file", "Active File: " + activeFile, content, (systemPrompt.length() - blockStart) / 4));
+                    log.debug("Injected active file for focused field '{}': path={}, {} chars", activeFieldKey, activeFile, systemPrompt.length() - blockStart);
                     if (activeFile.endsWith(".json") && activeFile.contains(".project/chapter/")) {
                         appendFieldUpdateInstructions(systemPrompt);
                     }
                 } else {
-                    log.debug("Active file '{}' not found on disk, skipping", activeFile);
+                    log.debug("Active file '{}' not found on disk (focused field), skipping content injection", activeFile);
                 }
             } catch (IOException e) {
                 log.warn("Failed to read active file '{}'", activeFile, e);
                 systemPrompt.append("=== Active File: ").append(activeFile).append(" [read error] ===\n\n");
             }
+        } else if (!focusedMetaField && activeFile != null && !activeFile.isBlank()) {
+            log.debug("Skipping automatic active-file context injection for path={} (no focused meta field)", activeFile);
         }
 
         // Focused field — tells the AI which single field the user is actively editing
-        String activeFieldKey = request.getActiveFieldKey();
-        if (activeFieldKey != null && !activeFieldKey.isBlank()) {
+        if (focusedMetaField) {
             systemPrompt.append("=== Focused Field ===\n");
             systemPrompt.append("The user has opened the dedicated editor for the field `").append(activeFieldKey)
                     .append("`. They are working EXCLUSIVELY on this field.\n\n");
@@ -199,41 +219,60 @@ public class ContextService {
             systemPrompt.append("- You may discuss, ask questions, or offer alternatives in plain text before or after the block.\n\n");
         }
 
+        Set<String> disabledKits = disabledToolkitSet(request);
+        boolean wikiToolsOn = !disabledKits.contains(ToolkitIds.WIKI);
+        boolean filesystemToolsOn = !disabledKits.contains(ToolkitIds.DATEISYSTEM);
+        boolean assistantToolsOn = !disabledKits.contains(ToolkitIds.ASSISTANT);
+
         // Tool usage instructions (omitted when client disables tools — API must not advertise unavailable tools)
         if (!request.isDisableTools()) {
-            systemPrompt.append("=== Available Tools ===\n");
-            systemPrompt.append("You have access to tools for project files and the project wiki:\n\n");
-            systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
-            systemPrompt.append("- wiki_search(query, type?, limit?): Search the project wiki for entries. " +
-                    "Returns compact hit list with IDs.\n");
-            systemPrompt.append("- wiki_read(id): Read the full content of a wiki entry by id (format: typeId/entryId, e.g. character/mara-voss).\n\n");
-            systemPrompt.append("**Wiki lookup strategy:**\n");
-            systemPrompt.append("1) If referenced story/scene JSON or markdown contains a wiki link or id in the form " +
-                    "`typeId/entryId` (e.g. markdown `@[Name](charakter/slug)` or `@@[Name](charakter/slug)`), " +
-                    "call **wiki_read** with that exact id first. Those paths are authoritative; do not skip lookup " +
-                    "just because wiki_search by display name returned nothing.\n");
-            systemPrompt.append("2) wiki_search matches **substrings** only on entry ids and field values. " +
-                    "Hyphenated ids (e.g. `lupus-regina`) do **not** match the query `lupusregina`. " +
-                    "Underscores in a label (e.g. `Beobachter_A`) do not match a slug `beobachter-a`. " +
-                    "If the full name fails, retry with shorter tokens (e.g. `lupus`, `regina`, `beobachter`) " +
-                    "or obvious hyphen/underscore variants.\n");
-            systemPrompt.append("3) The optional `type` filter matches the wiki **type id or type display name** as substring. " +
-                    "If a filtered search returns no hits, repeat **without** `type` or try the actual type id from the project " +
-                    "(German vs English names differ, e.g. `charakter` vs `character`).\n");
-            systemPrompt.append("4) After wiki_search returns ids, use wiki_read for entities you rely on in your answer.\n\n");
-            systemPrompt.append("**IMPORTANT:** For named entities, prefer the steps above over guessing. " +
-                    "If the user or attached content names a character, place, or organization, look it up in the wiki " +
-                    "before asserting facts. Use wiki_read to get full details when needed.\n\n");
-            systemPrompt.append("**Project files & story:**\n");
-            systemPrompt.append("- search_story_structure(query): Find chapters, scenes, or actions by **title/description** " +
-                    "in meta JSON (not by opaque ids like chapter_1). Returns ids and paths for read_file / read_story_text.\n");
-            systemPrompt.append("- search_project(query): Search files/folders by **path and file name** only. " +
-                    "For human story titles, prefer search_story_structure.\n");
-            systemPrompt.append("- read_file(path): Read the full content of a project file. " +
-                    "Use after searching to inspect relevant files.\n");
-            systemPrompt.append("- read_story_text(chapter_id, scene_id?): Read the combined prose text " +
-                    "of all actions in a scene (if scene_id given) or an entire chapter. " +
-                    "Use this to read what has actually been written in the story.\n\n");
+            if (wikiToolsOn || filesystemToolsOn || assistantToolsOn) {
+                systemPrompt.append("=== Available Tools ===\n");
+                systemPrompt.append("You have access to these tools as enabled for this session:\n\n");
+                if (wikiToolsOn) {
+                    systemPrompt.append("**Wiki (characters, locations, organizations, world-building):**\n");
+                    systemPrompt.append("Wiki entries are **Markdown files (`.md`)** stored under `wiki/` at the project root.\n");
+                    systemPrompt.append("There are no JSON wiki files — always use `.md` when creating or updating a wiki entry.\n");
+                    systemPrompt.append("Example path for a new character entry: `wiki/characters/lupusregina.md`\n\n");
+                    systemPrompt.append("- wiki_search(query, limit?): Search the project wiki under `wiki/` for entries by text. " +
+                            "Returns matching file paths and a snippet.\n");
+                    systemPrompt.append("- wiki_read(path): Read the full content of a wiki file by its path relative to the project root " +
+                            "(e.g. `wiki/characters/lupusregina.md`).\n\n");
+                }
+                if (filesystemToolsOn) {
+                    systemPrompt.append("**Project files:**\n");
+                    systemPrompt.append("- search_project(query): Search files/folders by **path and file name**.\n");
+                    systemPrompt.append("- read_file(path): Read the full content of any project file by relative path.\n\n");
+                    systemPrompt.append("**File Writing:**\n");
+                    systemPrompt.append("- write_file(path, content, description): Write (create or overwrite) a project file. " +
+                            "Saves a revert snapshot automatically. Always provide the complete file content.\n");
+                    systemPrompt.append("  - Wiki entries → `wiki/<subfolder>/<name>.md` (Markdown, **never** JSON)\n");
+                    systemPrompt.append("  - The 'description' parameter is a short human-readable summary of what was changed and why.\n\n");
+                }
+                if (assistantToolsOn) {
+                    systemPrompt.append("**Glossary:**\n");
+                    systemPrompt.append("- glossary_add(term, definition): Add a new term and definition to the project glossary " +
+                            "(.assistant/glossary.md). The glossary is always included in context — use this when you recognize a " +
+                            "recurring concept or project-specific term worth remembering.\n\n");
+                }
+            }
+        }
+
+        if (GuidedSessionPrompts.isGuidedSession(request)) {
+            blockStart = systemPrompt.length();
+            String guided = GuidedSessionPrompts.guidedBehaviourBlock();
+            systemPrompt.append(guided);
+            blocks.add(new AssembledContext.ContextBlock("guided-instructions", "Guided session (AI-led)",
+                    guided, (systemPrompt.length() - blockStart) / 4));
+            log.debug("Injected guided session instructions: {} chars", guided.length());
+            String planSection = GuidedSessionPrompts.steeringPlanSection(request.getSteeringPlan());
+            if (!planSection.isEmpty()) {
+                blockStart = systemPrompt.length();
+                systemPrompt.append(planSection);
+                blocks.add(new AssembledContext.ContextBlock("steering-plan", "Aktueller Gesprächsplan",
+                        planSection.trim(), (systemPrompt.length() - blockStart) / 4));
+                log.debug("Injected steering plan: {} chars", planSection.length());
+            }
         }
 
         // Editor selection replacement capability
@@ -248,29 +287,42 @@ public class ContextService {
         systemPrompt.append("highlighted selection. The user will see a one-click 'Replace' button in the chat.\n");
         systemPrompt.append("You may include multiple `replace` blocks if you want to offer alternatives.\n\n");
 
-        // Clarification questions via multiple-choice
-        systemPrompt.append("=== Clarification Questions ===\n");
-        systemPrompt.append("When you genuinely need more information before you can give a good answer, you may ask ");
-        systemPrompt.append("a clarification question by including exactly one fenced code block with the language tag `clarification`.\n");
-        systemPrompt.append("The block must contain a single JSON object on one line with these fields:\n");
-        systemPrompt.append("  - \"question\": the question text (string)\n");
-        systemPrompt.append("  - \"options\": an array of 2–5 short answer options (strings)\n\n");
-        systemPrompt.append("Example:\n");
-        systemPrompt.append("```clarification\n");
-        systemPrompt.append("{\"question\": \"Welchen Ansatz bevorzugst du?\", \"options\": [\"Ansatz A\", \"Ansatz B\", \"Ich bin offen\"]}\n");
-        systemPrompt.append("```\n\n");
-        systemPrompt.append("The user will see the options as clickable buttons and can select one with a single click.\n");
-        systemPrompt.append("Use this sparingly — only when the ambiguity would lead to a significantly wrong or wasted answer.\n");
-        systemPrompt.append("Do NOT use it for simple tasks where a reasonable assumption can be made.\n\n");
+        // Clarification questions via tool call (only when ask_clarification is available)
+        if (!request.isDisableTools() && assistantToolsOn) {
+            systemPrompt.append("=== Clarification Questions ===\n");
+            systemPrompt.append("When you genuinely need more information before you can give a good answer, call the\n");
+            systemPrompt.append("`ask_clarification` tool. Pass a `questions` array — each entry has:\n");
+            systemPrompt.append("  - \"question\": the question text (string)\n");
+            systemPrompt.append("  - \"options\": an array of 2–5 short answer options (strings)\n");
+            systemPrompt.append("  - \"allow_multiple\": true if the user may pick more than one option (optional, default false)\n\n");
+            systemPrompt.append("Rules:\n");
+            systemPrompt.append("  - Call `ask_clarification` as your ONLY action — write NO other text before or after the tool call.\n");
+            systemPrompt.append("  - You may group several related questions into one call (1–3 questions max).\n");
+            if (GuidedSessionPrompts.isGuidedSession(request)) {
+                systemPrompt.append("  - **Guided session:** Keep driving the steering plan, but when the step involves **design, modeling, class layout, APIs, or domain structure** "
+                        + "and the user has not fixed key representation choices, call `ask_clarification` **before** you lock in a concrete structure "
+                        + "(do not silently pick types, enums, or fields that embody an unstated assumption). "
+                        + "Offer an \"Egal / du entscheidest\" (or similar) option when useful. "
+                        + "Do not use `ask_clarification` for generic \"what next\" — advance the plan except where clarification is needed as above. "
+                        + "After the user answers, continue with a concrete proposal and a full updated `plan` block.\n");
+            } else {
+                systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
+                systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
+            }
+            systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
+        }
 
         int finalSystemPromptChars = systemPrompt.length();
         int estimatedSystemTokens = finalSystemPromptChars / 4;
+        boolean toolInstructionsIncluded =
+                !request.isDisableTools() && (wikiToolsOn || filesystemToolsOn || assistantToolsOn);
         log.info(
-                "Final system prompt: {} chars (~{} tokens). disableTools={}, tool instructions block {}",
+                "Final system prompt: {} chars (~{} tokens). disableTools={}, disabledToolkits={}, tool instructions block {}",
                 finalSystemPromptChars,
                 estimatedSystemTokens,
                 request.isDisableTools(),
-                request.isDisableTools() ? "omitted" : "included");
+                request.getDisabledToolkits(),
+                toolInstructionsIncluded ? "included (partial or full)" : "omitted");
         if (estimatedSystemTokens > 60_000) {
             log.warn(
                     "System prompt is very large (~{} tokens) — this may cause context overflow for models with limited context windows!",
@@ -294,8 +346,7 @@ public class ContextService {
         for (Map.Entry<String, String> entry : resolved.fileContents().entrySet()) {
             if (!includedFiles.contains(entry.getKey())) {
                 userMessage.append("=== Referenced: ").append(entry.getKey()).append(" ===\n");
-                String content = formatWikiEntryIfApplicable(entry.getKey(), entry.getValue());
-                userMessage.append(content).append("\n\n");
+                userMessage.append(entry.getValue()).append("\n\n");
                 includedFiles.add(entry.getKey());
             }
         }
@@ -306,6 +357,7 @@ public class ContextService {
         context.setMessages(messages);
         context.setIncludedFiles(new ArrayList<>(includedFiles));
         context.setEstimatedTokens(estimateTokens(messages));
+        context.setContextBlocks(blocks);
 
         log.trace("Finished successfully assembling context: totalMessages={}, includedFiles={}, estimatedTokens={}",
                 messages.size(), includedFiles, context.getEstimatedTokens());
@@ -325,7 +377,8 @@ public class ContextService {
         AssembledContext context = new AssembledContext();
         List<ChatMessage> messages = new ArrayList<>();
 
-        String systemText = request.isDisableTools()
+        boolean quickChatNoTools = request.isDisableTools() || quickChatWebToolkitDisabled(request);
+        String systemText = quickChatNoTools
                 ? """
                 Du bist ein kompakter Hilfs-Assistent (Quick Chat) für kurze, selbstständige Fragen — z. B. Begriffe \
                 erklären, Formulierungen vorschlagen oder Fakten erläutern.
@@ -379,38 +432,15 @@ public class ContextService {
         context.setEstimatedTokens(estimateTokens(messages));
 
         log.info(
-                "Quick Chat context assembled: totalMessages={}, estimatedTokens={}, userChars={}, disableTools={}",
+                "Quick Chat context assembled: totalMessages={}, estimatedTokens={}, userChars={}, disableTools={}, disabledToolkits={}, quickChatNoWebTools={}",
                 messages.size(),
                 context.getEstimatedTokens(),
                 userText.length(),
-                request.isDisableTools());
+                request.isDisableTools(),
+                request.getDisabledToolkits(),
+                quickChatNoTools);
         log.trace("Finished successfully assembling Quick Chat context");
         return context;
-    }
-
-    private void appendRules(StringBuilder systemPrompt, Mode mode) {
-        if (!projectConfigService.hasProjectConfig()) return;
-
-        // Collect global rules + per-mode rules, deduplicated
-        Set<String> rulePaths = new LinkedHashSet<>();
-        List<String> globalRules = projectConfigService.getConfig().getGlobalRules();
-        if (globalRules != null) rulePaths.addAll(globalRules);
-        if (mode.getRules() != null) rulePaths.addAll(mode.getRules());
-
-        if (rulePaths.isEmpty()) return;
-
-        Map<String, String> ruleContents = projectConfigService.getRuleContents(new ArrayList<>(rulePaths));
-        if (ruleContents.isEmpty()) return;
-
-        systemPrompt.append("=== Rules ===\n");
-        for (Map.Entry<String, String> entry : ruleContents.entrySet()) {
-            String fileName = entry.getKey().contains("/")
-                    ? entry.getKey().substring(entry.getKey().lastIndexOf('/') + 1)
-                    : entry.getKey();
-            String ruleName = fileName.endsWith(".md") ? fileName.substring(0, fileName.length() - 3) : fileName;
-            systemPrompt.append("--- ").append(ruleName).append(" ---\n");
-            systemPrompt.append(entry.getValue()).append("\n\n");
-        }
     }
 
     private void appendFieldUpdateInstructions(StringBuilder systemPrompt) {
@@ -464,26 +494,28 @@ public class ContextService {
         return totalChars / 4;
     }
 
-    /**
-     * If the given file path is a wiki entry (.wiki/entries/{typeId}/{entryId}.json),
-     * returns a formatted representation with blank fields omitted.
-     * Falls back to the original raw content on any error.
-     */
-    private String formatWikiEntryIfApplicable(String filePath, String rawContent) {
-        Matcher m = WIKI_ENTRY_PATH.matcher(filePath);
-        if (!m.matches()) {
-            return rawContent;
+    private static Set<String> disabledToolkitSet(ChatRequest request) {
+        Set<String> s = new HashSet<>();
+        if (request.getDisabledToolkits() != null) {
+            for (String k : request.getDisabledToolkits()) {
+                if (k != null && !k.isBlank()) {
+                    s.add(k.trim());
+                }
+            }
         }
-        String typeId = m.group(1);
-        String entryId = m.group(2);
-        try {
-            WikiType type = wikiService.getType(typeId);
-            WikiEntry entry = wikiService.getEntry(typeId, entryId);
-            log.trace("Formatting wiki entry for AI: {}/{}", typeId, entryId);
-            return wikiService.formatEntryForAi(entry, type);
-        } catch (Exception e) {
-            log.warn("Could not format wiki entry {}/{} for AI, using raw content: {}", typeId, entryId, e.getMessage());
-            return rawContent;
-        }
+        return s;
     }
+
+    private static boolean quickChatWebToolkitDisabled(ChatRequest request) {
+        if (request.getDisabledToolkits() == null) {
+            return false;
+        }
+        for (String k : request.getDisabledToolkits()) {
+            if (k != null && ToolkitIds.WEB.equals(k.trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

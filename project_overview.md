@@ -9,7 +9,7 @@ Ein lokaler, KI-gestützter Schreibassistent für kreatives Schreiben (Romane, G
 - **Frontend:** React 19, TypeScript, Vite 7, CodeMirror 6
 - **Backend:** Java 17, Spring Boot 3.2.5, Maven, JGit, jtokkit
 - **Kommunikation:** REST (`/api`), Chat über SSE (Server-Sent Events)
-- **Dev:** Frontend auf `:5173` (Vite-Proxy zu Backend), Backend auf `:8080`
+- **Dev:** Frontend auf `:5173` (Vite-Proxy zu Backend), Backend auf `:8012`
 
 ## Architektur-Überblick
 

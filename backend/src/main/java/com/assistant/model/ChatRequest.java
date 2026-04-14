@@ -23,6 +23,18 @@ public class ChatRequest {
      * When true, no tools are sent to the LLM API and tool instructions are omitted from the system prompt.
      */
     private boolean disableTools = false;
+    /**
+     * Toolkit ids (e.g. {@code web}, {@code wiki}) whose tools are omitted for this request.
+     */
+    private List<String> disabledToolkits = new ArrayList<>();
+    /**
+     * Chat session kind: {@code standard} (default) or {@code guided} (AI-led conversation with steering plan).
+     */
+    private String sessionKind = "standard";
+    /**
+     * Current steering plan markdown for guided sessions; injected into system prompt when non-blank.
+     */
+    private String steeringPlan;
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
@@ -44,4 +56,14 @@ public class ChatRequest {
     public void setQuickChat(boolean quickChat) { this.quickChat = quickChat; }
     public boolean isDisableTools() { return disableTools; }
     public void setDisableTools(boolean disableTools) { this.disableTools = disableTools; }
+    public List<String> getDisabledToolkits() { return disabledToolkits; }
+    public void setDisabledToolkits(List<String> disabledToolkits) {
+        this.disabledToolkits = disabledToolkits != null ? disabledToolkits : new ArrayList<>();
+    }
+    public String getSessionKind() { return sessionKind; }
+    public void setSessionKind(String sessionKind) {
+        this.sessionKind = sessionKind != null && !sessionKind.isBlank() ? sessionKind : "standard";
+    }
+    public String getSteeringPlan() { return steeringPlan; }
+    public void setSteeringPlan(String steeringPlan) { this.steeringPlan = steeringPlan; }
 }

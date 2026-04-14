@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Conversation, ChatMessage } from '../types.ts';
+import type { ChatSessionKind, Conversation, ChatMessage } from '../types.ts';
 import { fetchProjectChatHistory, persistProjectChatHistory } from '../api.ts';
+import { buildConversationById, effectiveSavedToProject } from '../components/chat/chatHistoryUtils.ts';
 
 /** Pre–per-project keys: one list for all folders (migrated once into first opened project) */
 const LEGACY_STORAGE_KEY = 'chat-history';
@@ -82,8 +83,8 @@ function generateTitle(messages: ChatMessage[]): string {
   return text.length > 50 ? text.slice(0, 50) + '…' : text;
 }
 
-function createEmptyConversation(mode: string): Conversation {
-  return {
+function createEmptyConversation(mode: string, sessionKind: ChatSessionKind = 'standard'): Conversation {
+  const base: Conversation = {
     id: crypto.randomUUID(),
     title: 'Neuer Chat',
     messages: [],
@@ -91,10 +92,17 @@ function createEmptyConversation(mode: string): Conversation {
     updatedAt: Date.now(),
     mode,
   };
+  if (sessionKind === 'guided') {
+    base.sessionKind = 'guided';
+  }
+  return base;
 }
 
 function hasVisibleMessages(c: Conversation): boolean {
-  return c.messages.some((m) => !m.hidden);
+  if (c.messages.some((m) => !m.hidden)) return true;
+  // Thread with only hidden parent bootstrap still counts as non-empty (do not drop tab).
+  if (c.isThread && c.messages.length > 0) return true;
+  return false;
 }
 
 function resolveActiveId(conversations: Conversation[], lastActiveId: string | null): string {
@@ -282,8 +290,13 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   );
 
   const createConversation = useCallback(
-    (mode?: string, initialMessages?: ChatMessage[], title?: string) => {
-      const newConv = createEmptyConversation(mode ?? currentMode);
+    (
+      mode?: string,
+      initialMessages?: ChatMessage[],
+      title?: string,
+      sessionKind: ChatSessionKind = 'standard',
+    ) => {
+      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       if (initialMessages && initialMessages.length > 0) {
         newConv.messages = initialMessages;
         newConv.title = title ?? generateTitle(initialMessages);
@@ -309,10 +322,16 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     [activeId, currentMode],
   );
 
+  const patchConversation = useCallback((id: string, patch: Partial<Conversation>) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)),
+    );
+  }, []);
+
   /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
   const discardActiveAndCreateConversation = useCallback(
-    (mode?: string) => {
-      const newConv = createEmptyConversation(mode ?? currentMode);
+    (mode?: string, sessionKind: ChatSessionKind = 'standard') => {
+      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       setConversations((prev) => {
         const filtered = prev.filter((c) => c.id !== activeId);
         let updated = [newConv, ...filtered];
@@ -330,13 +349,22 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   const deleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => {
-        const filtered = prev.filter((c) => c.id !== id);
+        const deleted = prev.find((c) => c.id === id);
+        const idsToRemove = new Set<string>([id]);
+        if (deleted && !deleted.isThread) {
+          for (const c of prev) {
+            if (c.isThread && c.parentConversationId === id) {
+              idsToRemove.add(c.id);
+            }
+          }
+        }
+        const filtered = prev.filter((c) => !idsToRemove.has(c.id));
         if (filtered.length === 0) {
           const newConv = createEmptyConversation(currentMode);
           setActiveId(newConv.id);
           return [newConv];
         }
-        if (id === activeId) {
+        if (idsToRemove.has(activeId)) {
           setActiveId(filtered[0].id);
         }
         return filtered;
@@ -358,11 +386,13 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   }, []);
 
   const toggleSavedToProject = useCallback((id: string) => {
-    setConversations((prev) =>
-      prev.map((c) =>
+    setConversations((prev) => {
+      const target = prev.find((c) => c.id === id);
+      if (target?.isThread) return prev;
+      return prev.map((c) =>
         c.id === id ? { ...c, savedToProject: !c.savedToProject, updatedAt: Date.now() } : c,
-      ),
-    );
+      );
+    });
   }, []);
 
   /**
@@ -378,7 +408,9 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       projectTimerRef.current = null;
     }
     const newConv = createEmptyConversation(currentModeRef.current);
-    const pinned = conversationsRef.current.filter((c) => c.savedToProject === true);
+    const list = conversationsRef.current;
+    const byId = buildConversationById(list);
+    const pinned = list.filter((c) => effectiveSavedToProject(c, byId));
     const sortedPinned = [...pinned].sort((a, b) => b.updatedAt - a.updatedAt);
     const next = [newConv, ...sortedPinned].slice(0, MAX_CONVERSATIONS);
     setConversations(next);
@@ -415,6 +447,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     hydrated,
     updateMessages,
     createConversation,
+    patchConversation,
     discardActiveAndCreateConversation,
     deleteConversation,
     switchConversation,

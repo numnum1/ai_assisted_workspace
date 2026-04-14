@@ -1,12 +1,114 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Square, BookOpen, Layers, Library, Zap, FileText, File, X, Maximize2, Wrench } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Send, Square, BookOpen, Zap, X, Maximize2, Wrench, Globe, FolderOpen, Sparkles } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
-import { shadowApi, filesApi } from '../../api.ts';
-import type { ChapterNode, WikiType, WikiEntry, SelectionContext, FileNode } from '../../types.ts';
+import { wikiApi } from '../../api.ts';
+import type { SelectionContext } from '../../types.ts';
+import { CHAT_TOOLKIT_IDS } from '../../types.ts';
+
+const EMPTY_DISABLED_TOOLKITS = new Set<string>();
+
+const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'web', label: 'Web-Suche', icon: Globe },
+  { id: 'wiki', label: 'Wiki', icon: BookOpen },
+  { id: 'dateisystem', label: 'Dateisystem', icon: FolderOpen },
+  { id: 'assistant', label: 'Assistent', icon: Sparkles },
+];
+
+function ToolkitMenuButton({
+  disabledToolkits,
+  onToggleToolkit,
+  streaming,
+}: {
+  disabledToolkits: ReadonlySet<string>;
+  onToggleToolkit?: (kitId: string) => void;
+  streaming: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open]);
+
+  if (!onToggleToolkit) return null;
+
+  const n = disabledToolkits.size;
+  const total = CHAT_TOOLKIT_IDS.length;
+  let wrenchClass = 'chat-tools-toggle-btn';
+  if (n === total) wrenchClass += ' chat-tools-toggle-btn--off';
+  else if (n > 0) wrenchClass += ' chat-tools-toggle-btn--partial';
+  else wrenchClass += ' active';
+
+  const title =
+    n === 0
+      ? 'Toolkits — alle aktiv (klicken für Einstellungen)'
+      : n === total
+        ? 'Toolkits — alle aus (klicken für Einstellungen)'
+        : `Toolkits — ${total - n} von ${total} aktiv (klicken für Einstellungen)`;
+
+  return (
+    <div ref={wrapRef} className="chat-toolkit-wrap">
+      <button
+        type="button"
+        className={wrenchClass}
+        onClick={() => setOpen((o) => !o)}
+        title={title}
+        disabled={streaming}
+        aria-expanded={open}
+        aria-haspopup="true"
+      >
+        <Wrench size={15} />
+      </button>
+      {open && (
+        <div
+          className="chat-toolkit-popover"
+          role="menu"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <div className="chat-toolkit-popover-title">KI-Toolkits</div>
+          {TOOLKIT_ROWS.map(({ id, label, icon: Icon }) => {
+            const enabled = !disabledToolkits.has(id);
+            return (
+              <div key={id} className="chat-toolkit-row" role="none">
+                <Icon size={14} aria-hidden />
+                <span>{label}</span>
+                <button
+                  type="button"
+                  className={`chat-toolkit-row-toggle${enabled ? ' chat-toolkit-row-toggle--on' : ''}`}
+                  role="menuitem"
+                  onClick={() => onToggleToolkit(id)}
+                >
+                  {enabled ? 'An' : 'Aus'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type AutocompleteItem = {
-  type: 'chapter' | 'scene' | 'wiki' | 'shadow' | 'file';
+  type: 'wiki';
   title: string;
   path: string;
   breadcrumb: string;
@@ -21,8 +123,8 @@ function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem
   ).slice(0, limit);
 }
 
-/** ~12 lines at 13px / 1.4 line-height + vertical padding; must match fullscreen .chat-textarea min-height */
-const CHAT_TEXTAREA_FULLSCREEN_MIN_PX = Math.round(16 + 12 * 1.4 * 13);
+/** Empty field: one line; padding 8+8 + 13px * 1.4 line-height ≈ 38px — keep in sync with .chat-textarea min-height */
+const CHAT_TEXTAREA_MIN_HEIGHT_PX = 38;
 
 function chatTextareaMaxHeightPx(fullscreen: boolean): number {
   if (!fullscreen) return 200;
@@ -30,20 +132,17 @@ function chatTextareaMaxHeightPx(fullscreen: boolean): number {
   return Math.min(Math.round(window.innerHeight * 0.5), 480);
 }
 
-function flattenFileTree(node: FileNode): AutocompleteItem[] {
-  const results: AutocompleteItem[] = [];
-  if (!node.directory && node.path !== '.') {
-    const dir = node.path.includes('/')
-      ? node.path.slice(0, node.path.lastIndexOf('/'))
-      : '';
-    results.push({ type: 'file', title: node.name, path: node.path, breadcrumb: dir });
-  }
-  if (node.children) {
-    for (const child of node.children) {
-      results.push(...flattenFileTree(child));
-    }
-  }
-  return results;
+const WIKI_PREFIX = 'wiki/';
+
+function wikiDisplayTitle(relativePath: string): string {
+  const parts = relativePath.split('/');
+  const filename = parts[parts.length - 1] ?? relativePath;
+  return filename.replace(/\.md$/i, '').replace(/[-_]/g, ' ');
+}
+
+function wikiBreadcrumb(relativePath: string): string {
+  const parts = relativePath.split('/');
+  return parts.length > 1 ? parts[parts.length - 2]! : 'wiki';
 }
 
 interface ChatInputProps {
@@ -56,14 +155,14 @@ interface ChatInputProps {
   /** When true, file chips are not shown (e.g. Prompt-Paket panel already lists them). */
   hideFileChips?: boolean;
   placeholder?: string;
-  /** Active subproject root path — scopes chapter/scene autocomplete to that folder */
+  /** Active subproject root path — clears @-mention cache when it changes */
   structureRoot?: string | null;
   /** Whether the reasoning model should be used for this message */
   useReasoning?: boolean;
   onToggleReasoning?: () => void;
-  /** When true, tools are off (API receives no tool definitions). */
-  toolsDisabled?: boolean;
-  onToggleToolsDisabled?: () => void;
+  /** Toolkit ids whose tools are omitted for requests (see CHAT_TOOLKIT_IDS). */
+  disabledToolkits?: ReadonlySet<string>;
+  onToggleToolkit?: (kitId: string) => void;
   /** False when the currently selected LLM has no reasoning configuration */
   reasoningAvailable?: boolean;
   /** False when the currently selected LLM has no fast configuration (reasoning-only) */
@@ -89,8 +188,8 @@ export function ChatInput({
   structureRoot = null,
   useReasoning = false,
   onToggleReasoning,
-  toolsDisabled = false,
-  onToggleToolsDisabled,
+  disabledToolkits = EMPTY_DISABLED_TOOLKITS,
+  onToggleToolkit,
   reasoningAvailable = true,
   fastAvailable = true,
   activeSelection = null,
@@ -124,9 +223,8 @@ export function ChatInput({
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
-    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
     const maxH = chatTextareaMaxHeightPx(fullscreen);
-    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
   }, [fullscreen]);
 
   useEffect(() => {
@@ -191,84 +289,23 @@ export function ChatInput({
   const loadItems = useCallback(async (): Promise<AutocompleteItem[]> => {
     if (itemsCacheRef.current) return itemsCacheRef.current;
 
-    const rootParam = structureRoot ? `?root=${encodeURIComponent(structureRoot)}` : '';
-
-    const [summaries, wikiTypes, shadowResult, fileTree] = await Promise.all([
-      fetch(`/api/chapters${rootParam}`).then(r => r.json()) as Promise<Array<{ id: string; meta: { title: string } }>>,
-      fetch('/api/wiki/types').then(r => r.json()) as Promise<WikiType[]>,
-      shadowApi.list().catch(() => ({ paths: [] as string[] })),
-      filesApi.getTree().catch(() => null as FileNode | null),
-    ]);
-
-    const details = await Promise.all(
-      summaries.map(s => fetch(`/api/chapters/${s.id}${rootParam}`).then(r => r.json()) as Promise<ChapterNode>)
-    );
-
-    const items: AutocompleteItem[] = [];
-
-    // Chapters and scenes (no actions)
-    const chapterBase = structureRoot ? `${structureRoot}/.project/chapter` : '.project/chapter';
-    for (const chapter of details) {
-      const chapterTitle = chapter.meta.title || chapter.id;
-      items.push({
-        type: 'chapter',
-        title: chapterTitle,
-        path: `${chapterBase}/${chapter.id}.json`,
-        breadcrumb: '',
-      });
-      for (const scene of chapter.scenes) {
-        const sceneTitle = scene.meta.title || scene.id;
-        items.push({
-          type: 'scene',
-          title: sceneTitle,
-          path: `${chapterBase}/${chapter.id}/${scene.id}.json`,
-          breadcrumb: chapterTitle,
-        });
-      }
+    let relativePaths: string[] = [];
+    try {
+      relativePaths = await wikiApi.listFiles();
+    } catch {
+      relativePaths = [];
     }
 
-    // Wiki entries (respecting excludeFromMentions)
-    const includedTypes = wikiTypes.filter(t => !t.excludeFromMentions);
-    const wikiEntries = await Promise.all(
-      includedTypes.map(t =>
-        fetch(`/api/wiki/types/${t.id}/entries`)
-          .then(r => r.json())
-          .then((entries: WikiEntry[]) => ({ type: t, entries }))
-      )
-    );
-    for (const { type: wType, entries } of wikiEntries) {
-      for (const entry of entries) {
-        const displayName = entry.values['name'] || entry.values['title'] || entry.id;
-        items.push({
-          type: 'wiki',
-          title: displayName,
-          path: `.wiki/entries/${wType.id}/${entry.id}.json`,
-          breadcrumb: wType.name,
-        });
-      }
-    }
-
-    // Shadow / meta-note files
-    for (const p of shadowResult.paths) {
-      const base = p.includes('/') ? p.slice(p.lastIndexOf('/') + 1) : p;
-      const dot = base.lastIndexOf('.');
-      const displayName = dot > 0 ? base.slice(0, dot) : base;
-      items.push({
-        type: 'shadow',
-        title: displayName,
-        path: `.wiki/files/${p}`,
-        breadcrumb: 'Meta-Notiz',
-      });
-    }
-
-    // Project files (regular files visible in the file tree)
-    if (fileTree) {
-      items.push(...flattenFileTree(fileTree));
-    }
+    const items: AutocompleteItem[] = relativePaths.map((rel) => ({
+      type: 'wiki',
+      title: wikiDisplayTitle(rel),
+      path: `${WIKI_PREFIX}${rel}`,
+      breadcrumb: wikiBreadcrumb(rel),
+    }));
 
     itemsCacheRef.current = items;
     return items;
-  }, [structureRoot]);
+  }, []);
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
@@ -312,9 +349,8 @@ export function ChatInput({
     // Auto-resize
     const ta = e.target;
     ta.style.height = 'auto';
-    const minH = fullscreen ? CHAT_TEXTAREA_FULLSCREEN_MIN_PX : 38;
     const maxH = chatTextareaMaxHeightPx(fullscreen);
-    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, minH), maxH)}px`;
+    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
 
     // Detect @ pattern — stop at whitespace; ignore already-inserted paths (contain / or start with .)
     const textBefore = newText.slice(0, cursor);
@@ -424,17 +460,7 @@ export function ChatInput({
               }
             >
               <span className="ac-item-icon">
-                {item.type === 'chapter' ? (
-                  <BookOpen size={13} />
-                ) : item.type === 'scene' ? (
-                  <Layers size={13} />
-                ) : item.type === 'shadow' ? (
-                  <FileText size={13} />
-                ) : item.type === 'file' ? (
-                  <File size={13} />
-                ) : (
-                  <Library size={13} />
-                )}
+                <BookOpen size={13} />
               </span>
               <span className="ac-item-title">{item.title}</span>
               {item.breadcrumb && (
@@ -469,74 +495,64 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="chat-input-row">
-        <textarea
-          ref={textareaRef}
-          className="chat-textarea"
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          placeholder={
-            streaming
-              ? 'AI is responding...'
-              : (placeholderProp ??
-                'Nachricht...')
-          }
-          disabled={streaming}
-          rows={fullscreen ? 12 : 1}
-        />
-        <button
-          type="button"
-          className="chat-expand-btn"
-          onClick={() => setExpandOpen(true)}
-          title="Prompt-Fenster öffnen (großes Eingabefeld)"
-          disabled={streaming}
-        >
-          <Maximize2 size={14} />
-        </button>
-        {onToggleReasoning && reasoningAvailable && fastAvailable && (
-          <button
-            type="button"
-            className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
-            onClick={onToggleReasoning}
-            title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
-            disabled={streaming}
-          >
-            <Zap size={15} />
-          </button>
-        )}
-        {onToggleToolsDisabled && (
-          <button
-            type="button"
-            className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ''}`}
-            onClick={onToggleToolsDisabled}
-            title={
-              toolsDisabled
-                ? 'Tools aus — KI-API ohne Function Calling (klicken zum Aktivieren)'
-                : 'Tools an — Wiki/Datei-Tools an die API senden (klicken zum Deaktivieren)'
+      <div className="chat-input-toolbar-card">
+        <div className="chat-input-row">
+          <textarea
+            ref={textareaRef}
+            className="chat-textarea"
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            placeholder={
+              streaming
+                ? 'AI antwortet… (du kannst bereits tippen)'
+                : (placeholderProp ??
+                  'Nachricht...')
             }
-            disabled={streaming}
-            aria-pressed={!toolsDisabled}
-          >
-            <Wrench size={15} />
-          </button>
-        )}
-        {streaming ? (
-          <button className="chat-send-btn stop" onClick={onStop} title="Stop">
-            <Square size={16} />
-          </button>
-        ) : (
+            rows={1}
+          />
           <button
-            className="chat-send-btn"
-            onClick={handleSend}
-            disabled={!text.trim()}
-            title="Send (Enter)"
+            type="button"
+            className="chat-expand-btn"
+            onClick={() => setExpandOpen(true)}
+            title="Prompt-Fenster öffnen (großes Eingabefeld)"
+            disabled={streaming}
           >
-            <Send size={16} />
+            <Maximize2 size={14} />
           </button>
-        )}
+          {onToggleReasoning && reasoningAvailable && fastAvailable && (
+            <button
+              type="button"
+              className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+              onClick={onToggleReasoning}
+              title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+              disabled={streaming}
+            >
+              <Zap size={15} />
+            </button>
+          )}
+          <ToolkitMenuButton
+            disabledToolkits={disabledToolkits}
+            onToggleToolkit={onToggleToolkit}
+            streaming={streaming}
+          />
+          {streaming ? (
+            <button className="chat-send-btn stop" onClick={onStop} title="Stop">
+              <Square size={16} />
+            </button>
+          ) : (
+            <button
+              className="chat-send-btn"
+              onClick={handleSend}
+              disabled={!text.trim()}
+              title="Send (Enter)"
+            >
+              <Send size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {expandOpen && createPortal(
@@ -594,41 +610,33 @@ export function ChatInput({
 
             <div className="chat-expand-modal-footer">
               <span className="chat-expand-hint">Strg+Enter zum Senden · Esc zum Schließen</span>
-              <div className="chat-expand-footer-actions">
-                {onToggleReasoning && reasoningAvailable && fastAvailable && (
+              <div className="chat-input-toolbar-card chat-expand-toolbar-card">
+                <div className="chat-expand-footer-actions">
+                  {onToggleReasoning && reasoningAvailable && fastAvailable && (
+                    <button
+                      type="button"
+                      className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+                      onClick={onToggleReasoning}
+                      title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+                    >
+                      <Zap size={15} />
+                    </button>
+                  )}
+                  <ToolkitMenuButton
+                    disabledToolkits={disabledToolkits}
+                    onToggleToolkit={onToggleToolkit}
+                    streaming={streaming}
+                  />
                   <button
                     type="button"
-                    className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
-                    onClick={onToggleReasoning}
-                    title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+                    className="chat-send-btn"
+                    onClick={handleSend}
+                    disabled={!text.trim()}
+                    title="Senden (Strg+Enter)"
                   >
-                    <Zap size={15} />
+                    <Send size={16} />
                   </button>
-                )}
-                {onToggleToolsDisabled && (
-                  <button
-                    type="button"
-                    className={`chat-tools-toggle-btn${toolsDisabled ? ' chat-tools-toggle-btn--off' : ''}`}
-                    onClick={onToggleToolsDisabled}
-                    title={
-                      toolsDisabled
-                        ? 'Tools aus — KI-API ohne Function Calling (klicken zum Aktivieren)'
-                        : 'Tools an — Wiki/Datei-Tools an die API senden (klicken zum Deaktivieren)'
-                    }
-                    aria-pressed={!toolsDisabled}
-                  >
-                    <Wrench size={15} />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="chat-send-btn"
-                  onClick={handleSend}
-                  disabled={!text.trim()}
-                  title="Senden (Strg+Enter)"
-                >
-                  <Send size={16} />
-                </button>
+                </div>
               </div>
             </div>
           </div>
