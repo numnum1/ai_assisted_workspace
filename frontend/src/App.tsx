@@ -47,7 +47,10 @@ import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
 import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
-import { parseSteeringPlanFromAssistant } from './components/chat/planFenceUtils.ts';
+import {
+  ensureSteeringPlanMarkedComplete,
+  parseSteeringPlanFromAssistant,
+} from './components/chat/planFenceUtils.ts';
 
 /** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
@@ -939,6 +942,15 @@ function App() {
     history.switchConversation(id);
   }, [history]);
 
+  const handleMarkSteeringPlanComplete = useCallback(() => {
+    const conv = history.activeConversation;
+    if (!conv || conv.sessionKind !== 'guided') return;
+    const current = conv.steeringPlan ?? '';
+    if (!current.trim()) return;
+    const next = ensureSteeringPlanMarkedComplete(current);
+    history.patchConversation(conv.id, { steeringPlan: next });
+  }, [history]);
+
   const activeChapterTitle = chapter.activeChapter?.meta.title ?? null;
 
   return (
@@ -1180,6 +1192,7 @@ function App() {
             activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
             steeringPlan={history.activeConversation?.steeringPlan ?? ''}
             activeIsThread={history.activeConversation?.isThread === true}
+            onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}

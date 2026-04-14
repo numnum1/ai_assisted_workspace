@@ -85,6 +85,8 @@ interface ChatPanelProps {
   activeIsThread?: boolean;
   /** Persisted steering plan markdown (guided sessions). */
   steeringPlan?: string;
+  /** Mark the current guided steering plan complete without sending a chat message. */
+  onMarkSteeringPlanComplete?: () => void;
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
@@ -534,6 +536,77 @@ function ChatMessagesPane({
   );
 }
 
+function GuidedSteeringPlanSection({
+  open,
+  onToggleOpen,
+  steeringPlan,
+  parsedSteeringPlan,
+  streaming,
+  onMarkSteeringPlanComplete,
+}: {
+  open: boolean;
+  onToggleOpen: () => void;
+  steeringPlan: string;
+  parsedSteeringPlan: ParsedSteeringPlan;
+  streaming: boolean;
+  onMarkSteeringPlanComplete?: () => void;
+}) {
+  const hasPlan = Boolean(steeringPlan?.trim());
+  const markDisabled =
+    streaming ||
+    !hasPlan ||
+    parsedSteeringPlan.isComplete ||
+    !onMarkSteeringPlanComplete;
+
+  let markTitle: string | undefined;
+  if (parsedSteeringPlan.isComplete) {
+    markTitle = 'Plan ist bereits als abgeschlossen markiert';
+  } else if (streaming) {
+    markTitle = 'Während einer Antwort nicht möglich';
+  } else if (!hasPlan) {
+    markTitle = 'Zuerst einen Plan durch die Assistentin anlegen lassen';
+  }
+
+  return (
+    <div className="chat-steering-plan-panel">
+      <button
+        type="button"
+        className="chat-steering-plan-toggle"
+        onClick={onToggleOpen}
+        aria-expanded={open}
+      >
+        Arbeitsplan
+        <span className="chat-steering-plan-chevron">{open ? '▼' : '▶'}</span>
+      </button>
+      {open && (
+        <div className="chat-steering-plan-body">
+          {hasPlan ? (
+            <>
+              <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
+              <div className="chat-steering-plan-actions">
+                <button
+                  type="button"
+                  className="chat-steering-plan-mark-complete-btn"
+                  disabled={markDisabled}
+                  title={markTitle}
+                  onClick={() => onMarkSteeringPlanComplete?.()}
+                >
+                  Plan als abgeschlossen markieren
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="chat-steering-plan-empty">
+              Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als Markdown-Block mit
+              Sprache <code>plan</code> an.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel({
   messages,
   streaming,
@@ -583,6 +656,7 @@ export function ChatPanel({
   onFileChanged,
   activeSessionKind = 'standard',
   steeringPlan = '',
+  onMarkSteeringPlanComplete,
   activeIsThread = false,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -706,6 +780,8 @@ export function ChatPanel({
   }, [conversations, activeConversationId]);
 
   const showThreadSplit = Boolean(isFullscreen && activeIsThread && threadRail.rootConv);
+  const splitRoot = showThreadSplit && threadRail.rootConv ? threadRail.rootConv : null;
+  const threadsRailRoot = threadRail.showRail && threadRail.rootConv ? threadRail.rootConv : null;
 
   const cancelEdit = useCallback(() => setEditingIdx(null), []);
 
@@ -932,9 +1008,9 @@ export function ChatPanel({
   );
 
   const parentReadonlyMessagesEl =
-    showThreadSplit && threadRail.rootConv ? (
+    splitRoot ? (
       <ChatMessagesPane
-        messages={threadRail.rootConv.messages}
+        messages={splitRoot.messages}
         readOnly
         scrollRef={parentMessagesScrollRef}
         streaming={false}
@@ -1051,13 +1127,13 @@ export function ChatPanel({
       )}
 
       <div className={`chat-panel-body${showThreadSplit ? ' chat-panel-body--thread-split' : ''}`}>
-        {showThreadSplit && threadRail.rootConv ? (
+        {splitRoot ? (
           <>
             <div className="chat-thread-split-left">
               <div className="chat-thread-split-pane-header">
                 <span className="chat-thread-split-pane-label">Haupt-Chat</span>
-                <span className="chat-thread-split-pane-title" title={threadRail.rootConv.title}>
-                  {threadRail.rootConv.title}
+                <span className="chat-thread-split-pane-title" title={splitRoot.title}>
+                  {splitRoot.title}
                 </span>
               </div>
               <div className="chat-thread-split-left-scroll">{parentReadonlyMessagesEl}</div>
@@ -1067,9 +1143,9 @@ export function ChatPanel({
                 <button
                   type="button"
                   role="tab"
-                  className={`chat-thread-split-switcher-btn${threadRail.rootConv.id === activeConversationId ? ' active' : ''}`}
-                  onClick={() => onSwitchChat(threadRail.rootConv.id)}
-                  title={threadRail.rootConv.title}
+                  className={`chat-thread-split-switcher-btn${splitRoot.id === activeConversationId ? ' active' : ''}`}
+                  onClick={() => onSwitchChat(splitRoot.id)}
+                  title={splitRoot.title}
                 >
                   Haupt-Chat
                 </button>
@@ -1089,29 +1165,14 @@ export function ChatPanel({
               <div className="chat-panel-body-main">
                 {interactiveMessagesEl}
                 {activeSessionKind === 'guided' && (
-                  <div className="chat-steering-plan-panel">
-                    <button
-                      type="button"
-                      className="chat-steering-plan-toggle"
-                      onClick={() => setSteeringPlanOpen((o) => !o)}
-                      aria-expanded={steeringPlanOpen}
-                    >
-                      Arbeitsplan
-                      <span className="chat-steering-plan-chevron">{steeringPlanOpen ? '▼' : '▶'}</span>
-                    </button>
-                    {steeringPlanOpen && (
-                      <div className="chat-steering-plan-body">
-                        {steeringPlan?.trim() ? (
-                          <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
-                        ) : (
-                          <p className="chat-steering-plan-empty">
-                            Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als
-                            Markdown-Block mit Sprache <code>plan</code> an.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <GuidedSteeringPlanSection
+                    open={steeringPlanOpen}
+                    onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
+                    steeringPlan={steeringPlan}
+                    parsedSteeringPlan={parsedSteeringPlan}
+                    streaming={streaming}
+                    onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
+                  />
                 )}
                 <div className="chat-composer-stack">
                   {pendingClarification && pendingClarification.length > 0 ? (
@@ -1161,29 +1222,14 @@ export function ChatPanel({
             <div className="chat-panel-body-main">
               {interactiveMessagesEl}
               {activeSessionKind === 'guided' && (
-                <div className="chat-steering-plan-panel">
-                  <button
-                    type="button"
-                    className="chat-steering-plan-toggle"
-                    onClick={() => setSteeringPlanOpen((o) => !o)}
-                    aria-expanded={steeringPlanOpen}
-                  >
-                    Arbeitsplan
-                    <span className="chat-steering-plan-chevron">{steeringPlanOpen ? '▼' : '▶'}</span>
-                  </button>
-                  {steeringPlanOpen && (
-                    <div className="chat-steering-plan-body">
-                      {steeringPlan?.trim() ? (
-                        <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
-                      ) : (
-                        <p className="chat-steering-plan-empty">
-                          Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als Markdown-Block
-                          mit Sprache <code>plan</code> an.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <GuidedSteeringPlanSection
+                  open={steeringPlanOpen}
+                  onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
+                  steeringPlan={steeringPlan}
+                  parsedSteeringPlan={parsedSteeringPlan}
+                  streaming={streaming}
+                  onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
+                />
               )}
               <div className="chat-composer-stack">
                 {pendingClarification && pendingClarification.length > 0 ? (
@@ -1226,18 +1272,18 @@ export function ChatPanel({
                 />
               </div>
             </div>
-            {threadRail.showRail && threadRail.rootConv && (
+            {threadsRailRoot && (
               <aside className="chat-threads-rail" aria-label="Threads">
                 <div className="chat-threads-rail-header">Threads</div>
                 <div className="chat-threads-rail-list">
                   <button
                     type="button"
-                    className={`chat-threads-rail-item${threadRail.rootConv.id === activeConversationId ? ' active' : ''}`}
-                    onClick={() => onSwitchChat(threadRail.rootConv.id)}
-                    title={threadRail.rootConv.title}
+                    className={`chat-threads-rail-item${threadsRailRoot.id === activeConversationId ? ' active' : ''}`}
+                    onClick={() => onSwitchChat(threadsRailRoot.id)}
+                    title={threadsRailRoot.title}
                   >
                     <span className="chat-threads-rail-item-meta">Haupt-Chat</span>
-                    <span className="chat-threads-rail-item-title">{threadRail.rootConv.title}</span>
+                    <span className="chat-threads-rail-item-title">{threadsRailRoot.title}</span>
                   </button>
                   {threadRail.threads.map((t) => (
                     <button

@@ -3620,6 +3620,35 @@ body.file-tree-native-dragging {
   overflow-y: auto;
 }
 
+.chat-steering-plan-actions {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-steering-plan-mark-complete-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-secondary));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.chat-steering-plan-mark-complete-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-secondary));
+}
+
+.chat-steering-plan-mark-complete-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .chat-steering-plan-md {
   font-size: 12px;
   line-height: 1.45;

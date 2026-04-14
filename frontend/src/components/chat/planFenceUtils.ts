@@ -45,6 +45,21 @@ export function isPlanCompleted(content: string): boolean {
          /##\s*status:?\s*abgeschlossen/i.test(content);
 }
 
+const MANUAL_COMPLETE_SUFFIX =
+  '\n\n## Status: Abgeschlossen\n\nManuell vom Nutzer markiert.\n';
+
+/**
+ * Appends a completion marker so {@link isPlanCompleted} and the Arbeitsplan viewer treat the plan as done.
+ * Idempotent when the plan is already complete. Does not invent a plan from an empty string.
+ */
+export function ensureSteeringPlanMarkedComplete(steeringPlanMarkdown: string): string {
+  const trimmed = steeringPlanMarkdown?.trim() ?? '';
+  if (!trimmed) return steeringPlanMarkdown ?? '';
+  if (isPlanCompleted(trimmed)) return steeringPlanMarkdown;
+  const base = steeringPlanMarkdown.replace(/\s+$/, '');
+  return `${base}${MANUAL_COMPLETE_SUFFIX}`;
+}
+
 export interface ParsedSteeringPlan {
   rawMarkdown: string;
   isComplete: boolean;
