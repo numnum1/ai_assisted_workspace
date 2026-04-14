@@ -216,6 +216,18 @@ function App() {
   /** Avoid toolbar ↔ conversation ping-pong: only pull agent fields from conv when conv or active chat actually changed. */
   const prevModeSyncActiveIdRef = useRef<string | null>(null);
   const prevAgentPersistSigRef = useRef('');
+  /**
+   * Skips re-running applyLlmPrefsFromStorage on every mode-sync effect pass (same project/chat/load gen).
+   * Re-applying on each pass caused setState + dependency churn → maximum update depth exceeded.
+   * Cleared when the active conversation has agent execution so switching back to a normal chat re-syncs prefs.
+   */
+  const lastNonAgentToolbarPrefsSyncRef = useRef<{
+    projectPath: string;
+    activeId: string;
+    loadGen: number;
+    /** Re-sync when mode list reloads (e.g. loadModes after settings) without bumping loadGen. */
+    modesSig: string;
+  } | null>(null);
 
   const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
   const handleToggleToolkit = useCallback((kitId: string) => {
@@ -486,6 +498,7 @@ function App() {
     prevAgentPersistSigRef.current = apSig;
 
     if (conversationHasAgentExecution(convAfter)) {
+      lastNonAgentToolbarPrefsSyncRef.current = null;
       const pullAgentFromConv = switchedConv || agentPersistChanged;
 
       if (pullAgentFromConv) {
@@ -516,7 +529,26 @@ function App() {
         }
       }
     } else if (prefsHydratedRef.current) {
-      applyLlmPrefsFromStorage();
+      const pp = project.projectPath ?? '';
+      const aid = history.activeId;
+      const gen = modesAndLlmLoadGeneration;
+      const modesSig = modes.map((m) => m.id).join('\0');
+      const prevSync = lastNonAgentToolbarPrefsSyncRef.current;
+      if (
+        !prevSync ||
+        prevSync.projectPath !== pp ||
+        prevSync.activeId !== aid ||
+        prevSync.loadGen !== gen ||
+        prevSync.modesSig !== modesSig
+      ) {
+        lastNonAgentToolbarPrefsSyncRef.current = {
+          projectPath: pp,
+          activeId: aid,
+          loadGen: gen,
+          modesSig,
+        };
+        applyLlmPrefsFromStorage();
+      }
     }
   }, [
     history.hydrated,
