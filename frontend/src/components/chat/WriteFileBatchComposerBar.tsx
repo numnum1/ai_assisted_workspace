@@ -51,31 +51,38 @@ export function WriteFileBatchComposerBar({
   if (items.length === 0) return null;
 
   const n = items.length;
-  const title =
+  const summary = n === 1 ? '1 pending change' : `${n} pending changes`;
+  const ariaLabel =
     n === 1
-      ? 'One pending file change — accept or revert above the input.'
-      : `${n} pending file changes — accept or revert all at once.`;
+      ? 'One pending file change. Revert all or accept all.'
+      : `${n} pending file changes. Revert all or accept all.`;
 
   return (
-    <div className="wf-batch-composer sac-surface chat-pending-changes-bar">
-      <p className="wf-batch-composer-title">{title}</p>
-      <div className="sac-footer wf-batch-composer-footer">
+    <div
+      className="wf-batch-composer wf-batch-composer--compact chat-pending-changes-bar"
+      role="toolbar"
+      aria-label={ariaLabel}
+    >
+      <span className="wf-batch-composer-summary">{summary}</span>
+      <div className="wf-batch-composer-actions">
         <button
           type="button"
-          className="wf-batch-btn wf-batch-btn--revert"
+          className="wf-batch-btn wf-batch-btn--revert wf-batch-btn--compact"
           disabled={disabled || busy}
           onClick={revertAll}
+          title="Discard all pending edits from this batch"
         >
-          <RotateCcw size={14} />
+          <RotateCcw size={13} strokeWidth={2} />
           Revert All
         </button>
         <button
           type="button"
-          className="sac-submit wf-batch-btn"
+          className="wf-batch-btn wf-batch-btn--accept wf-batch-btn--compact"
           disabled={disabled || busy}
           onClick={applyAll}
+          title="Apply all pending edits to disk"
         >
-          <Check size={14} />
+          <Check size={13} strokeWidth={2} />
           Accept All
         </button>
       </div>

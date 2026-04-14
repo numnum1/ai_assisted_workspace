@@ -2601,6 +2601,11 @@ body.file-tree-native-dragging {
   padding: 4px 8px;
 }
 
+/* ChangeCard returns null after dismiss; keep wrapper from leaving padding/gap in the chat column */
+.change-card-wrapper:not(:has(.change-card)) {
+  display: none;
+}
+
 .change-card-group {
   display: flex;
   flex-direction: column;
@@ -4007,57 +4012,83 @@ body.file-tree-native-dragging {
   cursor: default;
 }
 
-/* Multi write_file batch ÔÇö composer strip (above ChatInput, like SuggestedActionsCard) */
+/* Pending write_file batch ÔÇö thin toolbar above ChatInput (Cursor-style) */
 .wf-batch-composer {
   width: 100%;
 }
 
-.wf-batch-composer-title {
-  margin: 0 0 4px;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-
-.wf-batch-composer-footer {
+.wf-batch-composer--compact {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+  justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-muted) 5%, var(--bg-primary));
 }
 
-/* Pending write_file changes ÔÇö bulk strip directly above ChatInput */
-.chat-pending-changes-bar .wf-batch-composer-title {
-  color: var(--text-secondary);
+.wf-batch-composer-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-batch-composer-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
 }
 
 .wf-batch-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
-.wf-batch-btn--revert {
-  padding: 5px 14px;
-  border: 1px solid var(--border);
+.wf-batch-btn--compact {
+  padding: 3px 9px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-primary));
-  color: var(--text-primary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: opacity 0.15s, border-color 0.15s;
+  transition: opacity 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.wf-batch-btn--revert {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .wf-batch-btn--revert:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--red, #f38ba8) 50%, var(--border));
+  border-color: color-mix(in srgb, var(--red, #f38ba8) 45%, var(--border));
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
 }
 
-.wf-batch-btn--revert:disabled {
+.wf-batch-btn--accept {
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.wf-batch-btn--accept:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.wf-batch-btn--revert:disabled,
+.wf-batch-btn--accept:disabled {
   opacity: 0.4;
   cursor: default;
 }

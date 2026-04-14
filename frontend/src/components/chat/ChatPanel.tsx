@@ -1196,14 +1196,12 @@ export function ChatPanel({
                     </ChatComposerCard>
                   ) : null}
                   {pendingWriteFileItems.length > 0 && !streaming ? (
-                    <ChatComposerCard>
-                      <WriteFileBatchComposerBar
-                        items={pendingWriteFileItems}
-                        onBulkComplete={handleWriteFileBulkComplete}
-                        onFileChanged={onFileChanged}
-                        disabled={streaming}
-                      />
-                    </ChatComposerCard>
+                    <WriteFileBatchComposerBar
+                      items={pendingWriteFileItems}
+                      onBulkComplete={handleWriteFileBulkComplete}
+                      onFileChanged={onFileChanged}
+                      disabled={streaming}
+                    />
                   ) : null}
                   <ChatInput
                     onSend={onSend}
@@ -1253,14 +1251,12 @@ export function ChatPanel({
                   </ChatComposerCard>
                 ) : null}
                 {pendingWriteFileItems.length > 0 && !streaming ? (
-                  <ChatComposerCard>
-                    <WriteFileBatchComposerBar
-                      items={pendingWriteFileItems}
-                      onBulkComplete={handleWriteFileBulkComplete}
-                      onFileChanged={onFileChanged}
-                      disabled={streaming}
-                    />
-                  </ChatComposerCard>
+                  <WriteFileBatchComposerBar
+                    items={pendingWriteFileItems}
+                    onBulkComplete={handleWriteFileBulkComplete}
+                    onFileChanged={onFileChanged}
+                    disabled={streaming}
+                  />
                 ) : null}
                 <ChatInput
                   onSend={onSend}
