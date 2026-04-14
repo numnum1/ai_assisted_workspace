@@ -6,6 +6,7 @@ A local, AI-powered Markdown workspace with a three-panel Cursor-style UI: file 
 
 ### Editor & UI
 - **Three-panel layout** with resizable panels (file tree, editor, chat)
+- **Chat Threads**: branching conversations with threads rail, nested history, and fullscreen split-pane (parent + thread view)
 - **Editor tabs**: multiple files open at once; unsaved changes marked with a dot
 - **CodeMirror 6** Markdown editor with syntax highlighting and dark theme
 - **Markdown preview** via `react-markdown` with GFM support
@@ -21,8 +22,15 @@ A local, AI-powered Markdown workspace with a three-panel Cursor-style UI: file 
 - **Change cards**: after `write_file`, the chat shows a diff with **Apply** (drop revert snapshot) / **Revert** (restore previous file content)
 - **Glossary in chat**: successful `glossary_add` shows a short indicator; you can select text in chat and use **„Als Glossar-Begriff speichern“** to append a term via the API
 - **Multiple LLM providers**: OpenAI-compatible endpoints in app data (`ai-providers.json`)
-- **Chat history**: per project in `.assistant/chat-history.json`
-- **Session kinds**: When starting a **new chat** (dialog after the current thread has messages), choose **Standard** or **Guided session**. Guided sessions add server-side behaviour so the assistant leads with a visible **steering plan** (Markdown). The model updates the plan using a fenced code block tagged `plan`; the latest plan is stored on the conversation and sent with each request.
+- **Chat history**: per project in `.assistant/chat-history.json` (supports **threads** / branching conversations)
+- **Session kinds**: When starting a **new chat** or **thread** (dialog after the current conversation has messages), choose **Standard** or **Guided session**. Guided sessions add server-side behaviour so the assistant leads with a visible **steering plan** (Markdown). The model updates the plan using a fenced code block tagged `plan`; the latest plan is stored on the conversation and sent with each request.
+- **Threads**: Fork conversations from any assistant message using the „Thread starten“ button (appears in first tool-call of assistant turns or via message actions). 
+  - Creates a new **thread** with the parent transcript as hidden bootstrap context.
+  - Special system prompt: explains the branch and that previous messages are parent history to use as background.
+  - **Chat History** shows threads nested under parents with "Thread" badge; supports expand/collapse.
+  - **Threads rail** (sidebar) lists main chat + its threads for easy switching.
+  - In fullscreen mode: split-pane UI with read-only parent chat on the left and active thread on the right.
+  - Orphan threads (no parent) grouped separately. Thread mode/pinning follows parent root. Persisted in chat history.
 
 ### Modes
 Built-in chat modes change the system prompt (Story Review, Continuity Check, Spelling and Style, Brainstorm, Prompt-Paket, Struktur ausfüllen, …). Custom modes: `.assistant/modes/` or `backend/src/main/resources/modes/`.
