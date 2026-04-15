@@ -978,7 +978,7 @@ function App() {
           payload.sessionKind,
         );
         if (preset && payload.sessionKind === 'guided') {
-          history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset, payload.initialSteeringPlan));
+          history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset));
         } else {
           applyGuidedAgentFromNewChatDialog(
             newConv.id,
@@ -1024,7 +1024,7 @@ function App() {
           history.patchConversation(newConv.id, { title: t });
         }
         if (preset && payload.sessionKind === 'guided') {
-          history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset, payload.initialSteeringPlan));
+          history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset));
         } else {
           applyGuidedAgentFromNewChatDialog(
             newConv.id,

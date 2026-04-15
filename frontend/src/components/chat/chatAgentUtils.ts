@@ -39,14 +39,9 @@ export function agentExecutionPartialFromParent(parent: Conversation): Partial<C
   return out;
 }
 
-/** Guided session patch from a project agent preset (optional dialog plan overrides preset default). */
-export function buildGuidedAgentPatchFromPreset(
-  preset: AgentPreset,
-  dialogInitialPlan: string | undefined,
-): Partial<Conversation> {
-  const dialog = dialogInitialPlan?.trim();
-  const fallback = preset.initialSteeringPlan?.trim();
-  const steeringPlan = dialog || fallback;
+/** Guided session patch from a project agent preset (steering plan only from preset, if configured). */
+export function buildGuidedAgentPatchFromPreset(preset: AgentPreset): Partial<Conversation> {
+  const steeringPlan = preset.initialSteeringPlan?.trim();
   const patch: Partial<Conversation> = {
     mode: preset.modeId,
     agentUseReasoning: preset.useReasoning,
@@ -72,11 +67,9 @@ export function applyGuidedAgentFromNewChatDialog(
   patchConversation: (id: string, patch: Partial<Conversation>) => void,
 ): void {
   if (p.sessionKind !== 'guided') return;
-  const plan = p.initialSteeringPlan?.trim();
   patchConversation(convId, {
     mode: selectedMode,
     ...buildAgentExecutionPatchFromGlobals(global),
-    ...(plan ? { steeringPlan: plan } : {}),
   });
 }
 
