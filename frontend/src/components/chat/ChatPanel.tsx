@@ -1052,9 +1052,26 @@ export function ChatPanel({
       className={`chat-panel${isFullscreen ? ' chat-panel--expanded' : ''}${showThreadSplit ? ' chat-panel--thread-split' : ''}`}
     >
       <div className="chat-header">
-        <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
+        {activeSessionKind === 'guided' ? (
+          <div
+            className="chat-header-session-row chat-header-session-row--top"
+            aria-live="polite"
+          >
+            <span className="chat-header-session-badge chat-header-session-badge--guided">
+              Geführte Sitzung
+            </span>
+            <span
+              className="chat-header-session-agent"
+              title={guidedAgentTemplateLabel ?? 'Ohne Vorlage'}
+            >
+              {guidedAgentTemplateLabel ?? 'Ohne Vorlage'}
+            </span>
+          </div>
+        ) : (
+          <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
+        )}
         <div className="chat-header-actions">
-          {llms.length > 0 && onLlmChange && (
+          {activeSessionKind !== 'guided' && llms.length > 0 && onLlmChange && (
             <select
               className="chat-llm-select"
               value={selectedLlmId ?? ''}
@@ -1121,23 +1138,13 @@ export function ChatPanel({
             <Pencil size={11} />
           </button>
         </div>
-        <div className="chat-header-session-row" aria-live="polite">
-          {activeSessionKind === 'guided' ? (
-            <>
-              <span className="chat-header-session-badge chat-header-session-badge--guided">
-                Geführte Sitzung
-              </span>
-              <span
-                className="chat-header-session-agent"
-                title={guidedAgentTemplateLabel ?? 'Ohne Vorlage'}
-              >
-                {guidedAgentTemplateLabel ?? 'Ohne Vorlage'}
-              </span>
-            </>
-          ) : (
-            <span className="chat-header-session-badge chat-header-session-badge--standard">Standard</span>
-          )}
-        </div>
+        {activeSessionKind !== 'guided' && (
+          <div className="chat-header-session-row" aria-live="polite">
+            <span className="chat-header-session-badge chat-header-session-badge--standard">
+              Standard
+            </span>
+          </div>
+        )}
       </div>
 
       {historyOpen && (

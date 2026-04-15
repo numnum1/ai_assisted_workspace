@@ -2032,6 +2032,19 @@ body.file-tree-native-dragging {
   border-bottom: 1px solid var(--border);
 }
 
+/* Erste Zeile: nimmt den Platz von Modus + LLM ein (z. B. geführte Sitzung). */
+.chat-header-session-row.chat-header-session-row--top {
+  flex: 1 1 0%;
+  min-width: 0;
+  padding: 0;
+  margin-right: 8px;
+}
+
+.chat-header-session-row--top .chat-header-session-agent {
+  flex: 1;
+  min-width: 0;
+}
+
 .chat-header-session-row {
   flex: 1 1 100%;
   display: flex;
