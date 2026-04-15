@@ -846,12 +846,7 @@ export function ChatPanel({
   };
 
   const handleNewChatClick = () => {
-    const hasMessages = messages.filter((m) => !m.hidden).length > 0;
-    if (hasMessages) {
-      setNewChatDialogOpen(true);
-    } else {
-      onNewChat('standard');
-    }
+    setNewChatDialogOpen(true);
   };
 
   const handleNewChatConfirm = (payload: NewChatConfirmPayload) => {
@@ -1127,7 +1122,7 @@ export function ChatPanel({
           conversations={conversations}
           activeId={activeConversationId}
           onSelect={onSwitchChat}
-          onCreate={(sk) => onNewChat(sk ?? 'standard')}
+          onRequestNewChat={handleNewChatClick}
           onDelete={onDeleteChat}
           onRename={onRenameChat}
           onToggleSavedToProject={onToggleSavedToProject}

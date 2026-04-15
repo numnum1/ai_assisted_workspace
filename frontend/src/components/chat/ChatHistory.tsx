@@ -11,14 +11,14 @@ import {
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
-import type { ChatSessionKind, Conversation } from '../../types.ts';
+import type { Conversation } from '../../types.ts';
 import { NewChatButton } from './NewChatButton.tsx';
 
 interface ChatHistoryProps {
   conversations: Conversation[];
   activeId: string;
   onSelect: (id: string) => void;
-  onCreate: (sessionKind?: ChatSessionKind) => void;
+  onRequestNewChat: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onToggleSavedToProject: (id: string) => void;
@@ -86,7 +86,7 @@ export function ChatHistory({
   conversations,
   activeId,
   onSelect,
-  onCreate,
+  onRequestNewChat,
   onDelete,
   onRename,
   onToggleSavedToProject,
@@ -323,7 +323,7 @@ export function ChatHistory({
               <Eraser size={14} />
             </button>
           )}
-          <NewChatButton onClick={() => onCreate('standard')} />
+          <NewChatButton onClick={onRequestNewChat} />
           <button type="button" className="chat-history-close-btn" onClick={onClose} title="Schliessen">
             <X size={14} />
           </button>
