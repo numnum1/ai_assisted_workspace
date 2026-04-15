@@ -582,6 +582,16 @@ function GuidedSteeringPlanSection({
     markTitle = 'Zuerst einen Plan durch die Assistentin anlegen lassen';
   }
 
+  const currentStepText =
+    parsedSteeringPlan.steps.find((s) => s.isCurrent)?.text ||
+    parsedSteeringPlan.steps[0]?.text ||
+    '';
+  const totalSteps = parsedSteeringPlan.totalSteps ?? 0;
+  const stepCounter =
+    totalSteps > 0
+      ? `Schritt ${parsedSteeringPlan.currentStep ?? 1} von ${totalSteps}`
+      : '';
+
   return (
     <div className="chat-steering-plan-panel">
       <button
@@ -590,7 +600,22 @@ function GuidedSteeringPlanSection({
         onClick={onToggleOpen}
         aria-expanded={open}
       >
-        Arbeitsplan
+        <span className="chat-steering-plan-toggle-text">
+          <span className="chat-steering-plan-toggle-title">Arbeitsplan</span>
+          {hasPlan && (stepCounter || currentStepText) && (
+            <span className="chat-steering-plan-toggle-meta">
+              {stepCounter && (
+                <span className="chat-steering-plan-toggle-stepcount">
+                  {stepCounter}
+                  {parsedSteeringPlan.isComplete ? ' · Abgeschlossen' : ''}
+                </span>
+              )}
+              {currentStepText ? (
+                <span className="chat-steering-plan-toggle-current">{currentStepText}</span>
+              ) : null}
+            </span>
+          )}
+        </span>
         <span className="chat-steering-plan-chevron">{open ? '▼' : '▶'}</span>
       </button>
       {open && (
