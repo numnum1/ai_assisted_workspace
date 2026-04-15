@@ -158,6 +158,10 @@ export interface Conversation {
   agentUseReasoning?: boolean;
   /** When set: fixed disabled toolkits for this conversation (same ids as global). */
   agentDisabledToolkits?: ChatToolkitId[];
+  /** Agent template id chosen when starting this guided session (optional). */
+  agentPresetId?: string;
+  /** Display name snapshot of the template at session start (survives rename/delete in settings). */
+  agentPresetName?: string;
 }
 
 export interface ProjectConfig {

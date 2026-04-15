@@ -41,6 +41,12 @@ function formatDate(timestamp: number): string {
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+function guidedAgentListLabel(conv: Conversation): string {
+  const pid = conv.agentPresetId?.trim();
+  if (!pid) return 'Ohne Vorlage';
+  return conv.agentPresetName?.trim() || pid;
+}
+
 function groupByDate(convs: Conversation[]): { label: string; items: Conversation[] }[] {
   const now = Date.now();
   const day = 86_400_000;
@@ -238,8 +244,11 @@ export function ChatHistory({
                 </span>
               ) : null}
               {conv.sessionKind === 'guided' && (
-                <span className="chat-history-guided-badge" title="Geführte Sitzung">
-                  Geführt
+                <span
+                  className="chat-history-guided-badge"
+                  title={`Geführte Sitzung · ${guidedAgentListLabel(conv)}`}
+                >
+                  Geführt · {guidedAgentListLabel(conv)}
                 </span>
               )}
             </div>

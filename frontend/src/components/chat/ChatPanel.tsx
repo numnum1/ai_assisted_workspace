@@ -89,6 +89,11 @@ interface ChatPanelProps {
   onDiscardCurrentChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
   /** Active conversation session kind (for guided UI). */
   activeSessionKind?: ChatSessionKind;
+  /**
+   * When {@link activeSessionKind} is guided: display label for the agent template
+   * ("Ohne Vorlage" or preset name). Set in App from conversation + live presets.
+   */
+  guidedAgentTemplateLabel?: string;
   /** When true, thread/fork-from-message actions are hidden (not supported inside a thread). */
   activeIsThread?: boolean;
   /** Persisted steering plan markdown (guided sessions). */
@@ -666,6 +671,7 @@ export function ChatPanel({
   onFileChanged,
   agentPresets = [],
   activeSessionKind = 'standard',
+  guidedAgentTemplateLabel,
   steeringPlan = '',
   onMarkSteeringPlanComplete,
   activeIsThread = false,
@@ -1114,6 +1120,23 @@ export function ChatPanel({
           >
             <Pencil size={11} />
           </button>
+        </div>
+        <div className="chat-header-session-row" aria-live="polite">
+          {activeSessionKind === 'guided' ? (
+            <>
+              <span className="chat-header-session-badge chat-header-session-badge--guided">
+                Geführte Sitzung
+              </span>
+              <span
+                className="chat-header-session-agent"
+                title={guidedAgentTemplateLabel ?? 'Ohne Vorlage'}
+              >
+                {guidedAgentTemplateLabel ?? 'Ohne Vorlage'}
+              </span>
+            </>
+          ) : (
+            <span className="chat-header-session-badge chat-header-session-badge--standard">Standard</span>
+          )}
         </div>
       </div>
 

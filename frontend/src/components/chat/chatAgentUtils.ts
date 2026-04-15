@@ -44,6 +44,8 @@ export function buildGuidedAgentPatchFromPreset(preset: AgentPreset): Partial<Co
   const steeringPlan = preset.initialSteeringPlan?.trim();
   const patch: Partial<Conversation> = {
     mode: preset.modeId,
+    agentPresetId: preset.id,
+    agentPresetName: preset.name,
     agentUseReasoning: preset.useReasoning,
     agentDisabledToolkits: [...(preset.disabledToolkits ?? [])] as ChatToolkitId[],
     ...(steeringPlan ? { steeringPlan } : {}),
@@ -53,6 +55,15 @@ export function buildGuidedAgentPatchFromPreset(preset: AgentPreset): Partial<Co
     patch.agentLlmId = lid;
   }
   return patch;
+}
+
+/** Copy guided template identity from parent (fork / thread). */
+export function guidedPresetPartialFromParent(parent: Conversation): Partial<Conversation> {
+  if (parent.sessionKind !== 'guided') return {};
+  return {
+    agentPresetId: parent.agentPresetId,
+    agentPresetName: parent.agentPresetName,
+  };
 }
 
 export function applyGuidedAgentFromNewChatDialog(
@@ -67,9 +78,12 @@ export function applyGuidedAgentFromNewChatDialog(
   patchConversation: (id: string, patch: Partial<Conversation>) => void,
 ): void {
   if (p.sessionKind !== 'guided') return;
+  const clearPreset =
+    !p.agentPresetId?.trim() ? { agentPresetId: undefined, agentPresetName: undefined } : {};
   patchConversation(convId, {
     mode: selectedMode,
     ...buildAgentExecutionPatchFromGlobals(global),
+    ...clearPreset,
   });
 }
 

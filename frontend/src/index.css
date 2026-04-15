@@ -2025,10 +2025,50 @@ body.file-tree-native-dragging {
 
 .chat-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+}
+
+.chat-header-session-row {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 0;
+  min-width: 0;
+}
+
+.chat-header-session-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.chat-header-session-badge--standard {
+  background: color-mix(in srgb, var(--text-muted) 14%, var(--bg-tertiary));
+  color: var(--text-muted);
+}
+
+.chat-header-session-badge--guided {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-tertiary));
+  color: var(--accent);
+}
+
+.chat-header-session-agent {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-header-actions {

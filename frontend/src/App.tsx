@@ -60,6 +60,7 @@ import {
   buildAgentExecutionPatchFromGlobals,
   conversationHasAgentExecution,
   getEffectiveChatExecution,
+  guidedPresetPartialFromParent,
   isNewChatConfirmPayload,
 } from './components/chat/chatAgentUtils.ts';
 
@@ -916,6 +917,15 @@ function App() {
     return base;
   }, [modes, selectedMode]);
 
+  const guidedAgentTemplateLabel = useMemo(() => {
+    const conv = history.activeConversation;
+    if (!conv || (conv.sessionKind ?? 'standard') !== 'guided') return undefined;
+    const pid = conv.agentPresetId?.trim();
+    if (!pid) return 'Ohne Vorlage';
+    const live = agentPresets.find((a) => a.id === pid);
+    return live?.name?.trim() || conv.agentPresetName?.trim() || pid;
+  }, [history.activeConversation, agentPresets]);
+
   const handlePromptPackGenerate = useCallback(
     (message: string, files: string[]) => {
       const m = modes.find(x => x.id === 'prompt-pack');
@@ -1063,8 +1073,10 @@ function App() {
       history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
     }
     const agentPatch = parent ? agentExecutionPartialFromParent(parent) : {};
-    if (Object.keys(agentPatch).length > 0) {
-      history.patchConversation(newConv.id, agentPatch);
+    const guidedPresetPatch = parent && sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
+    const forkPatches = { ...agentPatch, ...guidedPresetPatch };
+    if (Object.keys(forkPatches).length > 0) {
+      history.patchConversation(newConv.id, forkPatches);
     }
   }, [chat.messages, history, selectedMode]);
 
@@ -1104,8 +1116,10 @@ function App() {
         history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
       }
       const agentPatch = agentExecutionPartialFromParent(parent);
-      if (Object.keys(agentPatch).length > 0) {
-        history.patchConversation(newConv.id, agentPatch);
+      const guidedPresetPatch = sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
+      const threadPatches = { ...agentPatch, ...guidedPresetPatch };
+      if (Object.keys(threadPatches).length > 0) {
+        history.patchConversation(newConv.id, threadPatches);
       }
       history.patchConversation(newConv.id, {
         isThread: true,
@@ -1368,6 +1382,7 @@ function App() {
             onDiscardCurrentChat={handleDiscardCurrentChat}
             agentPresets={agentPresets}
             activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
+            guidedAgentTemplateLabel={guidedAgentTemplateLabel}
             steeringPlan={history.activeConversation?.steeringPlan ?? ''}
             activeIsThread={history.activeConversation?.isThread === true}
             onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
