@@ -37,6 +37,12 @@ export interface ChatStreamSessionMeta {
   steeringPlan?: string;
 }
 
+/** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. guided preset bootstrap). */
+export interface SendMessageOptions {
+  /** When true, the new user message is stored and sent to the API but not shown in the chat UI. */
+  userHidden?: boolean;
+}
+
 function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
   return msgs.map((msg) => {
     if (msg.role === 'system') {
@@ -146,11 +152,18 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       activeFieldKey?: string | null,
       disabledToolkits?: string[],
       streamSession?: ChatStreamSessionMeta,
+      sendOpts?: SendMessageOptions,
     ) => {
       syncEnabledRef.current = true;
       setError(null);
       setToolActivity(null);
-      const userMsg: ChatMessage = { role: 'user', content: text, mode: modeName, modeColor };
+      const userMsg: ChatMessage = {
+        role: 'user',
+        content: text,
+        mode: modeName,
+        modeColor,
+        ...(sendOpts?.userHidden ? { hidden: true as const } : {}),
+      };
       currentBaseRef.current = [...messages, userMsg];
       setMessages(currentBaseRef.current);
       setStreaming(true);

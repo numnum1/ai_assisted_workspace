@@ -77,7 +77,7 @@ function saveConversations(conversations: Conversation[], storageKey: string | n
 }
 
 function generateTitle(messages: ChatMessage[]): string {
-  const firstUser = messages.find((m) => m.role === 'user');
+  const firstUser = messages.find((m) => m.role === 'user' && !m.hidden);
   if (!firstUser) return 'Neuer Chat';
   const text = firstUser.content.trim().replace(/\s+/g, ' ');
   return text.length > 50 ? text.slice(0, 50) + '…' : text;

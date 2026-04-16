@@ -65,6 +65,14 @@ import {
   isNewChatConfirmPayload,
   threadExecutionOverrideFromPreset,
 } from './components/chat/chatAgentUtils.ts';
+import {
+  GUIDED_AGENT_KICKOFF_USER_MESSAGE,
+  cancelGuidedAgentKickoffIfPendingMismatchesActive,
+  clearPendingGuidedAgentKickoff,
+  hasPendingGuidedAgentKickoffFor,
+  scheduleGuidedAgentPresetKickoff,
+  tryMarkGuidedAgentKickoffStarted,
+} from './components/chat/guidedAgentKickoff.ts';
 
 /** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
 const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
@@ -1032,6 +1040,7 @@ function App() {
         focusedField?.fieldKey ?? null,
         exec.disabledToolkits,
         streamSession,
+        undefined,
       );
       history.patchConversation(history.activeId, { mode: modeId });
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
@@ -1102,6 +1111,83 @@ function App() {
     ],
   );
 
+  const performGuidedAgentPresetKickoff = useCallback(
+    (conv: Conversation) => {
+      const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
+      const mode = modes.find((m) => m.id === modeId);
+      const activeFile =
+        selectedMeta?.type === 'scene' && selectedMeta.sceneId
+          ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+          : (fileEditor.selectedPath ?? null);
+      const exec = getEffectiveChatExecution(conv, {
+        llmId: modeLlmId,
+        useReasoning,
+        disabledToolkits,
+      });
+      const streamSession = {
+        conversationId: conv.id,
+        sessionKind: 'guided' as ChatSessionKind,
+        steeringPlan: conv.steeringPlan,
+      };
+      chat.sendMessage(
+        GUIDED_AGENT_KICKOFF_USER_MESSAGE,
+        activeFile,
+        modeId,
+        refs.referencedFiles,
+        mode?.name,
+        mode?.color,
+        exec.useReasoning,
+        exec.llmId,
+        undefined,
+        focusedField?.fieldKey ?? null,
+        exec.disabledToolkits,
+        streamSession,
+        { userHidden: true },
+      );
+      history.patchConversation(conv.id, { mode: modeId });
+      setActiveSelection(null);
+    },
+    [
+      chat,
+      selectedMode,
+      modes,
+      refs.referencedFiles,
+      useReasoning,
+      modeLlmId,
+      selectedMeta,
+      chapter.structureRoot,
+      fileEditor.selectedPath,
+      focusedField,
+      disabledToolkits,
+      history.patchConversation,
+    ],
+  );
+
+  // Guided agent preset with initial plan: auto-send hidden bootstrap so the assistant speaks first.
+  useEffect(() => {
+    const conv = history.activeConversation;
+    if (!conv) return;
+
+    cancelGuidedAgentKickoffIfPendingMismatchesActive(conv.id);
+
+    if (!hasPendingGuidedAgentKickoffFor(conv.id)) return;
+    if (conv.sessionKind !== 'guided') return;
+    if (!conv.agentPresetId?.trim()) return;
+    if (!conv.steeringPlan?.trim()) return;
+    if (conv.messages.length > 0) return;
+    // Wait until loadMessages has applied this conversation (avoid sendMessage using a stale message list).
+    if (chat.messages.length !== conv.messages.length) return;
+    if (chat.streaming) return;
+
+    if (!tryMarkGuidedAgentKickoffStarted(conv.id)) {
+      clearPendingGuidedAgentKickoff();
+      return;
+    }
+
+    clearPendingGuidedAgentKickoff();
+    performGuidedAgentPresetKickoff(conv);
+  }, [history.activeConversation, chat.messages, chat.streaming, performGuidedAgentPresetKickoff]);
+
   const modesForChat = useMemo(() => {
     const base = standardChatModes(modes);
     const cur = modes.find((m) => m.id === selectedMode);
@@ -1136,6 +1222,7 @@ function App() {
           conversationId: conv?.id ?? history.activeId,
           sessionKind: 'standard',
         },
+        undefined,
       );
       history.patchConversation(history.activeId, { mode: 'prompt-pack' });
       setPromptPackOpen(false);
@@ -1173,10 +1260,15 @@ function App() {
           payload.sessionKind,
         );
         if (preset && payload.sessionKind === 'guided') {
-          history.patchConversation(
-            newConv.id,
-            buildGuidedAgentPatchFromPreset(preset, payload.initialSteeringPlan, payload.agentPresetId),
+          const agentPatch = buildGuidedAgentPatchFromPreset(
+            preset,
+            payload.initialSteeringPlan,
+            payload.agentPresetId,
           );
+          history.patchConversation(newConv.id, agentPatch);
+          if (agentPatch.steeringPlan?.trim() && agentPatch.agentPresetId?.trim()) {
+            scheduleGuidedAgentPresetKickoff(newConv.id);
+          }
         } else {
           applyGuidedAgentFromNewChatDialog(
             newConv.id,
@@ -1222,10 +1314,15 @@ function App() {
           history.patchConversation(newConv.id, { title: t });
         }
         if (preset && payload.sessionKind === 'guided') {
-          history.patchConversation(
-            newConv.id,
-            buildGuidedAgentPatchFromPreset(preset, payload.initialSteeringPlan, payload.agentPresetId),
+          const agentPatch = buildGuidedAgentPatchFromPreset(
+            preset,
+            payload.initialSteeringPlan,
+            payload.agentPresetId,
           );
+          history.patchConversation(newConv.id, agentPatch);
+          if (agentPatch.steeringPlan?.trim() && agentPatch.agentPresetId?.trim()) {
+            scheduleGuidedAgentPresetKickoff(newConv.id);
+          }
         } else {
           applyGuidedAgentFromNewChatDialog(
             newConv.id,
