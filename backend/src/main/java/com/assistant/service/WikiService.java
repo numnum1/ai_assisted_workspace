@@ -130,6 +130,7 @@ public class WikiService {
 
     private String normalize(String path) {
         String p = path.replace('\\', '/').trim();
+        if (p.startsWith("wiki/")) p = p.substring("wiki/".length());
         if (!p.endsWith(".md")) p = p + ".md";
         return p;
     }

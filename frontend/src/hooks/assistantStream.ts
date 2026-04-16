@@ -3,9 +3,15 @@ import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '..
 import { streamChat } from '../api.ts';
 import { CHAT_ASSISTANT_UI_MODE } from '../config/chatAssistantUi.ts';
 
-function isVisibleToolMessage(content: string | undefined): boolean {
-  if (!content) return false;
-  return true;
+/** Whether a message from SSE `tool_history` should appear in the chat transcript. */
+function isVisibleToolHistoryMessage(msg: ChatMessage): boolean {
+  if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+    return true;
+  }
+  if (msg.role === 'tool') {
+    return Boolean(msg.content);
+  }
+  return Boolean(msg.content?.trim());
 }
 
 export type StreamCallbacks = {
@@ -73,7 +79,20 @@ export function attachAssistantStream(
           ...cbs.currentBaseRef.current,
           assistantMessage(fullAssistantText, selectionContext),
         ]);
+      } else {
+        // Live: the trailing assistant bubble was never in currentBaseRef; persist it so tool rows
+        // stay in the same message list after streaming ends (avoids "tools vanished" glitches).
+        const body =
+          fullAssistantText.trim().length > 0 ? fullAssistantText : assistantContent;
+        if (body.trim().length > 0) {
+          cbs.currentBaseRef.current = [
+            ...cbs.currentBaseRef.current,
+            assistantMessage(body, selectionContext),
+          ];
+        }
+        cbs.setMessages([...cbs.currentBaseRef.current]);
       }
+      assistantContent = '';
       cbs.setStreaming(false);
       cbs.setToolActivity(null);
       onAssistantComplete?.(fullAssistantText);
@@ -82,7 +101,14 @@ export function attachAssistantStream(
       cbs.setError(err.message);
       cbs.setStreaming(false);
       cbs.setToolActivity(null);
-      if (mode === 'on-done' && assistantContent.length > 0) {
+      if (mode === 'live' && assistantContent.trim().length > 0) {
+        cbs.currentBaseRef.current = [
+          ...cbs.currentBaseRef.current,
+          assistantMessage(assistantContent, selectionContext),
+        ];
+        assistantContent = '';
+        cbs.setMessages([...cbs.currentBaseRef.current]);
+      } else if (mode === 'on-done' && assistantContent.length > 0) {
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
           assistantMessage(assistantContent, selectionContext),
@@ -98,9 +124,12 @@ export function attachAssistantStream(
       );
     },
     (toolMessages) => {
+      // Streamed text for this round is already on the assistant row inside toolMessages (from server).
+      // Drop the client buffer so the next round does not concatenate into the same string.
+      assistantContent = '';
       cbs.currentBaseRef.current = [
         ...cbs.currentBaseRef.current,
-        ...toolMessages.map((m) => ({ ...m, hidden: !isVisibleToolMessage(m.content) })),
+        ...toolMessages.map((m) => ({ ...m, hidden: !isVisibleToolHistoryMessage(m) })),
       ];
       if (mode === 'on-done') {
         shellVisible = true;
@@ -109,7 +138,7 @@ export function attachAssistantStream(
           assistantMessage('', selectionContext),
         ]);
       } else {
-        cbs.setMessages(cbs.currentBaseRef.current);
+        cbs.setMessages([...cbs.currentBaseRef.current]);
       }
     },
     (resolved) => {
