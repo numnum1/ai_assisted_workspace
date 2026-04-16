@@ -114,6 +114,20 @@ function resolvePersistedChatModeId(conv: Conversation, nonPrompt: Mode[], allMo
   return null;
 }
 
+/**
+ * Outbound chat / preview requests: guided sessions use persisted {@link Conversation.mode}
+ * (incl. agent-only presets), so an empty-tab toolbar sync cannot send the wrong mode id.
+ */
+function effectiveChatModeIdForRequest(
+  conv: Conversation | undefined,
+  toolbarModeId: string,
+  allModes: Mode[],
+): string {
+  if (!conv || (conv.sessionKind ?? 'standard') !== 'guided') return toolbarModeId;
+  const nonPrompt = nonPromptModes(allModes);
+  return resolvePersistedChatModeId(conv, nonPrompt, allModes) ?? toolbarModeId;
+}
+
 const LLM_PREFS_KEY = 'chat-llm-prefs';
 const CHAT_DISABLED_TOOLKITS_KEY = 'chat-disabled-toolkits';
 
@@ -511,8 +525,11 @@ function App() {
     const allowedForSession = sessionKind === 'guided' ? nonPrompt : standardSel;
     let desired: string;
     /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
+    /** Guided/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
     const trulyEmptyForModeSync =
-      !conversationHasVisibleMessages(conv) && conv.messages.length === 0;
+      sessionKind !== 'guided' &&
+      !conversationHasVisibleMessages(conv) &&
+      conv.messages.length === 0;
     if (trulyEmptyForModeSync) {
       desired = projectDefaultChatModeIdRef.current;
       if (!standardSel.some((m) => m.id === desired)) {
@@ -965,12 +982,13 @@ function App() {
 
   const handleSendMessage = useCallback(
     (message: string) => {
-      const mode = modes.find((m) => m.id === selectedMode);
+      const conv = history.activeConversation;
+      const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
+      const mode = modes.find((m) => m.id === modeId);
       // Derive activeFile: scene JSON when a scene is selected, otherwise the open file
       const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
-      const conv = history.activeConversation;
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
         useReasoning,
@@ -984,7 +1002,7 @@ function App() {
       chat.sendMessage(
         message,
         activeFile,
-        selectedMode,
+        modeId,
         refs.referencedFiles,
         mode?.name,
         mode?.color,
@@ -995,7 +1013,7 @@ function App() {
         exec.disabledToolkits,
         streamSession,
       );
-      history.patchConversation(history.activeId, { mode: selectedMode });
+      history.patchConversation(history.activeId, { mode: modeId });
       // Clear active selection after sending — the Replace button will use stored selectionContext on the message
       setActiveSelection(null);
     },
@@ -1024,6 +1042,7 @@ function App() {
         ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
         : (fileEditor.selectedPath ?? null);
       const conv = history.activeConversation;
+      const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
         useReasoning,
@@ -1031,7 +1050,7 @@ function App() {
       });
       chat.editMessage(index, newContent, {
         activeFile,
-        mode: selectedMode,
+        mode: modeId,
         referencedFiles: refs.referencedFiles,
         useReasoning: exec.useReasoning,
         llmId: exec.llmId,
@@ -1042,7 +1061,7 @@ function App() {
         sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: conv?.steeringPlan,
       });
-      history.patchConversation(history.activeId, { mode: selectedMode });
+      history.patchConversation(history.activeId, { mode: modeId });
       setActiveSelection(null);
     },
     [
@@ -1642,6 +1661,7 @@ function App() {
             ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
             : (fileEditor.selectedPath ?? null);
           const conv = history.activeConversation;
+          const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
           const exec = getEffectiveChatExecution(conv, {
             llmId: modeLlmId,
             useReasoning,
@@ -1651,7 +1671,7 @@ function App() {
             message: '',
             activeFile,
             activeFieldKey: focusedField?.fieldKey ?? null,
-            mode: selectedMode,
+            mode: previewModeId,
             referencedFiles: refs.referencedFiles,
             history: [],
             useReasoning: exec.useReasoning,
