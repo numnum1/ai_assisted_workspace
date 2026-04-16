@@ -1,4 +1,4 @@
-import type { AgentPreset, ChatToolkitId, Conversation } from '../../types.ts';
+import type { AgentPreset, ChatToolkitId, Conversation, LlmPublic } from '../../types.ts';
 import type { NewChatConfirmPayload } from './NewChatDialog.tsx';
 
 export function isNewChatConfirmPayload(x: unknown): x is NewChatConfirmPayload {
@@ -40,6 +40,30 @@ export function agentExecutionPartialFromParent(parent: Conversation): Partial<C
 }
 
 /** Guided session patch from a project agent preset (steering plan only from preset, if configured). */
+/**
+ * When a thread/fork is created under a chat that uses {@link AgentPreset}, optional {@link AgentPreset.threadLlmId}
+ * overrides inherited {@link Conversation.agentLlmId} and may adjust {@link Conversation.agentUseReasoning} from model caps.
+ */
+export function threadExecutionOverrideFromPreset(
+  preset: AgentPreset | undefined,
+  llms: readonly LlmPublic[],
+): Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> {
+  const raw = preset?.threadLlmId?.trim();
+  if (!raw) return {};
+  const lp = llms.find((l) => l.id === raw);
+  const hasReasoning = !!lp?.reasoningModel;
+  const hasFast = !!lp?.fastModel;
+  const patch: Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> = {
+    agentLlmId: raw,
+  };
+  if (!hasReasoning) {
+    patch.agentUseReasoning = false;
+  } else if (!hasFast) {
+    patch.agentUseReasoning = true;
+  }
+  return patch;
+}
+
 export function buildGuidedAgentPatchFromPreset(preset: AgentPreset): Partial<Conversation> {
   const steeringPlan = preset.initialSteeringPlan?.trim();
   const patch: Partial<Conversation> = {

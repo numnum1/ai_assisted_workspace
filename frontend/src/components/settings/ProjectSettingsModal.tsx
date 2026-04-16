@@ -28,6 +28,7 @@ interface AgentFormState {
   name: string;
   modeId: string;
   llmId: string;
+  threadLlmId: string;
   useReasoning: boolean;
   disabledToolkits: ChatToolkitId[];
   initialSteeringPlan: string;
@@ -429,6 +430,7 @@ export function ProjectSettingsModal({
       name: '',
       modeId: chatModesList[0]?.id ?? '',
       llmId: '',
+      threadLlmId: '',
       useReasoning: false,
       disabledToolkits: [],
       initialSteeringPlan: '',
@@ -442,6 +444,7 @@ export function ProjectSettingsModal({
       name: a.name,
       modeId: a.modeId,
       llmId: a.llmId ?? '',
+      threadLlmId: a.threadLlmId ?? '',
       useReasoning: a.useReasoning ?? false,
       disabledToolkits: [...(a.disabledToolkits ?? [])],
       initialSteeringPlan: a.initialSteeringPlan ?? '',
@@ -475,6 +478,7 @@ export function ProjectSettingsModal({
       name: agentForm.name.trim(),
       modeId: agentForm.modeId,
       ...(agentForm.llmId.trim() ? { llmId: agentForm.llmId.trim() } : {}),
+      ...(agentForm.threadLlmId.trim() ? { threadLlmId: agentForm.threadLlmId.trim() } : {}),
       useReasoning: agentForm.useReasoning,
       disabledToolkits: [...agentForm.disabledToolkits],
       ...(agentForm.initialSteeringPlan.trim()
@@ -1055,6 +1059,26 @@ export function ProjectSettingsModal({
                       ))}
                     </select>
 
+                    <label className="ps-label">
+                      LLM für Threads{' '}
+                      <span className="ps-label-hint">
+                        (optional — leer = Vererbung vom Eltern-Chat; nur wenn dieser Chat die Vorlage nutzt)
+                      </span>
+                    </label>
+                    <select
+                      className="ps-input"
+                      value={agentForm.threadLlmId}
+                      onChange={(e) => setAgentForm((p) => p && ({ ...p, threadLlmId: e.target.value }))}
+                      disabled={loadingLlms}
+                    >
+                      <option value="">— wie Eltern-Chat —</option>
+                      {(llmsState?.providers ?? []).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+
                     {(() => {
                       const lp = (llmsState?.providers ?? []).find((x) => x.id === agentForm.llmId);
                       const supportsReasoning = !!(lp?.reasoningModel);
@@ -1151,7 +1175,12 @@ export function ProjectSettingsModal({
                         const llmLabel = a.llmId
                           ? ((llmsState?.providers ?? []).find((l) => l.id === a.llmId)?.name ?? a.llmId)
                           : '— global —';
-                        const rowTitle = `${a.id} · Modus: ${modeLabel} · LLM: ${llmLabel}${!modeOk ? ' · Modus fehlt' : ''}`;
+                        const threadLlmLabel = a.threadLlmId
+                          ? ((llmsState?.providers ?? []).find((l) => l.id === a.threadLlmId)?.name ?? a.threadLlmId)
+                          : null;
+                        const rowTitle = `${a.id} · Modus: ${modeLabel} · LLM: ${llmLabel}${
+                          threadLlmLabel ? ` · Thread-LLM: ${threadLlmLabel}` : ''
+                        }${!modeOk ? ' · Modus fehlt' : ''}`;
                         return (
                           <div key={a.id} className="ps-list-item" onClick={() => openEditAgent(a)} title={rowTitle}>
                             <Bot size={14} style={{ flexShrink: 0, opacity: 0.85 }} />

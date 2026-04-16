@@ -32,6 +32,8 @@ export interface AgentPreset {
   name: string;
   modeId: string;
   llmId?: string | null;
+  /** Optional LLM for fork/thread chats when the parent chat uses this preset (see conversation agentPresetId). */
+  threadLlmId?: string | null;
   useReasoning: boolean;
   disabledToolkits: ChatToolkitId[];
   initialSteeringPlan?: string | null;

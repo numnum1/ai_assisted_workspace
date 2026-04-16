@@ -11,6 +11,7 @@ import {
   BookOpen,
   Edit3,
   MessageSquare,
+  GitBranch,
 } from 'lucide-react';
 import type { ToolCall } from '../../types.ts';
 
@@ -52,6 +53,7 @@ export function ToolCallDisplay({
     if (name.includes('web')) return <Globe size={16} />;
     if (name.includes('glossary') || name.includes('wiki')) return <BookOpen size={16} />;
     if (name.includes('clarification')) return <AlertCircle size={16} />;
+    if (name.includes('propose_guided_thread') || name.includes('guided_thread')) return <GitBranch size={16} />;
     return <Play size={16} />;
   };
 

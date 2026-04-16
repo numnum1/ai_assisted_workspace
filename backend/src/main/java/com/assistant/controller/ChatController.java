@@ -10,6 +10,7 @@ import com.assistant.service.ChatCompletionStreamParser;
 import com.assistant.service.ContextService;
 import com.assistant.service.ToolExecutor;
 import com.assistant.service.tools.AskClarificationTool;
+import com.assistant.service.tools.ProposeGuidedThreadTool;
 import com.assistant.service.tools.ToolkitIds;
 import com.assistant.service.tools.WebSearchTool;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -31,6 +32,7 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -314,6 +316,29 @@ public class ChatController {
                 return;
             }
 
+            boolean hasGuidedThreadProposal = toolCalls.stream()
+                    .anyMatch(tc -> ProposeGuidedThreadTool.TOOL_NAME.equals(tc.getFunction().getName()));
+            if (hasGuidedThreadProposal) {
+                if (toolCalls.size() == 1
+                        && ProposeGuidedThreadTool.TOOL_NAME.equals(toolCalls.get(0).getFunction().getName())) {
+                    String argsJson = toolCalls.get(0).getFunction().getArguments();
+                    String preGen = buildGuidedThreadOfferBlock(argsJson);
+                    int planLen = estimateSteeringPlanMarkdownLen(argsJson);
+                    log.info(
+                            "Tool round {}: propose_guided_thread intercepted — emitting guided_thread_offer fence (fenceChars={}, steeringPlanCharsApprox={})",
+                            round + 1,
+                            preGen.length(),
+                            planLen);
+                    log.debug("propose_guided_thread fence preview: {}", previewForLog(preGen, 800));
+                    tokenFluxFromPreGenerated(preGen).doOnNext(sink::next).blockLast(Duration.ofMinutes(2));
+                    log.trace("Finished successfully after propose_guided_thread in round {}", round + 1);
+                    return;
+                }
+                log.warn(
+                        "Tool round {}: propose_guided_thread combined with other tool calls — using normal tool execution",
+                        round + 1);
+            }
+
             emitToolExecutionAndHistory(sink, currentMessages, originalMessageCount, toolCalls, accumulated, round);
         }
         log.warn("Streaming tool loop stopped after {} rounds (max)", MAX_TOOL_ROUNDS);
@@ -441,6 +466,70 @@ public class ChatController {
         } catch (Exception e) {
             log.warn("Failed to build clarification block from args, returning empty array: {}", argsJson, e);
             return "```clarification\n[]\n```";
+        }
+    }
+
+    /**
+     * Converts {@code propose_guided_thread} JSON arguments into a {@code guided_thread_offer} fenced block for the UI.
+     */
+    @SuppressWarnings("unchecked")
+    private String buildGuidedThreadOfferBlock(String argsJson) {
+        try {
+            Map<String, Object> args = objectMapper.readValue(argsJson, Map.class);
+            Object planObj = args.get("steeringPlanMarkdown");
+            String plan = planObj instanceof String ? ((String) planObj).trim() : "";
+            if (plan.isEmpty()) {
+                log.warn("propose_guided_thread: empty steeringPlanMarkdown in args — using placeholder plan");
+                plan = "*(Ungültiges Angebot: kein Arbeitsplan. Bitte erneut anfragen.)*";
+            }
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("steeringPlanMarkdown", plan);
+            copyOptionalStringArg(args, payload, "threadTitle");
+            copyOptionalStringArg(args, payload, "summary");
+            copyOptionalStringArg(args, payload, "modeId");
+            copyOptionalStringArg(args, payload, "agentPresetId");
+            String json = objectMapper.writeValueAsString(payload);
+            return "```guided_thread_offer\n" + json + "\n```";
+        } catch (Exception e) {
+            log.warn("Failed to build guided_thread_offer from args: {}", previewForLog(argsJson, 400), e);
+            try {
+                Map<String, Object> fallback = new LinkedHashMap<>();
+                fallback.put(
+                        "steeringPlanMarkdown",
+                        "*(Angebotsdaten konnten nicht gelesen werden. Bitte erneut anfragen.)*");
+                fallback.put("summary", "Parse error");
+                return "```guided_thread_offer\n" + objectMapper.writeValueAsString(fallback) + "\n```";
+            } catch (JsonProcessingException e2) {
+                log.error("Failed to serialize guided_thread_offer fallback", e2);
+                return "```guided_thread_offer\n{\"steeringPlanMarkdown\":\"*Error*\",\"summary\":\"Parse error\"}\n```";
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private int estimateSteeringPlanMarkdownLen(String argsJson) {
+        if (argsJson == null || argsJson.isBlank()) {
+            return 0;
+        }
+        try {
+            Map<String, Object> args = objectMapper.readValue(argsJson, Map.class);
+            Object planObj = args.get("steeringPlanMarkdown");
+            if (planObj instanceof String s) {
+                return s.length();
+            }
+        } catch (Exception ignored) {
+            // ignore
+        }
+        return 0;
+    }
+
+    private void copyOptionalStringArg(Map<String, Object> args, Map<String, Object> payload, String key) {
+        Object v = args.get(key);
+        if (v instanceof String s) {
+            String t = s.trim();
+            if (!t.isEmpty()) {
+                payload.put(key, t);
+            }
         }
     }
 

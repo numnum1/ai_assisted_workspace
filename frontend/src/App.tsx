@@ -27,12 +27,12 @@ import type {
   AltVersionSession,
   LlmPublic,
   ChatSessionKind,
-  ChatMessage,
 } from './types.ts';
 import type { NewChatConfirmPayload } from './components/chat/NewChatDialog.tsx';
 import { CHAT_TOOLKIT_IDS } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
-import { buildThreadSystemContent, cloneChatMessages } from './components/chat/chatThreadUtils.ts';
+import { buildThreadHiddenBootstrap } from './components/chat/chatThreadUtils.ts';
+import type { GuidedThreadOfferPayload } from './components/chat/guidedThreadOfferUtils.ts';
 import { Settings } from 'lucide-react';
 import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
@@ -62,6 +62,7 @@ import {
   getEffectiveChatExecution,
   guidedPresetPartialFromParent,
   isNewChatConfirmPayload,
+  threadExecutionOverrideFromPreset,
 } from './components/chat/chatAgentUtils.ts';
 
 /** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
@@ -1074,11 +1075,16 @@ function App() {
     }
     const agentPatch = parent ? agentExecutionPartialFromParent(parent) : {};
     const guidedPresetPatch = parent && sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
-    const forkPatches = { ...agentPatch, ...guidedPresetPatch };
+    const preset =
+      parent?.agentPresetId != null
+        ? agentPresets.find((a) => a.id === parent.agentPresetId)
+        : undefined;
+    const threadExec = threadExecutionOverrideFromPreset(preset, llms);
+    const forkPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
     if (Object.keys(forkPatches).length > 0) {
       history.patchConversation(newConv.id, forkPatches);
     }
-  }, [chat.messages, history, selectedMode]);
+  }, [agentPresets, chat.messages, history, llms, selectedMode]);
 
   /** New conversation: parent transcript for API only (hidden); UI shows only new thread messages. */
   const handleStartThreadFromMessage = useCallback(
@@ -1093,16 +1099,7 @@ function App() {
       let n = 1;
       while (existingTitles.has(`${base} (${n})`)) n++;
 
-      const transcript = cloneChatMessages(chat.messages.slice(0, messageIndex + 1));
-      const systemIntro: ChatMessage = {
-        role: 'system',
-        content: buildThreadSystemContent(baseTitle),
-        hidden: true,
-      };
-      const initialMessages: ChatMessage[] = [
-        systemIntro,
-        ...transcript.map((m) => ({ ...m, hidden: true })),
-      ];
+      const initialMessages = buildThreadHiddenBootstrap(baseTitle, chat.messages, messageIndex);
 
       const sk = parent.sessionKind ?? 'standard';
       const threadMode = parent.mode || selectedMode;
@@ -1117,7 +1114,12 @@ function App() {
       }
       const agentPatch = agentExecutionPartialFromParent(parent);
       const guidedPresetPatch = sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
-      const threadPatches = { ...agentPatch, ...guidedPresetPatch };
+      const preset =
+        parent.agentPresetId != null
+          ? agentPresets.find((a) => a.id === parent.agentPresetId)
+          : undefined;
+      const threadExec = threadExecutionOverrideFromPreset(preset, llms);
+      const threadPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
       if (Object.keys(threadPatches).length > 0) {
         history.patchConversation(newConv.id, threadPatches);
       }
@@ -1126,7 +1128,71 @@ function App() {
         parentConversationId: parent.id,
       });
     },
-    [chat.messages, history, selectedMode],
+    [agentPresets, chat.messages, history, llms, selectedMode],
+  );
+
+  /** User accepted a ```guided_thread_offer from the assistant: new guided thread with the offered plan. */
+  const handleAcceptGuidedThreadFromOffer = useCallback(
+    (messageIndex: number, offer: GuidedThreadOfferPayload) => {
+      const parent = history.activeConversation;
+      if (!parent || parent.isThread) return;
+      if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
+
+      const baseTitle = parent.title?.trim() || 'Chat';
+      const base = offer.threadTitle?.trim() || `${baseTitle}-Thread`;
+      const existingTitles = new Set(history.conversations.map((c) => c.title));
+      let n = 1;
+      while (existingTitles.has(`${base} (${n})`)) n++;
+      const title = `${base} (${n})`;
+
+      const initialMessages = buildThreadHiddenBootstrap(baseTitle, chat.messages, messageIndex);
+
+      const modeIdOffer = offer.modeId?.trim();
+      const threadMode =
+        modeIdOffer && modes.some((m) => m.id === modeIdOffer)
+          ? modeIdOffer
+          : (parent.mode || selectedMode);
+
+      const newConv = history.createConversation(threadMode, initialMessages, title, 'guided');
+
+      const pid = offer.agentPresetId?.trim();
+      const preset = pid ? agentPresets.find((a) => a.id === pid) : undefined;
+
+      if (preset) {
+        history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset));
+        history.patchConversation(newConv.id, {
+          steeringPlan: offer.steeringPlanMarkdown.trim(),
+          mode: threadMode,
+        });
+      } else {
+        history.patchConversation(newConv.id, {
+          steeringPlan: offer.steeringPlanMarkdown.trim(),
+        });
+        if (conversationHasAgentExecution(parent)) {
+          history.patchConversation(newConv.id, agentExecutionPartialFromParent(parent));
+        } else {
+          history.patchConversation(
+            newConv.id,
+            buildAgentExecutionPatchFromGlobals({
+              llmId: modeLlmId,
+              useReasoning,
+              disabledToolkits,
+            }),
+          );
+        }
+      }
+
+      const threadExec = threadExecutionOverrideFromPreset(preset, llms);
+      if (Object.keys(threadExec).length > 0) {
+        history.patchConversation(newConv.id, threadExec);
+      }
+
+      history.patchConversation(newConv.id, {
+        isThread: true,
+        parentConversationId: parent.id,
+      });
+    },
+    [agentPresets, chat.messages, disabledToolkits, history, llms, modeLlmId, modes, selectedMode, useReasoning],
   );
 
   const handleSwitchChat = useCallback((id: string) => {
@@ -1376,6 +1442,7 @@ function App() {
             onForkFromMessage={chat.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
             onStartThreadFromMessage={handleStartThreadFromMessage}
+            onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
             onEditMessage={handleEditMessage}
             onDeleteMessage={chat.deleteMessage}
             onNewChat={handleNewChat}
