@@ -10,9 +10,11 @@ import {
   Eraser,
   ChevronRight,
   ChevronDown,
+  Download,
 } from 'lucide-react';
 import type { ChatSessionKind, Conversation } from '../../types.ts';
 import { NewChatButton } from './NewChatButton.tsx';
+import { conversationToMarkdown, downloadMarkdownFile } from './chatMarkdownExport.ts';
 
 interface ChatHistoryProps {
   conversations: Conversation[];
@@ -24,6 +26,8 @@ interface ChatHistoryProps {
   onToggleSavedToProject: (id: string) => void;
   onClearAllBrowserChats?: () => void;
   clearAllBrowserDisabled?: boolean;
+  /** Project setting `extraFeatures.chatDownload` */
+  chatDownloadEnabled?: boolean;
   onClose: () => void;
 }
 
@@ -92,6 +96,7 @@ export function ChatHistory({
   onToggleSavedToProject,
   onClearAllBrowserChats,
   clearAllBrowserDisabled = true,
+  chatDownloadEnabled = false,
   onClose,
 }: ChatHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -269,6 +274,19 @@ export function ChatHistory({
             <span className="chat-history-action-btn" style={{ visibility: 'hidden' }} aria-hidden>
               <FolderInput size={12} />
             </span>
+          )}
+          {chatDownloadEnabled && (
+            <button
+              type="button"
+              className="chat-history-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadMarkdownFile(conv.title, conversationToMarkdown(conv));
+              }}
+              title="Chat als Markdown herunterladen"
+            >
+              <Download size={12} />
+            </button>
           )}
           <button
             type="button"

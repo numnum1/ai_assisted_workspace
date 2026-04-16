@@ -164,6 +164,12 @@ export interface Conversation {
   agentDisabledToolkits?: ChatToolkitId[];
 }
 
+/** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */
+export interface ProjectExtraFeatures {
+  /** Show per-chat download in chat history (client-side Markdown export). */
+  chatDownload?: boolean;
+}
+
 export interface ProjectConfig {
   name: string;
   description: string;
@@ -174,6 +180,7 @@ export interface ProjectConfig {
   workspaceMode?: string;
   /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
   quickChatLlmId?: string;
+  extraFeatures?: ProjectExtraFeatures;
 }
 
 /** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */

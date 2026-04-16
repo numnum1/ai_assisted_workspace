@@ -145,6 +145,7 @@ export function ProjectSettingsModal({
     defaultMode: '',
     workspaceMode: 'default',
     quickChatLlmId: '',
+    extraFeatures: { chatDownload: false },
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -739,6 +740,29 @@ export function ProjectSettingsModal({
                   onRemove={i => setConfig(p => ({ ...p, alwaysInclude: p.alwaysInclude.filter((_, idx) => idx !== i) }))}
                   placeholder="e.g. story.md or characters/main-cast.md"
                 />
+
+                <label className="ps-label" style={{ marginTop: '1.25rem' }}>
+                  Extra-Funktionen
+                </label>
+                <p className="ps-hint">
+                  Optionale Funktionen, die standardmäßig aus sind und bei Bedarf aktiviert werden können.
+                </p>
+                <div className="ps-toggle-row">
+                  <input
+                    id="extraChatDownload"
+                    type="checkbox"
+                    checked={config.extraFeatures?.chatDownload === true}
+                    onChange={(e) =>
+                      setConfig((p) => ({
+                        ...p,
+                        extraFeatures: { ...p.extraFeatures, chatDownload: e.target.checked },
+                      }))
+                    }
+                  />
+                  <label htmlFor="extraChatDownload" className="ps-toggle-label">
+                    Chat-Verlauf als Datei herunterladen (Markdown-Export in der Chat-Historie)
+                  </label>
+                </div>
 
                 <div className="ps-actions">
                   <button className="ps-save-btn" onClick={handleSaveConfig} disabled={savingConfig}>

@@ -347,6 +347,16 @@ public class ProjectConfigService {
         if (workspaceMode != null) {
             config.setWorkspaceMode(workspaceMode.toString());
         }
+        Object quickChatLlmId = data.get("quickChatLlmId");
+        if (quickChatLlmId instanceof String s) {
+            config.setQuickChatLlmId(s);
+        }
+        Object extraFeatures = data.get("extraFeatures");
+        if (extraFeatures instanceof Map<?, ?> efMap) {
+            ProjectConfig.ExtraFeatures ef = new ProjectConfig.ExtraFeatures();
+            ef.setChatDownload(booleanVal(efMap.get("chatDownload"), false));
+            config.setExtraFeatures(ef);
+        }
         return config;
     }
 
@@ -357,6 +367,11 @@ public class ProjectConfigService {
         data.put("alwaysInclude", config.getAlwaysInclude() != null ? config.getAlwaysInclude() : List.of());
         data.put("defaultMode", config.getDefaultMode() != null ? config.getDefaultMode() : "");
         data.put("workspaceMode", config.getWorkspaceMode() != null ? config.getWorkspaceMode() : "default");
+        data.put("quickChatLlmId", config.getQuickChatLlmId() != null ? config.getQuickChatLlmId() : "");
+        Map<String, Object> extraMap = new LinkedHashMap<>();
+        ProjectConfig.ExtraFeatures ef = config.getExtraFeatures();
+        extraMap.put("chatDownload", ef != null && ef.isChatDownload());
+        data.put("extraFeatures", extraMap);
         return buildYaml().dump(data);
     }
 

@@ -264,6 +264,7 @@ function App() {
   const llmsRef = useRef(llms);
   llmsRef.current = llms;
   const [disabledToolkits, setDisabledToolkits] = useState(loadInitialDisabledToolkits);
+  const [chatDownloadFeatureEnabled, setChatDownloadFeatureEnabled] = useState(false);
 
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
@@ -488,6 +489,24 @@ function App() {
       setAgentPresets([]);
     }
   }, []);
+
+  const refreshChatDownloadFeature = useCallback(async () => {
+    try {
+      const status = await projectConfigApi.status();
+      if (!status.initialized) {
+        setChatDownloadFeatureEnabled(false);
+        return;
+      }
+      const cfg = await projectConfigApi.get();
+      setChatDownloadFeatureEnabled(cfg.extraFeatures?.chatDownload === true);
+    } catch {
+      setChatDownloadFeatureEnabled(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshChatDownloadFeature();
+  }, [project.projectPath, refreshChatDownloadFeature]);
 
   useEffect(() => {
     prefsHydratedRef.current = false;
@@ -972,8 +991,9 @@ function App() {
 
   const onProjectGeneralSaved = useCallback(() => {
     loadModes();
+    void refreshChatDownloadFeature();
     void refreshWorkspaceModeSchema();
-  }, [loadModes, refreshWorkspaceModeSchema]);
+  }, [loadModes, refreshChatDownloadFeature, refreshWorkspaceModeSchema]);
 
   const onWorkspacePluginsChanged = useCallback(() => {
     setWorkspaceModesRefreshNonce((n) => n + 1);
@@ -1634,6 +1654,7 @@ function App() {
             onToggleSavedToProject={history.toggleSavedToProject}
             onClearAllBrowserChats={history.clearAllBrowserChats}
             clearAllBrowserChatsDisabled={!project.projectPath || !history.hydrated}
+            chatDownloadEnabled={chatDownloadFeatureEnabled}
             onOpenPromptPack={() => setPromptPackOpen(true)}
             structureRoot={chapter.structureRoot}
             activeSelection={activeSelection}

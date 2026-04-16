@@ -119,6 +119,8 @@ interface ChatPanelProps {
   onToggleSavedToProject: (id: string) => void;
   onClearAllBrowserChats?: () => void;
   clearAllBrowserChatsDisabled?: boolean;
+  /** When true (from project `extraFeatures.chatDownload`), show Markdown download per chat in history. */
+  chatDownloadEnabled?: boolean;
   onOpenPromptPack?: () => void;
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
@@ -668,6 +670,7 @@ export function ChatPanel({
   onToggleSavedToProject,
   onClearAllBrowserChats,
   clearAllBrowserChatsDisabled = true,
+  chatDownloadEnabled = false,
   onOpenPromptPack,
   structureRoot = null,
   activeSelection = null,
@@ -1228,6 +1231,7 @@ export function ChatPanel({
           onToggleSavedToProject={onToggleSavedToProject}
           onClearAllBrowserChats={onClearAllBrowserChats}
           clearAllBrowserDisabled={clearAllBrowserChatsDisabled}
+          chatDownloadEnabled={chatDownloadEnabled}
           onClose={() => setHistoryOpen(false)}
         />
       )}
