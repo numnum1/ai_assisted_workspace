@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
+import type { Layout } from 'react-resizable-panels';
 import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
@@ -159,6 +160,44 @@ function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
     localStorage.setItem(LLM_PREFS_KEY, JSON.stringify({ llmId: llmId ?? null, useReasoning }));
   } catch {
     // localStorage full or unavailable — silently ignore
+  }
+}
+
+const MAIN_PANEL_LAYOUT_KEY = 'assistant-main-panel-layout';
+const MAIN_PANEL_IDS = ['outliner', 'editor', 'chat'] as const;
+
+function loadMainPanelLayout(): Layout | undefined {
+  try {
+    const raw = localStorage.getItem(MAIN_PANEL_LAYOUT_KEY);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+    const rec = parsed as Record<string, unknown>;
+    const layout: Layout = {};
+    for (const id of MAIN_PANEL_IDS) {
+      const v = rec[id];
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return undefined;
+      layout[id] = v;
+    }
+    const sum = MAIN_PANEL_IDS.reduce((acc, id) => acc + layout[id], 0);
+    if (sum < 99 || sum > 101) return undefined;
+    return layout;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveMainPanelLayout(layout: Layout) {
+  try {
+    const payload: Layout = {};
+    for (const id of MAIN_PANEL_IDS) {
+      const v = layout[id];
+      if (typeof v !== 'number' || !Number.isFinite(v)) return;
+      payload[id] = v;
+    }
+    localStorage.setItem(MAIN_PANEL_LAYOUT_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore */
   }
 }
 
@@ -355,6 +394,8 @@ function App() {
   const leftPanelRef = usePanelRef();
   const centerPanelRef = usePanelRef();
   const rightPanelRef = usePanelRef();
+
+  const mainPanelDefaultLayout = useMemo(() => loadMainPanelLayout(), []);
 
   const handleCtrlL = useCallback((sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => {
     setActiveSelection(sel);
@@ -736,6 +777,20 @@ function App() {
   }, []);
 
   const [centerPaneWide, setCenterPaneWide] = useState(false);
+
+  const handleMainPanelLayoutChanged = useCallback((layout: Layout) => {
+    saveMainPanelLayout(layout);
+    const left = leftPanelRef.current;
+    const right = rightPanelRef.current;
+    if (left && right) setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
+  }, []);
+
+  useLayoutEffect(() => {
+    const left = leftPanelRef.current;
+    const right = rightPanelRef.current;
+    if (left && right) setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync once after persisted layout applies
+  }, []);
 
   useEffect(() => {
     const syncSidebarsWideState = () => {
@@ -1318,7 +1373,13 @@ function App() {
         onAuthRequired={showCredentialsDialog}
       />
 
-      <Group orientation="horizontal" className="app-panels">
+      <Group
+        orientation="horizontal"
+        className="app-panels"
+        id="main-app-panels"
+        defaultLayout={mainPanelDefaultLayout}
+        onLayoutChanged={handleMainPanelLayoutChanged}
+      >
         <Panel
           id="outliner"
           panelRef={leftPanelRef}
