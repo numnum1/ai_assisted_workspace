@@ -29,8 +29,10 @@ public final class GuidedSessionPrompts {
                 Rules for every turn:
                 - Advance the CURRENT step in the plan. Do not ask the user "what next" or what they want to discuss.
                 - Deliver one main forward move: a concrete proposal, analysis, decision, written output, or targeted clarification \
-                  (including ask_clarification when important design or modeling choices are still open — see below).
-                - After meaningful progress ALWAYS output the FULL updated steering plan in a fenced ```plan block.
+                  (including ask_clarification when you need a discrete choice — see below).
+                - After meaningful progress ALWAYS output the FULL updated steering plan in a fenced ```plan block. \
+                  Exception: if your **entire** turn is only the `ask_clarification` tool call (no prose), you may skip the ```plan update for that turn; \
+                  output the full updated ```plan on the **next** turn after the user answers.
                 - When all goals in the plan are completed or the outcome is achieved, explicitly state "Der Plan ist abgeschlossen" \
                   and include a final ```plan block with ## Status: Abgeschlossen. Do not continue asking questions after completion.
 
@@ -66,6 +68,11 @@ public final class GuidedSessionPrompts {
                 If there is no plan yet, your first substantive message must create one. \
                 The dedicated "Arbeitsplan" panel shows the latest ```plan — never repeat the full plan as prose in the chat.
 
+                **Multiple-choice and discrete options:** Whenever you would present **two or more fixed alternatives** for the user to pick from \
+                (topics, problem areas, priorities, formats, next focus, etc.), you **must** use the **`ask_clarification` tool** — not a markdown list, \
+                not numbered bullets, not plain lines of options in chat text. The UI renders the tool as radio/checkbox choices. \
+                This applies to early scoping ("what should we tackle first?") as well as to design decisions.
+
                 **Design, modeling, and structure:** When the current step involves classes, data models, APIs, or domain boundaries \
                 and the user has not specified important representation choices (e.g. how to encode rank/position, enum vs string vs number, \
                 relationships, naming with semantic weight), use **ask_clarification** before you present a concrete schema or code as a finalized decision. \
@@ -73,8 +80,8 @@ public final class GuidedSessionPrompts {
                 deliver the concrete proposal and output the full updated fenced `plan` block.
 
                 Outside the ```plan block write normally to the user (explanations, proposals, summaries). \
-                Use ask_clarification when design or modeling choices are genuinely open (see above), or when a step cannot proceed without a missing fact. \
-                Do not use it to ask what the user wants to discuss next, or to stall when the user has already been specific enough.
+                Use ask_clarification for discrete choices (see above), for open design or modeling choices, or when a step cannot proceed without a missing fact. \
+                Do not use it to ask what the user wants to discuss next when the steering plan already defines the next step, or to stall when the user has already been specific enough.
 
                 """;
     }

@@ -34,12 +34,15 @@ public class AskClarificationTool extends AbstractTool {
                 "name", TOOL_NAME,
                 "description",
                     "Ask the user one or more clarification questions before proceeding. " +
-                    "In non-guided chat, use sparingly — when ambiguity would cause a materially wrong answer and a reasonable assumption is not enough. " +
-                    "In guided sessions, also use when the task involves design, modeling, class/API structure, or domain boundaries and the user left " +
-                    "important representation choices open: ask before finalizing a concrete schema or code; include an \"Egal / du entscheidest\" (or similar) option when helpful. " +
-                    "In guided mode, do not use this for generic \"what should we do next\" — drive the plan except where clarification is needed as above. " +
+                    "Whenever you would present two or more fixed alternatives (multiple choice: topics, priorities, formats, design options, etc.), " +
+                    "you MUST use this tool — do not list options as markdown or plain text in the assistant message. " +
+                    "In non-guided chat, use when ambiguity would cause a wrong answer, or when a discrete choice is the clearest way to proceed. " +
+                    "In guided sessions, also use for scoping (which problem area or focus next) and when the task involves design, modeling, class/API structure, " +
+                    "or domain boundaries and the user left important representation choices open: ask before finalizing a concrete schema or code; " +
+                    "include an \"Egal / du entscheidest\" (or similar) option when helpful. " +
+                    "In guided mode, do not use this to stall when the steering plan already defines the next concrete step. " +
                     "Call this tool as your ONLY action (no other assistant message text); the user answers in the next turn. " +
-                    "In guided sessions, after answers, follow up with an updated fenced `plan` block.",
+                    "In guided sessions, after answers, follow up with an updated fenced `plan` block (unless that turn was clarification-only per guided instructions).",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(

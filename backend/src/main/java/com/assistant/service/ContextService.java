@@ -298,16 +298,20 @@ public class ContextService {
             systemPrompt.append("Rules:\n");
             systemPrompt.append("  - Call `ask_clarification` as your ONLY action — write NO other text before or after the tool call.\n");
             systemPrompt.append("  - You may group several related questions into one call (1–3 questions max).\n");
+            systemPrompt.append("  - If you intend to offer **two or more fixed answer choices** (multiple choice), you **must** use this tool — "
+                    + "do **not** list those choices as bullets, numbers, or separate lines in normal assistant message text.\n");
             if (GuidedSessionPrompts.isGuidedSession(request)) {
-                systemPrompt.append("  - **Guided session:** Keep driving the steering plan, but when the step involves **design, modeling, class layout, APIs, or domain structure** "
-                        + "and the user has not fixed key representation choices, call `ask_clarification` **before** you lock in a concrete structure "
-                        + "(do not silently pick types, enums, or fields that embody an unstated assumption). "
+                systemPrompt.append("  - **Guided session:** Keep driving the steering plan. Use `ask_clarification` when you need a **discrete choice** "
+                        + "(e.g. which topic, problem area, or priority to tackle next; which format; which of a few concrete directions) — not only for "
+                        + "**design, modeling, class layout, APIs, or domain structure**. For those technical steps, call it **before** you lock in a concrete structure "
+                        + "when the user has not fixed key representation choices (do not silently pick types, enums, or fields that embody an unstated assumption). "
                         + "Offer an \"Egal / du entscheidest\" (or similar) option when useful. "
-                        + "Do not use `ask_clarification` for generic \"what next\" — advance the plan except where clarification is needed as above. "
-                        + "After the user answers, continue with a concrete proposal and a full updated `plan` block.\n");
+                        + "Do not use `ask_clarification` to replace plan-driven progress with a vague \"what should we do?\" when the plan already names the next step. "
+                        + "After the user answers, continue with a concrete proposal and a full updated `plan` block (unless that turn was clarification-only — see guided instructions).\n");
             } else {
-                systemPrompt.append("  - Use this sparingly — only when the ambiguity would lead to a significantly wrong answer.\n");
-                systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
+                systemPrompt.append("  - Use this when ambiguity would lead to a wrong or unfocused answer, or whenever you would otherwise show a small fixed set of options — "
+                        + "prefer the tool over a prose list so the user gets one-click choices.\n");
+                systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption is enough and no real choice is needed.\n");
             }
             systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
 
