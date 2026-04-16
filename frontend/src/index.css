@@ -2292,6 +2292,298 @@ body.file-tree-native-dragging {
   color: inherit;
 }
 
+/* ==================== Git-like Thread Branch Picker ==================== */
+.thread-branch-picker {
+  position: relative;
+  display: inline-block;
+  font-size: 13px;
+}
+
+.thread-branch-picker__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 160px;
+  max-width: 260px;
+  overflow: hidden;
+}
+
+.thread-branch-picker__trigger:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.thread-branch-picker__git-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.thread-branch-picker__trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  text-align: left;
+}
+
+.thread-branch-picker__trigger-chevron {
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.thread-branch-picker__trigger-chevron--open {
+  transform: rotate(180deg);
+}
+
+.thread-branch-picker__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  width: 380px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.15),
+              0 0 0 1px rgb(0 0 0 / 0.05);
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdownPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdownPop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.thread-branch-picker__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.thread-branch-picker__header-meta {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.thread-branch-picker__search-row {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.thread-branch-picker__search-icon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  z-index: 1;
+}
+
+.thread-branch-picker__search-input {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.thread-branch-picker__search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+}
+
+.thread-branch-picker__list {
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.thread-branch-picker__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  position: relative;
+  border-radius: 4px;
+  margin: 2px 6px;
+}
+
+.thread-branch-picker__option:hover {
+  background: var(--bg-hover);
+}
+
+.thread-branch-picker__option--current {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.thread-branch-picker__option--keyboard {
+  background: var(--bg-active);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.thread-branch-picker__graph-line {
+  position: relative;
+  width: 22px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thread-branch-picker__graph-node {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-primary);
+  z-index: 2;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.2);
+}
+
+.thread-branch-picker__graph-node.branch {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgb(134 239 172 / 0.2);
+}
+
+.thread-branch-picker__graph-connector {
+  position: absolute;
+  left: 10px;
+  top: -12px;
+  bottom: 12px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--border), #22c55e, var(--border));
+  z-index: 1;
+}
+
+.thread-branch-picker__option--main .thread-branch-picker__graph-node {
+  background: #3b82f6;
+}
+
+.thread-branch-picker__option-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.thread-branch-picker__option-icon {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  position: relative;
+}
+
+.thread-branch-picker__saved-icon {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  color: #eab308;
+  background: var(--bg-primary);
+  border-radius: 50%;
+}
+
+.thread-branch-picker__option-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.thread-branch-picker__option-title {
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-branch-picker__option--current .thread-branch-picker__option-title {
+  color: var(--accent);
+}
+
+.thread-branch-picker__option-meta {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.thread-branch-picker__option-check {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-left: auto;
+  margin-top: 2px;
+}
+
+.thread-branch-picker__empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.thread-branch-picker__footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.thread-branch-picker__hint {
+  font-family: ui-monospace, monospace;
+  opacity: 0.7;
+}
+
+.chat-thread-split-switcher {
+  /* Keep existing styles but we can now use picker instead */
+}
+
 .chat-empty {
   display: flex;
   flex-direction: column;

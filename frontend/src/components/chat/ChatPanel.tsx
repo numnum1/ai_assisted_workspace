@@ -39,6 +39,7 @@ import { ToolCallDisplay } from './ToolCallDisplay.tsx';
 import { parseClarificationQuestions, hasClarificationFence } from './clarificationUtils.ts';
 import { parseGuidedThreadOffer, type GuidedThreadOfferPayload } from './guidedThreadOfferUtils.ts';
 import { GuidedThreadOfferCard } from './GuidedThreadOfferCard.tsx';
+import { ThreadBranchPicker, type ThreadBranchItem } from './ThreadBranchPicker.tsx';
 import type { CardState } from './ChangeCard.tsx';
 import { ChangeCardGroup } from './ChangeCardGroup.tsx';
 import { buildChatRenderUnits } from './chatRenderUnits.ts';
@@ -851,6 +852,24 @@ export function ChatPanel({
     };
   }, [conversations, activeConversationId]);
 
+  /** Maps Conversation data to the richer ThreadBranchItem for the git-style picker */
+  const mapToBranchItem = useCallback((conv: Conversation): ThreadBranchItem => ({
+    id: conv.id,
+    title: conv.title,
+    messageCount: conv.messages.filter((m) => !m.hidden).length,
+    updatedAt: conv.updatedAt,
+    savedToProject: conv.savedToProject,
+  }), []);
+
+  const mainBranchItem = useMemo(() => {
+    if (!threadRail.rootConv) return null;
+    return mapToBranchItem(threadRail.rootConv);
+  }, [threadRail.rootConv, mapToBranchItem]);
+
+  const threadBranchItems = useMemo(() => {
+    return threadRail.threads.map(mapToBranchItem);
+  }, [threadRail.threads, mapToBranchItem]);
+
   const showThreadSplit = Boolean(isFullscreen && activeIsThread && threadRail.rootConv);
   const splitRoot = showThreadSplit && threadRail.rootConv ? threadRail.rootConv : null;
   const threadsRailRoot = threadRail.showRail && threadRail.rootConv ? threadRail.rootConv : null;
@@ -1249,28 +1268,18 @@ export function ChatPanel({
               <div className="chat-thread-split-left-scroll">{parentReadonlyMessagesEl}</div>
             </div>
             <div className="chat-thread-split-right">
-              <div className="chat-thread-split-switcher" role="tablist" aria-label="Thread wechseln">
-                <button
-                  type="button"
-                  role="tab"
-                  className={`chat-thread-split-switcher-btn${splitRoot.id === activeConversationId ? ' active' : ''}`}
-                  onClick={() => onSwitchChat(splitRoot.id)}
-                  title={splitRoot.title}
-                >
-                  Haupt-Chat
-                </button>
-                {threadRail.threads.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    className={`chat-thread-split-switcher-btn${t.id === activeConversationId ? ' active' : ''}`}
-                    onClick={() => onSwitchChat(t.id)}
-                    title={t.title}
-                  >
-                    {t.title}
-                  </button>
-                ))}
+              <div className="chat-thread-split-switcher">
+                {mainBranchItem && (
+                  <ThreadBranchPicker
+                    main={mainBranchItem}
+                    threads={threadBranchItems}
+                    activeId={activeConversationId}
+                    onSelect={onSwitchChat}
+                    ariaLabel="Thread / Branch wechseln (Git-Style)"
+                    showGraph={true}
+                    className="thread-branch-in-split"
+                  />
+                )}
               </div>
               <div className="chat-panel-body-main">
                 {interactiveMessagesEl}

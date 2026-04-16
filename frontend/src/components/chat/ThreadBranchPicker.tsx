@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { Check, ChevronDown, Search, GitBranch, MessageSquare, FolderCheck } from 'lucide-react';
 
 export interface ThreadBranchItem {
   id: string;
   title: string;
+  messageCount?: number;
+  updatedAt?: number;
+  savedToProject?: boolean;
 }
 
 interface ThreadBranchPickerProps {
@@ -15,9 +18,11 @@ interface ThreadBranchPickerProps {
   className?: string;
   /** Accessible label for the trigger (e.g. "Chat-Zweig wechseln"). */
   ariaLabel?: string;
+  /** Show git-graph style visualization */
+  showGraph?: boolean;
 }
 
-type InternalItem = ThreadBranchItem & { kind: 'main' | 'thread' };
+type InternalItem = ThreadBranchItem & { kind: 'main' | 'thread'; isActive: boolean };
 
 export function ThreadBranchPicker({
   main,
@@ -26,7 +31,8 @@ export function ThreadBranchPicker({
   onSelect,
   disabled = false,
   className = '',
-  ariaLabel = 'Chat-Zweig wählen',
+  ariaLabel = 'Chat-Zweig wechseln',
+  showGraph = true,
 }: ThreadBranchPickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -36,10 +42,15 @@ export function ThreadBranchPicker({
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const allItems: InternalItem[] = useMemo(
-    () => [{ ...main, kind: 'main' }, ...threads.map((t) => ({ ...t, kind: 'thread' as const }))],
-    [main, threads],
-  );
+  const allItems: InternalItem[] = useMemo(() => {
+    const mainItem: InternalItem = { ...main, kind: 'main', isActive: main.id === activeId };
+    const threadItems: InternalItem[] = threads.map((t) => ({
+      ...t,
+      kind: 'thread' as const,
+      isActive: t.id === activeId,
+    }));
+    return [mainItem, ...threadItems];
+  }, [main, threads, activeId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -60,6 +71,25 @@ export function ThreadBranchPicker({
     () => allItems.find((i) => i.id === activeId) ?? main,
     [allItems, activeId, main],
   );
+
+  const formatMeta = useCallback((item: InternalItem): string => {
+    const parts: string[] = [];
+    if (item.messageCount !== undefined) {
+      parts.push(`${item.messageCount} Nachr.`);
+    }
+    if (item.updatedAt) {
+      const date = new Date(item.updatedAt);
+      const now = Date.now();
+      const diffMs = now - date.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) parts.push('heute');
+      else if (diffDays === 1) parts.push('gestern');
+      else if (diffDays < 7) parts.push(`vor ${diffDays} Tagen`);
+      else parts.push(date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
+    }
+    return parts.join(' · ');
+  }, []);
 
   const openDropdown = useCallback(() => {
     if (disabled) return;
@@ -132,7 +162,11 @@ export function ThreadBranchPicker({
     }
   };
 
-  const rootClass = ['thread-branch-picker', className].filter(Boolean).join(' ');
+  const rootClass = [
+    'thread-branch-picker',
+    showGraph && 'thread-branch-picker--graph',
+    className
+  ].filter(Boolean).join(' ');
 
   return (
     <div ref={rootRef} className={rootClass}>
@@ -146,6 +180,7 @@ export function ThreadBranchPicker({
         aria-label={ariaLabel}
         onClick={handleTriggerClick}
       >
+        <GitBranch size={16} className="thread-branch-picker__git-icon" aria-hidden />
         <span className="thread-branch-picker__trigger-label" title={activeItem.title}>
           {activeItem.title}
         </span>
@@ -161,6 +196,14 @@ export function ThreadBranchPicker({
           className="thread-branch-picker__dropdown"
           onKeyDown={handleKeyDownOnDropdown}
         >
+          <div className="thread-branch-picker__header">
+            <GitBranch size={18} />
+            <span>Git Branch Graph</span>
+            <div className="thread-branch-picker__header-meta">
+              {threads.length + 1} Zweige
+            </div>
+          </div>
+
           <div className="thread-branch-picker__search-row">
             <Search size={14} className="thread-branch-picker__search-icon" aria-hidden />
             <input
@@ -170,39 +213,77 @@ export function ThreadBranchPicker({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Threads durchsuchen…"
+              placeholder="Branches / Threads durchsuchen…"
               aria-label="Threads filtern"
               autoComplete="off"
             />
           </div>
+
           <ul id={listId} className="thread-branch-picker__list" role="listbox" aria-label={ariaLabel}>
             {filtered.length === 0 ? (
               <li className="thread-branch-picker__empty" role="presentation">
-                Keine Treffer
+                Keine passenden Branches gefunden
               </li>
             ) : (
-              filtered.map((item, i) => (
-                <li
-                  key={item.id}
-                  role="option"
-                  aria-selected={item.id === activeId}
-                  className={`thread-branch-picker__option${i === selectedIndex ? ' thread-branch-picker__option--keyboard' : ''}${item.id === activeId ? ' thread-branch-picker__option--current' : ''}`}
-                  onClick={() => pick(item.id)}
-                  onMouseEnter={() => setSelectedIndex(i)}
-                >
-                  <span className="thread-branch-picker__option-meta">
-                    {item.kind === 'main' ? 'Haupt-Chat' : 'Thread'}
-                  </span>
-                  <span className="thread-branch-picker__option-title" title={item.title}>
-                    {item.title}
-                  </span>
-                  {item.id === activeId && (
-                    <Check size={14} className="thread-branch-picker__option-check" aria-hidden />
-                  )}
-                </li>
-              ))
+              filtered.map((item, i) => {
+                const isMain = item.kind === 'main';
+                const meta = formatMeta(item);
+                return (
+                  <li
+                    key={item.id}
+                    role="option"
+                    aria-selected={item.isActive}
+                    className={`thread-branch-picker__option thread-branch-picker__option--graph
+                      ${i === selectedIndex ? 'thread-branch-picker__option--keyboard' : ''}
+                      ${item.isActive ? 'thread-branch-picker__option--current' : ''}
+                      ${isMain ? 'thread-branch-picker__option--main' : ''}`}
+                    onClick={() => pick(item.id)}
+                    onMouseEnter={() => setSelectedIndex(i)}
+                  >
+                    {/* Git graph line */}
+                    <div className="thread-branch-picker__graph-line">
+                      <div className={`thread-branch-picker__graph-node ${isMain ? 'main' : 'branch'}`} />
+                      {!isMain && <div className="thread-branch-picker__graph-connector" />}
+                    </div>
+
+                    <div className="thread-branch-picker__option-content">
+                      <div className="thread-branch-picker__option-icon">
+                        {isMain ? (
+                          <MessageSquare size={16} />
+                        ) : (
+                          <GitBranch size={16} />
+                        )}
+                        {item.savedToProject && (
+                          <FolderCheck size={12} className="thread-branch-picker__saved-icon" />
+                        )}
+                      </div>
+
+                      <div className="thread-branch-picker__option-main">
+                        <div className="thread-branch-picker__option-title" title={item.title}>
+                          {item.title}
+                        </div>
+                        {meta && (
+                          <div className="thread-branch-picker__option-meta">
+                            {meta}
+                          </div>
+                        )}
+                      </div>
+
+                      {item.isActive && (
+                        <Check size={18} className="thread-branch-picker__option-check" aria-hidden />
+                      )}
+                    </div>
+                  </li>
+                );
+              })
             )}
           </ul>
+
+          <div className="thread-branch-picker__footer">
+            <span className="thread-branch-picker__hint">
+              ←↑↓→ zum Navigieren • Enter zum Wechseln • ESC zum Schließen
+            </span>
+          </div>
         </div>
       )}
     </div>
@@ -210,17 +291,32 @@ export function ThreadBranchPicker({
 }
 
 /**
- * Beispiel für spätere Einbindung (kein Runtime-Demo):
+ * Git-inspired Thread/Branch Picker
+ *
+ * Supports rich Conversation data:
+ * - Visual branch graph with connecting lines
+ * - Message count, relative timestamps
+ * - savedToProject indicator (FolderCheck)
+ * - Keyboard navigation + search
+ *
+ * Example:
  *
  * ```tsx
  * <ThreadBranchPicker
- *   main={{ id: 'root-1', title: 'Projekt-Chat' }}
+ *   main={{
+ *     id: 'root-1',
+ *     title: 'Haupt-Chat: Kapitel 3 Überarbeitung',
+ *     messageCount: 24,
+ *     updatedAt: Date.now() - 3600000,
+ *     savedToProject: true
+ *   }}
  *   threads={[
- *     { id: 't1', title: 'Refactor API' },
- *     { id: 't2', title: 'UI-Feedback' },
+ *     { id: 't1', title: 'UI-Feedback Runde 2', messageCount: 12, updatedAt: Date.now() - 86400000 },
+ *     { id: 't2', title: 'Refactoring der API', messageCount: 8, updatedAt: Date.now() - 7200000, savedToProject: true },
  *   ]}
  *   activeId="t1"
- *   onSelect={(id) => console.log(id)}
+ *   onSelect={(id) => console.log('Switch to branch:', id)}
+ *   showGraph={true}
  * />
  * ```
  */
