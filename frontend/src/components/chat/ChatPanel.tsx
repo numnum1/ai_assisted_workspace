@@ -1059,10 +1059,24 @@ export function ChatPanel({
       />
     ) : null;
 
-  const guidedExecSummary =
-    activeSessionKind === 'guided'
-      ? resolveGuidedExecutionSummary(modes, selectedMode, llms, selectedLlmId)
-      : null;
+  /** Guided header must match persisted conversation (agent preset), not global toolbar state. */
+  const guidedExecSummary = useMemo(() => {
+    if (activeSessionKind !== 'guided') return null;
+    const conv = conversations.find((c) => c.id === activeConversationId);
+    if (!conv) {
+      return resolveGuidedExecutionSummary(modes, selectedMode, llms, selectedLlmId);
+    }
+    const llmForLabel = conv.agentLlmId !== undefined ? conv.agentLlmId : selectedLlmId;
+    return resolveGuidedExecutionSummary(modes, conv.mode, llms, llmForLabel);
+  }, [
+    activeSessionKind,
+    conversations,
+    activeConversationId,
+    modes,
+    selectedMode,
+    llms,
+    selectedLlmId,
+  ]);
 
   return (
     <div
