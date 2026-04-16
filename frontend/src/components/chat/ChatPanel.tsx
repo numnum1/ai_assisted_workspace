@@ -37,6 +37,8 @@ import { ChatComposerCard } from './ChatComposerCard.tsx';
 import { SuggestedActionsCard } from './SuggestedActionsCard.tsx';
 import { ToolCallDisplay } from './ToolCallDisplay.tsx';
 import { parseClarificationQuestions, hasClarificationFence } from './clarificationUtils.ts';
+import { parseGuidedThreadOffer, type GuidedThreadOfferPayload } from './guidedThreadOfferUtils.ts';
+import { GuidedThreadOfferCard } from './GuidedThreadOfferCard.tsx';
 import type { CardState } from './ChangeCard.tsx';
 import { ChangeCardGroup } from './ChangeCardGroup.tsx';
 import { buildChatRenderUnits } from './chatRenderUnits.ts';
@@ -97,6 +99,8 @@ interface ChatPanelProps {
   onForkToNewConversation: (index: number) => void;
   /** Start a new chat with system intro + parent transcript through this message index (inclusive). */
   onStartThreadFromMessage: (messageIndex: number) => void;
+  /** Accept an AI-offered guided thread (payload from ```guided_thread_offer). */
+  onAcceptGuidedThreadOffer?: (assistantMessageIndex: number, payload: GuidedThreadOfferPayload) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessage: (index: number) => void;
   onNewChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
@@ -653,6 +657,7 @@ export function ChatPanel({
   onForkFromMessage,
   onForkToNewConversation,
   onStartThreadFromMessage,
+  onAcceptGuidedThreadOffer,
   onEditMessage,
   onDeleteMessage,
   onNewChat,
@@ -703,6 +708,12 @@ export function ChatPanel({
   const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string } | null>(null);
   const [glossarySaving, setGlosarySaving] = useState(false);
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
+  /** Guided/agent session: UI toggles like Reasoning are hidden; keep in state for easy local overrides later. */
+  const [agentMode, setAgentMode] = useState(activeSessionKind === 'guided');
+
+  useEffect(() => {
+    setAgentMode(activeSessionKind === 'guided');
+  }, [activeSessionKind]);
 
   const parsedSteeringPlan = useMemo((): ParsedSteeringPlan => {
     return parseSteeringPlan(steeringPlan ?? null);
@@ -739,6 +750,11 @@ export function ChatPanel({
   useEffect(() => {
     setToolbarSettledIds(new Set());
     setBulkDismissIds(new Set());
+  }, [activeConversationId]);
+
+  const [guidedThreadOfferDismissed, setGuidedThreadOfferDismissed] = useState(() => new Set<number>());
+  useEffect(() => {
+    setGuidedThreadOfferDismissed(new Set());
   }, [activeConversationId]);
 
   const mergeComposerBatchForced = useCallback((patch: Record<string, CardState>) => {
@@ -782,6 +798,34 @@ export function ChatPanel({
     if (userAfter) return null;
     return qs;
   }, [messages]);
+
+  const pendingGuidedThreadOffer = useMemo(() => {
+    if (!onAcceptGuidedThreadOffer) return null;
+    const vis = messages
+      .map((m, originalIdx) => ({ m, originalIdx }))
+      .filter(({ m }) => !m.hidden);
+    const last = vis[vis.length - 1];
+    if (!last || last.m.role !== 'assistant') return null;
+    const offer = parseGuidedThreadOffer(last.m.content);
+    if (!offer) return null;
+    const userAfter = messages
+      .slice(last.originalIdx + 1)
+      .some((m) => !m.hidden && m.role === 'user');
+    if (userAfter) return null;
+    if (guidedThreadOfferDismissed.has(last.originalIdx)) return null;
+    return { offer, assistantIdx: last.originalIdx };
+  }, [messages, onAcceptGuidedThreadOffer, guidedThreadOfferDismissed]);
+
+  const handleDismissGuidedThreadOffer = useCallback(() => {
+    if (!pendingGuidedThreadOffer) return;
+    const idx = pendingGuidedThreadOffer.assistantIdx;
+    setGuidedThreadOfferDismissed((prev) => new Set(prev).add(idx));
+  }, [pendingGuidedThreadOffer]);
+
+  const handleAcceptGuidedThreadOfferClick = useCallback(() => {
+    if (!pendingGuidedThreadOffer || !onAcceptGuidedThreadOffer || activeIsThread) return;
+    onAcceptGuidedThreadOffer(pendingGuidedThreadOffer.assistantIdx, pendingGuidedThreadOffer.offer);
+  }, [pendingGuidedThreadOffer, onAcceptGuidedThreadOffer, activeIsThread]);
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
 
@@ -1246,6 +1290,17 @@ export function ChatPanel({
                       />
                     </ChatComposerCard>
                   ) : null}
+                  {pendingGuidedThreadOffer && !pendingClarification ? (
+                    <ChatComposerCard>
+                      <GuidedThreadOfferCard
+                        offer={pendingGuidedThreadOffer.offer}
+                        blocked={activeIsThread}
+                        disabled={streaming}
+                        onAccept={handleAcceptGuidedThreadOfferClick}
+                        onDismiss={handleDismissGuidedThreadOffer}
+                      />
+                    </ChatComposerCard>
+                  ) : null}
                   {pendingWriteFileItems.length > 0 && !streaming ? (
                     <WriteFileBatchComposerBar
                       items={pendingWriteFileItems}
@@ -1264,7 +1319,7 @@ export function ChatPanel({
                     fullscreen={isFullscreen}
                     structureRoot={structureRoot}
                     useReasoning={useReasoning && reasoningAvailable}
-                    onToggleReasoning={onToggleReasoning}
+                    onToggleReasoning={agentMode ? undefined : onToggleReasoning}
                     disabledToolkits={disabledToolkits}
                     onToggleToolkit={onToggleToolkit}
                     reasoningAvailable={reasoningAvailable}
@@ -1301,6 +1356,17 @@ export function ChatPanel({
                     />
                   </ChatComposerCard>
                 ) : null}
+                {pendingGuidedThreadOffer && !pendingClarification ? (
+                  <ChatComposerCard>
+                    <GuidedThreadOfferCard
+                      offer={pendingGuidedThreadOffer.offer}
+                      blocked={activeIsThread}
+                      disabled={streaming}
+                      onAccept={handleAcceptGuidedThreadOfferClick}
+                      onDismiss={handleDismissGuidedThreadOffer}
+                    />
+                  </ChatComposerCard>
+                ) : null}
                 {pendingWriteFileItems.length > 0 && !streaming ? (
                   <WriteFileBatchComposerBar
                     items={pendingWriteFileItems}
@@ -1319,7 +1385,7 @@ export function ChatPanel({
                   fullscreen={isFullscreen}
                   structureRoot={structureRoot}
                   useReasoning={useReasoning && reasoningAvailable}
-                  onToggleReasoning={onToggleReasoning}
+                  onToggleReasoning={agentMode ? undefined : onToggleReasoning}
                   disabledToolkits={disabledToolkits}
                   onToggleToolkit={onToggleToolkit}
                   reasoningAvailable={reasoningAvailable}

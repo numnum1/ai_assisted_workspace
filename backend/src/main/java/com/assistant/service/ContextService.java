@@ -310,6 +310,20 @@ public class ContextService {
                 systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption can be made.\n");
             }
             systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
+
+            systemPrompt.append("=== Guided thread offer ===\n");
+            systemPrompt.append("When a **separate** multi-step workflow would work better as its own **guided** session (binding steering plan), call the\n");
+            systemPrompt.append("`propose_guided_thread` tool. Pass `steeringPlanMarkdown`: full markdown for the **initial** plan ");
+            systemPrompt.append("(same style as guided plans: e.g. ## Ziel, ## Rahmen, ## Status, ## Vorgehen, ## Nächster Schritt, ## Abschlusskriterien).\n");
+            systemPrompt.append("Optional: `threadTitle`, `summary` (one line for the offer card), `modeId` (existing chat mode id), `agentPresetId` (project agent template id).\n");
+            systemPrompt.append("Rules:\n");
+            systemPrompt.append("  - Call `propose_guided_thread` as your **ONLY** action in the turn — no other assistant text in the same turn.\n");
+            systemPrompt.append("  - Do not use this for trivial follow-ups; use it when a branched guided thread genuinely helps the user.\n");
+            systemPrompt.append("  - The user will see a card to confirm opening a new guided thread with your plan.\n");
+            if (GuidedSessionPrompts.isGuidedSession(request)) {
+                systemPrompt.append("  - **Guided session:** Offer only when a **standalone** sub-workflow with a clearly scoped **new** plan makes sense — not for minor continuation of the current plan.\n");
+            }
+            systemPrompt.append("\n");
         }
 
         int finalSystemPromptChars = systemPrompt.length();

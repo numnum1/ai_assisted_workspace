@@ -32,6 +32,8 @@ export interface AgentPreset {
   name: string;
   modeId: string;
   llmId?: string | null;
+  /** Optional LLM for fork/thread chats when the parent chat uses this preset (see conversation agentPresetId). */
+  threadLlmId?: string | null;
   useReasoning: boolean;
   disabledToolkits: ChatToolkitId[];
   initialSteeringPlan?: string | null;
@@ -143,6 +145,8 @@ export interface Conversation {
   savedToProject?: boolean;
   /** Omitted or standard = normal chat; guided = AI-led session with optional steeringPlan */
   sessionKind?: ChatSessionKind;
+  /** Project agent template id when this guided chat was started from a preset (fork/thread preset resolution). */
+  agentPresetId?: string;
   /** Markdown steering plan maintained by the model (guided sessions) */
   steeringPlan?: string;
   /** True when this conversation was started as a thread from another chat (project pin follows parent). */

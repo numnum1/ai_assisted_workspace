@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, Fragment } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Replace, Copy, Check, HelpCircle, PenLine, Brain, ChevronDown, ChevronRight } from 'lucide-react';
+import { Replace, Copy, Check, HelpCircle, PenLine, Brain, ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../../types.ts';
 import { stripPlanFencesForDisplay } from './planFenceUtils.ts';
@@ -87,6 +87,28 @@ function ClarificationCompactHint({ raw }: { raw: string }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Non-interactive hint when guided-thread offer is shown in GuidedThreadOfferCard. */
+function GuidedThreadOfferCompactHint({ raw }: { raw: string }) {
+  const label = useMemo(() => {
+    try {
+      const o = JSON.parse(raw) as Record<string, unknown>;
+      const t = o.threadTitle;
+      const s = o.summary;
+      if (typeof t === 'string' && t.trim()) return t.trim();
+      if (typeof s === 'string' && s.trim()) return s.trim();
+    } catch {
+      /* ignore */
+    }
+    return 'Guided Thread angeboten';
+  }, [raw]);
+  return (
+    <div className="chat-guided-thread-offer-compact">
+      <GitBranch size={13} aria-hidden />
+      <span className="chat-guided-thread-offer-compact-label">{label}</span>
     </div>
   );
 }
@@ -345,11 +367,13 @@ export function ChatMessageMarkdown({
       // Block code fences have a language-* className; inline code does not.
       const isReplaceBlock = className === 'language-replace';
       const isClarificationBlock = className === 'language-clarification';
+      const isGuidedThreadOfferBlock = className === 'language-guided_thread_offer';
       const isFieldUpdateBlock = className === 'language-field-update';
       const isPlanBlock = className === 'language-plan';
       const isCodeBlock =
         !isReplaceBlock &&
         !isClarificationBlock &&
+        !isGuidedThreadOfferBlock &&
         !isFieldUpdateBlock &&
         !isPlanBlock &&
         /language-/.test(className ?? '');
@@ -462,6 +486,11 @@ export function ChatMessageMarkdown({
             onSelectOption={onSelectOption}
           />
         );
+      }
+
+      if (isGuidedThreadOfferBlock) {
+        const raw = String(children ?? '').trim();
+        return <GuidedThreadOfferCompactHint raw={raw} />;
       }
 
       if (!isCodeBlock) {

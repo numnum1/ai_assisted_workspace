@@ -218,6 +218,9 @@ public class ProjectConfigService {
         if (p.getLlmId() != null && p.getLlmId().isBlank()) {
             p.setLlmId(null);
         }
+        if (p.getThreadLlmId() != null && p.getThreadLlmId().isBlank()) {
+            p.setThreadLlmId(null);
+        }
         if (p.getDisabledToolkits() == null) {
             p.setDisabledToolkits(new ArrayList<>());
         }

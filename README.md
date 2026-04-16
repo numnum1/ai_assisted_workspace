@@ -31,6 +31,7 @@ A local, AI-powered Markdown workspace with a three-panel Cursor-style UI: file 
   - **Threads rail** (sidebar) lists main chat + its threads for easy switching.
   - In fullscreen mode: split-pane UI with read-only parent chat on the left and active thread on the right.
   - Orphan threads (no parent) grouped separately. Thread mode/pinning follows parent root. Persisted in chat history.
+  - **KI-Angebot Guided Thread**: The assistant may call `propose_guided_thread` with a prepared steering plan; the UI shows a card to open a new **guided** thread with that plan (optional title, mode, agent preset). **Threads cannot start another thread** (offer is disabled inside a thread).
 
 ### Modes
 Built-in chat modes change the system prompt (Story Review, Continuity Check, Spelling and Style, Brainstorm, Prompt-Paket, Struktur ausfüllen, …). Custom modes: `.assistant/modes/` or `backend/src/main/resources/modes/`.

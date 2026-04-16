@@ -1,4 +1,4 @@
-import type { AgentPreset, ChatToolkitId, Conversation } from '../../types.ts';
+import type { AgentPreset, ChatToolkitId, Conversation, LlmPublic } from '../../types.ts';
 import type { NewChatConfirmPayload } from './NewChatDialog.tsx';
 
 export function isNewChatConfirmPayload(x: unknown): x is NewChatConfirmPayload {
@@ -39,19 +39,53 @@ export function agentExecutionPartialFromParent(parent: Conversation): Partial<C
   return out;
 }
 
+/**
+ * When a thread/fork is created under a chat that uses {@link AgentPreset}, optional {@link AgentPreset.threadLlmId}
+ * overrides inherited {@link Conversation.agentLlmId} and may adjust {@link Conversation.agentUseReasoning} from model caps.
+ */
+export function threadExecutionOverrideFromPreset(
+  preset: AgentPreset | undefined,
+  llms: readonly LlmPublic[],
+): Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> {
+  const raw = preset?.threadLlmId?.trim();
+  if (!raw) return {};
+  const lp = llms.find((l) => l.id === raw);
+  const hasReasoning = !!lp?.reasoningModel;
+  const hasFast = !!lp?.fastModel;
+  const patch: Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> = {
+    agentLlmId: raw,
+  };
+  if (!hasReasoning) {
+    patch.agentUseReasoning = false;
+  } else if (!hasFast) {
+    patch.agentUseReasoning = true;
+  }
+  return patch;
+}
+
+/** Copy agent preset id from parent for guided fork/thread children (for {@link AgentPreset.threadLlmId} resolution). */
+export function guidedPresetPartialFromParent(parent: Conversation): Partial<Conversation> {
+  const id = parent.agentPresetId?.trim();
+  if (!id) return {};
+  return { agentPresetId: id };
+}
+
 /** Guided session patch from a project agent preset (optional dialog plan overrides preset default). */
 export function buildGuidedAgentPatchFromPreset(
   preset: AgentPreset,
-  dialogInitialPlan: string | undefined,
+  dialogInitialPlan?: string | undefined,
+  agentPresetId?: string | undefined,
 ): Partial<Conversation> {
   const dialog = dialogInitialPlan?.trim();
   const fallback = preset.initialSteeringPlan?.trim();
   const steeringPlan = dialog || fallback;
+  const presetId = agentPresetId?.trim();
   const patch: Partial<Conversation> = {
     mode: preset.modeId,
     agentUseReasoning: preset.useReasoning,
     agentDisabledToolkits: [...(preset.disabledToolkits ?? [])] as ChatToolkitId[],
     ...(steeringPlan ? { steeringPlan } : {}),
+    ...(presetId ? { agentPresetId: presetId } : {}),
   };
   const lid = preset.llmId?.trim();
   if (lid) {

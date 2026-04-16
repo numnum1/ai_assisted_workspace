@@ -15,3 +15,18 @@ export function buildThreadSystemContent(parentTitle: string): string {
   );
 }
 
+/** Hidden system intro + parent transcript through `messageIndex` (inclusive) for a new thread. */
+export function buildThreadHiddenBootstrap(
+  parentDisplayTitle: string,
+  chatMessages: ChatMessage[],
+  messageIndex: number,
+): ChatMessage[] {
+  const transcript = cloneChatMessages(chatMessages.slice(0, messageIndex + 1));
+  const systemIntro: ChatMessage = {
+    role: 'system',
+    content: buildThreadSystemContent(parentDisplayTitle),
+    hidden: true,
+  };
+  return [systemIntro, ...transcript.map((m) => ({ ...m, hidden: true }))];
+}
+
