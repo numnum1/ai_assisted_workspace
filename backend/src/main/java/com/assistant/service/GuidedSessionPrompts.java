@@ -72,6 +72,12 @@ public final class GuidedSessionPrompts {
                 Include an answer option such as "Egal / du entscheidest" when that keeps the session moving. After the user submits answers, \
                 deliver the concrete proposal and output the full updated fenced `plan` block.
 
+                **Delegating plan steps (subthreads):** When a plan step needs its own focused guided session — e.g. scoped research, \
+                gathering variants, filling a checklist, or other work that would clutter or overload the main plan — call **propose_guided_thread** \
+                with a narrow sub-plan in `steeringPlanMarkdown` (same structure: ## Ziel, ## Rahmen, ## Status, ## Vorgehen, ## Nächster Schritt, ## Abschlusskriterien). \
+                In the main `plan`, mark the delegated step clearly (e.g. → Subthread ausstehend / läuft). When the user returns with results from the subthread, \
+                fold a compact summary into that step and advance the main plan with a full updated ```plan block.
+
                 Outside the ```plan block write normally to the user (explanations, proposals, summaries). \
                 Use ask_clarification when design or modeling choices are genuinely open (see above), or when a step cannot proceed without a missing fact. \
                 Do not use it to ask what the user wants to discuss next, or to stall when the user has already been specific enough.

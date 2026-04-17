@@ -321,7 +321,10 @@ public class ContextService {
             systemPrompt.append("  - Do not use this for trivial follow-ups; use it when a branched guided thread genuinely helps the user.\n");
             systemPrompt.append("  - The user will see a card to confirm opening a new guided thread with your plan.\n");
             if (GuidedSessionPrompts.isGuidedSession(request)) {
-                systemPrompt.append("  - **Guided session:** Offer only when a **standalone** sub-workflow with a clearly scoped **new** plan makes sense — not for minor continuation of the current plan.\n");
+                systemPrompt.append("  - **Guided session:** Offer a subthread when a **plan step** has its own scope, many iterations, or data-gathering work "
+                        + "that would overload the current plan (research, variants, checklists, multi-step probing). "
+                        + "Pass a focused initial `steeringPlanMarkdown` for that step only. In the main plan, mark the step (e.g. → Subthread) and update it with a compact result summary when the user is back. "
+                        + "Do not open a subthread for trivial single-turn steps.\n");
             }
             systemPrompt.append("\n");
         }
