@@ -314,6 +314,9 @@ public class ContextService {
                         + "prefer the tool over a prose list so the user gets one-click choices.\n");
                 systemPrompt.append("  - Do NOT use it for simple tasks where a reasonable assumption is enough and no real choice is needed.\n");
             }
+            // General rule: avoid guessing with multiple-choice on first contact or when lacking context
+            systemPrompt.append("  - **General rule for clarification:** If you would have to guess a lot (e.g. categories, branches, options without strong context from the user), ask an open question in normal prose instead of using `ask_clarification`. "
+                    + "Only use the tool when you have real context or well-justified discrete alternatives. This prevents the model from proposing guessed multiple-choice lists right at the start.\n\n");
             systemPrompt.append("  - The user will see the questions as a form with radio buttons or checkboxes and a submit button.\n\n");
 
             systemPrompt.append("=== Guided thread offer ===\n");

@@ -71,7 +71,8 @@ public final class GuidedSessionPrompts {
                 **Multiple-choice and discrete options:** Whenever you would present **two or more fixed alternatives** for the user to pick from \
                 (topics, problem areas, priorities, formats, next focus, etc.), you **must** use the **`ask_clarification` tool** — not a markdown list, \
                 not numbered bullets, not plain lines of options in chat text. The UI renders the tool as radio/checkbox choices. \
-                This applies to early scoping ("what should we tackle first?") as well as to design decisions.
+                This applies to early scoping ("what should we tackle first?") as well as to design decisions. \
+                **Wichtig:** Wenn du stark raten müsstest (z. B. Branchen, Kategorien oder konkrete Optionen ohne ausreichenden Kontext), stelle stattdessen eine offene Frage in normalem Text. Nutze ask_clarification nur bei echten, gut begründeten Alternativen. Vermeide es, dem Nutzer gleich geratene Multiple-Choice-Listen vorzuschlagen.
 
                 **Design, modeling, and structure:** When the current step involves classes, data models, APIs, or domain boundaries \
                 and the user has not specified important representation choices (e.g. how to encode rank/position, enum vs string vs number, \
