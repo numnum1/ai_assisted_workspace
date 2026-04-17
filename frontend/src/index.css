@@ -6508,6 +6508,12 @@ body.file-tree-native-dragging {
   gap: 4px;
 }
 
+.context-bar-system-prompt-hint {
+  color: var(--text-muted, #888);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
 .context-bar-tokens {
   color: var(--yellow);
 }
@@ -6647,6 +6653,11 @@ body.file-tree-native-dragging {
 
 .context-block-content--glossary {
   max-height: 240px;
+}
+
+.context-block-content--system-prompt {
+  max-height: 280px;
+  overflow: auto;
 }
 
 .context-inspector-blocks-inner .context-block:last-child {

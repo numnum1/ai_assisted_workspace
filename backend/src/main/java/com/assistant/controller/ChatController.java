@@ -432,17 +432,39 @@ public class ChatController {
 
     @PostMapping("/context-preview")
     public Map<String, Object> previewContext(@RequestBody ChatRequest request) {
-        log.info("context-preview: mode={}, referencedFiles={}", request.getMode(), request.getReferencedFiles());
+        log.trace(
+                "Received request to preview context: mode={}, referencedFiles={}",
+                request.getMode(),
+                request.getReferencedFiles());
         AssembledContext context = contextService.assemble(request);
+        String systemPrompt = extractSystemPromptFromAssembled(context);
         log.info(
-                "context-preview result: files={}, estimatedTokens={}",
-                context.getIncludedFiles(),
-                context.getEstimatedTokens());
-        return Map.of(
-                "includedFiles", context.getIncludedFiles(),
-                "estimatedTokens", context.getEstimatedTokens(),
-                "contextBlocks", context.getContextBlocks()
-        );
+                "context-preview result: files={}, estimatedTokens={}, systemPromptChars={}",
+                context.getIncludedFiles().size(),
+                context.getEstimatedTokens(),
+                systemPrompt.length());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("includedFiles", context.getIncludedFiles());
+        body.put("estimatedTokens", context.getEstimatedTokens());
+        body.put("contextBlocks", context.getContextBlocks());
+        body.put("systemPrompt", systemPrompt);
+        log.trace("Finished successfully preview context: systemPromptChars={}", systemPrompt.length());
+        return body;
+    }
+
+    /**
+     * First assembled message is always the system prompt for non–quick-chat assembly.
+     */
+    private static String extractSystemPromptFromAssembled(AssembledContext context) {
+        List<ChatMessage> msgs = context.getMessages();
+        if (msgs == null || msgs.isEmpty()) {
+            return "";
+        }
+        ChatMessage first = msgs.get(0);
+        if (first != null && first.getRole() != null && "system".equalsIgnoreCase(first.getRole())) {
+            return first.getContent() != null ? first.getContent() : "";
+        }
+        return "";
     }
 
     private record ToolResolutionResult(

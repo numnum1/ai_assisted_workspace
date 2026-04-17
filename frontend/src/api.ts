@@ -315,7 +315,12 @@ export interface ContextBlock {
 
 export const chatApi = {
   previewContext: (body: ChatRequest) =>
-    post<{ includedFiles: string[]; estimatedTokens: number; contextBlocks: ContextBlock[] }>('/chat/context-preview', body),
+    post<{
+      includedFiles: string[];
+      estimatedTokens: number;
+      contextBlocks: ContextBlock[];
+      systemPrompt: string;
+    }>('/chat/context-preview', body),
 };
 
 /**

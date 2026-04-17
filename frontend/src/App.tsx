@@ -10,6 +10,7 @@ import { ChatPanel } from './components/chat/ChatPanel.tsx';
 import { FieldEditorPanel } from './components/editor/FieldEditorPanel.tsx';
 import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
 import { ContextBar } from './components/chat/ContextBar.tsx';
+import { buildMainChatContextPreviewRequest } from './components/chat/contextPreviewRequest.ts';
 import { CommandPalette } from './components/git/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx';
 import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
@@ -953,6 +954,9 @@ function App() {
 
   const fileEditor = useFileTabs(project.projectPath ?? null);
 
+  /** Full system message the backend would send on the next main-chat request (debounced preview). */
+  const [systemPromptPreview, setSystemPromptPreview] = useState<string | null>(null);
+
   const commandActions: CommandAction[] = useMemo(() => {
     const actions: CommandAction[] = [
       {
@@ -1064,6 +1068,59 @@ function App() {
       history.patchConversation,
     ],
   );
+
+  useEffect(() => {
+    if (!project.projectPath) {
+      setSystemPromptPreview(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      const conv = history.activeConversation;
+      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
+        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+        : (fileEditor.selectedPath ?? null);
+      const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
+      const exec = getEffectiveChatExecution(conv, {
+        llmId: modeLlmId,
+        useReasoning,
+        disabledToolkits,
+      });
+      const req = buildMainChatContextPreviewRequest({
+        previewModeId,
+        exec,
+        activeFile,
+        activeFieldKey: focusedField?.fieldKey,
+        referencedFiles: refs.referencedFiles,
+        conv,
+      });
+      chatApi
+        .previewContext(req)
+        .then((res) => {
+          if (!cancelled) setSystemPromptPreview(res.systemPrompt ?? null);
+        })
+        .catch(() => {
+          if (!cancelled) setSystemPromptPreview(null);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    project.projectPath,
+    history.activeConversation,
+    selectedMode,
+    modes,
+    refs.referencedFiles,
+    useReasoning,
+    modeLlmId,
+    selectedMeta,
+    chapter.structureRoot,
+    fileEditor.selectedPath,
+    focusedField?.fieldKey,
+    disabledToolkits,
+  ]);
 
   const handleEditMessage = useCallback(
     (index: number, newContent: string) => {
@@ -1774,6 +1831,7 @@ function App() {
         contextInfo={chat.contextInfo}
         activeFile={activeChapterTitle}
         isDirty={chapter.hasDirtyActions}
+        systemPromptPreview={systemPromptPreview}
         onFetchContextBlocks={async () => {
           const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
             ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
@@ -1785,19 +1843,16 @@ function App() {
             useReasoning,
             disabledToolkits,
           });
-          const result = await chatApi.previewContext({
-            message: '',
-            activeFile,
-            activeFieldKey: focusedField?.fieldKey ?? null,
-            mode: previewModeId,
-            referencedFiles: refs.referencedFiles,
-            history: [],
-            useReasoning: exec.useReasoning,
-            llmId: exec.llmId,
-            disabledToolkits: exec.disabledToolkits,
-            sessionKind: conv?.sessionKind ?? 'standard',
-            steeringPlan: conv?.sessionKind === 'guided' ? conv.steeringPlan ?? null : undefined,
-          });
+          const result = await chatApi.previewContext(
+            buildMainChatContextPreviewRequest({
+              previewModeId,
+              exec,
+              activeFile,
+              activeFieldKey: focusedField?.fieldKey,
+              referencedFiles: refs.referencedFiles,
+              conv,
+            }),
+          );
           return result.contextBlocks ?? [];
         }}
       />

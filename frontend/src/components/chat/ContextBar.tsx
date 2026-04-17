@@ -14,6 +14,8 @@ interface ContextBarProps {
   contextInfo: ContextInfo | null;
   activeFile: string | null;
   isDirty: boolean;
+  /** Full assembled system message for the next send (from context-preview). */
+  systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
 }
 
@@ -37,7 +39,13 @@ function typeIcon(type: string): string {
   }
 }
 
-export function ContextBar({ contextInfo, activeFile, isDirty, onFetchContextBlocks }: ContextBarProps) {
+export function ContextBar({
+  contextInfo,
+  activeFile,
+  isDirty,
+  systemPromptPreview = null,
+  onFetchContextBlocks,
+}: ContextBarProps) {
   const hasMax = contextInfo != null && contextInfo.maxContextTokens != null && contextInfo.maxContextTokens > 0;
   const pct = hasMax
     ? Math.min(100, Math.round((contextInfo!.estimatedTokens / contextInfo!.maxContextTokens!) * 100))
@@ -48,6 +56,7 @@ export function ContextBar({ contextInfo, activeFile, isDirty, onFetchContextBlo
   const [loading, setLoading] = useState(false);
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
   const [glossaryExpanded, setGlossaryExpanded] = useState(false);
+  const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
 
   const handleToggleInspector = useCallback(async () => {
     if (!inspectorOpen && !blocks && onFetchContextBlocks) {
@@ -107,6 +116,14 @@ export function ContextBar({ contextInfo, activeFile, isDirty, onFetchContextBlo
                   ~{contextInfo.estimatedTokens.toLocaleString()} tokens
                 </span>
               )}
+              {systemPromptPreview != null && systemPromptPreview.length > 0 && (
+                <span
+                  className="context-bar-system-prompt-hint"
+                  title="Zeichen im vollständigen Systemprompt (nächster Send)"
+                >
+                  {systemPromptPreview.length.toLocaleString()} Zeichen System
+                </span>
+              )}
             </>
           )}
           {onFetchContextBlocks && (
@@ -136,6 +153,29 @@ export function ContextBar({ contextInfo, activeFile, isDirty, onFetchContextBlo
           </div>
           <div className="context-inspector-body">
             <div className="context-inspector-scroll">
+              {systemPromptPreview != null && systemPromptPreview.length > 0 && (
+                <div className="context-block">
+                  <div
+                    className="context-block-header"
+                    onClick={() => setSystemPromptExpanded((v) => !v)}
+                  >
+                    <span className="context-block-expand">
+                      {systemPromptExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                    </span>
+                    <span className="context-block-icon">🧠</span>
+                    <span className="context-block-label">Systemprompt (gesamt)</span>
+                    <span className="context-block-tokens">
+                      {systemPromptPreview.length.toLocaleString()} Zeichen
+                    </span>
+                  </div>
+                  {systemPromptExpanded && (
+                    <div className="context-block-content context-block-content--system-prompt">
+                      <pre>{systemPromptPreview}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="context-block">
                 <div
                   className="context-block-header"
