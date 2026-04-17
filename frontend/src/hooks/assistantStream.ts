@@ -2,6 +2,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
 import { streamChat } from '../api.ts';
 import { CHAT_ASSISTANT_UI_MODE } from '../config/chatAssistantUi.ts';
+import { extractFilesReadByTools } from '../utils/toolContextUtils.ts';
 
 /** Whether a message from SSE `tool_history` should appear in the chat transcript. */
 function isVisibleToolHistoryMessage(msg: ChatMessage): boolean {
@@ -139,6 +140,18 @@ export function attachAssistantStream(
         ]);
       } else {
         cbs.setMessages([...cbs.currentBaseRef.current]);
+      }
+
+      const filesFromTools = extractFilesReadByTools(toolMessages);
+      if (filesFromTools.length > 0) {
+        cbs.setContextInfo((prev) =>
+          prev
+            ? {
+                ...prev,
+                includedFiles: [...new Set([...prev.includedFiles, ...filesFromTools])],
+              }
+            : prev,
+        );
       }
     },
     (resolved) => {
