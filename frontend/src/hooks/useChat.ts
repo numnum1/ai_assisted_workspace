@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import type {
   ChatMessage,
   ChatRequest,
@@ -117,6 +117,12 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   // stale closure issues.
   const currentBaseRef = useRef<ChatMessage[]>([]);
 
+  /** Latest messages for send/edit handlers — avoids re-creating those callbacks on every token (streaming). */
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  useLayoutEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // Skip syncing on initial mount and after loadMessages
   const syncEnabledRef = useRef(false);
 
@@ -164,7 +170,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         modeColor,
         ...(sendOpts?.userHidden ? { hidden: true as const } : {}),
       };
-      currentBaseRef.current = [...messages, userMsg];
+      currentBaseRef.current = [...messagesRef.current, userMsg];
       setMessages(currentBaseRef.current);
       setStreaming(true);
 
@@ -206,7 +212,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
 
       abortRef.current = attachAssistantStream(request, selectionContext, streamCbs, onComplete);
     },
-    [messages],
+    [],
   );
 
   const stopStreaming = useCallback(() => {
@@ -249,10 +255,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       const trimmed = newContent.trim();
       if (!trimmed) return;
 
-      const target = messages[index];
+      const target = messagesRef.current[index];
       if (!target || target.role !== 'user' || target.hidden) return;
 
-      const hasLaterVisibleUser = messages
+      const hasLaterVisibleUser = messagesRef.current
         .slice(index + 1)
         .some((m) => m.role === 'user' && !m.hidden);
 
@@ -275,7 +281,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         mode: target.mode,
         modeColor: target.modeColor,
       };
-      currentBaseRef.current = [...messages.slice(0, index), userMsg];
+      currentBaseRef.current = [...messagesRef.current.slice(0, index), userMsg];
       setMessages(currentBaseRef.current);
       setStreaming(true);
 
@@ -330,7 +336,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         onComplete,
       );
     },
-    [messages],
+    [],
   );
 
   const deleteMessage = useCallback((originalIdx: number) => {

@@ -2,6 +2,11 @@ import type { ChatMessage, ToolCall } from '../../types.ts';
 import type { ChangeCardData } from './ChangeCard.tsx';
 import { parseWriteFileToolMessage } from './writeFileToolParse.ts';
 
+/** Pre-tool assistant deltas like "## " stream as non-blank but render as empty markdown headings. */
+function isHeadingOnlyPreToolText(trimmed: string): boolean {
+  return /^#{1,6}\s*$/.test(trimmed);
+}
+
 export type ChatRenderUnit =
   | { type: 'writeFileGroup'; items: { originalIdx: number; data: ChangeCardData }[] }
   | {
@@ -63,7 +68,8 @@ export function buildChatRenderUnits(
       const toolCalls = msg.toolCalls;
       const toolCallCount = toolCalls.length;
 
-      if (msg.content?.trim()) {
+      const preToolText = msg.content?.trim() ?? '';
+      if (preToolText && !isHeadingOnlyPreToolText(preToolText)) {
         out.push({
           type: 'message',
           visIdx: i,

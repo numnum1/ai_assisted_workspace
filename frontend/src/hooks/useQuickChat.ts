@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { ChatMessage, ChatRequest, ContextInfo } from '../types.ts';
 import { attachAssistantStream } from './assistantStream.ts';
@@ -76,6 +76,10 @@ export function useQuickChat() {
   const [toolActivity, setToolActivity] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const currentBaseRef = useRef<ChatMessage[]>([]);
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  useLayoutEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const lastChatRequestRef = useRef<ChatRequest | null>(null);
   const llmIdRef = useRef<string | undefined>(undefined);
 
@@ -87,7 +91,7 @@ export function useQuickChat() {
     setError(null);
     setToolActivity(null);
     const userMsg: ChatMessage = { role: 'user', content: text };
-    currentBaseRef.current = [...messages, userMsg];
+    currentBaseRef.current = [...messagesRef.current, userMsg];
     setMessages(currentBaseRef.current);
     setStreaming(true);
 
@@ -119,7 +123,7 @@ export function useQuickChat() {
       currentBaseRef,
     };
     abortRef.current = attachAssistantStream(chatRequest, undefined, streamCbs, undefined);
-  }, [messages]);
+  }, []);
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
