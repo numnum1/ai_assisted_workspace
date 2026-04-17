@@ -1345,7 +1345,7 @@ export function ChatPanel({
                     useReasoning={useReasoning && reasoningAvailable}
                     onToggleReasoning={agentMode ? undefined : onToggleReasoning}
                     disabledToolkits={disabledToolkits}
-                    onToggleToolkit={onToggleToolkit}
+                    onToggleToolkit={agentMode ? undefined : onToggleToolkit}
                     reasoningAvailable={reasoningAvailable}
                     fastAvailable={fastAvailable}
                     activeSelection={activeSelection}
@@ -1411,7 +1411,7 @@ export function ChatPanel({
                   useReasoning={useReasoning && reasoningAvailable}
                   onToggleReasoning={agentMode ? undefined : onToggleReasoning}
                   disabledToolkits={disabledToolkits}
-                  onToggleToolkit={onToggleToolkit}
+                  onToggleToolkit={agentMode ? undefined : onToggleToolkit}
                   reasoningAvailable={reasoningAvailable}
                   fastAvailable={fastAvailable}
                   activeSelection={activeSelection}
