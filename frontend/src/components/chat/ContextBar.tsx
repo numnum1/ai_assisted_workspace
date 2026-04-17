@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { FileText, ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import { FileText, ChevronDown, ChevronRight, Eye, Copy, Check } from 'lucide-react';
 import type { ContextInfo } from '../../types.ts';
 import { GlossarContextView } from './GlossarContextView.tsx';
 
@@ -57,6 +57,18 @@ export function ContextBar({
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
   const [glossaryExpanded, setGlossaryExpanded] = useState(false);
   const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
+  const [systemPromptCopied, setSystemPromptCopied] = useState(false);
+
+  const handleCopySystemPrompt = useCallback(async () => {
+    if (systemPromptPreview == null || systemPromptPreview.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(systemPromptPreview);
+      setSystemPromptCopied(true);
+      window.setTimeout(() => setSystemPromptCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  }, [systemPromptPreview]);
 
   const handleToggleInspector = useCallback(async () => {
     if (!inspectorOpen && !blocks && onFetchContextBlocks) {
@@ -167,6 +179,18 @@ export function ContextBar({
                     <span className="context-block-tokens">
                       {systemPromptPreview.length.toLocaleString()} Zeichen
                     </span>
+                    <button
+                      type="button"
+                      className="context-block-copy-btn"
+                      title="Systemprompt in die Zwischenablage kopieren"
+                      aria-label="Systemprompt kopieren"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleCopySystemPrompt();
+                      }}
+                    >
+                      {systemPromptCopied ? <Check size={11} /> : <Copy size={11} />}
+                    </button>
                   </div>
                   {systemPromptExpanded && (
                     <div className="context-block-content context-block-content--system-prompt">

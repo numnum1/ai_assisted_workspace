@@ -6858,6 +6858,26 @@ body.file-tree-native-dragging {
   font-size: 0.72rem;
 }
 
+.context-block-copy-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  padding: 2px 4px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.context-block-copy-btn:hover {
+  color: var(--text-primary, #cdd6f4);
+  background: var(--surface2, #313244);
+}
+
 .context-block-content {
   padding: 6px 12px 6px 28px;
   background: var(--bg-primary, #181825);
