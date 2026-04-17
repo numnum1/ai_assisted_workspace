@@ -455,12 +455,12 @@ export function ProjectSettingsModal({
     });
   };
 
-  const toggleAgentToolkitDisabled = (toolkitId: ChatToolkitId, disabled: boolean) => {
+  const setAgentToolkitEnabled = (toolkitId: ChatToolkitId, enabled: boolean) => {
     setAgentForm((prev) => {
       if (!prev) return prev;
       const next = new Set(prev.disabledToolkits);
-      if (disabled) next.add(toolkitId);
-      else next.delete(toolkitId);
+      if (enabled) next.delete(toolkitId);
+      else next.add(toolkitId);
       return { ...prev, disabledToolkits: Array.from(next) as ChatToolkitId[] };
     });
   };
@@ -1130,16 +1130,18 @@ export function ProjectSettingsModal({
                       );
                     })()}
 
-                    <label className="ps-label">Deaktivierte Toolkits</label>
-                    <p className="ps-hint">Ausgewählt = Toolkit in geführten Chats mit dieser Vorlage ausgeschaltet.</p>
+                    <label className="ps-label">Toolkits / Features</label>
+                    <p className="ps-hint">
+                      Aktiviert = Toolkit steht in geführten Chats mit dieser Vorlage zur Verfügung.
+                    </p>
                     <div className="ps-toggle-column">
                       {CHAT_TOOLKIT_IDS.map((kitId) => (
                         <div key={kitId} className="ps-toggle-row">
                           <input
                             type="checkbox"
                             id={`agentTk-${kitId}`}
-                            checked={agentForm.disabledToolkits.includes(kitId)}
-                            onChange={(e) => toggleAgentToolkitDisabled(kitId, e.target.checked)}
+                            checked={!agentForm.disabledToolkits.includes(kitId)}
+                            onChange={(e) => setAgentToolkitEnabled(kitId, e.target.checked)}
                           />
                           <label htmlFor={`agentTk-${kitId}`} className="ps-toggle-label">
                             {TOOLKIT_LABELS[kitId]} ({kitId})
