@@ -225,6 +225,9 @@ public class ProjectConfigService {
         if (p.getThreadLlmId() != null && p.getThreadLlmId().isBlank()) {
             p.setThreadLlmId(null);
         }
+        if (p.getThreadModeId() != null && p.getThreadModeId().isBlank()) {
+            p.setThreadModeId(null);
+        }
         if (p.getDisabledToolkits() == null) {
             p.setDisabledToolkits(new ArrayList<>());
         }
@@ -243,6 +246,10 @@ public class ProjectConfigService {
         Set<String> modeIds = getProjectModes().stream().map(Mode::getId).collect(Collectors.toSet());
         if (!modeIds.contains(p.getModeId())) {
             throw new IllegalArgumentException("Unknown modeId: " + p.getModeId());
+        }
+        if (p.getThreadModeId() != null && !p.getThreadModeId().isBlank()
+                && !modeIds.contains(p.getThreadModeId())) {
+            throw new IllegalArgumentException("Unknown threadModeId: " + p.getThreadModeId());
         }
         for (String k : p.getDisabledToolkits()) {
             if (k == null || k.isBlank() || !VALID_TOOLKIT_IDS.contains(k)) {

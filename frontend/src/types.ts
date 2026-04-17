@@ -31,9 +31,12 @@ export interface AgentPreset {
   id: string;
   name: string;
   modeId: string;
+  /** Legacy; LLM comes from {@link Mode} via modeId. */
   llmId?: string | null;
-  /** Optional LLM for fork/thread chats when the parent chat uses this preset (see conversation agentPresetId). */
+  /** Legacy fork/thread LLM override (prefer threadModeId). */
   threadLlmId?: string | null;
+  /** Optional mode for fork/thread when the parent chat uses this preset (see conversation agentPresetId). */
+  threadModeId?: string | null;
   useReasoning: boolean;
   disabledToolkits: ChatToolkitId[];
   initialSteeringPlan?: string | null;

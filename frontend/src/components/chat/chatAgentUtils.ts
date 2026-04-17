@@ -1,4 +1,4 @@
-import type { AgentPreset, ChatToolkitId, Conversation, LlmPublic } from '../../types.ts';
+import type { AgentPreset, ChatToolkitId, Conversation, LlmPublic, Mode } from '../../types.ts';
 import type { NewChatConfirmPayload } from './NewChatDialog.tsx';
 
 export function isNewChatConfirmPayload(x: unknown): x is NewChatConfirmPayload {
@@ -39,20 +39,61 @@ export function agentExecutionPartialFromParent(parent: Conversation): Partial<C
   return out;
 }
 
+/** LLM/reasoning resolution aligned with the main chat mode switcher for a given mode id. */
+export function executionPatchForMode(
+  modeId: string,
+  modes: readonly Mode[],
+  llms: readonly LlmPublic[],
+): Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> {
+  const m = modes.find((x) => x.id === modeId);
+  if (!m) return {};
+  const rawLlm = m.llmId?.trim();
+  const llmId = rawLlm ? rawLlm : undefined;
+  let agentUseReasoning = m.useReasoning ?? false;
+  if (llmId) {
+    const llm = llms.find((l) => l.id === llmId);
+    if (llm) {
+      const hasReasoning = !!llm.reasoningModel;
+      const hasFast = !!llm.fastModel;
+      if (!hasReasoning) {
+        agentUseReasoning = false;
+      } else if (!hasFast) {
+        agentUseReasoning = true;
+      }
+    }
+  }
+  const patch: Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> = {
+    agentUseReasoning,
+  };
+  if (llmId) {
+    patch.agentLlmId = llmId;
+  }
+  return patch;
+}
+
 /**
- * When a thread/fork is created under a chat that uses {@link AgentPreset}, optional {@link AgentPreset.threadLlmId}
- * overrides inherited {@link Conversation.agentLlmId} and may adjust {@link Conversation.agentUseReasoning} from model caps.
+ * When a thread/fork is created under a chat that uses {@link AgentPreset}, optional {@link AgentPreset.threadModeId}
+ * sets conversation mode and execution; legacy {@link AgentPreset.threadLlmId} overrides only LLM/reasoning.
  */
 export function threadExecutionOverrideFromPreset(
   preset: AgentPreset | undefined,
   llms: readonly LlmPublic[],
-): Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> {
+  modes: readonly Mode[],
+): Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning' | 'mode'>> {
+  const threadMode = preset?.threadModeId?.trim();
+  if (threadMode) {
+    if (!modes.some((x) => x.id === threadMode)) return {};
+    return {
+      mode: threadMode,
+      ...executionPatchForMode(threadMode, modes, llms),
+    };
+  }
   const raw = preset?.threadLlmId?.trim();
   if (!raw) return {};
   const lp = llms.find((l) => l.id === raw);
   const hasReasoning = !!lp?.reasoningModel;
   const hasFast = !!lp?.fastModel;
-  const patch: Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning'>> = {
+  const patch: Partial<Pick<Conversation, 'agentLlmId' | 'agentUseReasoning' | 'mode'>> = {
     agentLlmId: raw,
   };
   if (!hasReasoning) {
@@ -63,7 +104,7 @@ export function threadExecutionOverrideFromPreset(
   return patch;
 }
 
-/** Copy agent preset id from parent for guided fork/thread children (for {@link AgentPreset.threadLlmId} resolution). */
+/** Copy agent preset id from parent for guided fork/thread children (for thread preset resolution). */
 export function guidedPresetPartialFromParent(parent: Conversation): Partial<Conversation> {
   const id = parent.agentPresetId?.trim();
   if (!id) return {};
@@ -80,18 +121,13 @@ export function buildGuidedAgentPatchFromPreset(
   const fallback = preset.initialSteeringPlan?.trim();
   const steeringPlan = dialog || fallback;
   const presetId = agentPresetId?.trim();
-  const patch: Partial<Conversation> = {
+  return {
     mode: preset.modeId,
     agentUseReasoning: preset.useReasoning,
     agentDisabledToolkits: [...(preset.disabledToolkits ?? [])] as ChatToolkitId[],
     ...(steeringPlan ? { steeringPlan } : {}),
     ...(presetId ? { agentPresetId: presetId } : {}),
   };
-  const lid = preset.llmId?.trim();
-  if (lid) {
-    patch.agentLlmId = lid;
-  }
-  return patch;
 }
 
 export function applyGuidedAgentFromNewChatDialog(

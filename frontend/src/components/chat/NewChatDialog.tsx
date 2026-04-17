@@ -110,8 +110,8 @@ export function NewChatDialog({
                 onChange={() => setSessionKind('guided')}
               />
               <span>
-                <strong>Geführte Sitzung (Agent)</strong> — Arbeitsplan, Modus, LLM und Tool-Toggles werden für
-                diese Sitzung gespeichert
+                <strong>Geführte Sitzung (Agent)</strong> — Arbeitsplan, Modus und Tool-Toggles werden für diese
+                Sitzung gespeichert (LLM aus dem Modus)
               </span>
             </label>
           </fieldset>

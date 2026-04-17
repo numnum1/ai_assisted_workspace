@@ -27,8 +27,7 @@ interface AgentFormState {
   id: string;
   name: string;
   modeId: string;
-  llmId: string;
-  threadLlmId: string;
+  threadModeId: string;
   useReasoning: boolean;
   disabledToolkits: ChatToolkitId[];
   initialSteeringPlan: string;
@@ -433,8 +432,7 @@ export function ProjectSettingsModal({
       id: '',
       name: '',
       modeId: chatModesList[0]?.id ?? '',
-      llmId: '',
-      threadLlmId: '',
+      threadModeId: '',
       useReasoning: false,
       disabledToolkits: [],
       initialSteeringPlan: '',
@@ -447,8 +445,7 @@ export function ProjectSettingsModal({
       id: a.id,
       name: a.name,
       modeId: a.modeId,
-      llmId: a.llmId ?? '',
-      threadLlmId: a.threadLlmId ?? '',
+      threadModeId: a.threadModeId ?? '',
       useReasoning: a.useReasoning ?? false,
       disabledToolkits: [...(a.disabledToolkits ?? [])],
       initialSteeringPlan: a.initialSteeringPlan ?? '',
@@ -481,8 +478,7 @@ export function ProjectSettingsModal({
       id: effectiveId,
       name: agentForm.name.trim(),
       modeId: agentForm.modeId,
-      ...(agentForm.llmId.trim() ? { llmId: agentForm.llmId.trim() } : {}),
-      ...(agentForm.threadLlmId.trim() ? { threadLlmId: agentForm.threadLlmId.trim() } : {}),
+      ...(agentForm.threadModeId.trim() ? { threadModeId: agentForm.threadModeId.trim() } : {}),
       useReasoning: agentForm.useReasoning,
       disabledToolkits: [...agentForm.disabledToolkits],
       ...(agentForm.initialSteeringPlan.trim()
@@ -1046,10 +1042,27 @@ export function ProjectSettingsModal({
                     />
 
                     <label className="ps-label">Modus</label>
+                    <p className="ps-hint">
+                      LLM und Kontext kommen aus dem gewählten Modus (Tab <strong>Modes</strong>).
+                    </p>
                     <select
                       className="ps-input"
                       value={agentForm.modeId}
-                      onChange={(e) => setAgentForm((p) => p && ({ ...p, modeId: e.target.value }))}
+                      onChange={(e) => {
+                        const nextModeId = e.target.value;
+                        const modeLlm = modes.find((m) => m.id === nextModeId)?.llmId;
+                        const lp = modeLlm
+                          ? (llmsState?.providers ?? []).find((x) => x.id === modeLlm)
+                          : undefined;
+                        const supports = !!(lp?.reasoningModel);
+                        setAgentForm((p) =>
+                          p && {
+                            ...p,
+                            modeId: nextModeId,
+                            useReasoning: supports ? p.useReasoning : false,
+                          },
+                        );
+                      }}
                     >
                       {modes.filter((m) => m.id !== 'prompt-pack').map((m) => (
                         <option key={m.id} value={m.id}>
@@ -1059,55 +1072,29 @@ export function ProjectSettingsModal({
                     </select>
 
                     <label className="ps-label">
-                      LLM <span className="ps-label-hint">(optional — leer = globaler Eintrag in der Leiste)</span>
-                    </label>
-                    <select
-                      className="ps-input"
-                      value={agentForm.llmId}
-                      onChange={(e) => {
-                        const nextLlmId = e.target.value;
-                        const lp = (llmsState?.providers ?? []).find((x) => x.id === nextLlmId);
-                        const supports = !!(lp?.reasoningModel);
-                        setAgentForm((p) =>
-                          p && {
-                            ...p,
-                            llmId: nextLlmId,
-                            useReasoning: supports ? p.useReasoning : false,
-                          },
-                        );
-                      }}
-                      disabled={loadingLlms}
-                    >
-                      <option value="">— globaler Eintrag —</option>
-                      {(llmsState?.providers ?? []).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <label className="ps-label">
-                      LLM für Threads{' '}
+                      Modus für Threads{' '}
                       <span className="ps-label-hint">
-                        (optional — leer = Vererbung vom Eltern-Chat; nur wenn dieser Chat die Vorlage nutzt)
+                        (optional — leer = wie Eltern-Chat; nur wenn dieser Chat die Vorlage nutzt)
                       </span>
                     </label>
                     <select
                       className="ps-input"
-                      value={agentForm.threadLlmId}
-                      onChange={(e) => setAgentForm((p) => p && ({ ...p, threadLlmId: e.target.value }))}
-                      disabled={loadingLlms}
+                      value={agentForm.threadModeId}
+                      onChange={(e) => setAgentForm((p) => p && ({ ...p, threadModeId: e.target.value }))}
                     >
                       <option value="">— wie Eltern-Chat —</option>
-                      {(llmsState?.providers ?? []).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
+                      {modes.filter((m) => m.id !== 'prompt-pack').map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.id})
                         </option>
                       ))}
                     </select>
 
                     {(() => {
-                      const lp = (llmsState?.providers ?? []).find((x) => x.id === agentForm.llmId);
+                      const modeLlm = modes.find((m) => m.id === agentForm.modeId)?.llmId;
+                      const lp = modeLlm
+                        ? (llmsState?.providers ?? []).find((x) => x.id === modeLlm)
+                        : undefined;
                       const supportsReasoning = !!(lp?.reasoningModel);
                       if (!supportsReasoning) return null;
                       return (
@@ -1201,15 +1188,18 @@ export function ProjectSettingsModal({
                       {agents.map((a) => {
                         const modeOk = modes.some((m) => m.id === a.modeId);
                         const modeLabel = modes.find((m) => m.id === a.modeId)?.name ?? a.modeId;
-                        const llmLabel = a.llmId
-                          ? ((llmsState?.providers ?? []).find((l) => l.id === a.llmId)?.name ?? a.llmId)
-                          : '— global —';
-                        const threadLlmLabel = a.threadLlmId
-                          ? ((llmsState?.providers ?? []).find((l) => l.id === a.threadLlmId)?.name ?? a.threadLlmId)
+                        const threadModeLabel = a.threadModeId
+                          ? (modes.find((m) => m.id === a.threadModeId)?.name ?? a.threadModeId)
                           : null;
-                        const rowTitle = `${a.id} · Modus: ${modeLabel} · LLM: ${llmLabel}${
-                          threadLlmLabel ? ` · Thread-LLM: ${threadLlmLabel}` : ''
-                        }${!modeOk ? ' · Modus fehlt' : ''}`;
+                        const legacyThreadLlm = a.threadLlmId
+                          ? ((llmsState?.providers ?? []).find((l) => l.id === a.threadLlmId)?.name
+                              ?? a.threadLlmId)
+                          : null;
+                        const rowTitle = `${a.id} · Modus: ${modeLabel}${
+                          threadModeLabel ? ` · Thread-Modus: ${threadModeLabel}` : ''
+                        }${legacyThreadLlm ? ` · (Legacy Thread-LLM: ${legacyThreadLlm})` : ''}${
+                          !modeOk ? ' · Modus fehlt' : ''
+                        }`;
                         return (
                           <div key={a.id} className="ps-list-item" onClick={() => openEditAgent(a)} title={rowTitle}>
                             <Bot size={14} style={{ flexShrink: 0, opacity: 0.85 }} />

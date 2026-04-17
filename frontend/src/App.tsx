@@ -1413,22 +1413,25 @@ function App() {
     while (existingTitles.has(`${base} (${n})`)) n++;
     const parent = history.activeConversation;
     const sk = parent?.sessionKind ?? 'standard';
-    const newConv = history.createConversation(selectedMode, forkedMessages, `${base} (${n})`, sk);
+    const preset =
+      parent?.agentPresetId != null
+        ? agentPresets.find((a) => a.id === parent.agentPresetId)
+        : undefined;
+    const threadModeId = preset?.threadModeId?.trim();
+    const forkMode =
+      threadModeId && modes.some((m) => m.id === threadModeId) ? threadModeId : selectedMode;
+    const newConv = history.createConversation(forkMode, forkedMessages, `${base} (${n})`, sk);
     if (sk === 'guided' && parent?.steeringPlan) {
       history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
     }
     const agentPatch = parent ? agentExecutionPartialFromParent(parent) : {};
     const guidedPresetPatch = parent && sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
-    const preset =
-      parent?.agentPresetId != null
-        ? agentPresets.find((a) => a.id === parent.agentPresetId)
-        : undefined;
-    const threadExec = threadExecutionOverrideFromPreset(preset, llms);
+    const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
     const forkPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
     if (Object.keys(forkPatches).length > 0) {
       history.patchConversation(newConv.id, forkPatches);
     }
-  }, [agentPresets, chat.messages, history, llms, selectedMode]);
+  }, [agentPresets, chat.messages, history, llms, modes, selectedMode]);
 
   /** New conversation: parent transcript for API only (hidden); UI shows only new thread messages. */
   const handleStartThreadFromMessage = useCallback(
@@ -1446,7 +1449,15 @@ function App() {
       const initialMessages = buildThreadHiddenBootstrap(baseTitle, chat.messages, messageIndex);
 
       const sk = parent.sessionKind ?? 'standard';
-      const threadMode = parent.mode || selectedMode;
+      const preset =
+        parent.agentPresetId != null
+          ? agentPresets.find((a) => a.id === parent.agentPresetId)
+          : undefined;
+      const threadModeId = preset?.threadModeId?.trim();
+      const threadMode =
+        threadModeId && modes.some((m) => m.id === threadModeId)
+          ? threadModeId
+          : (parent.mode || selectedMode);
       const newConv = history.createConversation(
         threadMode,
         initialMessages,
@@ -1458,11 +1469,7 @@ function App() {
       }
       const agentPatch = agentExecutionPartialFromParent(parent);
       const guidedPresetPatch = sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
-      const preset =
-        parent.agentPresetId != null
-          ? agentPresets.find((a) => a.id === parent.agentPresetId)
-          : undefined;
-      const threadExec = threadExecutionOverrideFromPreset(preset, llms);
+      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
       const threadPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
       if (Object.keys(threadPatches).length > 0) {
         history.patchConversation(newConv.id, threadPatches);
@@ -1472,7 +1479,7 @@ function App() {
         parentConversationId: parent.id,
       });
     },
-    [agentPresets, chat.messages, history, llms, selectedMode],
+    [agentPresets, chat.messages, history, llms, modes, selectedMode],
   );
 
   /** User accepted a ```guided_thread_offer from the assistant: new guided thread with the offered plan. */
@@ -1491,16 +1498,18 @@ function App() {
 
       const initialMessages = buildThreadHiddenBootstrap(baseTitle, chat.messages, messageIndex);
 
-      const modeIdOffer = offer.modeId?.trim();
-      const threadMode =
-        modeIdOffer && modes.some((m) => m.id === modeIdOffer)
-          ? modeIdOffer
-          : (parent.mode || selectedMode);
-
-      const newConv = history.createConversation(threadMode, initialMessages, title, 'guided');
-
       const pid = offer.agentPresetId?.trim();
       const preset = pid ? agentPresets.find((a) => a.id === pid) : undefined;
+      const threadModeIdFromPreset = preset?.threadModeId?.trim();
+      const modeIdOffer = offer.modeId?.trim();
+      const threadMode =
+        threadModeIdFromPreset && modes.some((m) => m.id === threadModeIdFromPreset)
+          ? threadModeIdFromPreset
+          : modeIdOffer && modes.some((m) => m.id === modeIdOffer)
+            ? modeIdOffer
+            : (parent.mode || selectedMode);
+
+      const newConv = history.createConversation(threadMode, initialMessages, title, 'guided');
 
       if (preset) {
         history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset, undefined, pid));
@@ -1526,7 +1535,7 @@ function App() {
         }
       }
 
-      const threadExec = threadExecutionOverrideFromPreset(preset, llms);
+      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
       if (Object.keys(threadExec).length > 0) {
         history.patchConversation(newConv.id, threadExec);
       }

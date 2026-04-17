@@ -15,8 +15,10 @@ public class AgentPreset {
     private String name;
     private String modeId;
     private String llmId;
-    /** Optional LLM for fork/thread conversations when parent chat uses this preset ({@code agentPresetId}). */
+    /** Legacy: optional LLM override for fork/thread (prefer {@link #threadModeId}). */
     private String threadLlmId;
+    /** Optional mode for fork/thread when parent chat uses this preset ({@code agentPresetId}). */
+    private String threadModeId;
     private boolean useReasoning;
     private List<String> disabledToolkits = new ArrayList<>();
     private String initialSteeringPlan;
@@ -62,6 +64,14 @@ public class AgentPreset {
 
     public void setThreadLlmId(String threadLlmId) {
         this.threadLlmId = threadLlmId;
+    }
+
+    public String getThreadModeId() {
+        return threadModeId;
+    }
+
+    public void setThreadModeId(String threadModeId) {
+        this.threadModeId = threadModeId;
     }
 
     public boolean isUseReasoning() {
