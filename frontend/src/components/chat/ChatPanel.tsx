@@ -887,6 +887,10 @@ export function ChatPanel({
   );
 
   const handleMessagesMouseUp = useCallback(() => {
+    if (disabledToolkits.has('glossary')) {
+      setGlossaryPopup(null);
+      return;
+    }
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
       setGlossaryPopup(null);
@@ -906,7 +910,7 @@ export function ChatPanel({
       y: rect.top - panelRect.top - 8,
       selectedText: text,
     });
-  }, []);
+  }, [disabledToolkits]);
 
   const handleSaveToGlossary = async () => {
     if (!glossaryForm) return;
@@ -946,6 +950,13 @@ export function ChatPanel({
     setNewChatDialogOpen(false);
     onDiscardCurrentChat(payload);
   };
+
+  useEffect(() => {
+    if (disabledToolkits.has('glossary')) {
+      setGlossaryPopup(null);
+      setGlossaryForm(null);
+    }
+  }, [disabledToolkits]);
 
   useEffect(() => {
     setRenamingTitle(false);
@@ -1451,7 +1462,7 @@ export function ChatPanel({
         />
       )}
 
-      {glossaryPopup && !glossaryForm && (
+      {glossaryPopup && !glossaryForm && !disabledToolkits.has('glossary') && (
         <div
           className="glossary-selection-popup"
           style={{ left: glossaryPopup.x, top: glossaryPopup.y }}
@@ -1468,7 +1479,7 @@ export function ChatPanel({
         </div>
       )}
 
-      {glossaryForm && (
+      {glossaryForm && !disabledToolkits.has('glossary') && (
         <div className="glossary-save-overlay" onClick={() => { setGlossaryForm(null); setGlossaryPopup(null); }}>
           <div className="glossary-save-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="glossary-save-title">Glossar-Eintrag speichern</div>
