@@ -42,7 +42,11 @@ public class ProjectConfigService {
     private static final String USER_WORKSPACE_MODES_DIR = "workspace-modes";
     private static final String AGENTS_JSON = "agents.json";
     private static final Set<String> VALID_TOOLKIT_IDS = Set.of(
-            ToolkitIds.WEB, ToolkitIds.WIKI, ToolkitIds.DATEISYSTEM, ToolkitIds.ASSISTANT);
+            ToolkitIds.WEB,
+            ToolkitIds.WIKI,
+            ToolkitIds.DATEISYSTEM,
+            ToolkitIds.ASSISTANT,
+            ToolkitIds.GLOSSARY);
 
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;

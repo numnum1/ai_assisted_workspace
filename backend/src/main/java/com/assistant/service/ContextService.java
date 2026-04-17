@@ -223,10 +223,11 @@ public class ContextService {
         boolean wikiToolsOn = !disabledKits.contains(ToolkitIds.WIKI);
         boolean filesystemToolsOn = !disabledKits.contains(ToolkitIds.DATEISYSTEM);
         boolean assistantToolsOn = !disabledKits.contains(ToolkitIds.ASSISTANT);
+        boolean glossaryToolsOn = !disabledKits.contains(ToolkitIds.GLOSSARY);
 
         // Tool usage instructions (omitted when client disables tools — API must not advertise unavailable tools)
         if (!request.isDisableTools()) {
-            if (wikiToolsOn || filesystemToolsOn || assistantToolsOn) {
+            if (wikiToolsOn || filesystemToolsOn || assistantToolsOn || glossaryToolsOn) {
                 systemPrompt.append("=== Available Tools ===\n");
                 systemPrompt.append("You have access to these tools as enabled for this session:\n\n");
                 if (wikiToolsOn) {
@@ -249,7 +250,7 @@ public class ContextService {
                     systemPrompt.append("  - Wiki entries → `wiki/<subfolder>/<name>.md` (Markdown, **never** JSON)\n");
                     systemPrompt.append("  - The 'description' parameter is a short human-readable summary of what was changed and why.\n\n");
                 }
-                if (assistantToolsOn) {
+                if (glossaryToolsOn) {
                     systemPrompt.append("**Glossary:**\n");
                     systemPrompt.append("- glossary_add(term, definition): Add a new term and definition to the project glossary " +
                             "(.assistant/glossary.md). The glossary is always included in context — use this when you recognize a " +
@@ -336,7 +337,8 @@ public class ContextService {
         int finalSystemPromptChars = systemPrompt.length();
         int estimatedSystemTokens = finalSystemPromptChars / 4;
         boolean toolInstructionsIncluded =
-                !request.isDisableTools() && (wikiToolsOn || filesystemToolsOn || assistantToolsOn);
+                !request.isDisableTools()
+                        && (wikiToolsOn || filesystemToolsOn || assistantToolsOn || glossaryToolsOn);
         log.info(
                 "Final system prompt: {} chars (~{} tokens). disableTools={}, disabledToolkits={}, tool instructions block {}",
                 finalSystemPromptChars,

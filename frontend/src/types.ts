@@ -1,5 +1,5 @@
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
-export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant'] as const;
+export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant', 'glossary'] as const;
 
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
 export type ChatSessionKind = 'standard' | 'guided';
@@ -91,7 +91,7 @@ export interface ChatRequest {
   /** Quick Chat: minimal context, web search only, no project tools. */
   quickChat?: boolean;
   /**
-   * Toolkit ids (web, wiki, dateisystem, assistant) whose tools are omitted for this request.
+   * Toolkit ids (see {@link CHAT_TOOLKIT_IDS}) whose tools are omitted for this request.
    * Empty or omitted means all toolkits enabled (subject to server Quick Chat / main-chat rules).
    */
   disabledToolkits?: string[];

@@ -26,6 +26,11 @@ public class GlossaryAddTool extends AbstractTool {
     }
 
     @Override
+    public String getToolkit() {
+        return ToolkitIds.GLOSSARY;
+    }
+
+    @Override
     public String getName() {
         return "glossary_add";
     }

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { LucideIcon } from 'lucide-react';
-import { Send, Square, BookOpen, Zap, X, Maximize2, Wrench, Globe, FolderOpen, Sparkles } from 'lucide-react';
+import { Send, Square, BookOpen, Zap, X, Maximize2, Wrench, Globe, FolderOpen, Sparkles, ScrollText } from 'lucide-react';
 import { FileChip } from '../common/FileChip.tsx';
 import { wikiApi } from '../../api.ts';
 import type { SelectionContext } from '../../types.ts';
@@ -14,6 +14,7 @@ const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'wiki', label: 'Wiki', icon: BookOpen },
   { id: 'dateisystem', label: 'Dateisystem', icon: FolderOpen },
   { id: 'assistant', label: 'Assistent', icon: Sparkles },
+  { id: 'glossary', label: 'Glossar (KI)', icon: ScrollText },
 ];
 
 function ToolkitMenuButton({

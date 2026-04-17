@@ -30,7 +30,7 @@ public interface Tool {
 
     /**
      * Logical group for UI toggles and request filtering (e.g. {@code web}, {@code wiki}).
-     * Default matches tools that did not override (clarification, glossary).
+     * Default matches tools that did not override (e.g. clarification, guided-thread offer).
      */
     default String getToolkit() {
         return ToolkitIds.ASSISTANT;
