@@ -57,9 +57,18 @@ export function ToolCallDisplay({
     return <Play size={16} />;
   };
 
+  const resultIndicatesFailure = (r: string | undefined) => {
+    if (!r) return false;
+    if (r.includes('Error')) return true;
+    if (r.startsWith('Wiki file not found:')) return true;
+    if (r.startsWith('No wiki entries found')) return true;
+    if (r.startsWith('Unknown tool:')) return true;
+    return false;
+  };
+
   const getStatus = () => {
     if (isStreaming) return { text: 'Running...', icon: <Play size={14} className="animate-spin" />, color: 'text-blue-500' };
-    if (result && result.includes('Error')) return { text: 'Failed', icon: <AlertCircle size={14} />, color: 'text-red-500' };
+    if (result && resultIndicatesFailure(result)) return { text: 'Failed', icon: <AlertCircle size={14} />, color: 'text-red-500' };
     return { text: 'Completed', icon: <CheckCircle2 size={14} />, color: 'text-green-500' };
   };
 

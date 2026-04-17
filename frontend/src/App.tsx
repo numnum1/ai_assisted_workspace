@@ -1051,7 +1051,7 @@ function App() {
       setActiveSelection(null);
     },
     [
-      chat,
+      chat.sendMessage,
       selectedMode,
       modes,
       refs.referencedFiles,
@@ -1151,7 +1151,7 @@ function App() {
       setActiveSelection(null);
     },
     [
-      chat,
+      chat.editMessage,
       selectedMode,
       refs.referencedFiles,
       useReasoning,
@@ -1205,7 +1205,7 @@ function App() {
       setActiveSelection(null);
     },
     [
-      chat,
+      chat.sendMessage,
       selectedMode,
       modes,
       refs.referencedFiles,
@@ -1284,7 +1284,7 @@ function App() {
       history.patchConversation(history.activeId, { mode: 'prompt-pack' });
       setPromptPackOpen(false);
     },
-    [chat, modes, useReasoning, modeLlmId, disabledToolkits, history.activeConversation, history.activeId, history.patchConversation],
+    [chat.sendMessage, modes, useReasoning, modeLlmId, disabledToolkits, history.activeConversation, history.activeId, history.patchConversation],
   );
 
   useEffect(() => {

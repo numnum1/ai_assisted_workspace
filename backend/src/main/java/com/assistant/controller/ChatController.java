@@ -103,7 +103,7 @@ public class ChatController {
                         ? Mono.fromCallable(() -> skipToolResolutionForDirectStreaming(context.getMessages()))
                                 .flatMapMany(r -> resolvedToClientFlux(r, request, tools, llmId, useReasoning))
                         : toolResolutionStreamingFlux(
-                                context.getMessages(), context.getMessages().size(), tools, llmId, useReasoning, request);
+                                context.getMessages(), tools, llmId, useReasoning, request);
 
         return Flux.concat(
                         Flux.just(ServerSentEvent.<String>builder()
@@ -212,7 +212,6 @@ public class ChatController {
      */
     private Flux<ServerSentEvent<String>> toolResolutionStreamingFlux(
             List<ChatMessage> initialMessages,
-            int originalMessageCount,
             List<Map<String, Object>> tools,
             String llmId,
             boolean useReasoning,
@@ -222,7 +221,7 @@ public class ChatController {
                         .schedule(() -> {
                             try {
                                 runStreamingToolLoop(
-                                        sink, new ArrayList<>(initialMessages), originalMessageCount, tools, llmId, useReasoning, request);
+                                        sink, new ArrayList<>(initialMessages), tools, llmId, useReasoning, request);
                                 sink.complete();
                             } catch (Throwable t) {
                                 sink.error(t);
@@ -234,15 +233,13 @@ public class ChatController {
     private void runStreamingToolLoop(
             FluxSink<ServerSentEvent<String>> sink,
             List<ChatMessage> currentMessages,
-            int originalMessageCount,
             List<Map<String, Object>> tools,
             String llmId,
             boolean useReasoning,
             ChatRequest request) {
         log.info(
-                "Tool resolution (streaming): starting with {} messages (originalCount={}), {} tool definitions registered",
+                "Tool resolution (streaming): starting with {} messages, {} tool definitions registered",
                 currentMessages.size(),
-                originalMessageCount,
                 tools != null ? tools.size() : 0);
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -339,7 +336,7 @@ public class ChatController {
                         round + 1);
             }
 
-            emitToolExecutionAndHistory(sink, currentMessages, originalMessageCount, toolCalls, accumulated, round);
+            emitToolExecutionAndHistory(sink, currentMessages, toolCalls, accumulated, round);
         }
         log.warn("Streaming tool loop stopped after {} rounds (max)", MAX_TOOL_ROUNDS);
     }
@@ -347,7 +344,6 @@ public class ChatController {
     private void emitToolExecutionAndHistory(
             FluxSink<ServerSentEvent<String>> sink,
             List<ChatMessage> currentMessages,
-            int originalMessageCount,
             List<ToolCall> toolCalls,
             String assistantStreamContent,
             int round) {
@@ -391,18 +387,20 @@ public class ChatController {
             currentMessages.add(ChatMessage.toolResult(tc.getId(), toolResult));
         }
 
-        if (currentMessages.size() > originalMessageCount) {
-            List<ChatMessage> slice = currentMessages.subList(originalMessageCount, currentMessages.size());
-            try {
-                String toolHistoryJson = objectMapper.writeValueAsString(slice);
-                log.debug("tool_history JSON length: {} chars", toolHistoryJson.length());
-                sink.next(ServerSentEvent.<String>builder()
-                        .event("tool_history")
-                        .data(escapeForSse(toolHistoryJson))
-                        .build());
-            } catch (JsonProcessingException e) {
-                log.warn("Failed to serialize tool_history messages", e);
-            }
+        // Emit only this round's assistant + tool rows so the client does not duplicate prior rounds.
+        int addedThisRound = 1 + toolCalls.size();
+        List<ChatMessage> slice = currentMessages.subList(
+                currentMessages.size() - addedThisRound,
+                currentMessages.size());
+        try {
+            String toolHistoryJson = objectMapper.writeValueAsString(slice);
+            log.debug("tool_history JSON length: {} chars (this round only, {} messages)", toolHistoryJson.length(), slice.size());
+            sink.next(ServerSentEvent.<String>builder()
+                    .event("tool_history")
+                    .data(escapeForSse(toolHistoryJson))
+                    .build());
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize tool_history messages", e);
         }
         int est = contextService.estimateTokensForMessages(currentMessages);
         sink.next(ServerSentEvent.<String>builder()
