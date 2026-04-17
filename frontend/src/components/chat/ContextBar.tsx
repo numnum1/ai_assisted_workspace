@@ -130,7 +130,7 @@ export function ContextBar({
             <button
               className={`context-inspector-toggle ${inspectorOpen ? 'context-inspector-toggle--open' : ''}`}
               onClick={handleToggleInspector}
-              title="Kontext-Inspector"
+              title="Konversations-Inspector: Vorschau für den nächsten Send (Systemprompt, Glossar, Kontext-Blöcke)"
             >
               <Eye size={12} />
             </button>
@@ -141,7 +141,7 @@ export function ContextBar({
       {inspectorOpen && (
         <div className="context-inspector">
           <div className="context-inspector-header">
-            <span className="context-inspector-title">Kontext-Inspector</span>
+            <span className="context-inspector-title">Konversations-Inspector</span>
             <button
               className="context-inspector-refresh"
               onClick={handleRefresh}
@@ -196,7 +196,7 @@ export function ContextBar({
 
               <div className="context-inspector-section-title">Kontext-Blöcke</div>
               {loading && !blocks && (
-                <div className="context-inspector-loading">Lade Kontext…</div>
+                <div className="context-inspector-loading">Lade Vorschau…</div>
               )}
               {blocks && (
                 <div className="context-inspector-blocks-inner">

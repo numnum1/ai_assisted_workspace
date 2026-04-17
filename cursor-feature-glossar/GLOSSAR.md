@@ -28,7 +28,7 @@ Dieses Glossar beschreibt **Begriffe aus dem Writing Assistant** so, dass du in 
 | **Streaming**, **SSE** | Antworten laufen per Server-Sent Events; nicht alles auf einmal. |
 | **Tool calling**, **Tools** | Modell ruft serverseitige Funktionen auf (mehrere Runden, z. B. bis 3). |
 | **Kontext-Zusammenstellung**, **Context assembly** | Zusammenbau aus: Chat-Modus, Workspace-Prompt, Glossar-Datei, Story-Überblick, Dateibaum, always-include, aktive Datei, `@`-Referenzen, Tool-Anweisungen → System- und User-Nachricht. |
-| **Context Inspector**, **Kontext-Inspector**, **Auge-Symbol** | Zeigt zusammengebaute Kontext-Blöcke und grobe Token-Schätzung; Backend: `POST /api/chat/context-preview`. |
+| **Konversations-Inspector**, **Auge-Symbol** | Vorschau für den nächsten Send: Systemprompt, Glossar, Kontext-Blöcke, grobe Token-Schätzung; Backend: `POST /api/chat/context-preview`. |
 | **Token-Anzeige**, **Footer-Tokens** | Token-Info in der Fußzeile der UI. |
 | **`@file`**, **@-Referenz**, **Datei-Referenz** | Chat-Input: z. B. `@chapters/01.md` oder mit Zeilen `@chapters/01.md:10-25`. |
 | **Drag-and-drop Referenz** | Datei aus dem Baum in das Chat-Eingabefeld ziehen. |

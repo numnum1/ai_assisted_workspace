@@ -6550,7 +6550,7 @@ body.file-tree-native-dragging {
   transition: width 0.3s ease, background 0.3s ease;
 }
 
-/* ÔöÇÔöÇÔöÇ Context Inspector ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+/* Context bar: Konversations-Inspector (Auge), Tokenzeile */
 
 .context-bar-wrapper {
   display: flex;
@@ -6664,7 +6664,7 @@ body.file-tree-native-dragging {
   border-bottom: none;
 }
 
-/* Glossar (Kontext-Inspector) */
+/* Glossar (Konversations-Inspector) */
 .glossar-context-view {
   display: flex;
   flex-direction: column;

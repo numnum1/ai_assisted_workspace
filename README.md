@@ -18,7 +18,7 @@ A local, AI-powered Markdown workspace with a three-panel Cursor-style UI: file 
 - **Context assembly**: Chat mode, workspace-mode prompt add-on, **glossary** (`.assistant/glossary.md`), story structure overview, file tree listing, always-include files, active file, `@` references, and tool instructions — assembled into the system prompt and user message
 - **`@file` references**: e.g. `@chapters/01.md` or `@chapters/01.md:10-25` for line ranges
 - **Drag-and-drop** file references from the tree into the chat input
-- **Token tracking** in the footer; **Context Inspector** (eye icon) shows assembled context blocks and rough per-block token estimates (`POST /api/chat/context-preview`, response includes the full assembled `systemPrompt` string)
+- **Token tracking** in the footer; **Conversation inspector** (eye icon; German UI: „Konversations-Inspector“) shows a send preview: full `systemPrompt`, glossary, and assembled context blocks with rough per-block token estimates (`POST /api/chat/context-preview`)
 - **Change cards**: after `write_file`, the chat shows a diff with **Apply** (drop revert snapshot) / **Revert** (restore previous file content)
 - **Glossary in chat**: successful `glossary_add` shows a short indicator; you can select text in chat and use **„Als Glossar-Begriff speichern“** to append a term via the API
 - **Multiple LLM providers**: OpenAI-compatible endpoints in app data (`ai-providers.json`)
