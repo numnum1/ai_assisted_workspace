@@ -1,6 +1,6 @@
 package com.assistant.util;
 
-import com.assistant.model.ChapterSummary;
+import com.assistant.meta_files.ChapterSummary;
 
 import java.text.Collator;
 import java.util.Comparator;
