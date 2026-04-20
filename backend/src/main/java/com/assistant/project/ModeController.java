@@ -1,6 +1,6 @@
 package com.assistant.project;
 
-import com.assistant.conversation.old_models_to_replace.Mode;
+import com.assistant.conversation.model.Mode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

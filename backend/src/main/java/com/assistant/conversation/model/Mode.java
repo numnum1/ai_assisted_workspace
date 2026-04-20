@@ -1,4 +1,4 @@
-package com.assistant.conversation.old_models_to_replace;
+package com.assistant.conversation.model;
 
 import lombok.Data;
 

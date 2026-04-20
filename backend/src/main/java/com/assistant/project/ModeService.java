@@ -1,6 +1,6 @@
 package com.assistant.project;
 
-import com.assistant.conversation.old_models_to_replace.Mode;
+import com.assistant.conversation.model.Mode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

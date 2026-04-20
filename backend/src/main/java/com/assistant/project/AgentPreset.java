@@ -1,5 +1,6 @@
-package com.assistant.conversation.old_models_to_replace;
+package com.assistant.project;
 
+import com.assistant.agent.Agent;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -14,7 +15,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @Getter
 @Setter
-public class AgentPreset {
+public class AgentPreset implements Agent {
 
     private String id;
     private String name;

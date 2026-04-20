@@ -7,7 +7,7 @@ import com.assistant.meta_files.ChapterService;
 import com.assistant.meta_files.AssembledContext;
 import com.assistant.ai_provider.old_models.ChatMessage;
 import com.assistant.ai_provider.old_models.ChatRequest;
-import com.assistant.conversation.old_models_to_replace.Mode;
+import com.assistant.conversation.model.Mode;
 import com.assistant.glossary.GlossaryService;
 import com.assistant.project.ModeService;
 import com.assistant.project.ProjectConfigService;

@@ -1,6 +1,6 @@
 package com.assistant.conversation.model;
 
-import com.assistant.conversation.old_models_to_replace.AgentPreset;
+import com.assistant.project.AgentPreset;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AccessLevel;
 import lombok.Getter;

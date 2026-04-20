@@ -1,6 +1,5 @@
 package com.assistant.project;
 
-import com.assistant.conversation.old_models_to_replace.AgentPreset;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;

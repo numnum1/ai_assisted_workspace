@@ -1,7 +1,7 @@
 package com.assistant.conversation.history;
 
 import com.assistant.conversation.ConversationValidator;
-import com.assistant.conversation.old_models_to_replace.AgentPreset;
+import com.assistant.project.AgentPreset;
 import com.assistant.conversation.model.AgentAssistantRole;
 import com.assistant.conversation.model.AgenticConversation;
 import com.assistant.conversation.model.Conversation;

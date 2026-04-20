@@ -1,8 +1,7 @@
 package com.assistant.project;
 
 import com.assistant.config.AppConfig;
-import com.assistant.conversation.old_models_to_replace.AgentPreset;
-import com.assistant.conversation.old_models_to_replace.Mode;
+import com.assistant.conversation.model.Mode;
 import com.assistant.project.WorkspaceModeSchema.MetaFieldPayload;
 import com.assistant.project.WorkspaceModeSchema.MetaTypeSchemaPayload;
 import com.assistant.project.WorkspaceModeSchema.WorkspaceLevelConfig;
