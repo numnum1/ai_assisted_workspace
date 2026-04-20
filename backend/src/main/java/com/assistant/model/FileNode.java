@@ -1,8 +1,15 @@
 package com.assistant.model;
 
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
+@Setter
+@NoArgsConstructor
 public class FileNode {
 
     private String name;
@@ -12,24 +19,10 @@ public class FileNode {
     /** If this directory contains {@code .subproject.json}, the declared workspace mode id (e.g. book). */
     private String subprojectType;
 
-    public FileNode() {}
-
     public FileNode(String name, String path, boolean directory) {
         this.name = name;
         this.path = path;
         this.directory = directory;
         this.children = directory ? new ArrayList<>() : null;
     }
-
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public String getPath() { return path; }
-    public void setPath(String path) { this.path = path; }
-    public boolean isDirectory() { return directory; }
-    public void setDirectory(boolean directory) { this.directory = directory; }
-    public List<FileNode> getChildren() { return children; }
-    public void setChildren(List<FileNode> children) { this.children = children; }
-
-    public String getSubprojectType() { return subprojectType; }
-    public void setSubprojectType(String subprojectType) { this.subprojectType = subprojectType; }
 }

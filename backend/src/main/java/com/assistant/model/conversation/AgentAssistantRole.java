@@ -2,52 +2,33 @@ package com.assistant.model.conversation;
 
 import com.assistant.model.AgentPreset;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Assistant bound to a project {@link AgentPreset}; {@link #applyFromPreset} fills denormalized fields.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@Getter
+@Setter
 public class AgentAssistantRole extends AssistantRole {
 
     private String agentPresetId;
     /** Denormalized after {@link #applyFromPreset}; may be empty before materialization. */
+    @Getter(AccessLevel.NONE)
     private String mode;
+    @Setter(AccessLevel.NONE)
     private LLM llm = new LLM();
     private boolean usesReasoning;
-
-    public String getAgentPresetId() {
-        return agentPresetId;
-    }
-
-    public void setAgentPresetId(String agentPresetId) {
-        this.agentPresetId = agentPresetId;
-    }
 
     @Override
     public String getMode() {
         return mode != null ? mode : "";
     }
 
-    public void setMode(String mode) {
-        this.mode = mode;
-    }
-
-    @Override
-    public LLM getLlm() {
-        return llm;
-    }
-
     public void setLlm(LLM llm) {
         this.llm = llm != null ? llm : new LLM();
-    }
-
-    @Override
-    public boolean isUsesReasoning() {
-        return usesReasoning;
-    }
-
-    public void setUsesReasoning(boolean usesReasoning) {
-        this.usesReasoning = usesReasoning;
     }
 
     public void applyFromPreset(AgentPreset preset) {

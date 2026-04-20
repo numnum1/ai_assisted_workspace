@@ -1,16 +1,23 @@
 package com.assistant.model;
 
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.util.HashMap;
 import java.util.Map;
 
+@Getter
+@Setter
+@NoArgsConstructor
 public class StructureNodeMeta {
 
     private String title = "";
     private String description = "";
     private int sortOrder = 0;
+    @Setter(AccessLevel.NONE)
     private Map<String, String> extras = new HashMap<>();
-
-    public StructureNodeMeta() {}
 
     public StructureNodeMeta(String title, String description, int sortOrder) {
         this.title = title;
@@ -18,12 +25,7 @@ public class StructureNodeMeta {
         this.sortOrder = sortOrder;
     }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-    public int getSortOrder() { return sortOrder; }
-    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
-    public Map<String, String> getExtras() { return extras; }
-    public void setExtras(Map<String, String> extras) { this.extras = extras != null ? extras : new HashMap<>(); }
+    public void setExtras(Map<String, String> extras) {
+        this.extras = extras != null ? extras : new HashMap<>();
+    }
 }

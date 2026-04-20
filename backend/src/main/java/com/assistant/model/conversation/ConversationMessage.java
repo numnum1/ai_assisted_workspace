@@ -3,6 +3,8 @@ package com.assistant.model.conversation;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import lombok.Getter;
+import lombok.Setter;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "messageType", visible = true)
 @JsonSubTypes({
@@ -10,17 +12,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = AssistantConversationMessage.class, name = "ASSISTANT"),
 })
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@Getter
+@Setter
 public abstract class ConversationMessage {
 
     private long timestamp;
-
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
-    }
 
     public abstract ConversationSpeaker getSpeaker();
 

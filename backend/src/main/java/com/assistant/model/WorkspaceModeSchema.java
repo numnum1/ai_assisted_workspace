@@ -1,5 +1,7 @@
 package com.assistant.model;
 
+import lombok.Getter;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,6 +11,7 @@ import java.util.Map;
  * Loaded from classpath workspace-modes/{id}.yaml and returned to the frontend
  * as JSON for labels, icons, and meta field definitions.
  */
+@Getter
 public class WorkspaceModeSchema {
 
     private String id = "book";
@@ -32,126 +35,67 @@ public class WorkspaceModeSchema {
     /** Optional text appended to the LLM system prompt when this workspace mode is active */
     private String systemPromptAddition = "";
 
-    public String getId() {
-        return id;
-    }
-
     public void setId(String id) {
         this.id = id != null ? id : "book";
-    }
-
-    public String getName() {
-        return name;
     }
 
     public void setName(String name) {
         this.name = name != null ? name : "";
     }
 
-    public String getIcon() {
-        return icon;
-    }
-
     public void setIcon(String icon) {
         this.icon = icon != null ? icon : "folder";
-    }
-
-    public boolean isMediaType() {
-        return mediaType;
     }
 
     public void setMediaType(boolean mediaType) {
         this.mediaType = mediaType;
     }
 
-    public String getEditorMode() {
-        return editorMode;
-    }
-
     public void setEditorMode(String editorMode) {
         this.editorMode = editorMode != null ? editorMode : "prose";
-    }
-
-    public String getProseLeafLevel() {
-        return proseLeafLevel;
     }
 
     public void setProseLeafLevel(String proseLeafLevel) {
         this.proseLeafLevel = proseLeafLevel != null && !proseLeafLevel.isBlank() ? proseLeafLevel : "action";
     }
 
-    public String getRootMetaLabel() {
-        return rootMetaLabel;
-    }
-
     public void setRootMetaLabel(String rootMetaLabel) {
         this.rootMetaLabel = rootMetaLabel != null ? rootMetaLabel : "";
-    }
-
-    public String getRootMetaIcon() {
-        return rootMetaIcon;
     }
 
     public void setRootMetaIcon(String rootMetaIcon) {
         this.rootMetaIcon = rootMetaIcon != null ? rootMetaIcon : "book";
     }
 
-    public List<WorkspaceLevelConfig> getLevels() {
-        return levels;
-    }
-
     public void setLevels(List<WorkspaceLevelConfig> levels) {
         this.levels = levels != null ? levels : new ArrayList<>();
-    }
-
-    public Map<String, MetaTypeSchemaPayload> getMetaSchemas() {
-        return metaSchemas;
     }
 
     public void setMetaSchemas(Map<String, MetaTypeSchemaPayload> metaSchemas) {
         this.metaSchemas = metaSchemas != null ? metaSchemas : new LinkedHashMap<>();
     }
 
-    public String getSystemPromptAddition() {
-        return systemPromptAddition;
-    }
-
     public void setSystemPromptAddition(String systemPromptAddition) {
         this.systemPromptAddition = systemPromptAddition != null ? systemPromptAddition : "";
     }
 
+    @Getter
     public static class WorkspaceLevelConfig {
         private String key = "";
         private String label = "";
         private String labelNew = "";
         private String icon = "";
 
-        public String getKey() {
-            return key;
-        }
-
         public void setKey(String key) {
             this.key = key != null ? key : "";
-        }
-
-        public String getLabel() {
-            return label;
         }
 
         public void setLabel(String label) {
             this.label = label != null ? label : "";
         }
 
-        public String getLabelNew() {
-            return labelNew;
-        }
-
         public void setLabelNew(String labelNew) {
             this.labelNew = labelNew != null ? labelNew : "";
-        }
-
-        public String getIcon() {
-            return icon;
         }
 
         public void setIcon(String icon) {
@@ -159,20 +103,13 @@ public class WorkspaceModeSchema {
         }
     }
 
+    @Getter
     public static class MetaTypeSchemaPayload {
         private String filename = "";
         private List<MetaFieldPayload> fields = new ArrayList<>();
 
-        public String getFilename() {
-            return filename;
-        }
-
         public void setFilename(String filename) {
             this.filename = filename != null ? filename : "";
-        }
-
-        public List<MetaFieldPayload> getFields() {
-            return fields;
         }
 
         public void setFields(List<MetaFieldPayload> fields) {
@@ -180,6 +117,7 @@ public class WorkspaceModeSchema {
         }
     }
 
+    @Getter
     public static class MetaFieldPayload {
         private String key = "";
         private String label = "";
@@ -188,48 +126,24 @@ public class WorkspaceModeSchema {
         private String defaultValue = "";
         private List<String> options = new ArrayList<>();
 
-        public String getKey() {
-            return key;
-        }
-
         public void setKey(String key) {
             this.key = key != null ? key : "";
-        }
-
-        public String getLabel() {
-            return label;
         }
 
         public void setLabel(String label) {
             this.label = label != null ? label : "";
         }
 
-        public String getType() {
-            return type;
-        }
-
         public void setType(String type) {
             this.type = type != null ? type : "";
-        }
-
-        public String getPlaceholder() {
-            return placeholder;
         }
 
         public void setPlaceholder(String placeholder) {
             this.placeholder = placeholder != null ? placeholder : "";
         }
 
-        public String getDefaultValue() {
-            return defaultValue;
-        }
-
         public void setDefaultValue(String defaultValue) {
             this.defaultValue = defaultValue != null ? defaultValue : "";
-        }
-
-        public List<String> getOptions() {
-            return options;
         }
 
         public void setOptions(List<String> options) {

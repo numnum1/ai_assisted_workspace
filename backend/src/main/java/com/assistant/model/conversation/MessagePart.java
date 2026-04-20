@@ -3,6 +3,9 @@ package com.assistant.model.conversation;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true)
 @JsonSubTypes({
@@ -16,13 +19,12 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = ThreadMergePart.class, name = "THREAD_MERGE"),
 })
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@Getter
+@Setter
 public abstract class MessagePart {
 
+    @Setter(AccessLevel.NONE)
     private TurnStatus status = TurnStatus.COMPLETED;
-
-    public TurnStatus getStatus() {
-        return status;
-    }
 
     public void setStatus(TurnStatus status) {
         this.status = status != null ? status : TurnStatus.COMPLETED;

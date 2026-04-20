@@ -1,8 +1,14 @@
 package com.assistant.model;
 
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
+@Setter
 public class ChatRequest {
 
     private String message;
@@ -26,6 +32,7 @@ public class ChatRequest {
     /**
      * Toolkit ids (e.g. {@code web}, {@code wiki}) whose tools are omitted for this request.
      */
+    @Setter(AccessLevel.NONE)
     private List<String> disabledToolkits = new ArrayList<>();
     /**
      * Chat session kind: {@code standard} (default) or {@code guided} (AI-led conversation with steering plan).
@@ -36,34 +43,11 @@ public class ChatRequest {
      */
     private String steeringPlan;
 
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
-    public String getActiveFile() { return activeFile; }
-    public void setActiveFile(String activeFile) { this.activeFile = activeFile; }
-    public String getActiveFieldKey() { return activeFieldKey; }
-    public void setActiveFieldKey(String activeFieldKey) { this.activeFieldKey = activeFieldKey; }
-    public String getMode() { return mode; }
-    public void setMode(String mode) { this.mode = mode; }
-    public List<String> getReferencedFiles() { return referencedFiles; }
-    public void setReferencedFiles(List<String> referencedFiles) { this.referencedFiles = referencedFiles; }
-    public List<ChatMessage> getHistory() { return history; }
-    public void setHistory(List<ChatMessage> history) { this.history = history; }
-    public boolean isUseReasoning() { return useReasoning; }
-    public void setUseReasoning(boolean useReasoning) { this.useReasoning = useReasoning; }
-    public String getLlmId() { return llmId; }
-    public void setLlmId(String llmId) { this.llmId = llmId; }
-    public boolean isQuickChat() { return quickChat; }
-    public void setQuickChat(boolean quickChat) { this.quickChat = quickChat; }
-    public boolean isDisableTools() { return disableTools; }
-    public void setDisableTools(boolean disableTools) { this.disableTools = disableTools; }
-    public List<String> getDisabledToolkits() { return disabledToolkits; }
     public void setDisabledToolkits(List<String> disabledToolkits) {
         this.disabledToolkits = disabledToolkits != null ? disabledToolkits : new ArrayList<>();
     }
-    public String getSessionKind() { return sessionKind; }
+
     public void setSessionKind(String sessionKind) {
         this.sessionKind = sessionKind != null && !sessionKind.isBlank() ? sessionKind : "standard";
     }
-    public String getSteeringPlan() { return steeringPlan; }
-    public void setSteeringPlan(String steeringPlan) { this.steeringPlan = steeringPlan; }
 }

@@ -1,14 +1,21 @@
 package com.assistant.model.conversation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@Getter
+@Setter
 public class UserConversationMessage extends ConversationMessage {
 
+    @Setter(AccessLevel.NONE)
     private List<MessagePart> parts = new ArrayList<>();
+    @Setter(AccessLevel.NONE)
     private List<String> attachedFiles = new ArrayList<>();
 
     @Override
@@ -23,10 +30,6 @@ public class UserConversationMessage extends ConversationMessage {
 
     public void setParts(List<MessagePart> parts) {
         this.parts = parts != null ? parts : new ArrayList<>();
-    }
-
-    public List<String> getAttachedFiles() {
-        return attachedFiles;
     }
 
     public void setAttachedFiles(List<String> attachedFiles) {

@@ -1,33 +1,18 @@
 package com.assistant.model.conversation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class ThreadMergePart extends MessagePart {
 
     private String conversationId;
     private String summary;
-
-    public ThreadMergePart() {}
-
-    public ThreadMergePart(String conversationId, String summary) {
-        this.conversationId = conversationId;
-        this.summary = summary;
-    }
-
-    public String getConversationId() {
-        return conversationId;
-    }
-
-    public void setConversationId(String conversationId) {
-        this.conversationId = conversationId;
-    }
-
-    public String getSummary() {
-        return summary;
-    }
-
-    public void setSummary(String summary) {
-        this.summary = summary;
-    }
 }

@@ -1,21 +1,24 @@
 package com.assistant.model.conversation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Guided conversation driven by a project {@link com.assistant.model.AgentPreset}.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@Getter
+@Setter
 public class AgenticConversation extends GuidedConversation {
 
     private String agentPresetId;
     /** Current steering plan (updated during the session). */
+    @Setter(AccessLevel.NONE)
     private Plan plan = new Plan();
+    @Setter(AccessLevel.NONE)
     private AgentAssistantRole assistant = new AgentAssistantRole();
-
-    public String getAgentPresetId() {
-        return agentPresetId;
-    }
 
     public void setAgentPresetId(String agentPresetId) {
         this.agentPresetId = agentPresetId;
@@ -24,18 +27,8 @@ public class AgenticConversation extends GuidedConversation {
         }
     }
 
-    @Override
-    public Plan getPlan() {
-        return plan;
-    }
-
     public void setPlan(Plan plan) {
         this.plan = plan != null ? plan : new Plan();
-    }
-
-    @Override
-    public AgentAssistantRole getAssistant() {
-        return assistant;
     }
 
     public void setAssistant(AgentAssistantRole assistant) {

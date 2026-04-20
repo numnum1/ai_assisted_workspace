@@ -1,23 +1,17 @@
 package com.assistant.model.conversation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class ExploringPart extends MessagePart {
 
     private String content;
-
-    public ExploringPart() {}
-
-    public ExploringPart(String content) {
-        this.content = content;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
 }
