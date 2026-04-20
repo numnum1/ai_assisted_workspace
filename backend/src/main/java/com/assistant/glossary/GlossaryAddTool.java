@@ -1,6 +1,5 @@
 package com.assistant.glossary;
 
-import com.assistant.file_services.GlossaryService;
 import com.assistant.tools.AbstractTool;
 import com.assistant.tools.ToolkitIds;
 import org.slf4j.Logger;

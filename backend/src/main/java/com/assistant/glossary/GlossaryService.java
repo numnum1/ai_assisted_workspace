@@ -1,4 +1,4 @@
-package com.assistant.file_services;
+package com.assistant.glossary;
 
 import com.assistant.project.ProjectConfigService;
 import org.slf4j.Logger;
