@@ -40,6 +40,7 @@ export interface ChatStreamStartResult {
 
 interface PreviewBuildContext {
   projectPath: string | null;
+  projectConfig?: ProjectConfigData | null;
 }
 
 interface AiProvider {
@@ -821,12 +822,331 @@ function buildSystemPrompt(
     lines.push(normalizeText(request.steeringPlan));
   }
 
+  if (context.projectConfig) {
+    lines.push("");
+    lines.push("Projektkonfiguration:");
+    if (context.projectConfig.name) {
+      lines.push(`Name: ${context.projectConfig.name}`);
+    }
+    if (context.projectConfig.description) {
+      lines.push(`Beschreibung: ${context.projectConfig.description}`);
+    }
+    if (context.projectConfig.workspaceMode) {
+      lines.push(`Workspace-Modus: ${context.projectConfig.workspaceMode}`);
+    }
+    if (
+      Array.isArray(context.projectConfig.alwaysInclude) &&
+      context.projectConfig.alwaysInclude.length > 0
+    ) {
+      lines.push(
+        `Always-Include: ${context.projectConfig.alwaysInclude.join(", ")}`,
+      );
+    }
+  }
+
   return lines.join("\n");
 }
 
 function getVisibleHistory(request: ChatRequest): ChatMessage[] {
   const history = Array.isArray(request.history) ? request.history : [];
   return history.filter((message) => !message.hidden);
+}
+
+interface ProjectConfigData {
+  name: string;
+  description: string;
+  alwaysInclude: string[];
+  defaultMode?: string;
+  workspaceMode?: string;
+  quickChatLlmId?: string;
+  extraFeatures?: {
+    chatDownload?: boolean;
+  };
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readJsonFile<T>(filePath: string): Promise<T | null> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getAssistantDir(projectPath: string): string {
+  return path.join(projectPath, ".assistant");
+}
+
+function getProjectConfigPath(projectPath: string): string {
+  return path.join(getAssistantDir(projectPath), "project.json");
+}
+
+function getGlossaryPath(projectPath: string): string {
+  return path.join(getAssistantDir(projectPath), "glossary.md");
+}
+
+async function readProjectConfig(
+  projectPath: string | null,
+): Promise<ProjectConfigData | null> {
+  if (!projectPath) return null;
+  const filePath = getProjectConfigPath(projectPath);
+  const config = await readJsonFile<ProjectConfigData>(filePath);
+  if (!config) return null;
+
+  return {
+    name: typeof config.name === "string" ? config.name : "",
+    description:
+      typeof config.description === "string" ? config.description : "",
+    alwaysInclude: Array.isArray(config.alwaysInclude)
+      ? config.alwaysInclude
+          .filter((entry): entry is string => typeof entry === "string")
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      : [],
+    defaultMode:
+      typeof config.defaultMode === "string" ? config.defaultMode : undefined,
+    workspaceMode:
+      typeof config.workspaceMode === "string"
+        ? config.workspaceMode
+        : undefined,
+    quickChatLlmId:
+      typeof config.quickChatLlmId === "string"
+        ? config.quickChatLlmId
+        : undefined,
+    extraFeatures:
+      config.extraFeatures && typeof config.extraFeatures === "object"
+        ? config.extraFeatures
+        : undefined,
+  };
+}
+
+async function readGlossaryContent(
+  projectPath: string | null,
+): Promise<string> {
+  if (!projectPath) return "";
+  const glossaryPath = getGlossaryPath(projectPath);
+  if (!(await pathExists(glossaryPath))) {
+    return "";
+  }
+  try {
+    return (await fs.readFile(glossaryPath, "utf8")).trim();
+  } catch {
+    return "";
+  }
+}
+
+async function buildFileTreeListing(
+  projectPath: string,
+  currentPath: string,
+  indent = "",
+): Promise<string[]> {
+  const entries = await fs.readdir(currentPath, { withFileTypes: true });
+  const filtered = entries
+    .filter((entry) => entry.name !== ".git" && entry.name !== "node_modules")
+    .sort((a, b) => {
+      if (a.isDirectory() !== b.isDirectory()) {
+        return a.isDirectory() ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+
+  const lines: string[] = [];
+  for (const entry of filtered) {
+    const marker = entry.isDirectory() ? "📁" : "📄";
+    lines.push(`${indent}${marker} ${entry.name}`);
+    if (entry.isDirectory()) {
+      const childPath = path.join(currentPath, entry.name);
+      lines.push(
+        ...(await buildFileTreeListing(projectPath, childPath, `${indent}  `)),
+      );
+    }
+  }
+  return lines;
+}
+
+function sliceByLineRange(
+  content: string,
+  startLine?: number,
+  endLine?: number,
+): string {
+  if (startLine == null && endLine == null) {
+    return content;
+  }
+  const lines = content.split(/\r\n|\r|\n/);
+  const start = Math.max(1, startLine ?? 1);
+  const end = Math.min(lines.length, endLine ?? lines.length);
+  return lines.slice(start - 1, end).join("\n");
+}
+
+async function readReferencedProjectFile(
+  projectPath: string | null,
+  reference: string,
+): Promise<{ path: string; content: string } | null> {
+  if (!projectPath) return null;
+  const trimmed = normalizeText(reference);
+  if (!trimmed) return null;
+
+  const match = /^(.*?)(?::(\d+)-(\d+))?$/.exec(trimmed);
+  if (!match) return null;
+
+  const relativePath = normalizeText(match[1]);
+  if (!relativePath) return null;
+
+  const filePath = resolveProjectPath(projectPath, relativePath);
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return null;
+    const raw = await fs.readFile(filePath, "utf8");
+    const content = sliceByLineRange(
+      raw,
+      match[2] ? Number.parseInt(match[2], 10) : undefined,
+      match[3] ? Number.parseInt(match[3], 10) : undefined,
+    );
+    return {
+      path: trimmed,
+      content,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function createContextBlock(
+  type: string,
+  label: string,
+  content: string,
+): ContextBlock | null {
+  const normalized = content.trim();
+  if (!normalized) return null;
+  return {
+    type,
+    label,
+    content: normalized,
+    estimatedTokens: estimateTokens(normalized),
+  };
+}
+
+async function buildPreviewContext(
+  projectPath: string | null,
+  request: ChatRequest,
+): Promise<{
+  projectConfig: ProjectConfigData | null;
+  blocks: ContextBlock[];
+  includedFiles: string[];
+}> {
+  const blocks: ContextBlock[] = [];
+  const includedFiles = new Set<string>();
+
+  const projectConfig = await readProjectConfig(projectPath);
+
+  const modeBlock = buildModeBlock(request);
+  if (modeBlock) blocks.push(modeBlock);
+
+  if (projectConfig?.workspaceMode) {
+    const workspaceModeBlock = createContextBlock(
+      "workspace-mode",
+      "Workspace Mode",
+      projectConfig.workspaceMode,
+    );
+    if (workspaceModeBlock) blocks.push(workspaceModeBlock);
+  }
+
+  const glossaryContent = await readGlossaryContent(projectPath);
+  const glossaryBlock = createContextBlock(
+    "glossary",
+    "Glossary (.assistant/glossary.md)",
+    glossaryContent,
+  );
+  if (glossaryBlock) blocks.push(glossaryBlock);
+
+  if (projectPath) {
+    const treeLines = await buildFileTreeListing(projectPath, projectPath);
+    const fileTreeBlock = createContextBlock(
+      "file-tree",
+      "Project Files (tree)",
+      treeLines.join("\n"),
+    );
+    if (fileTreeBlock) blocks.push(fileTreeBlock);
+  }
+
+  const alwaysInclude = projectConfig?.alwaysInclude ?? [];
+  for (const relativePath of alwaysInclude) {
+    const referenced = await readReferencedProjectFile(
+      projectPath,
+      relativePath,
+    );
+    if (!referenced) continue;
+    includedFiles.add(relativePath);
+    const fileBlock = createContextBlock(
+      "file",
+      relativePath,
+      referenced.content,
+    );
+    if (fileBlock) blocks.push(fileBlock);
+  }
+
+  const activeFile = normalizeText(request.activeFile);
+  if (activeFile && !includedFiles.has(activeFile)) {
+    const activeFileData = await readReferencedProjectFile(
+      projectPath,
+      activeFile,
+    );
+    if (activeFileData) {
+      includedFiles.add(activeFile);
+      const activeFileBlock = createContextBlock(
+        "active-file",
+        `Active File: ${activeFile}`,
+        activeFileData.content,
+      );
+      if (activeFileBlock) blocks.push(activeFileBlock);
+    }
+  }
+
+  const referencedFiles = Array.isArray(request.referencedFiles)
+    ? request.referencedFiles
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
+    : [];
+
+  for (const reference of referencedFiles) {
+    if (includedFiles.has(reference)) continue;
+    const fileData = await readReferencedProjectFile(projectPath, reference);
+    if (!fileData) continue;
+    includedFiles.add(reference);
+    const referencedBlock = createContextBlock(
+      "file",
+      `Referenced: ${reference}`,
+      fileData.content,
+    );
+    if (referencedBlock) blocks.push(referencedBlock);
+  }
+
+  const historyBlock = buildHistoryBlock(request);
+  if (historyBlock) blocks.push(historyBlock);
+
+  const messageBlock = buildMessageBlock(request);
+  if (messageBlock) blocks.push(messageBlock);
+
+  const toolkitBlock = buildToolkitBlock(request);
+  if (toolkitBlock) blocks.push(toolkitBlock);
+
+  const sessionBlock = buildSessionBlock(request);
+  if (sessionBlock) blocks.push(sessionBlock);
+
+  return {
+    projectConfig,
+    blocks,
+    includedFiles: [...includedFiles],
+  };
 }
 
 function splitIntoTokenChunks(text: string): string[] {
@@ -858,35 +1178,25 @@ export async function previewChatContext(
   projectPath: string | null,
   request: ChatRequest,
 ): Promise<ChatContextPreviewResult> {
+  const previewContext = await buildPreviewContext(projectPath, request);
+
   const context: PreviewBuildContext = {
     projectPath,
+    projectConfig: previewContext.projectConfig,
   };
-
-  const blocks = [
-    buildModeBlock(request),
-    buildMessageBlock(request),
-    buildActiveFileBlock(request),
-    buildReferencedFilesBlock(request),
-    buildHistoryBlock(request),
-    buildToolkitBlock(request),
-    buildSessionBlock(request),
-  ].filter((block): block is ContextBlock => block !== null);
 
   const systemPrompt = buildSystemPrompt(request, context);
   const estimatedTokens =
     estimateTokens(systemPrompt) +
-    blocks.reduce((sum, block) => sum + block.estimatedTokens, 0);
-
-  const includedFiles = Array.isArray(request.referencedFiles)
-    ? request.referencedFiles
-        .map((value) => normalizeText(value))
-        .filter(Boolean)
-    : [];
+    previewContext.blocks.reduce(
+      (sum, block) => sum + block.estimatedTokens,
+      0,
+    );
 
   return {
-    includedFiles,
+    includedFiles: previewContext.includedFiles,
     estimatedTokens,
-    contextBlocks: blocks,
+    contextBlocks: previewContext.blocks,
     systemPrompt,
   };
 }
