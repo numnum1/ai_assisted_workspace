@@ -40,7 +40,11 @@ import {
   removeSubproject,
 } from "./services/subprojectService.ts";
 import { listWikiFiles, searchWiki } from "./services/wikiService.ts";
-import { previewChatContext } from "./services/chatService.ts";
+import {
+  previewChatContext,
+  startChatStream,
+  stopChatStream,
+} from "./services/chatService.ts";
 import {
   addGlossaryEntry,
   deleteGlossaryEntry,
@@ -120,6 +124,22 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("chat:previewContext", (_event, body) =>
     previewChatContext(getCurrentProjectPath(), body),
+  );
+  ipcMain.handle("chat:startStream", (event, body) => {
+    const { streamId } = startChatStream(body, (chatEvent) => {
+      event.sender.send("chat:streamEvent", {
+        streamId,
+        event: chatEvent.type,
+        data:
+          typeof chatEvent.data === "string"
+            ? chatEvent.data
+            : JSON.stringify(chatEvent.data),
+      });
+    });
+    return { streamId };
+  });
+  ipcMain.handle("chat:stopStream", (_event, streamId: string) =>
+    stopChatStream(streamId),
   );
 
   ipcMain.handle("projectConfig:status", () =>

@@ -33,6 +33,28 @@ contextBridge.exposeInMainWorld("appBridge", {
   chat: {
     previewContext: (body: unknown) =>
       ipcRenderer.invoke("chat:previewContext", body),
+    startStream: (body: unknown) =>
+      ipcRenderer.invoke("chat:startStream", body),
+    stopStream: (streamId: string) =>
+      ipcRenderer.invoke("chat:stopStream", streamId),
+    onStreamEvent: (streamId: string, listener: (payload: unknown) => void) => {
+      const wrapped = (_event: unknown, payload: unknown) => {
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "streamId" in payload &&
+          (payload as { streamId?: unknown }).streamId === streamId
+        ) {
+          listener(payload);
+        }
+      };
+      ipcRenderer.on("chat:streamEvent", wrapped);
+      return {
+        unsubscribe: () => {
+          ipcRenderer.removeListener("chat:streamEvent", wrapped);
+        },
+      };
+    },
   },
   wiki: {
     listFiles: () => ipcRenderer.invoke("wiki:listFiles"),

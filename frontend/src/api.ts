@@ -753,6 +753,20 @@ export interface ContextBlock {
   estimatedTokens: number;
 }
 
+type ChatStreamEventName =
+  | "context"
+  | "error"
+  | "done"
+  | "tool_call"
+  | "tool_history"
+  | "resolved_user_message"
+  | "context_update"
+  | "token";
+
+function decodeElectronStreamData(data: string): string {
+  return data.replace(/\\n/g, "\n");
+}
+
 export const chatApi = {
   previewContext: async (
     body: ChatRequest,
@@ -803,6 +817,104 @@ export function streamChat(
   onResolvedUserMessage?: (content: string) => void,
 ): AbortController {
   const controller = new AbortController();
+
+  if (isRunningInElectron()) {
+    const electronApi = getElectronApi();
+    if (electronApi?.chat) {
+      let errorHandled = false;
+      let tokenCount = 0;
+      let fullAssistantText = "";
+      let activeStreamId: string | null = null;
+      let unsubscribe: (() => void) | null = null;
+
+      const cleanup = () => {
+        unsubscribe?.();
+        unsubscribe = null;
+        activeStreamId = null;
+      };
+
+      const handleStreamEvent = async (
+        chatEvent: import("./electron/bridge.ts").ChatStreamEvent,
+      ): Promise<void> => {
+        if (activeStreamId == null) {
+          return;
+        }
+
+        if (chatEvent.type === "context") {
+          onContext(chatEvent.payload);
+        } else if (chatEvent.type === "error") {
+          console.warn(
+            "[streamChat] Received error event from Electron chat bridge:",
+            chatEvent.payload.message,
+          );
+          onError(new Error(chatEvent.payload.message));
+          errorHandled = true;
+          cleanup();
+        } else if (chatEvent.type === "done") {
+          if (!errorHandled) {
+            if (tokenCount === 0) {
+              console.warn(
+                "[streamChat] Electron stream ended (done event) but 0 tokens were received — model returned no content.",
+              );
+              onError(new Error("MODEL_EMPTY_RESPONSE"));
+            } else {
+              onDone(chatEvent.payload.fullAssistantText);
+            }
+          }
+          cleanup();
+        } else if (chatEvent.type === "tool_call") {
+          onToolCall?.(decodeElectronStreamData(chatEvent.payload));
+        } else if (chatEvent.type === "tool_history") {
+          onToolHistory?.(chatEvent.payload);
+        } else if (chatEvent.type === "resolved_user_message") {
+          onResolvedUserMessage?.(decodeElectronStreamData(chatEvent.payload));
+        } else if (chatEvent.type === "context_update") {
+          onContextUpdate?.(chatEvent.payload.estimatedTokens);
+        } else if (chatEvent.type === "token") {
+          tokenCount++;
+          const unescaped = decodeElectronStreamData(chatEvent.payload);
+          fullAssistantText += unescaped;
+          onToken(unescaped);
+          await yieldMacrotaskForTokenPaint();
+        }
+      };
+
+      const chatBridge = electronApi.chat;
+      if (!chatBridge) {
+        return controller;
+      }
+
+      void chatBridge
+        .startStream(request)
+        .then(({ streamId }) => {
+          activeStreamId = streamId;
+
+          const subscription = chatBridge.onStreamEvent(streamId, (payload) => {
+            void handleStreamEvent(payload);
+          });
+          unsubscribe = () => subscription.unsubscribe();
+
+          controller.signal.addEventListener(
+            "abort",
+            () => {
+              cleanup();
+              void chatBridge.stopStream(streamId);
+            },
+            { once: true },
+          );
+        })
+        .catch((err) => {
+          cleanup();
+          if (err instanceof Error) {
+            onError(err);
+            return;
+          }
+          onError(new Error(String(err)));
+        });
+
+      return controller;
+    }
+  }
 
   fetch(`${BASE}/chat`, {
     method: "POST",

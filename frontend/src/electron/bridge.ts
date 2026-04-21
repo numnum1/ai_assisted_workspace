@@ -1,5 +1,6 @@
 import type {
   AgentPreset,
+  ChatMessage,
   ChatRequest,
   FileNode,
   Mode,
@@ -38,6 +39,30 @@ export interface ChatContextPreviewResult {
   estimatedTokens: number;
   contextBlocks: ContextBlock[];
   systemPrompt: string;
+}
+
+export interface ChatContextInfo {
+  includedFiles: string[];
+  estimatedTokens: number;
+  maxContextTokens?: number;
+}
+
+export type ChatStreamEvent =
+  | { type: "context"; payload: ChatContextInfo }
+  | { type: "token"; payload: string }
+  | { type: "tool_call"; payload: string }
+  | { type: "tool_history"; payload: ChatMessage[] }
+  | { type: "resolved_user_message"; payload: string }
+  | { type: "context_update"; payload: { estimatedTokens: number } }
+  | { type: "done"; payload: { fullAssistantText: string } }
+  | { type: "error"; payload: { message: string } };
+
+export interface ChatStreamStartResult {
+  streamId: string;
+}
+
+export interface ChatStreamSubscription {
+  unsubscribe: () => void;
 }
 
 export interface ProjectCurrentResult {
@@ -126,6 +151,12 @@ export interface AppBridge {
   };
   chat?: {
     previewContext: (body: ChatRequest) => Promise<ChatContextPreviewResult>;
+    startStream: (body: ChatRequest) => Promise<ChatStreamStartResult>;
+    stopStream: (streamId: string) => Promise<{ status: string }>;
+    onStreamEvent: (
+      streamId: string,
+      listener: (event: ChatStreamEvent) => void,
+    ) => ChatStreamSubscription;
   };
   projectConfig?: {
     status: () => Promise<{ initialized: boolean }>;

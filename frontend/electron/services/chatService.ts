@@ -14,9 +14,36 @@ export interface ChatContextPreviewResult {
   systemPrompt: string;
 }
 
+export type ChatStreamEvent =
+  | {
+      type: "context";
+      data: {
+        includedFiles: string[];
+        estimatedTokens: number;
+        maxContextTokens?: number;
+      };
+    }
+  | { type: "token"; data: string }
+  | { type: "tool_call"; data: string }
+  | { type: "tool_history"; data: ChatMessage[] }
+  | { type: "resolved_user_message"; data: string }
+  | { type: "context_update"; data: { estimatedTokens: number } }
+  | { type: "done"; data: { fullAssistantText: string } }
+  | { type: "error"; data: { message: string } };
+
+export interface ChatStreamStartResult {
+  streamId: string;
+}
+
 interface PreviewBuildContext {
   projectPath: string | null;
 }
+
+interface StreamSessionState {
+  aborted: boolean;
+}
+
+const streamSessions = new Map<string, StreamSessionState>();
 
 function normalizeText(value: string | null | undefined): string {
   return typeof value === "string" ? value.trim() : "";
@@ -68,7 +95,9 @@ function buildActiveFileBlock(request: ChatRequest): ContextBlock | null {
 
 function buildReferencedFilesBlock(request: ChatRequest): ContextBlock | null {
   const referencedFiles = Array.isArray(request.referencedFiles)
-    ? request.referencedFiles.map((value) => normalizeText(value)).filter(Boolean)
+    ? request.referencedFiles
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
     : [];
 
   if (referencedFiles.length === 0) return null;
@@ -104,14 +133,17 @@ function buildHistoryBlock(request: ChatRequest): ContextBlock | null {
 
 function formatHistoryMessage(message: ChatMessage): string {
   const role = normalizeText(message.role);
-  const content = typeof message.content === "string" ? message.content.trim() : "";
+  const content =
+    typeof message.content === "string" ? message.content.trim() : "";
   if (!role || !content) return "";
   return `${role.toUpperCase()}: ${content}`;
 }
 
 function buildToolkitBlock(request: ChatRequest): ContextBlock | null {
   const disabledToolkits = Array.isArray(request.disabledToolkits)
-    ? request.disabledToolkits.map((value) => normalizeText(value)).filter(Boolean)
+    ? request.disabledToolkits
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
     : [];
 
   if (disabledToolkits.length === 0) return null;
@@ -127,7 +159,8 @@ function buildToolkitBlock(request: ChatRequest): ContextBlock | null {
 
 function buildSessionBlock(request: ChatRequest): ContextBlock | null {
   const sessionKind = normalizeText(request.sessionKind);
-  const steeringPlan = typeof request.steeringPlan === "string" ? request.steeringPlan.trim() : "";
+  const steeringPlan =
+    typeof request.steeringPlan === "string" ? request.steeringPlan.trim() : "";
 
   if (!sessionKind && !steeringPlan) return null;
 
@@ -149,7 +182,10 @@ function buildSessionBlock(request: ChatRequest): ContextBlock | null {
   };
 }
 
-function buildSystemPrompt(request: ChatRequest, context: PreviewBuildContext): string {
+function buildSystemPrompt(
+  request: ChatRequest,
+  context: PreviewBuildContext,
+): string {
   const lines: string[] = [
     "Du bist ein lokaler Schreibassistent in einer Electron-Anwendung.",
     "Erstelle eine strukturierte, hilfreiche Antwort auf Basis des aktuellen Projekts.",
@@ -169,6 +205,69 @@ function buildSystemPrompt(request: ChatRequest, context: PreviewBuildContext): 
   }
 
   return lines.join("\n");
+}
+
+function getVisibleHistory(request: ChatRequest): ChatMessage[] {
+  const history = Array.isArray(request.history) ? request.history : [];
+  return history.filter((message) => !message.hidden);
+}
+
+function buildAssistantReply(request: ChatRequest): string {
+  const message = normalizeText(request.message);
+  const mode = normalizeText(request.mode);
+  const activeFile = normalizeText(request.activeFile);
+  const referencedFiles = Array.isArray(request.referencedFiles)
+    ? request.referencedFiles
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
+    : [];
+
+  const lines: string[] = [];
+  lines.push("Lokale Electron-Chat-Vorschau aktiv.");
+  if (mode) {
+    lines.push(`Modus: ${mode}`);
+  }
+  if (activeFile) {
+    lines.push(`Aktive Datei: ${activeFile}`);
+  }
+  if (referencedFiles.length > 0) {
+    lines.push(`Referenzen: ${referencedFiles.join(", ")}`);
+  }
+  if (message) {
+    lines.push("");
+    lines.push("Anfrage:");
+    lines.push(message);
+  } else {
+    lines.push("");
+    lines.push("Keine direkte Nutzernachricht übergeben.");
+  }
+
+  return lines.join("\n");
+}
+
+function splitIntoTokenChunks(text: string): string[] {
+  if (!text) return [];
+  const chunks: string[] = [];
+  for (const word of text.split(/(\s+)/)) {
+    if (word) {
+      chunks.push(word);
+    }
+  }
+  return chunks;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function createStreamId(): string {
+  return `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isStreamActive(streamId: string): boolean {
+  return streamSessions.get(streamId)?.aborted !== true;
 }
 
 export async function previewChatContext(
@@ -195,7 +294,9 @@ export async function previewChatContext(
     blocks.reduce((sum, block) => sum + block.estimatedTokens, 0);
 
   const includedFiles = Array.isArray(request.referencedFiles)
-    ? request.referencedFiles.map((value) => normalizeText(value)).filter(Boolean)
+    ? request.referencedFiles
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
     : [];
 
   return {
@@ -204,4 +305,94 @@ export async function previewChatContext(
     contextBlocks: blocks,
     systemPrompt,
   };
+}
+
+export function startChatStream(
+  request: ChatRequest,
+  emit: (event: ChatStreamEvent) => void,
+): ChatStreamStartResult {
+  const streamId = createStreamId();
+  streamSessions.set(streamId, { aborted: false });
+
+  void runChatStream(streamId, request, emit);
+
+  return { streamId };
+}
+
+export function stopChatStream(streamId: string): { status: string } {
+  const session = streamSessions.get(streamId);
+  if (!session) {
+    return { status: "ok" };
+  }
+
+  session.aborted = true;
+  streamSessions.delete(streamId);
+  return { status: "ok" };
+}
+
+async function runChatStream(
+  streamId: string,
+  request: ChatRequest,
+  emit: (event: ChatStreamEvent) => void,
+): Promise<void> {
+  try {
+    const preview = await previewChatContext(null, request);
+    if (!isStreamActive(streamId)) return;
+
+    emit({
+      type: "context",
+      data: {
+        includedFiles: preview.includedFiles,
+        estimatedTokens: preview.estimatedTokens,
+        maxContextTokens: 32000,
+      },
+    });
+
+    const visibleHistory = getVisibleHistory(request);
+    if (visibleHistory.length > 0) {
+      emit({
+        type: "tool_history",
+        data: visibleHistory,
+      });
+    }
+
+    if (request.message && request.message.trim()) {
+      emit({
+        type: "resolved_user_message",
+        data: request.message,
+      });
+    }
+
+    emit({
+      type: "context_update",
+      data: { estimatedTokens: preview.estimatedTokens },
+    });
+
+    const fullAssistantText = buildAssistantReply(request);
+    const chunks = splitIntoTokenChunks(fullAssistantText);
+
+    for (const chunk of chunks) {
+      if (!isStreamActive(streamId)) return;
+      emit({ type: "token", data: chunk });
+      await delay(15);
+    }
+
+    if (!isStreamActive(streamId)) return;
+
+    emit({
+      type: "done",
+      data: { fullAssistantText },
+    });
+  } catch (error) {
+    if (!isStreamActive(streamId)) return;
+
+    emit({
+      type: "error",
+      data: {
+        message: error instanceof Error ? error.message : "CHAT_STREAM_FAILED",
+      },
+    });
+  } finally {
+    streamSessions.delete(streamId);
+  }
 }
