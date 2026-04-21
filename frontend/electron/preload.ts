@@ -30,6 +30,17 @@ contextBridge.exposeInMainWorld("appBridge", {
     move: (path: string, targetParentPath: string) =>
       ipcRenderer.invoke("files:move", path, targetParentPath),
   },
+  search: {
+    query: (q: string, limit?: number) =>
+      ipcRenderer.invoke("search:query", q, limit),
+  },
+  typedFiles: {
+    fill: (filePath: string) => ipcRenderer.invoke("typedFiles:fill", filePath),
+    getContent: (filePath: string) =>
+      ipcRenderer.invoke("typedFiles:getContent", filePath),
+    saveContent: (filePath: string, data: unknown) =>
+      ipcRenderer.invoke("typedFiles:saveContent", filePath, data),
+  },
   snapshots: {
     get: (id: string) => ipcRenderer.invoke("snapshots:get", id),
     apply: (id: string) => ipcRenderer.invoke("snapshots:apply", id),

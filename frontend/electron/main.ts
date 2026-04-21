@@ -61,6 +61,12 @@ import {
   getSnapshot,
   revertSnapshot,
 } from "./services/snapshotService.ts";
+import {
+  fillTypedFile,
+  getTypedFileContent,
+  saveTypedFileContent,
+} from "./services/typedFilesService.ts";
+import { searchProjectContent } from "./services/searchService.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,6 +174,26 @@ function registerIpcHandlers(): void {
   ipcMain.handle("snapshots:apply", (_event, id: string) => applySnapshot(id));
   ipcMain.handle("snapshots:revert", (_event, id: string) =>
     revertSnapshot(getCurrentProjectPath(), id),
+  );
+
+  ipcMain.handle("search:project", (_event, query: string, limit?: number) =>
+    searchProjectContent(getCurrentProjectPath(), query, limit),
+  );
+
+  ipcMain.handle("typedFiles:fill", (_event, filePath: string) =>
+    fillTypedFile(getCurrentProjectPath(), filePath),
+  );
+  ipcMain.handle("typedFiles:getContent", (_event, filePath: string) =>
+    getTypedFileContent(getCurrentProjectPath(), filePath),
+  );
+  ipcMain.handle(
+    "typedFiles:saveContent",
+    (_event, filePath: string, data: unknown) =>
+      saveTypedFileContent(
+        getCurrentProjectPath(),
+        filePath,
+        data as Record<string, unknown>,
+      ),
   );
 
   ipcMain.handle("projectConfig:status", () =>

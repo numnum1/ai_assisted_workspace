@@ -11,6 +11,24 @@ import type {
   WorkspaceModeSchema,
 } from "../types.ts";
 
+export interface SearchHit {
+  path: string;
+  line: number;
+  preview: string;
+}
+
+export interface SearchResponse {
+  hits: SearchHit[];
+}
+
+export interface TypedFileContentResult {
+  data: Record<string, unknown>;
+}
+
+export interface TypedFileFillResult {
+  data: Record<string, unknown>;
+}
+
 export interface ContextBlock {
   type: string;
   label: string;
@@ -225,6 +243,17 @@ export interface AppBridge {
     create: (body: LlmCreateRequest) => Promise<LlmPublic>;
     update: (id: string, body: LlmUpdateRequest) => Promise<LlmPublic>;
     remove: (id: string) => Promise<{ status: string }>;
+  };
+  search?: {
+    query: (q: string, limit?: number) => Promise<SearchResponse>;
+  };
+  typedFiles?: {
+    getContent: (path: string) => Promise<TypedFileContentResult>;
+    saveContent: (
+      path: string,
+      data: Record<string, unknown>,
+    ) => Promise<{ status: string }>;
+    fill: (path: string) => Promise<TypedFileFillResult>;
   };
 }
 

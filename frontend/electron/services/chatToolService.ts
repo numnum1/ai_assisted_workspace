@@ -624,6 +624,121 @@ async function executeSingleToolCall(
     );
   }
 
+  if (name === "ask_clarification") {
+    const args = parseToolArgs<{
+      questions?:
+        | Array<{
+            question?: string;
+            options?: string[];
+            allow_multiple?: boolean;
+          }>
+        | {
+            question?: string;
+            options?: string[];
+            allow_multiple?: boolean;
+          };
+    }>(toolCall);
+
+    const rawQuestions = Array.isArray(args.questions)
+      ? args.questions
+      : args.questions
+        ? [args.questions]
+        : [];
+
+    const questions = rawQuestions
+      .map((entry) => {
+        const question =
+          entry && typeof entry.question === "string"
+            ? entry.question.trim()
+            : "";
+        const options = Array.isArray(entry?.options)
+          ? entry.options
+              .filter((option): option is string => typeof option === "string")
+              .map((option) => option.trim())
+              .filter(Boolean)
+          : [];
+        const allow_multiple = entry?.allow_multiple === true;
+
+        if (!question || options.length === 0) {
+          return null;
+        }
+
+        return {
+          question,
+          options,
+          ...(allow_multiple ? { allow_multiple: true } : {}),
+        };
+      })
+      .filter(
+        (
+          value,
+        ): value is {
+          question: string;
+          options: string[];
+          allow_multiple?: boolean;
+        } => value !== null,
+      );
+
+    if (questions.length === 0) {
+      return createToolResultMessage(
+        toolCall.id,
+        "clarification:error:No valid clarification questions provided.",
+      );
+    }
+
+    const payload = questions.length === 1 ? questions[0] : questions;
+    const fenced = `\`\`\`clarification\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
+    return createToolResultMessage(toolCall.id, fenced);
+  }
+
+  if (name === "propose_guided_thread") {
+    const args = parseToolArgs<{
+      steeringPlanMarkdown?: string;
+      threadTitle?: string;
+      summary?: string;
+      modeId?: string;
+      agentPresetId?: string;
+    }>(toolCall);
+
+    const steeringPlanMarkdown =
+      typeof args.steeringPlanMarkdown === "string"
+        ? args.steeringPlanMarkdown.trim()
+        : "";
+
+    if (!steeringPlanMarkdown) {
+      return createToolResultMessage(
+        toolCall.id,
+        "guided_thread_offer:error:steeringPlanMarkdown is required.",
+      );
+    }
+
+    const payload: {
+      steeringPlanMarkdown: string;
+      threadTitle?: string;
+      summary?: string;
+      modeId?: string;
+      agentPresetId?: string;
+    } = {
+      steeringPlanMarkdown,
+    };
+
+    if (typeof args.threadTitle === "string" && args.threadTitle.trim()) {
+      payload.threadTitle = args.threadTitle.trim();
+    }
+    if (typeof args.summary === "string" && args.summary.trim()) {
+      payload.summary = args.summary.trim();
+    }
+    if (typeof args.modeId === "string" && args.modeId.trim()) {
+      payload.modeId = args.modeId.trim();
+    }
+    if (typeof args.agentPresetId === "string" && args.agentPresetId.trim()) {
+      payload.agentPresetId = args.agentPresetId.trim();
+    }
+
+    const fenced = `\`\`\`guided_thread_offer\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
+    return createToolResultMessage(toolCall.id, fenced);
+  }
+
   if (name === "glossary_add") {
     const args = parseToolArgs<{ term?: string; definition?: string }>(
       toolCall,
@@ -739,9 +854,17 @@ export function describeToolCall(toolCall: ChatToolCall): string {
     if (name === "write_file" && typeof args.path === "string") {
       return `Schreibe Datei: ${args.path}`;
     }
+    if (name === "ask_clarification") {
+      return "Stelle Rückfrage";
+    }
+    if (name === "propose_guided_thread") {
+      return "Biete Guided Thread an";
+    }
   } catch {
     // ignore malformed args for description fallback
   }
 
+  if (name === "ask_clarification") return "Stelle Rückfrage";
+  if (name === "propose_guided_thread") return "Biete Guided Thread an";
   return `Führe Tool aus: ${name}`;
 }

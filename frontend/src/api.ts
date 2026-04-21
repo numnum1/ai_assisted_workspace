@@ -51,6 +51,21 @@ type ProjectOpenResponse = {
   initialized: boolean;
 };
 type ProjectConfigStatusResponse = { initialized: boolean };
+type SearchHitResponse = {
+  path: string;
+  line: number;
+  preview: string;
+};
+type SearchResponse = {
+  hits: SearchHitResponse[];
+};
+type TypedFileContentResponse = {
+  data: Record<string, unknown>;
+};
+type TypedFileFillResponse = {
+  data?: Record<string, unknown>;
+  error?: string;
+};
 type SnapshotResponse = {
   id: string;
   path: string;
@@ -787,6 +802,61 @@ export interface ContextBlock {
   content: string;
   estimatedTokens: number;
 }
+
+export const searchApi = {
+  query: async (query: string, limit = 200): Promise<SearchResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.search) {
+        return electronApi.search.query(query, limit);
+      }
+    }
+    return get<SearchResponse>(
+      `/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
+  },
+};
+
+export const typedFilesApi = {
+  getContent: async (path: string): Promise<TypedFileContentResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.typedFiles) {
+        return electronApi.typedFiles.getContent(path);
+      }
+    }
+    return get<TypedFileContentResponse>(
+      `/typed-files/content/${encodeFilePathForApi(path)}`,
+    );
+  },
+  saveContent: async (
+    path: string,
+    data: Record<string, unknown>,
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.typedFiles) {
+        return electronApi.typedFiles.saveContent(path, data);
+      }
+    }
+    return put<{ status: string }>(
+      `/typed-files/content/${encodeFilePathForApi(path)}`,
+      { data },
+    );
+  },
+  fill: async (path: string): Promise<TypedFileFillResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.typedFiles) {
+        return electronApi.typedFiles.fill(path);
+      }
+    }
+    return post<TypedFileFillResponse>(
+      `/typed-files/fill/${encodeFilePathForApi(path)}`,
+      {},
+    );
+  },
+};
 
 export const snapshotsApi = {
   get: async (id: string): Promise<SnapshotResponse> => {

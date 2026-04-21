@@ -1,6 +1,32 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
-import { Save, Plus, Trash2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
-import type { TypeDefinition, TypeField, TypeSection } from '../types.ts';
+import { useCallback, useRef, useEffect, useState } from "react";
+import {
+  Save,
+  Plus,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Sparkles,
+} from "lucide-react";
+import { typedFilesApi } from "../api.ts";
+
+interface TypeField {
+  key: string;
+  label: string;
+  type: string;
+  hint?: string;
+}
+
+interface TypeSection {
+  key: string;
+  label: string;
+  fields: TypeField[];
+}
+
+interface TypeDefinition {
+  name: string;
+  fields: TypeField[];
+  sections: TypeSection[];
+}
 
 interface FormRendererProps {
   filePath: string;
@@ -26,17 +52,15 @@ export function FormRenderer({
   const [filling, setFilling] = useState(false);
   const [fillError, setFillError] = useState<string | null>(null);
 
-  const filename = filePath.includes('/')
-    ? filePath.substring(filePath.lastIndexOf('/') + 1)
+  const filename = filePath.includes("/")
+    ? filePath.substring(filePath.lastIndexOf("/") + 1)
     : filePath;
 
   const handleAiFill = useCallback(async () => {
     setFilling(true);
     setFillError(null);
     try {
-      const res = await fetch(`/api/typed-files/fill/${filePath}`, { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `Fill failed: ${res.status}`);
+      const body = await typedFilesApi.fill(filePath);
       if (body.data) onChange(body.data as Record<string, unknown>);
     } catch (err) {
       setFillError(err instanceof Error ? err.message : String(err));
@@ -49,7 +73,7 @@ export function FormRenderer({
     (key: string, value: string) => {
       onChange({ ...data, [key]: value });
     },
-    [data, onChange]
+    [data, onChange],
   );
 
   const handleSave = useCallback(async () => {
@@ -59,13 +83,13 @@ export function FormRenderer({
   // Ctrl+S to save
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         handleSave();
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [handleSave]);
 
   if (loading) {
@@ -92,7 +116,7 @@ export function FormRenderer({
             title="KI füllt das Formular basierend auf dem Projektkontext aus"
           >
             <Sparkles size={14} />
-            {filling ? 'KI arbeitet…' : 'KI ausfüllen'}
+            {filling ? "KI arbeitet…" : "KI ausfüllen"}
           </button>
           <button
             className="editor-save-btn"
@@ -118,7 +142,11 @@ export function FormRenderer({
               <FormField
                 key={field.key}
                 field={field}
-                value={typeof data[field.key] === 'string' ? data[field.key] as string : ''}
+                value={
+                  typeof data[field.key] === "string"
+                    ? (data[field.key] as string)
+                    : ""
+                }
                 onChange={(val) => handleFieldChange(field.key, val)}
               />
             ))}
@@ -153,7 +181,7 @@ function FormField({ field, value, onChange }: FormFieldProps) {
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = 'auto';
+    el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [value]);
 
@@ -163,14 +191,14 @@ function FormField({ field, value, onChange }: FormFieldProps) {
         {field.label}
         {field.hint && <span className="form-hint">{field.hint}</span>}
       </label>
-      {field.type === 'longtext' ? (
+      {field.type === "longtext" ? (
         <textarea
           ref={textareaRef}
           className="form-textarea"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          placeholder={field.hint ?? ''}
+          placeholder={field.hint ?? ""}
         />
       ) : (
         <input
@@ -178,7 +206,7 @@ function FormField({ field, value, onChange }: FormFieldProps) {
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.hint ?? ''}
+          placeholder={field.hint ?? ""}
         />
       )}
     </div>
@@ -193,10 +221,14 @@ interface RepeatableSectionProps {
   onChange: (items: Record<string, string>[]) => void;
 }
 
-function RepeatableSection({ section, items, onChange }: RepeatableSectionProps) {
+function RepeatableSection({
+  section,
+  items,
+  onChange,
+}: RepeatableSectionProps) {
   const addItem = () => {
     const empty: Record<string, string> = {};
-    section.fields.forEach((f) => (empty[f.key] = ''));
+    section.fields.forEach((f: TypeField) => (empty[f.key] = ""));
     onChange([...items, empty]);
   };
 
@@ -214,7 +246,7 @@ function RepeatableSection({ section, items, onChange }: RepeatableSectionProps)
 
   const updateItem = (index: number, key: string, value: string) => {
     const newItems = items.map((item, i) =>
-      i === index ? { ...item, [key]: value } : item
+      i === index ? { ...item, [key]: value } : item,
     );
     onChange(newItems);
   };
@@ -239,7 +271,7 @@ function RepeatableSection({ section, items, onChange }: RepeatableSectionProps)
         <div key={index} className="form-item-card">
           <div className="form-item-header">
             <span className="form-item-label">
-              {item['titel'] || `${section.label} ${index + 1}`}
+              {item["titel"] || `${section.label} ${index + 1}`}
             </span>
             <div className="form-item-actions">
               <button
@@ -272,7 +304,9 @@ function RepeatableSection({ section, items, onChange }: RepeatableSectionProps)
               <FormField
                 key={field.key}
                 field={field}
-                value={typeof item[field.key] === 'string' ? item[field.key] : ''}
+                value={
+                  typeof item[field.key] === "string" ? item[field.key] : ""
+                }
                 onChange={(val) => updateItem(index, field.key, val)}
               />
             ))}
@@ -285,10 +319,14 @@ function RepeatableSection({ section, items, onChange }: RepeatableSectionProps)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getSectionItems(data: Record<string, unknown>, key: string): Record<string, string>[] {
+function getSectionItems(
+  data: Record<string, unknown>,
+  key: string,
+): Record<string, string>[] {
   const raw = data[key];
   if (!Array.isArray(raw)) return [];
-  return raw.filter((item): item is Record<string, string> =>
-    item !== null && typeof item === 'object'
+  return raw.filter(
+    (item): item is Record<string, string> =>
+      item !== null && typeof item === "object",
   );
 }

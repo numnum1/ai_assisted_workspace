@@ -306,6 +306,73 @@ function extractFinishReason(chunk: OpenAiStreamChunk): string | null {
     : null;
 }
 
+function buildClarificationFence(
+  questions: unknown,
+): { text: string; normalizedQuestions: unknown[] } | null {
+  const normalizedQuestions = Array.isArray(questions)
+    ? questions.filter(
+        (q) =>
+          q &&
+          typeof q === "object" &&
+          typeof (q as { question?: unknown }).question === "string" &&
+          Array.isArray((q as { options?: unknown }).options),
+      )
+    : questions &&
+        typeof questions === "object" &&
+        typeof (questions as { question?: unknown }).question === "string" &&
+        Array.isArray((questions as { options?: unknown }).options)
+      ? [questions]
+      : [];
+
+  if (normalizedQuestions.length === 0) {
+    return null;
+  }
+
+  return {
+    text: `\`\`\`clarification\n${JSON.stringify(
+      normalizedQuestions,
+      null,
+      2,
+    )}\n\`\`\``,
+    normalizedQuestions,
+  };
+}
+
+function buildGuidedThreadOfferFence(args: {
+  steeringPlanMarkdown?: unknown;
+  threadTitle?: unknown;
+  summary?: unknown;
+  modeId?: unknown;
+  agentPresetId?: unknown;
+}): string | null {
+  const steeringPlanMarkdown =
+    typeof args.steeringPlanMarkdown === "string"
+      ? args.steeringPlanMarkdown.trim()
+      : "";
+  if (!steeringPlanMarkdown) {
+    return null;
+  }
+
+  const payload: Record<string, string> = {
+    steeringPlanMarkdown,
+  };
+
+  if (typeof args.threadTitle === "string" && args.threadTitle.trim()) {
+    payload.threadTitle = args.threadTitle.trim();
+  }
+  if (typeof args.summary === "string" && args.summary.trim()) {
+    payload.summary = args.summary.trim();
+  }
+  if (typeof args.modeId === "string" && args.modeId.trim()) {
+    payload.modeId = args.modeId.trim();
+  }
+  if (typeof args.agentPresetId === "string" && args.agentPresetId.trim()) {
+    payload.agentPresetId = args.agentPresetId.trim();
+  }
+
+  return `\`\`\`guided_thread_offer\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
+}
+
 function makeToolCallId(index: number): string {
   return `tool-call-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -541,7 +608,7 @@ async function writeProjectFile(
   return `write_file:success:local-${Date.now()}:${existed ? "modified" : "new"}:${relative}:Updated via local chat tool`;
 }
 
-function describeToolCall(toolCall: ToolCall): string {
+function describeStreamingToolCall(toolCall: ToolCall): string {
   const name = toolCall.function.name;
   if (name === "read_file") return "Lese Datei";
   if (name === "search_project") return "Suche im Projekt";
@@ -549,6 +616,8 @@ function describeToolCall(toolCall: ToolCall): string {
   if (name === "wiki_search") return "Suche im Wiki";
   if (name === "glossary_add") return "Ergänze Glossar";
   if (name === "write_file") return "Schreibe Datei";
+  if (name === "ask_clarification") return "Stelle Rückfrage";
+  if (name === "propose_guided_thread") return "Biete Guided Thread an";
   return `Tool: ${name}`;
 }
 
@@ -583,6 +652,26 @@ async function executeToolCall(
     const filePath = normalizeText(String(args.path ?? ""));
     const content = typeof args.content === "string" ? args.content : "";
     result = await writeProjectFile(projectPath, filePath, content);
+  } else if (name === "ask_clarification") {
+    const clarification = buildClarificationFence(args.questions ?? args);
+    if (!clarification) {
+      throw new Error(
+        "ask_clarification requires at least one valid question.",
+      );
+    }
+    result = clarification.text;
+  } else if (name === "propose_guided_thread") {
+    const offer = buildGuidedThreadOfferFence({
+      steeringPlanMarkdown: args.steeringPlanMarkdown,
+      threadTitle: args.threadTitle,
+      summary: args.summary,
+      modeId: args.modeId,
+      agentPresetId: args.agentPresetId,
+    });
+    if (!offer) {
+      throw new Error("propose_guided_thread requires steeringPlanMarkdown.");
+    }
+    result = offer;
   } else {
     throw new Error(`Unknown tool: ${name}`);
   }
@@ -590,7 +679,7 @@ async function executeToolCall(
   return {
     toolCallId: toolCall.id,
     name,
-    description: describeToolCall(toolCall),
+    description: describeStreamingToolCall(toolCall),
     result,
   };
 }
@@ -870,15 +959,6 @@ async function pathExists(targetPath: string): Promise<boolean> {
     return true;
   } catch {
     return false;
-  }
-}
-
-async function readJsonFile<T>(filePath: string): Promise<T | null> {
-  try {
-    const raw = await fs.readFile(filePath, "utf8");
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
   }
 }
 
@@ -1505,7 +1585,7 @@ async function runChatStream(
       for (const toolCall of toolCalls) {
         emit({
           type: "tool_call",
-          data: describeToolCall(toolCall),
+          data: describeStreamingToolCall(toolCall),
         });
       }
 
