@@ -1,12 +1,20 @@
 import type {
+  ActionNode,
   AgentPreset,
+  ChapterNode,
+  ChapterSummary,
   ChatMessage,
   ChatRequest,
   FileNode,
+  GitCommit,
+  GitStatus,
+  GitSyncStatus,
   LlmsListResponse,
   LlmPublic,
   Mode,
+  NodeMeta,
   ProjectConfig,
+  SceneNode,
   WorkspaceModeInfo,
   WorkspaceModeSchema,
 } from "../types.ts";
@@ -246,6 +254,115 @@ export interface AppBridge {
   };
   search?: {
     query: (q: string, limit?: number) => Promise<SearchResponse>;
+  };
+  git?: {
+    status: () => Promise<GitStatus>;
+    commit: (
+      message: string,
+      files?: string[],
+    ) => Promise<{ hash: string; message: string }>;
+    revertFile: (path: string, untracked: boolean) => Promise<{ status: string }>;
+    revertDirectory: (path: string) => Promise<{ status: string }>;
+    diff: () => Promise<{ diff: string }>;
+    log: (limit?: number) => Promise<GitCommit[]>;
+    init: () => Promise<{ status: string }>;
+    aheadBehind: () => Promise<GitSyncStatus>;
+    sync: () => Promise<{ action: string; details: string }>;
+    setCredentials: (username: string, token: string) => Promise<{ status: string }>;
+    fileHistory: (path: string) => Promise<GitCommit[]>;
+    fileAtCommit: (
+      path: string,
+      hash: string,
+    ) => Promise<{ path: string; hash: string; content: string; exists: boolean }>;
+  };
+  chapter?: {
+    list: (structureRoot?: string | null) => Promise<ChapterSummary[]>;
+    getStructure: (
+      chapterId: string,
+      structureRoot?: string | null,
+    ) => Promise<ChapterNode>;
+    create: (
+      title: string,
+      structureRoot?: string | null,
+    ) => Promise<ChapterSummary>;
+    updateMeta: (
+      chapterId: string,
+      meta: NodeMeta,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    delete: (
+      chapterId: string,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    createScene: (
+      chapterId: string,
+      title: string,
+      structureRoot?: string | null,
+    ) => Promise<SceneNode>;
+    updateSceneMeta: (
+      chapterId: string,
+      sceneId: string,
+      meta: NodeMeta,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    deleteScene: (
+      chapterId: string,
+      sceneId: string,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    createAction: (
+      chapterId: string,
+      sceneId: string,
+      title: string,
+      structureRoot?: string | null,
+    ) => Promise<ActionNode>;
+    updateActionMeta: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      meta: NodeMeta,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    deleteAction: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    getActionContent: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      structureRoot?: string | null,
+    ) => Promise<{ content: string }>;
+    saveActionContent: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      content: string,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    reorderScenes: (
+      chapterId: string,
+      ids: string[],
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    reorderActions: (
+      chapterId: string,
+      sceneId: string,
+      ids: string[],
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    randomizeIds: (
+      structureRoot?: string | null,
+    ) => Promise<{ renamed: number }>;
+  };
+  book?: {
+    getMeta: (structureRoot?: string | null) => Promise<NodeMeta>;
+    updateMeta: (
+      meta: NodeMeta,
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
   };
   typedFiles?: {
     getContent: (path: string) => Promise<TypedFileContentResult>;

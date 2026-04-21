@@ -32,7 +32,184 @@ contextBridge.exposeInMainWorld("appBridge", {
   },
   search: {
     query: (q: string, limit?: number) =>
-      ipcRenderer.invoke("search:query", q, limit),
+      ipcRenderer.invoke("search:project", q, limit),
+  },
+  git: {
+    status: () => ipcRenderer.invoke("git:status"),
+    commit: (message: string, files?: string[]) =>
+      ipcRenderer.invoke("git:commit", message, files),
+    revertFile: (filePath: string, untracked: boolean) =>
+      ipcRenderer.invoke("git:revertFile", filePath, untracked),
+    revertDirectory: (dirPath: string) =>
+      ipcRenderer.invoke("git:revertDirectory", dirPath),
+    diff: () => ipcRenderer.invoke("git:diff"),
+    log: (limit?: number) => ipcRenderer.invoke("git:log", limit),
+    init: () => ipcRenderer.invoke("git:init"),
+    aheadBehind: () => ipcRenderer.invoke("git:aheadBehind"),
+    sync: () => ipcRenderer.invoke("git:sync"),
+    setCredentials: (username: string, token: string) =>
+      ipcRenderer.invoke("git:setCredentials", username, token),
+    fileHistory: (filePath: string) =>
+      ipcRenderer.invoke("git:fileHistory", filePath),
+    fileAtCommit: (filePath: string, hash: string) =>
+      ipcRenderer.invoke("git:fileAtCommit", filePath, hash),
+  },
+  chapter: {
+    list: (structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:list", structureRoot ?? null),
+    getStructure: (chapterId: string, structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:getStructure", chapterId, structureRoot ?? null),
+    create: (title: string, structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:create", title, structureRoot ?? null),
+    updateMeta: (
+      chapterId: string,
+      meta: unknown,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:updateMeta",
+        chapterId,
+        meta,
+        structureRoot ?? null,
+      ),
+    delete: (chapterId: string, structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:delete", chapterId, structureRoot ?? null),
+    createScene: (
+      chapterId: string,
+      title: string,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:createScene",
+        chapterId,
+        title,
+        structureRoot ?? null,
+      ),
+    updateSceneMeta: (
+      chapterId: string,
+      sceneId: string,
+      meta: unknown,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:updateSceneMeta",
+        chapterId,
+        sceneId,
+        meta,
+        structureRoot ?? null,
+      ),
+    deleteScene: (
+      chapterId: string,
+      sceneId: string,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:deleteScene",
+        chapterId,
+        sceneId,
+        structureRoot ?? null,
+      ),
+    createAction: (
+      chapterId: string,
+      sceneId: string,
+      title: string,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:createAction",
+        chapterId,
+        sceneId,
+        title,
+        structureRoot ?? null,
+      ),
+    updateActionMeta: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      meta: unknown,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:updateActionMeta",
+        chapterId,
+        sceneId,
+        actionId,
+        meta,
+        structureRoot ?? null,
+      ),
+    deleteAction: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:deleteAction",
+        chapterId,
+        sceneId,
+        actionId,
+        structureRoot ?? null,
+      ),
+    getActionContent: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:getActionContent",
+        chapterId,
+        sceneId,
+        actionId,
+        structureRoot ?? null,
+      ),
+    saveActionContent: (
+      chapterId: string,
+      sceneId: string,
+      actionId: string,
+      content: string,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:saveActionContent",
+        chapterId,
+        sceneId,
+        actionId,
+        content,
+        structureRoot ?? null,
+      ),
+    reorderScenes: (
+      chapterId: string,
+      ids: string[],
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:reorderScenes",
+        chapterId,
+        ids,
+        structureRoot ?? null,
+      ),
+    reorderActions: (
+      chapterId: string,
+      sceneId: string,
+      ids: string[],
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:reorderActions",
+        chapterId,
+        sceneId,
+        ids,
+        structureRoot ?? null,
+      ),
+    randomizeIds: (structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:randomizeIds", structureRoot ?? null),
+  },
+  book: {
+    getMeta: (structureRoot?: string | null) =>
+      ipcRenderer.invoke("book:getMeta", structureRoot ?? null),
+    updateMeta: (meta: unknown, structureRoot?: string | null) =>
+      ipcRenderer.invoke("book:updateMeta", meta, structureRoot ?? null),
   },
   typedFiles: {
     fill: (filePath: string) => ipcRenderer.invoke("typedFiles:fill", filePath),

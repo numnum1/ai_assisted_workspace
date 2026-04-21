@@ -90,6 +90,21 @@ export class AuthRequiredError extends Error {
   }
 }
 
+function rethrowGitAuthFromElectron(err: unknown): never {
+  if (err instanceof Error && err.message === "auth_required") {
+    throw new AuthRequiredError();
+  }
+  throw err instanceof Error ? err : new Error(String(err));
+}
+
+async function invokeGitBridge<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    rethrowGitAuthFromElectron(e);
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (res.status === 401) throw new AuthRequiredError();
@@ -293,7 +308,15 @@ export async function persistProjectChatHistory(
 }
 
 export const modesApi = {
-  getAll: () => get<Mode[]>("/modes"),
+  getAll: async (): Promise<Mode[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.getModes();
+      }
+    }
+    return get<Mode[]>("/modes");
+  },
 };
 
 export const projectApi = {
@@ -543,166 +566,487 @@ export const llmApi = {
 };
 
 export const gitApi = {
-  status: () => get<GitStatus>("/git/status"),
-  commit: (message: string, files?: string[]) =>
-    post<{ hash: string; message: string }>("/git/commit", { message, files }),
-  revertFile: (path: string, untracked: boolean) =>
-    post<{ status: string }>("/git/revert-file", { path, untracked }),
-  revertDirectory: (path: string) =>
-    post<{ status: string }>("/git/revert-directory", { path }),
-  diff: () => get<{ diff: string }>("/git/diff"),
-  log: (limit = 20) => get<GitCommit[]>(`/git/log?limit=${limit}`),
-  init: () => post<{ status: string }>("/git/init", {}),
-  aheadBehind: () => get<GitSyncStatus>("/git/ahead-behind"),
-  sync: () => post<{ action: string; details: string }>("/git/sync", {}),
-  setCredentials: (username: string, token: string) =>
-    post<{ status: string }>("/git/credentials", { username, token }),
-  fileHistory: (path: string) =>
-    get<GitCommit[]>(`/git/file-history?path=${encodeURIComponent(path)}`),
-  fileAtCommit: (path: string, hash: string) =>
-    get<{ path: string; hash: string; content: string; exists: boolean }>(
+  status: async (): Promise<GitStatus> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.status());
+      }
+    }
+    return get<GitStatus>("/git/status");
+  },
+  commit: async (
+    message: string,
+    files?: string[],
+  ): Promise<{ hash: string; message: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.commit(message, files));
+      }
+    }
+    return post<{ hash: string; message: string }>("/git/commit", {
+      message,
+      files,
+    });
+  },
+  revertFile: async (
+    path: string,
+    untracked: boolean,
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() =>
+          electronApi.git!.revertFile(path, untracked),
+        );
+      }
+    }
+    return post<{ status: string }>("/git/revert-file", { path, untracked });
+  },
+  revertDirectory: async (path: string): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.revertDirectory(path));
+      }
+    }
+    return post<{ status: string }>("/git/revert-directory", { path });
+  },
+  diff: async (): Promise<{ diff: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.diff());
+      }
+    }
+    return get<{ diff: string }>("/git/diff");
+  },
+  log: async (limit = 20): Promise<GitCommit[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.log(limit));
+      }
+    }
+    return get<GitCommit[]>(`/git/log?limit=${limit}`);
+  },
+  init: async (): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.init());
+      }
+    }
+    return post<{ status: string }>("/git/init", {});
+  },
+  aheadBehind: async (): Promise<GitSyncStatus> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.aheadBehind());
+      }
+    }
+    return get<GitSyncStatus>("/git/ahead-behind");
+  },
+  sync: async (): Promise<{ action: string; details: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.sync());
+      }
+    }
+    return post<{ action: string; details: string }>("/git/sync", {});
+  },
+  setCredentials: async (
+    username: string,
+    token: string,
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() =>
+          electronApi.git!.setCredentials(username, token),
+        );
+      }
+    }
+    return post<{ status: string }>("/git/credentials", { username, token });
+  },
+  fileHistory: async (path: string): Promise<GitCommit[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() => electronApi.git!.fileHistory(path));
+      }
+    }
+    return get<GitCommit[]>(
+      `/git/file-history?path=${encodeURIComponent(path)}`,
+    );
+  },
+  fileAtCommit: async (
+    path: string,
+    hash: string,
+  ): Promise<{
+    path: string;
+    hash: string;
+    content: string;
+    exists: boolean;
+  }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.git) {
+        return invokeGitBridge(() =>
+          electronApi.git!.fileAtCommit(path, hash),
+        );
+      }
+    }
+    return get<{
+      path: string;
+      hash: string;
+      content: string;
+      exists: boolean;
+    }>(
       `/git/file-at-commit?path=${encodeURIComponent(path)}&hash=${encodeURIComponent(hash)}`,
-    ),
+    );
+  },
 };
 
 export const chapterApi = {
-  list: (structureRoot?: string | null) =>
-    get<ChapterSummary[]>(`/chapters${structureRootQuery(structureRoot)}`),
-  getStructure: (id: string, structureRoot?: string | null) =>
-    get<ChapterNode>(`/chapters/${id}${structureRootQuery(structureRoot)}`),
-  create: (title: string, structureRoot?: string | null) =>
-    post<ChapterSummary>(`/chapters${structureRootQuery(structureRoot)}`, {
-      title,
-    }),
-  updateMeta: (
+  list: async (
+    structureRoot?: string | null,
+  ): Promise<ChapterSummary[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.list(structureRoot);
+      }
+    }
+    return get<ChapterSummary[]>(
+      `/chapters${structureRootQuery(structureRoot)}`,
+    );
+  },
+  getStructure: async (
+    id: string,
+    structureRoot?: string | null,
+  ): Promise<ChapterNode> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.getStructure(id, structureRoot);
+      }
+    }
+    return get<ChapterNode>(`/chapters/${id}${structureRootQuery(structureRoot)}`);
+  },
+  create: async (
+    title: string,
+    structureRoot?: string | null,
+  ): Promise<ChapterSummary> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.create(title, structureRoot);
+      }
+    }
+    return post<ChapterSummary>(
+      `/chapters${structureRootQuery(structureRoot)}`,
+      { title },
+    );
+  },
+  updateMeta: async (
     chapterId: string,
     meta: NodeMeta,
     structureRoot?: string | null,
-  ) =>
-    put<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.updateMeta(
+          chapterId,
+          meta,
+          structureRoot,
+        );
+      }
+    }
+    return put<{ status: string }>(
       `/chapters/${chapterId}/meta${structureRootQuery(structureRoot)}`,
       meta,
-    ),
-  delete: (chapterId: string, structureRoot?: string | null) =>
-    del<{ status: string }>(
+    );
+  },
+  delete: async (
+    chapterId: string,
+    structureRoot?: string | null,
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.delete(chapterId, structureRoot);
+      }
+    }
+    return del<{ status: string }>(
       `/chapters/${chapterId}${structureRootQuery(structureRoot)}`,
-    ),
+    );
+  },
 
-  createScene: (
+  createScene: async (
     chapterId: string,
     title: string,
     structureRoot?: string | null,
-  ) =>
-    post<SceneNode>(
+  ): Promise<SceneNode> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.createScene(
+          chapterId,
+          title,
+          structureRoot,
+        );
+      }
+    }
+    return post<SceneNode>(
       `/chapters/${chapterId}/scenes${structureRootQuery(structureRoot)}`,
       { title },
-    ),
-  updateSceneMeta: (
+    );
+  },
+  updateSceneMeta: async (
     chapterId: string,
     sceneId: string,
     meta: NodeMeta,
     structureRoot?: string | null,
-  ) =>
-    put<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.updateSceneMeta(
+          chapterId,
+          sceneId,
+          meta,
+          structureRoot,
+        );
+      }
+    }
+    return put<{ status: string }>(
       `/chapters/${chapterId}/scenes/${sceneId}/meta${structureRootQuery(structureRoot)}`,
       meta,
-    ),
-  deleteScene: (
+    );
+  },
+  deleteScene: async (
     chapterId: string,
     sceneId: string,
     structureRoot?: string | null,
-  ) =>
-    del<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.deleteScene(
+          chapterId,
+          sceneId,
+          structureRoot,
+        );
+      }
+    }
+    return del<{ status: string }>(
       `/chapters/${chapterId}/scenes/${sceneId}${structureRootQuery(structureRoot)}`,
-    ),
+    );
+  },
 
-  createAction: (
+  createAction: async (
     chapterId: string,
     sceneId: string,
     title: string,
     structureRoot?: string | null,
-  ) =>
-    post<ActionNode>(
+  ): Promise<ActionNode> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.createAction(
+          chapterId,
+          sceneId,
+          title,
+          structureRoot,
+        );
+      }
+    }
+    return post<ActionNode>(
       `/chapters/${chapterId}/scenes/${sceneId}/actions${structureRootQuery(structureRoot)}`,
       { title },
-    ),
-  updateActionMeta: (
+    );
+  },
+  updateActionMeta: async (
     chapterId: string,
     sceneId: string,
     actionId: string,
     meta: NodeMeta,
     structureRoot?: string | null,
-  ) =>
-    put<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.updateActionMeta(
+          chapterId,
+          sceneId,
+          actionId,
+          meta,
+          structureRoot,
+        );
+      }
+    }
+    return put<{ status: string }>(
       `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/meta${structureRootQuery(structureRoot)}`,
       meta,
-    ),
-  deleteAction: (
+    );
+  },
+  deleteAction: async (
     chapterId: string,
     sceneId: string,
     actionId: string,
     structureRoot?: string | null,
-  ) =>
-    del<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.deleteAction(
+          chapterId,
+          sceneId,
+          actionId,
+          structureRoot,
+        );
+      }
+    }
+    return del<{ status: string }>(
       `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}${structureRootQuery(structureRoot)}`,
-    ),
+    );
+  },
 
-  getActionContent: (
+  getActionContent: async (
     chapterId: string,
     sceneId: string,
     actionId: string,
     structureRoot?: string | null,
-  ) =>
-    get<{ content: string }>(
+  ): Promise<{ content: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.getActionContent(
+          chapterId,
+          sceneId,
+          actionId,
+          structureRoot,
+        );
+      }
+    }
+    return get<{ content: string }>(
       `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`,
-    ),
-  saveActionContent: (
+    );
+  },
+  saveActionContent: async (
     chapterId: string,
     sceneId: string,
     actionId: string,
     content: string,
     structureRoot?: string | null,
-  ) =>
-    put<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.saveActionContent(
+          chapterId,
+          sceneId,
+          actionId,
+          content,
+          structureRoot,
+        );
+      }
+    }
+    return put<{ status: string }>(
       `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`,
       { content },
-    ),
+    );
+  },
 
-  reorderScenes: (
+  reorderScenes: async (
     chapterId: string,
     ids: string[],
     structureRoot?: string | null,
-  ) =>
-    put<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.reorderScenes(
+          chapterId,
+          ids,
+          structureRoot,
+        );
+      }
+    }
+    return put<{ status: string }>(
       `/chapters/${chapterId}/reorder${structureRootQuery(structureRoot)}`,
       { ids },
-    ),
-  reorderActions: (
+    );
+  },
+  reorderActions: async (
     chapterId: string,
     sceneId: string,
     ids: string[],
     structureRoot?: string | null,
-  ) =>
-    put<{ status: string }>(
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.reorderActions(
+          chapterId,
+          sceneId,
+          ids,
+          structureRoot,
+        );
+      }
+    }
+    return put<{ status: string }>(
       `/chapters/${chapterId}/scenes/${sceneId}/reorder${structureRootQuery(structureRoot)}`,
       { ids },
-    ),
+    );
+  },
 
-  randomizeIds: (structureRoot?: string | null) =>
-    post<{ renamed: number }>(
+  randomizeIds: async (
+    structureRoot?: string | null,
+  ): Promise<{ renamed: number }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chapter) {
+        return electronApi.chapter.randomizeIds(structureRoot);
+      }
+    }
+    return post<{ renamed: number }>(
       `/chapters/randomize-ids${structureRootQuery(structureRoot)}`,
       {},
-    ),
+    );
+  },
 };
 
 export const bookApi = {
-  getMeta: (structureRoot?: string | null) =>
-    get<NodeMeta>(`/book/meta${structureRootQuery(structureRoot)}`),
-  updateMeta: (meta: NodeMeta, structureRoot?: string | null) =>
-    put<{ status: string }>(
+  getMeta: async (structureRoot?: string | null): Promise<NodeMeta> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.book) {
+        return electronApi.book.getMeta(structureRoot);
+      }
+    }
+    return get<NodeMeta>(`/book/meta${structureRootQuery(structureRoot)}`);
+  },
+  updateMeta: async (
+    meta: NodeMeta,
+    structureRoot?: string | null,
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.book) {
+        return electronApi.book.updateMeta(meta, structureRoot);
+      }
+    }
+    return put<{ status: string }>(
       `/book/meta${structureRootQuery(structureRoot)}`,
       meta,
-    ),
+    );
+  },
 };
 
 export const subprojectApi = {
