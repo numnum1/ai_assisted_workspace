@@ -9,13 +9,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CustomAssistantRole extends AssistantRole {
-
     private String mode;
     @Setter(AccessLevel.NONE)
-    private LLM llm = new LLM();
+    private LLM llm;
     private boolean usesReasoning;
-
-    public void setLlm(LLM llm) {
-        this.llm = llm != null ? llm : new LLM();
-    }
 }

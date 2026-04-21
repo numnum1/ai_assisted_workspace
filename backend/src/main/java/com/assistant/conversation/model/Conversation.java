@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,31 +21,40 @@ import java.util.List;
 @Getter
 @Setter
 public abstract class Conversation {
-
-    private String id;
     private String title;
-    private String mode;
+    private Mode mode;
+    @Setter(AccessLevel.PRIVATE)
     private long createdAt;
+    @Setter(AccessLevel.PRIVATE)
     private long updatedAt;
     private boolean savedToProject;
-    private String parentConversationId;
     @Setter(AccessLevel.NONE)
     private List<ConversationMessage> messages = new ArrayList<>();
-
     public abstract AssistantRole getAssistant();
-
     public abstract boolean isGuidedChat();
-
     public abstract Plan getPlan();
-
     /**
      * Future: build assembled context for LLM / inspector. Currently returns {@code null}.
      */
     public ConversationContext computeContext() {
         return null;
     }
-
     public void setMessages(List<ConversationMessage> messages) {
         this.messages = messages != null ? messages : new ArrayList<>();
     }
+
+    protected Conversation(long createdAt) {
+        setCreatedAt(createdAt);
+        setAsNewUpdateTime();
+    }
+
+    protected Conversation() {
+        setCreatedAt(Instant.now().getEpochSecond());
+        setAsNewUpdateTime();
+    }
+
+    protected void setAsNewUpdateTime() {
+        setUpdatedAt(Instant.now().getEpochSecond());
+    }
+
 }

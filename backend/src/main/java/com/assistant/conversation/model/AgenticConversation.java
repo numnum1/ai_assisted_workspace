@@ -7,6 +7,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
+
 /**
  * Guided conversation driven by a project {@link AgentPreset}.
  */
@@ -16,7 +18,9 @@ import lombok.Setter;
 public class AgenticConversation extends GuidedConversation {
 
     private Agent agent;
-    /** Current steering plan (updated during the session). */
+    /**
+     * Current steering plan (updated during the session).
+     */
     @Setter(AccessLevel.NONE)
     private Plan plan = new Plan();
     @Setter(AccessLevel.NONE)

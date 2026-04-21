@@ -22,7 +22,6 @@ import java.util.Locale;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -45,10 +44,12 @@ public class ProjectConfigService {
 
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
+    private final LLMs llms;
 
-    public ProjectConfigService(AppConfig appConfig, ObjectMapper objectMapper) {
+    public ProjectConfigService(AppConfig appConfig, ObjectMapper objectMapper, LLMs llms) {
         this.appConfig = appConfig;
         this.objectMapper = objectMapper;
+        this.llms = llms;
     }
 
     // ─── Path helpers ────────────────────────────────────────────────────────────
@@ -96,12 +97,12 @@ public class ProjectConfigService {
 
     // ─── Modes ───────────────────────────────────────────────────────────────────
 
-    public List<Mode> getProjectModes() {
+    public List<ModeAndId> getProjectModes() {
         if (!hasProjectConfig()) return List.of();
         Path modesDir = getAssistantDir().resolve(MODES_DIR);
         if (!Files.isDirectory(modesDir)) return List.of();
 
-        List<Mode> modes = new ArrayList<>();
+        List<ModeAndId> modes = new ArrayList<>();
         Yaml yaml = new Yaml();
         try (Stream<Path> entries = Files.list(modesDir)) {
             entries
@@ -109,7 +110,7 @@ public class ProjectConfigService {
                 .sorted(Comparator.comparing(p -> p.getFileName().toString()))
                 .forEach(p -> {
                     try {
-                        Mode mode = loadModeFromFile(p, yaml);
+                        ModeAndId mode = loadModeFromFile(p, yaml);
                         modes.add(mode);
                     } catch (IOException e) {
                         log.warn("Could not load mode from {}: {}", p, e.getMessage());
@@ -121,11 +122,11 @@ public class ProjectConfigService {
         return modes;
     }
 
-    public void saveMode(Mode mode) throws IOException {
+    public void saveMode(ModeAndId modeWithId) throws IOException {
         Path modesDir = getAssistantDir().resolve(MODES_DIR);
         Files.createDirectories(modesDir);
-        Path modeFile = modesDir.resolve(mode.getId() + ".yaml");
-        Files.writeString(modeFile, serializeMode(mode), StandardCharsets.UTF_8);
+        Path modeFile = modesDir.resolve(modeWithId.id() + ".yaml");
+        Files.writeString(modeFile, serializeMode(modeWithId), StandardCharsets.UTF_8);
     }
 
     public boolean deleteMode(String id) throws IOException {
@@ -171,7 +172,6 @@ public class ProjectConfigService {
         validateAgentPathId(pathId);
         preset.setId(pathId.trim());
         normalizeAgentPreset(preset);
-        validateAgentPreset(preset);
 
         List<AgentPreset> list = new ArrayList<>(listAgentPresets());
         list.removeIf(a -> pathId.equals(a.getId()));
@@ -231,28 +231,6 @@ public class ProjectConfigService {
         }
     }
 
-    private void validateAgentPreset(AgentPreset p) {
-        if (p.getName() == null || p.getName().isBlank()) {
-            throw new IllegalArgumentException("Agent name is required");
-        }
-        if (p.getModeId() == null || p.getModeId().isBlank()) {
-            throw new IllegalArgumentException("modeId is required");
-        }
-        Set<String> modeIds = getProjectModes().stream().map(Mode::getId).collect(Collectors.toSet());
-        if (!modeIds.contains(p.getModeId())) {
-            throw new IllegalArgumentException("Unknown modeId: " + p.getModeId());
-        }
-        if (p.getThreadModeId() != null && !p.getThreadModeId().isBlank()
-                && !modeIds.contains(p.getThreadModeId())) {
-            throw new IllegalArgumentException("Unknown threadModeId: " + p.getThreadModeId());
-        }
-        for (String k : p.getDisabledToolkits()) {
-            if (k == null || k.isBlank() || !VALID_TOOLKIT_IDS.contains(k)) {
-                throw new IllegalArgumentException("Invalid disabledToolkit id: " + k);
-            }
-        }
-    }
-
     // ─── Init ────────────────────────────────────────────────────────────────────
 
     /**
@@ -307,31 +285,28 @@ public class ProjectConfigService {
 
     // ─── Parsing / Serialization ─────────────────────────────────────────────────
 
-    private Mode loadModeFromFile(Path file, Yaml yaml) throws IOException {
+    private ModeAndId loadModeFromFile(Path file, Yaml yaml) throws IOException {
         try (InputStream is = Files.newInputStream(file)) {
             Map<String, Object> data = yaml.load(is);
-            Mode mode = new Mode();
+            Mode<LLMConfig> mode = new Mode<>();
             String filename = file.getFileName().toString();
-            mode.setId(filename.replace(".yaml", ""));
-            mode.setName((String) data.getOrDefault("name", mode.getId()));
+            ModeAndId modeWithID = new ModeAndId(filename.replace(".yaml", ""), mode);
+            mode.setName((String) data.getOrDefault("name", modeWithID.id()));
             mode.setSystemPrompt((String) data.getOrDefault("systemPrompt", ""));
             mode.setColor((String) data.getOrDefault("color", "#89b4fa"));
 
-            Object autoIncludes = data.get("autoIncludes");
-            if (autoIncludes instanceof List<?> list) {
-                mode.setAutoIncludes(list.stream().map(Object::toString).toList());
-            }
-            mode.setUseReasoning(booleanVal(data.get("useReasoning"), false));
+            mode.setUseReasoningByDefault(booleanVal(data.get("useReasoning"), false));
             mode.setAgentOnly(booleanVal(data.get("agentOnly"), false));
             Object llmId = data.get("llmId");
             if (llmId instanceof String s && !s.isBlank()) {
-                mode.setLlmId(s);
+                var llm = llms.find(s);
+                if (llm.isEmpty()) throw new IllegalStateException("This llm (id: " + s + " ) does not exist!");
+                mode.setLlm(llm.get());
             }
-            return mode;
+            return modeWithID;
         }
     }
 
-    @SuppressWarnings("unchecked")
     private ProjectConfig parseProjectConfig(String yamlStr) {
         Yaml yaml = new Yaml();
         Map<String, Object> data = yaml.load(yamlStr);
@@ -684,16 +659,15 @@ public class ProjectConfigService {
         return fallback;
     }
 
-    private String serializeMode(Mode mode) {
+    private String serializeMode(ModeAndId modeWithId) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("name", mode.getName() != null ? mode.getName() : "");
-        data.put("color", mode.getColor() != null ? mode.getColor() : "#89b4fa");
-        data.put("systemPrompt", mode.getSystemPrompt() != null ? mode.getSystemPrompt() : "");
-        data.put("autoIncludes", mode.getAutoIncludes() != null ? mode.getAutoIncludes() : List.of());
-        data.put("useReasoning", mode.isUseReasoning());
-        data.put("agentOnly", mode.isAgentOnly());
-        if (mode.getLlmId() != null && !mode.getLlmId().isBlank()) {
-            data.put("llmId", mode.getLlmId());
+        data.put("name", modeWithId.mode().getName() != null ? modeWithId.mode().getName() : "");
+        data.put("color", modeWithId.mode().getColor() != null ? modeWithId.mode().getColor() : "#89b4fa");
+        data.put("systemPrompt", modeWithId.mode().getSystemPrompt() != null ? modeWithId.mode().getSystemPrompt() : "");
+        data.put("useReasoning", modeWithId.mode().isUseReasoningByDefault());
+        data.put("agentOnly", modeWithId.mode().isAgentOnly());
+        if (modeWithId.mode().getLlm().getId() != null && !modeWithId.mode().getLlm().getId().isBlank()) {
+            data.put("llmId", modeWithId.mode().getLlm().getId());
         }
         return buildYaml().dump(data);
     }

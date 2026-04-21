@@ -12,7 +12,9 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -21,11 +23,13 @@ public class ModeService {
 
     private static final Logger log = LoggerFactory.getLogger(ModeService.class);
 
-    private final Map<String, Mode> modes = new ConcurrentHashMap<>();
+    private final Map<String, Mode<LLMConfig>> modes = new ConcurrentHashMap<>();
     private final ProjectConfigService projectConfigService;
+    private final LLMs llms;
 
-    public ModeService(ProjectConfigService projectConfigService) {
+    public ModeService(ProjectConfigService projectConfigService, LLMs llms) {
         this.projectConfigService = projectConfigService;
+        this.llms = llms;
     }
 
     @PostConstruct
@@ -39,14 +43,14 @@ public class ModeService {
     }
 
     private void loadProjectModes() {
-        List<Mode> projectModes = projectConfigService.getProjectModes();
+        List<ModeAndId> projectModes = projectConfigService.getProjectModes();
         if (projectModes.isEmpty()) {
             log.info("No project modes found in .assistant/modes/, falling back to built-in modes");
             loadBuiltinModes();
             return;
         }
-        for (Mode mode : projectModes) {
-            modes.put(mode.getId(), mode);
+        for (ModeAndId modeWithId : projectModes) {
+            modes.put(modeWithId.id(), modeWithId.mode());
         }
         log.info("Loaded {} project mode(s) from .assistant/modes/", modes.size());
     }
@@ -59,30 +63,16 @@ public class ModeService {
             for (Resource resource : resources) {
                 try (InputStream is = resource.getInputStream()) {
                     Map<String, Object> data = yaml.load(is);
-                    Mode mode = new Mode();
                     String filename = resource.getFilename();
                     String id = filename != null ? filename.replace(".yaml", "") : "unknown";
-                    mode.setId(id);
-                    mode.setName((String) data.getOrDefault("name", id));
-                    mode.setSystemPrompt((String) data.getOrDefault("systemPrompt", ""));
-                    mode.setColor((String) data.getOrDefault("color", "#89b4fa"));
-
-                    Object autoIncludes = data.get("autoIncludes");
-                    if (autoIncludes instanceof List<?> list) {
-                        mode.setAutoIncludes(list.stream().map(Object::toString).toList());
-                    }
-                    Object rules = data.get("rules");
-                    if (rules instanceof List<?> list) {
-                        mode.setRules(list.stream().map(Object::toString).toList());
-                    }
-                    Object useReasoning = data.get("useReasoning");
-                    if (useReasoning instanceof Boolean b) {
-                        mode.setUseReasoning(b);
-                    }
-                    Object agentOnly = data.get("agentOnly");
-                    if (agentOnly instanceof Boolean b) {
-                        mode.setAgentOnly(b);
-                    }
+                    Mode<LLMConfig> mode = new Mode<>(
+                            (String) data.getOrDefault("name", id),
+                            (String) data.getOrDefault("systemPrompt", ""),
+                            (String) data.getOrDefault("color", "#89b4fa"),
+                            (Boolean) data.get("agentOnly"),
+                            llms.find((String) data.get("llmId")).orElseThrow(() -> new IllegalStateException("Missing llm with id: " + data.get("llmId"))),
+                            (Boolean) data.get("useReasoning")
+                    );
                     modes.put(id, mode);
                 }
             }
@@ -92,15 +82,15 @@ public class ModeService {
         }
     }
 
-    public List<Mode> getAllModes() {
+    public List<Mode<LLMConfig>> getAllModes() {
         return new ArrayList<>(modes.values());
     }
 
-    public Mode getMode(String id) {
+    public Mode<LLMConfig> getMode(String id) {
         return modes.get(id);
     }
 
-    public Mode getDefaultMode() {
+    public Mode<LLMConfig> getDefaultMode() {
         return modes.getOrDefault("review", modes.values().stream().findFirst().orElse(null));
     }
 }

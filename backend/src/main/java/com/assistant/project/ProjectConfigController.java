@@ -1,13 +1,14 @@
 package com.assistant.project;
 
 import com.assistant.conversation.model.Mode;
+import com.assistant.project.dto.ModeDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.swing.*;
-import java.awt.Desktop;
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -135,8 +136,17 @@ public class ProjectConfigController {
     // ─── Modes ───────────────────────────────────────────────────────────────────
 
     @GetMapping("/modes")
-    public ResponseEntity<List<Mode>> getModes() {
-        return ResponseEntity.ok(projectConfigService.getProjectModes());
+    public ResponseEntity<List<ModeDto>> getModes() {
+        return ResponseEntity.ok(projectConfigService.getProjectModes().stream().map(t -> new ModeDto(
+                t.id(),
+                t.mode().getName(),
+                t.mode().getSystemPrompt(),
+                new String[0],
+                t.mode().getColor(),
+                t.mode().isUseReasoningByDefault(),
+                t.mode().isAgentOnly(),
+                t.getLLMId()
+        )).toList());
     }
 
     @PutMapping("/modes/{id}")
@@ -147,9 +157,8 @@ public class ProjectConfigController {
         if (!isValidId(id)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Invalid mode id: " + id));
         }
-        mode.setId(id);
         try {
-            projectConfigService.saveMode(mode);
+            projectConfigService.saveMode(new ModeAndId(id, mode));
             modeService.reloadModes();
             return ResponseEntity.ok(mode);
         } catch (IOException e) {

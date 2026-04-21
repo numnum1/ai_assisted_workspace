@@ -1,5 +1,6 @@
 package com.assistant.conversation.history;
 
+import com.assistant.conversation.ConversationAndId;
 import com.assistant.conversation.ConversationValidator;
 import com.assistant.project.AgentPreset;
 import com.assistant.conversation.model.AgentAssistantRole;
@@ -43,7 +44,7 @@ public class ChatHistoryService {
         this.projectConfigService = projectConfigService;
     }
 
-    public List<Conversation> loadAll() {
+    public List<ConversationAndId> loadAll() {
         log.trace("Received request to load all conversations from {}", CHAT_HISTORY_RELATIVE_PATH);
         try {
             if (!fileService.fileExists(CHAT_HISTORY_RELATIVE_PATH)) {
@@ -57,7 +58,7 @@ public class ChatHistoryService {
                 log.trace("Finished loading conversations: invalid root, empty list");
                 return new ArrayList<>();
             }
-            List<Conversation> out = new ArrayList<>();
+            List<ConversationAndId> out = new ArrayList<>();
             for (JsonNode el : root) {
                 if (!el.isObject()) {
                     continue;
@@ -74,7 +75,7 @@ public class ChatHistoryService {
                         }
                     };
                     if (c != null) {
-                        materializeAgenticIfNeeded(c);
+                        // materializeAgenticIfNeeded(c);
                         out.add(c);
                     }
                 } catch (Exception e) {
@@ -89,10 +90,13 @@ public class ChatHistoryService {
         }
     }
 
+    // TODO: heck if needed
+    /*
     private void materializeAgenticIfNeeded(Conversation c) {
         if (!(c instanceof AgenticConversation ac)) {
             return;
         }
+        // TODO: Check if needed
         if (!StringUtils.hasText(ac.getAgentPresetId())) {
             return;
         }
@@ -116,6 +120,7 @@ public class ChatHistoryService {
         }
         log.debug("No agent preset found for id={}", ac.getAgentPresetId());
     }
+     */
 
     public void saveAll(List<Conversation> conversations) {
         log.trace("Received request to save {} conversations to {}", conversations.size(), CHAT_HISTORY_RELATIVE_PATH);
@@ -136,21 +141,16 @@ public class ChatHistoryService {
         return r;
     }
 
-    public Conversation save(Conversation conversation, ConversationValidator validator) {
-        log.trace("Received request to save conversation id={}", conversation.getId());
-        validator.validate(conversation);
-        long now = System.currentTimeMillis();
-        if (conversation.getCreatedAt() <= 0) {
-            conversation.setCreatedAt(now);
-        }
-        conversation.setUpdatedAt(now);
+    public ConversationAndId save(ConversationAndId conversationAndId, ConversationValidator validator) {
+        log.trace("Received request to save conversation id={}", conversationAndId.getId());
+        validator.validate(conversationAndId.getConversation());
 
-        List<Conversation> all = new ArrayList<>(loadAll());
-        all.removeIf(c -> conversation.getId().equals(c.getId()));
-        all.add(conversation);
+        List<ConversationAndId> all = new ArrayList<>(loadAll());
+        all.removeIf(c -> conversationAndId.getId().equals(c.getId()));
+        all.add(conversationAndId);
         saveAll(all);
-        log.trace("Finished save conversation id={}", conversation.getId());
-        return conversation;
+        log.trace("Finished save conversation id={}", conversationAndId.getId());
+        return conversationAndId;
     }
 
     public Conversation create(Conversation conversation, ConversationValidator validator) {

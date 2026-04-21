@@ -1,21 +1,19 @@
 package com.assistant.conversation.model;
 
+import com.assistant.project.dto.ModeDto;
+import lombok.AllArgsConstructor;
 import lombok.Data;
-
-import java.util.ArrayList;
-import java.util.List;
+import lombok.NoArgsConstructor;
+import org.springframework.web.servlet.ModelAndViewDefiningException;
 
 @Data
-public class Mode {
-
-    private String id;
+@NoArgsConstructor
+@AllArgsConstructor
+public class Mode<LlmType extends LLM> {
     private String name;
     private String systemPrompt;
-    private List<String> autoIncludes = new ArrayList<>();
-    private List<String> rules = new ArrayList<>();
     private String color;
-    private boolean useReasoning = false;
-    /** When true, mode is for guided/agent presets only — not offered in the main chat mode selector. */
-    private boolean agentOnly = false;
-    private String llmId;
+    private boolean agentOnly;
+    private LlmType llm;
+    private boolean useReasoningByDefault;
 }
