@@ -87,9 +87,12 @@ public class ChatController {
     public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request) {
         logIncomingChatRequest(request);
 
-        // If a conversationId is provided, load history from backend storage.
+        // If a conversationId is provided, load the conversation once and keep it in RAM.
+        // This same object is later used by saveConversationAfterStream — no second file read needed.
+        final AtomicReference<Conversation> loadedConversationRef = new AtomicReference<>(null);
         if (StringUtils.hasText(request.getConversationId())) {
             chatHistoryService.findById(request.getConversationId()).ifPresent(conv -> {
+                loadedConversationRef.set(conv);
                 List<ChatMessage> apiHistory = conversationHistoryBuilder.toApiMessages(conv);
                 request.setHistory(apiHistory);
                 log.info("Loaded {} history messages from conversation id={}", apiHistory.size(), conv.getId());
@@ -154,7 +157,8 @@ public class ChatController {
                     if (StringUtils.hasText(request.getConversationId())) {
                         Schedulers.boundedElastic().schedule(() ->
                                 saveConversationAfterStream(request, resolvedUserContentFinal,
-                                        session.getFinalText(), session.getToolChain()));
+                                        session.getFinalText(), session.getToolChain(),
+                                        loadedConversationRef.get()));
                     }
                     log.info("Chat SSE session completed (done event sent)");
                 });
@@ -777,15 +781,21 @@ public class ChatController {
     }
 
     private void saveConversationAfterStream(ChatRequest request, String resolvedUserContent,
-                                             String finalAssistantText, List<ChatMessage> toolChain) {
+                                             String finalAssistantText, List<ChatMessage> toolChain,
+                                             Conversation loadedConversation) {
         String conversationId = request.getConversationId();
         if (!StringUtils.hasText(conversationId)) return;
         log.trace("Received request to save conversation after stream id={}", conversationId);
         try {
-            Conversation conversation = chatHistoryService.findById(conversationId).orElse(null);
+            // Use the already-loaded RAM object to avoid a second file read and the race condition
+            // where the conversation may not yet be persisted (optimistic frontend create).
+            Conversation conversation = loadedConversation;
             if (conversation == null) {
-                log.warn("Cannot save after stream: conversation not found id={}", conversationId);
-                return;
+                log.info("Conversation id={} not found in pre-loaded state (race condition on first send) — creating new entry", conversationId);
+                conversation = new com.assistant.conversation.model.NormalConversation();
+                conversation.setId(conversationId);
+                conversation.setTitle("Neuer Chat");
+                conversation.setMode(new com.assistant.conversation.model.Mode<>());
             }
             long now = Instant.now().getEpochSecond();
 
