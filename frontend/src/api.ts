@@ -18,6 +18,7 @@ import type {
   LlmsListResponse,
   Conversation,
 } from "./types.ts";
+import type { FileContentResult as ElectronFileContentResult } from "./electron/bridge.ts";
 
 type GlossaryEntryDto = { term: string; definition: string };
 
@@ -50,6 +51,18 @@ type ProjectOpenResponse = {
   initialized: boolean;
 };
 type ProjectConfigStatusResponse = { initialized: boolean };
+type SnapshotResponse = {
+  id: string;
+  path: string;
+  oldContent: string;
+  wasNew: boolean;
+};
+type SnapshotApplyResponse = { status: string };
+type SnapshotRevertResponse = {
+  status: string;
+  path: string;
+  wasNew: boolean;
+};
 
 function getElectronApi() {
   return getAppBridge();
@@ -484,12 +497,34 @@ export interface LlmUpdateRequest {
 }
 
 export const llmApi = {
-  list: () => get<LlmsListResponse>("/llms"),
-  create: (body: LlmCreateRequest) => post<LlmPublic>("/llms", body),
-  update: (id: string, body: LlmUpdateRequest) =>
-    put<LlmPublic>(`/llms/${encodeURIComponent(id)}`, body),
-  remove: (id: string) =>
-    del<{ status: string }>(`/llms/${encodeURIComponent(id)}`),
+  list: async (): Promise<LlmsListResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.llms) return electronApi.llms.list();
+    }
+    return get<LlmsListResponse>("/llms");
+  },
+  create: async (body: LlmCreateRequest): Promise<LlmPublic> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.llms) return electronApi.llms.create(body);
+    }
+    return post<LlmPublic>("/llms", body);
+  },
+  update: async (id: string, body: LlmUpdateRequest): Promise<LlmPublic> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.llms) return electronApi.llms.update(id, body);
+    }
+    return put<LlmPublic>(`/llms/${encodeURIComponent(id)}`, body);
+  },
+  remove: async (id: string): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.llms) return electronApi.llms.remove(id);
+    }
+    return del<{ status: string }>(`/llms/${encodeURIComponent(id)}`);
+  },
 };
 
 export const gitApi = {
@@ -751,6 +786,48 @@ export interface ContextBlock {
   label: string;
   content: string;
   estimatedTokens: number;
+}
+
+export const snapshotsApi = {
+  get: async (id: string): Promise<SnapshotResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.snapshots) {
+        return electronApi.snapshots.get(id);
+      }
+    }
+    return get<SnapshotResponse>(`/snapshots/${encodeURIComponent(id)}`);
+  },
+  apply: async (id: string): Promise<SnapshotApplyResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.snapshots) {
+        return electronApi.snapshots.apply(id);
+      }
+    }
+    return post<SnapshotApplyResponse>(
+      `/snapshots/${encodeURIComponent(id)}/apply`,
+      {},
+    );
+  },
+  revert: async (id: string): Promise<SnapshotRevertResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.snapshots) {
+        return electronApi.snapshots.revert(id);
+      }
+    }
+    return post<SnapshotRevertResponse>(
+      `/snapshots/${encodeURIComponent(id)}/revert`,
+      {},
+    );
+  },
+};
+
+export async function getFileContentForChangeCard(
+  path: string,
+): Promise<ElectronFileContentResult> {
+  return filesApi.getContent(path);
 }
 
 type ChatStreamEventName =

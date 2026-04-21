@@ -50,6 +50,17 @@ import {
   deleteGlossaryEntry,
   getGlossary,
 } from "./services/glossaryService.ts";
+import {
+  createProvider,
+  deleteProvider,
+  listPublicProviders,
+  updateProvider,
+} from "./services/aiProviderService.ts";
+import {
+  applySnapshot,
+  getSnapshot,
+  revertSnapshot,
+} from "./services/snapshotService.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,20 +137,37 @@ function registerIpcHandlers(): void {
     previewChatContext(getCurrentProjectPath(), body),
   );
   ipcMain.handle("chat:startStream", (event, body) => {
-    const { streamId } = startChatStream(body, (chatEvent) => {
-      event.sender.send("chat:streamEvent", {
-        streamId,
-        event: chatEvent.type,
-        data:
-          typeof chatEvent.data === "string"
-            ? chatEvent.data
-            : JSON.stringify(chatEvent.data),
-      });
-    });
+    const { streamId } = startChatStream(
+      getCurrentProjectPath(),
+      body,
+      (chatEvent) => {
+        event.sender.send("chat:streamEvent", {
+          streamId,
+          event: chatEvent.type,
+          data:
+            typeof chatEvent.data === "string"
+              ? chatEvent.data
+              : JSON.stringify(chatEvent.data),
+        });
+      },
+    );
     return { streamId };
   });
   ipcMain.handle("chat:stopStream", (_event, streamId: string) =>
     stopChatStream(streamId),
+  );
+
+  ipcMain.handle("llms:list", () => listPublicProviders());
+  ipcMain.handle("llms:create", (_event, body) => createProvider(body));
+  ipcMain.handle("llms:update", (_event, id: string, body) =>
+    updateProvider(id, body),
+  );
+  ipcMain.handle("llms:remove", (_event, id: string) => deleteProvider(id));
+
+  ipcMain.handle("snapshots:get", (_event, id: string) => getSnapshot(id));
+  ipcMain.handle("snapshots:apply", (_event, id: string) => applySnapshot(id));
+  ipcMain.handle("snapshots:revert", (_event, id: string) =>
+    revertSnapshot(getCurrentProjectPath(), id),
   );
 
   ipcMain.handle("projectConfig:status", () =>

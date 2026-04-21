@@ -1,4 +1,7 @@
-import type { ChatRequest, ChatMessage } from "../../src/types.ts";
+import type { ChatRequest, ChatMessage, ToolCall } from "../../src/types.ts";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 export interface ContextBlock {
   type: string;
@@ -39,11 +42,593 @@ interface PreviewBuildContext {
   projectPath: string | null;
 }
 
+interface AiProvider {
+  id: string;
+  name: string;
+  fastApiUrl: string;
+  fastApiKey: string;
+  fastModel: string;
+  reasoningApiUrl?: string;
+  reasoningApiKey?: string;
+  reasoningModel?: string;
+  maxTokens?: number;
+}
+
+interface OpenAiMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  tool_call_id?: string;
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+}
+
+interface OpenAiStreamChunkChoiceDelta {
+  content?: string;
+}
+
+interface OpenAiStreamChunkChoice {
+  delta?: OpenAiStreamChunkChoiceDelta;
+  finish_reason?: string | null;
+}
+
+interface OpenAiStreamChunk {
+  choices?: OpenAiStreamChunkChoice[];
+}
+
 interface StreamSessionState {
   aborted: boolean;
 }
 
+interface ToolExecutionResult {
+  toolCallId: string;
+  name: string;
+  description: string;
+  result: string;
+}
+
 const streamSessions = new Map<string, StreamSessionState>();
+
+const AI_PROVIDERS_FILE = "ai-providers.json";
+const DEFAULT_PROVIDER_ID = "default";
+
+function getAppDataDir(): string {
+  if (process.env.APP_DATA_DIR && process.env.APP_DATA_DIR.trim()) {
+    return process.env.APP_DATA_DIR.trim();
+  }
+  return path.join(os.homedir(), ".writing-assistant");
+}
+
+function getAiProvidersPath(): string {
+  return path.join(getAppDataDir(), AI_PROVIDERS_FILE);
+}
+
+async function readJsonFile<T>(filePath: string): Promise<T | null> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function loadAiProviders(): Promise<AiProvider[]> {
+  const providers = await readJsonFile<AiProvider[]>(getAiProvidersPath());
+  if (!Array.isArray(providers)) {
+    return [];
+  }
+  return providers.filter(
+    (provider) =>
+      provider &&
+      typeof provider.id === "string" &&
+      typeof provider.name === "string",
+  );
+}
+
+async function resolveAiProvider(
+  llmId: string | null | undefined,
+): Promise<AiProvider> {
+  const providers = await loadAiProviders();
+  const trimmedId = normalizeText(llmId);
+
+  if (trimmedId) {
+    const found = providers.find((provider) => provider.id === trimmedId);
+    if (found) {
+      return found;
+    }
+    throw new Error(`AI provider not found: ${trimmedId}`);
+  }
+
+  const first = providers[0];
+  if (first) {
+    return first;
+  }
+
+  const envApiUrl = normalizeText(process.env.AI_API_URL);
+  const envApiKey = normalizeText(process.env.AI_API_KEY);
+  const envModel = normalizeText(process.env.AI_MODEL);
+
+  if (!envApiUrl || !envApiKey || !envModel) {
+    throw new Error(
+      "No AI provider configured. Add one in settings or configure AI_API_URL, AI_API_KEY and AI_MODEL.",
+    );
+  }
+
+  return {
+    id: DEFAULT_PROVIDER_ID,
+    name: "Default",
+    fastApiUrl: envApiUrl,
+    fastApiKey: envApiKey,
+    fastModel: envModel,
+    maxTokens: undefined,
+  };
+}
+
+function resolveProviderEndpoint(
+  provider: AiProvider,
+  useReasoning: boolean | undefined,
+): { apiUrl: string; apiKey: string; model: string; maxTokens?: number } {
+  const wantsReasoning = useReasoning === true;
+  const hasReasoning =
+    normalizeText(provider.reasoningApiUrl) &&
+    normalizeText(provider.reasoningApiKey) &&
+    normalizeText(provider.reasoningModel);
+
+  if (wantsReasoning && hasReasoning) {
+    return {
+      apiUrl: normalizeText(provider.reasoningApiUrl),
+      apiKey: normalizeText(provider.reasoningApiKey),
+      model: normalizeText(provider.reasoningModel),
+      maxTokens: provider.maxTokens,
+    };
+  }
+
+  const apiUrl = normalizeText(provider.fastApiUrl);
+  const apiKey = normalizeText(provider.fastApiKey);
+  const model = normalizeText(provider.fastModel);
+
+  if (!apiUrl || !apiKey || !model) {
+    throw new Error(
+      `AI provider "${provider.name}" is incomplete. Fast URL, key and model are required.`,
+    );
+  }
+
+  return {
+    apiUrl,
+    apiKey,
+    model,
+    maxTokens: provider.maxTokens,
+  };
+}
+
+function ensureChatCompletionsUrl(apiUrl: string): string {
+  const trimmed = apiUrl.replace(/\/+$/, "");
+  if (trimmed.endsWith("/chat/completions")) {
+    return trimmed;
+  }
+  if (trimmed.endsWith("/v1")) {
+    return `${trimmed}/chat/completions`;
+  }
+  return `${trimmed}/v1/chat/completions`;
+}
+
+function buildOpenAiMessages(
+  request: ChatRequest,
+  systemPrompt: string,
+): OpenAiMessage[] {
+  const messages: OpenAiMessage[] = [
+    {
+      role: "system",
+      content: systemPrompt,
+    },
+  ];
+
+  const history = Array.isArray(request.history) ? request.history : [];
+  for (const message of history) {
+    if (message.hidden) continue;
+
+    if (message.role === "assistant") {
+      const content =
+        typeof message.content === "string" ? message.content.trim() : "";
+      const toolCalls = Array.isArray(message.toolCalls)
+        ? message.toolCalls.map((toolCall) => ({
+            id: toolCall.id,
+            type: "function" as const,
+            function: {
+              name: toolCall.function.name,
+              arguments: toolCall.function.arguments,
+            },
+          }))
+        : undefined;
+
+      if (!content && (!toolCalls || toolCalls.length === 0)) continue;
+
+      messages.push({
+        role: "assistant",
+        content,
+        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+      });
+      continue;
+    }
+
+    if (message.role === "tool") {
+      const content =
+        typeof message.content === "string" ? message.content.trim() : "";
+      if (!content || !message.toolCallId) continue;
+
+      messages.push({
+        role: "tool",
+        content,
+        tool_call_id: message.toolCallId,
+      });
+      continue;
+    }
+
+    if (message.role === "user" || message.role === "system") {
+      const content =
+        typeof message.content === "string" ? message.content.trim() : "";
+      if (!content) continue;
+
+      messages.push({
+        role: message.role,
+        content,
+      });
+    }
+  }
+
+  const finalUserMessage = normalizeText(request.message);
+  if (finalUserMessage) {
+    messages.push({
+      role: "user",
+      content: finalUserMessage,
+    });
+  }
+
+  return messages;
+}
+
+function extractContentToken(chunk: OpenAiStreamChunk): string {
+  const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : undefined;
+  const delta = choice?.delta;
+  return typeof delta?.content === "string" ? delta.content : "";
+}
+
+function extractFinishReason(chunk: OpenAiStreamChunk): string | null {
+  const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : undefined;
+  return typeof choice?.finish_reason === "string"
+    ? choice.finish_reason
+    : null;
+}
+
+function makeToolCallId(index: number): string {
+  return `tool-call-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function safeJsonParse<T>(input: string): T | null {
+  try {
+    return JSON.parse(input) as T;
+  } catch {
+    return null;
+  }
+}
+
+function ensureProjectPath(projectPath: string | null): string {
+  if (!projectPath) {
+    throw new Error("No project is currently open.");
+  }
+  return projectPath;
+}
+
+function resolveProjectPath(
+  projectPath: string | null,
+  relativePath: string,
+): string {
+  const root = ensureProjectPath(projectPath);
+  const normalized = normalizeText(relativePath).replace(/\\/g, "/");
+  const segments = normalized.split("/").filter(Boolean);
+  const resolved = path.resolve(root, ...segments);
+  const relativeToRoot = path.relative(root, resolved);
+  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    throw new Error(`Path escapes project root: ${relativePath}`);
+  }
+  return resolved;
+}
+
+async function readProjectFile(
+  projectPath: string | null,
+  relativePath: string,
+): Promise<string> {
+  const targetPath = resolveProjectPath(projectPath, relativePath);
+  const stat = await fs.stat(targetPath);
+  if (!stat.isFile()) {
+    throw new Error(`Not a file: ${relativePath}`);
+  }
+  return fs.readFile(targetPath, "utf8");
+}
+
+async function searchProject(
+  projectPath: string | null,
+  query: string,
+  limit = 20,
+): Promise<Array<{ path: string; snippet: string }>> {
+  const root = ensureProjectPath(projectPath);
+  const trimmedQuery = normalizeText(query).toLowerCase();
+  if (!trimmedQuery) return [];
+
+  const results: Array<{ path: string; snippet: string }> = [];
+
+  async function walk(currentPath: string): Promise<void> {
+    if (results.length >= limit) return;
+
+    const entries = await fs.readdir(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (results.length >= limit) return;
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+
+      const absPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(absPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      let content = "";
+      try {
+        content = await fs.readFile(absPath, "utf8");
+      } catch {
+        continue;
+      }
+
+      const haystack = content.toLowerCase();
+      const index = haystack.indexOf(trimmedQuery);
+      if (index < 0) continue;
+
+      const compact = content.replace(/\s+/g, " ").trim();
+      const compactLower = compact.toLowerCase();
+      const compactIndex = compactLower.indexOf(trimmedQuery);
+      const start = Math.max(0, compactIndex - 60);
+      const end = Math.min(
+        compact.length,
+        compactIndex + trimmedQuery.length + 120,
+      );
+      const snippet = `${start > 0 ? "…" : ""}${compact.slice(start, end)}${end < compact.length ? "…" : ""}`;
+
+      results.push({
+        path: path.relative(root, absPath).split(path.sep).join("/"),
+        snippet,
+      });
+    }
+  }
+
+  await walk(root);
+  return results;
+}
+
+async function listWikiMarkdownFiles(
+  projectPath: string | null,
+): Promise<string[]> {
+  const wikiRoot = resolveProjectPath(projectPath, "wiki");
+  try {
+    const stat = await fs.stat(wikiRoot);
+    if (!stat.isDirectory()) return [];
+  } catch {
+    return [];
+  }
+
+  const files: string[] = [];
+
+  async function walk(currentPath: string): Promise<void> {
+    const entries = await fs.readdir(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const absPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(absPath);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md"))
+        continue;
+      files.push(path.relative(wikiRoot, absPath).split(path.sep).join("/"));
+    }
+  }
+
+  await walk(wikiRoot);
+  files.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  return files;
+}
+
+async function readWikiFile(
+  projectPath: string | null,
+  relativePath: string,
+): Promise<string> {
+  const wikiRoot = resolveProjectPath(projectPath, "wiki");
+  const normalized = normalizeText(relativePath).replace(/\\/g, "/");
+  const targetPath = path.resolve(
+    wikiRoot,
+    ...normalized.split("/").filter(Boolean),
+  );
+  const relativeToRoot = path.relative(wikiRoot, targetPath);
+  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    throw new Error(`Wiki path escapes wiki root: ${relativePath}`);
+  }
+  if (!targetPath.toLowerCase().endsWith(".md")) {
+    throw new Error("Wiki only supports Markdown files.");
+  }
+  return fs.readFile(targetPath, "utf8");
+}
+
+async function searchWikiFiles(
+  projectPath: string | null,
+  query: string,
+  limit = 10,
+): Promise<Array<{ path: string; snippet: string }>> {
+  const trimmedQuery = normalizeText(query).toLowerCase();
+  if (!trimmedQuery) return [];
+
+  const files = await listWikiMarkdownFiles(projectPath);
+  const results: Array<{ path: string; snippet: string }> = [];
+
+  for (const relativePath of files) {
+    if (results.length >= limit) break;
+    const content = await readWikiFile(projectPath, relativePath);
+    const compact = content.replace(/\s+/g, " ").trim();
+    const index = compact.toLowerCase().indexOf(trimmedQuery);
+    if (index < 0) continue;
+
+    const start = Math.max(0, index - 60);
+    const end = Math.min(compact.length, index + trimmedQuery.length + 120);
+    results.push({
+      path: relativePath,
+      snippet: `${start > 0 ? "…" : ""}${compact.slice(start, end)}${end < compact.length ? "…" : ""}`,
+    });
+  }
+
+  return results;
+}
+
+async function addGlossaryEntryLocally(
+  projectPath: string | null,
+  term: string,
+  definition: string,
+): Promise<string> {
+  const root = ensureProjectPath(projectPath);
+  const glossaryPath = path.join(root, ".assistant", "glossary.md");
+  await fs.mkdir(path.dirname(glossaryPath), { recursive: true });
+
+  const normalizedTerm = normalizeText(term);
+  const normalizedDefinition = normalizeText(definition);
+  if (!normalizedTerm || !normalizedDefinition) {
+    throw new Error("Glossary term and definition are required.");
+  }
+
+  let existing = "";
+  try {
+    existing = await fs.readFile(glossaryPath, "utf8");
+  } catch {
+    existing = "";
+  }
+
+  const entry = `- **${normalizedTerm}**: ${normalizedDefinition}`;
+  const next = existing.trim()
+    ? `${existing.trim()}\n${entry}\n`
+    : `${entry}\n`;
+  await fs.writeFile(glossaryPath, next, "utf8");
+  return `glossary_add:success:${normalizedTerm}`;
+}
+
+async function writeProjectFile(
+  projectPath: string | null,
+  filePath: string,
+  content: string,
+): Promise<string> {
+  const targetPath = resolveProjectPath(projectPath, filePath);
+  let existed = true;
+  try {
+    await fs.access(targetPath);
+  } catch {
+    existed = false;
+  }
+
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  await fs.writeFile(targetPath, content, "utf8");
+
+  const relative = normalizeText(filePath).replace(/\\/g, "/");
+  return `write_file:success:local-${Date.now()}:${existed ? "modified" : "new"}:${relative}:Updated via local chat tool`;
+}
+
+function describeToolCall(toolCall: ToolCall): string {
+  const name = toolCall.function.name;
+  if (name === "read_file") return "Lese Datei";
+  if (name === "search_project") return "Suche im Projekt";
+  if (name === "wiki_read") return "Lese Wiki-Datei";
+  if (name === "wiki_search") return "Suche im Wiki";
+  if (name === "glossary_add") return "Ergänze Glossar";
+  if (name === "write_file") return "Schreibe Datei";
+  return `Tool: ${name}`;
+}
+
+async function executeToolCall(
+  projectPath: string | null,
+  toolCall: ToolCall,
+): Promise<ToolExecutionResult> {
+  const name = toolCall.function.name;
+  const args =
+    safeJsonParse<Record<string, unknown>>(toolCall.function.arguments) ?? {};
+
+  let result = "";
+  if (name === "read_file") {
+    const filePath = normalizeText(String(args.path ?? ""));
+    result = await readProjectFile(projectPath, filePath);
+  } else if (name === "search_project") {
+    const query = normalizeText(String(args.query ?? ""));
+    const limit = typeof args.limit === "number" ? Math.round(args.limit) : 20;
+    result = JSON.stringify(await searchProject(projectPath, query, limit));
+  } else if (name === "wiki_read") {
+    const filePath = normalizeText(String(args.path ?? ""));
+    result = await readWikiFile(projectPath, filePath);
+  } else if (name === "wiki_search") {
+    const query = normalizeText(String(args.query ?? ""));
+    const limit = typeof args.limit === "number" ? Math.round(args.limit) : 10;
+    result = JSON.stringify(await searchWikiFiles(projectPath, query, limit));
+  } else if (name === "glossary_add") {
+    const term = normalizeText(String(args.term ?? ""));
+    const definition = normalizeText(String(args.definition ?? ""));
+    result = await addGlossaryEntryLocally(projectPath, term, definition);
+  } else if (name === "write_file") {
+    const filePath = normalizeText(String(args.path ?? ""));
+    const content = typeof args.content === "string" ? args.content : "";
+    result = await writeProjectFile(projectPath, filePath, content);
+  } else {
+    throw new Error(`Unknown tool: ${name}`);
+  }
+
+  return {
+    toolCallId: toolCall.id,
+    name,
+    description: describeToolCall(toolCall),
+    result,
+  };
+}
+
+function extractToolCalls(chunk: OpenAiStreamChunk): ToolCall[] {
+  const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : undefined;
+  const rawToolCalls = (
+    choice as
+      | { delta?: { tool_calls?: Array<Record<string, unknown>> } }
+      | undefined
+  )?.delta?.tool_calls;
+  if (!Array.isArray(rawToolCalls)) return [];
+
+  return rawToolCalls
+    .map((entry, index) => {
+      const functionPayload =
+        entry && typeof entry === "object" && typeof entry.function === "object"
+          ? (entry.function as Record<string, unknown>)
+          : {};
+      const name = normalizeText(String(functionPayload.name ?? ""));
+      const argumentsJson =
+        typeof functionPayload.arguments === "string"
+          ? functionPayload.arguments
+          : "";
+      if (!name) return null;
+      return {
+        id:
+          typeof entry.id === "string" && entry.id.trim()
+            ? entry.id
+            : makeToolCallId(index),
+        type: "function",
+        function: {
+          name,
+          arguments: argumentsJson,
+        },
+      } satisfies ToolCall;
+    })
+    .filter((value): value is ToolCall => value !== null);
+}
 
 function normalizeText(value: string | null | undefined): string {
   return typeof value === "string" ? value.trim() : "";
@@ -200,8 +785,40 @@ function buildSystemPrompt(
     lines.push(`Modus: ${mode}`);
   }
 
+  const activeFile = normalizeText(request.activeFile);
+  if (activeFile) {
+    lines.push(`Aktive Datei: ${activeFile}`);
+  }
+
+  const referencedFiles = Array.isArray(request.referencedFiles)
+    ? request.referencedFiles
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
+    : [];
+  if (referencedFiles.length > 0) {
+    lines.push(`Referenzierte Dateien: ${referencedFiles.join(", ")}`);
+  }
+
   if (request.useReasoning) {
     lines.push("Reasoning ist aktiviert.");
+  }
+
+  const disabledToolkits = Array.isArray(request.disabledToolkits)
+    ? request.disabledToolkits
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
+    : [];
+  if (disabledToolkits.length > 0) {
+    lines.push(`Deaktivierte Toolkits: ${disabledToolkits.join(", ")}`);
+  }
+
+  if (request.sessionKind) {
+    lines.push(`Sitzung: ${request.sessionKind}`);
+  }
+
+  if (normalizeText(request.steeringPlan)) {
+    lines.push("Steuerungsplan:");
+    lines.push(normalizeText(request.steeringPlan));
   }
 
   return lines.join("\n");
@@ -210,39 +827,6 @@ function buildSystemPrompt(
 function getVisibleHistory(request: ChatRequest): ChatMessage[] {
   const history = Array.isArray(request.history) ? request.history : [];
   return history.filter((message) => !message.hidden);
-}
-
-function buildAssistantReply(request: ChatRequest): string {
-  const message = normalizeText(request.message);
-  const mode = normalizeText(request.mode);
-  const activeFile = normalizeText(request.activeFile);
-  const referencedFiles = Array.isArray(request.referencedFiles)
-    ? request.referencedFiles
-        .map((value) => normalizeText(value))
-        .filter(Boolean)
-    : [];
-
-  const lines: string[] = [];
-  lines.push("Lokale Electron-Chat-Vorschau aktiv.");
-  if (mode) {
-    lines.push(`Modus: ${mode}`);
-  }
-  if (activeFile) {
-    lines.push(`Aktive Datei: ${activeFile}`);
-  }
-  if (referencedFiles.length > 0) {
-    lines.push(`Referenzen: ${referencedFiles.join(", ")}`);
-  }
-  if (message) {
-    lines.push("");
-    lines.push("Anfrage:");
-    lines.push(message);
-  } else {
-    lines.push("");
-    lines.push("Keine direkte Nutzernachricht übergeben.");
-  }
-
-  return lines.join("\n");
 }
 
 function splitIntoTokenChunks(text: string): string[] {
@@ -308,13 +892,14 @@ export async function previewChatContext(
 }
 
 export function startChatStream(
+  projectPath: string | null,
   request: ChatRequest,
   emit: (event: ChatStreamEvent) => void,
 ): ChatStreamStartResult {
   const streamId = createStreamId();
   streamSessions.set(streamId, { aborted: false });
 
-  void runChatStream(streamId, request, emit);
+  void runChatStream(streamId, projectPath, request, emit);
 
   return { streamId };
 }
@@ -332,11 +917,15 @@ export function stopChatStream(streamId: string): { status: string } {
 
 async function runChatStream(
   streamId: string,
+  projectPath: string | null,
   request: ChatRequest,
   emit: (event: ChatStreamEvent) => void,
 ): Promise<void> {
   try {
-    const preview = await previewChatContext(null, request);
+    const provider = await resolveAiProvider(request.llmId);
+    const endpoint = resolveProviderEndpoint(provider, request.useReasoning);
+    const preview = await previewChatContext(projectPath, request);
+
     if (!isStreamActive(streamId)) return;
 
     emit({
@@ -344,7 +933,7 @@ async function runChatStream(
       data: {
         includedFiles: preview.includedFiles,
         estimatedTokens: preview.estimatedTokens,
-        maxContextTokens: 32000,
+        maxContextTokens: endpoint.maxTokens,
       },
     });
 
@@ -368,13 +957,290 @@ async function runChatStream(
       data: { estimatedTokens: preview.estimatedTokens },
     });
 
-    const fullAssistantText = buildAssistantReply(request);
-    const chunks = splitIntoTokenChunks(fullAssistantText);
+    let conversationMessages = buildOpenAiMessages(
+      request,
+      preview.systemPrompt,
+    );
+    let toolRound = 0;
+    let tokenCount = 0;
+    let fullAssistantText = "";
 
-    for (const chunk of chunks) {
+    while (toolRound < 3) {
       if (!isStreamActive(streamId)) return;
-      emit({ type: "token", data: chunk });
-      await delay(15);
+
+      const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${endpoint.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: endpoint.model,
+          stream: true,
+          messages: conversationMessages,
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "read_file",
+                description: "Read a project file by relative path.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    path: { type: "string" },
+                  },
+                  required: ["path"],
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "search_project",
+                description: "Search text in project files.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    query: { type: "string" },
+                    limit: { type: "number" },
+                  },
+                  required: ["query"],
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "wiki_read",
+                description:
+                  "Read a wiki markdown file by relative path inside wiki/.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    path: { type: "string" },
+                  },
+                  required: ["path"],
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "wiki_search",
+                description: "Search inside wiki markdown files.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    query: { type: "string" },
+                    limit: { type: "number" },
+                  },
+                  required: ["query"],
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "glossary_add",
+                description: "Add a term to the local glossary.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    term: { type: "string" },
+                    definition: { type: "string" },
+                  },
+                  required: ["term", "definition"],
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "write_file",
+                description: "Write a file inside the current project.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    path: { type: "string" },
+                    content: { type: "string" },
+                  },
+                  required: ["path", "content"],
+                },
+              },
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        let detail = `Chat error: ${response.status}`;
+        try {
+          const body = await response.text();
+          if (body) {
+            detail += ` — ${body}`;
+          }
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentEvent = "";
+      let roundAssistantText = "";
+      const collectedToolCalls = new Map<string, ToolCall>();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!isStreamActive(streamId)) return;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            currentEvent = line.substring(6).trim();
+            continue;
+          }
+          if (!line.startsWith("data:")) {
+            continue;
+          }
+
+          const data = line.substring(5).trim();
+          if (!data) {
+            continue;
+          }
+
+          if (data === "[DONE]") {
+            currentEvent = "";
+            continue;
+          }
+
+          if (currentEvent === "error") {
+            throw new Error(data);
+          }
+
+          let parsed: OpenAiStreamChunk | null = null;
+          try {
+            parsed = JSON.parse(data) as OpenAiStreamChunk;
+          } catch {
+            parsed = null;
+          }
+
+          if (!parsed) {
+            currentEvent = "";
+            continue;
+          }
+
+          const token = extractContentToken(parsed);
+          if (token) {
+            tokenCount += 1;
+            roundAssistantText += token;
+            fullAssistantText += token;
+            emit({
+              type: "token",
+              data: token,
+            });
+          }
+
+          const parsedToolCalls = extractToolCalls(parsed);
+          for (const toolCall of parsedToolCalls) {
+            collectedToolCalls.set(toolCall.id, toolCall);
+          }
+
+          const finishReason = extractFinishReason(parsed);
+          if (finishReason === "tool_calls") {
+            break;
+          }
+
+          currentEvent = "";
+        }
+      }
+
+      const toolCalls = [...collectedToolCalls.values()];
+
+      if (toolCalls.length === 0) {
+        if (!isStreamActive(streamId)) return;
+
+        if (tokenCount === 0 && !roundAssistantText.trim()) {
+          emit({
+            type: "error",
+            data: { message: "MODEL_EMPTY_RESPONSE" },
+          });
+          return;
+        }
+
+        emit({
+          type: "done",
+          data: { fullAssistantText },
+        });
+        return;
+      }
+
+      const assistantMessageForTools: ChatMessage = {
+        role: "assistant",
+        content: roundAssistantText,
+        toolCalls,
+        hidden: true,
+      };
+
+      for (const toolCall of toolCalls) {
+        emit({
+          type: "tool_call",
+          data: describeToolCall(toolCall),
+        });
+      }
+
+      const executedResults: ToolExecutionResult[] = [];
+      for (const toolCall of toolCalls) {
+        executedResults.push(await executeToolCall(projectPath, toolCall));
+      }
+
+      const toolHistoryMessages: ChatMessage[] = [
+        assistantMessageForTools,
+        ...executedResults.map((result) => ({
+          role: "tool" as const,
+          toolCallId: result.toolCallId,
+          content: result.result,
+          hidden: false,
+        })),
+      ];
+
+      emit({
+        type: "tool_history",
+        data: toolHistoryMessages,
+      });
+
+      conversationMessages.push({
+        role: "assistant",
+        content: roundAssistantText,
+        tool_calls: toolCalls.map((toolCall) => ({
+          id: toolCall.id,
+          type: "function",
+          function: {
+            name: toolCall.function.name,
+            arguments: toolCall.function.arguments,
+          },
+        })),
+      });
+
+      for (const result of executedResults) {
+        conversationMessages.push({
+          role: "tool",
+          tool_call_id: result.toolCallId,
+          content: result.result,
+        });
+      }
+
+      toolRound += 1;
     }
 
     if (!isStreamActive(streamId)) return;

@@ -3,6 +3,8 @@ import type {
   ChatMessage,
   ChatRequest,
   FileNode,
+  LlmsListResponse,
+  LlmPublic,
   Mode,
   ProjectConfig,
   WorkspaceModeInfo,
@@ -34,6 +36,23 @@ export interface GlossaryData {
   entries?: GlossaryEntry[];
 }
 
+export interface SnapshotData {
+  id: string;
+  path: string;
+  oldContent: string;
+  wasNew: boolean;
+}
+
+export interface SnapshotApplyResult {
+  status: string;
+}
+
+export interface SnapshotRevertResult {
+  status: string;
+  path: string;
+  wasNew: boolean;
+}
+
 export interface ChatContextPreviewResult {
   includedFiles: string[];
   estimatedTokens: number;
@@ -63,6 +82,28 @@ export interface ChatStreamStartResult {
 
 export interface ChatStreamSubscription {
   unsubscribe: () => void;
+}
+
+export interface LlmCreateRequest {
+  name: string;
+  fastApiUrl: string;
+  fastModel: string;
+  fastApiKey: string;
+  reasoningApiUrl?: string;
+  reasoningModel?: string;
+  reasoningApiKey?: string;
+  maxTokens?: number;
+}
+
+export interface LlmUpdateRequest {
+  name?: string;
+  fastApiUrl?: string;
+  fastModel?: string;
+  fastApiKey?: string;
+  reasoningApiUrl?: string;
+  reasoningModel?: string;
+  reasoningApiKey?: string;
+  maxTokens?: number;
 }
 
 export interface ProjectCurrentResult {
@@ -149,6 +190,11 @@ export interface AppBridge {
     addEntry: (term: string, definition: string) => Promise<{ status: string }>;
     deleteEntry: (term: string) => Promise<{ status: string }>;
   };
+  snapshots?: {
+    get: (id: string) => Promise<SnapshotData>;
+    apply: (id: string) => Promise<SnapshotApplyResult>;
+    revert: (id: string) => Promise<SnapshotRevertResult>;
+  };
   chat?: {
     previewContext: (body: ChatRequest) => Promise<ChatContextPreviewResult>;
     startStream: (body: ChatRequest) => Promise<ChatStreamStartResult>;
@@ -173,6 +219,12 @@ export interface AppBridge {
     listAgents: () => Promise<AgentPreset[]>;
     saveAgent: (id: string, preset: AgentPreset) => Promise<AgentPreset>;
     deleteAgent: (id: string) => Promise<{ status: string }>;
+  };
+  llms?: {
+    list: () => Promise<LlmsListResponse>;
+    create: (body: LlmCreateRequest) => Promise<LlmPublic>;
+    update: (id: string, body: LlmUpdateRequest) => Promise<LlmPublic>;
+    remove: (id: string) => Promise<{ status: string }>;
   };
 }
 

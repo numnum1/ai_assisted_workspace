@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld("appBridge", {
     move: (path: string, targetParentPath: string) =>
       ipcRenderer.invoke("files:move", path, targetParentPath),
   },
+  snapshots: {
+    get: (id: string) => ipcRenderer.invoke("snapshots:get", id),
+    apply: (id: string) => ipcRenderer.invoke("snapshots:apply", id),
+    revert: (id: string) => ipcRenderer.invoke("snapshots:revert", id),
+  },
   chat: {
     previewContext: (body: unknown) =>
       ipcRenderer.invoke("chat:previewContext", body),
@@ -55,6 +60,13 @@ contextBridge.exposeInMainWorld("appBridge", {
         },
       };
     },
+  },
+  llms: {
+    list: () => ipcRenderer.invoke("llms:list"),
+    create: (body: unknown) => ipcRenderer.invoke("llms:create", body),
+    update: (id: string, body: unknown) =>
+      ipcRenderer.invoke("llms:update", id, body),
+    remove: (id: string) => ipcRenderer.invoke("llms:remove", id),
   },
   wiki: {
     listFiles: () => ipcRenderer.invoke("wiki:listFiles"),
