@@ -7,7 +7,7 @@ import type {
   ProjectConfig,
   WorkspaceModeInfo,
   WorkspaceModeSchema,
-} from "../../src/types.ts";
+} from "../../src/types.js";
 
 interface StoredProjectData {
   config?: ProjectConfig;

@@ -81,14 +81,6 @@ async function readTextFile(filePath: string): Promise<string | null> {
   }
 }
 
-function searchInFile(absPath: string, projectRoot: string, query: string): SearchHit[] {
-  const hits: SearchHit[] = [];
-  const relativePath = normalizeRelativePath(path.relative(projectRoot, absPath));
-  const lowerQuery = query.toLowerCase();
-
-  return hits;
-}
-
 export async function searchProjectContent(
   projectRoot: string | null,
   query: string,

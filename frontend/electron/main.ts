@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -7,7 +8,7 @@ import {
   getCurrentProjectPath,
   openProject,
   revealProject,
-} from "./services/projectService.ts";
+} from "./services/projectService.js";
 import {
   createFile,
   createFolder,
@@ -17,7 +18,7 @@ import {
   movePath,
   renamePath,
   saveContent,
-} from "./services/filesService.ts";
+} from "./services/filesService.js";
 import {
   deleteProjectAgent as removeAgentPreset,
   deleteProjectMode as removeProjectMode,
@@ -33,40 +34,40 @@ import {
   saveProjectAgent as saveAgentPreset,
   updateProjectConfig as saveProjectConfig,
   saveProjectMode,
-} from "./services/projectConfigService.ts";
+} from "./services/projectConfigService.js";
 import {
   getSubprojectInfo,
   initSubproject,
   removeSubproject,
-} from "./services/subprojectService.ts";
-import { listWikiFiles, searchWiki } from "./services/wikiService.ts";
+} from "./services/subprojectService.js";
+import { listWikiFiles, searchWiki } from "./services/wikiService.js";
 import {
   previewChatContext,
   startChatStream,
   stopChatStream,
-} from "./services/chatService.ts";
+} from "./services/chatService.js";
 import {
   addGlossaryEntry,
   deleteGlossaryEntry,
   getGlossary,
-} from "./services/glossaryService.ts";
+} from "./services/glossaryService.js";
 import {
   createProvider,
   deleteProvider,
   listPublicProviders,
   updateProvider,
-} from "./services/aiProviderService.ts";
+} from "./services/aiProviderService.js";
 import {
   applySnapshot,
   getSnapshot,
   revertSnapshot,
-} from "./services/snapshotService.ts";
+} from "./services/snapshotService.js";
 import {
   fillTypedFile,
   getTypedFileContent,
   saveTypedFileContent,
-} from "./services/typedFilesService.ts";
-import { searchProjectContent } from "./services/searchService.ts";
+} from "./services/typedFilesService.js";
+import { searchProjectContent } from "./services/searchService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -172,9 +173,16 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("snapshots:get", (_event, id: string) => getSnapshot(id));
   ipcMain.handle("snapshots:apply", (_event, id: string) => applySnapshot(id));
-  ipcMain.handle("snapshots:revert", (_event, id: string) =>
-    revertSnapshot(getCurrentProjectPath(), id),
-  );
+  ipcMain.handle("snapshots:revert", async (_event, id: string) => {
+    const root = getCurrentProjectPath();
+    if (!root) {
+      return null;
+    }
+    return revertSnapshot(id, {
+      writeFile: (filePath, content) => fs.writeFile(filePath, content, "utf8"),
+      deleteFile: (filePath) => fs.unlink(filePath),
+    });
+  });
 
   ipcMain.handle("search:project", (_event, query: string, limit?: number) =>
     searchProjectContent(getCurrentProjectPath(), query, limit),

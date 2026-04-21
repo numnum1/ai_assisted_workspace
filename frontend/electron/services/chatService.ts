@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatMessage, ToolCall } from "../../src/types.ts";
+import type { ChatRequest, ChatMessage, ToolCall } from "../../src/types.js";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -755,37 +755,6 @@ function buildMessageBlock(request: ChatRequest): ContextBlock | null {
   };
 }
 
-function buildActiveFileBlock(request: ChatRequest): ContextBlock | null {
-  const activeFile = normalizeText(request.activeFile);
-  if (!activeFile) return null;
-
-  const content = `Aktive Datei: ${activeFile}`;
-  return {
-    type: "active-file",
-    label: "Aktive Datei",
-    content,
-    estimatedTokens: estimateTokens(content),
-  };
-}
-
-function buildReferencedFilesBlock(request: ChatRequest): ContextBlock | null {
-  const referencedFiles = Array.isArray(request.referencedFiles)
-    ? request.referencedFiles
-        .map((value) => normalizeText(value))
-        .filter(Boolean)
-    : [];
-
-  if (referencedFiles.length === 0) return null;
-
-  const content = referencedFiles.join("\n");
-  return {
-    type: "file-list",
-    label: "Referenzierte Dateien",
-    content,
-    estimatedTokens: estimateTokens(content),
-  };
-}
-
 function buildHistoryBlock(request: ChatRequest): ContextBlock | null {
   const history = Array.isArray(request.history) ? request.history : [];
   if (history.length === 0) return null;
@@ -1227,23 +1196,6 @@ async function buildPreviewContext(
     blocks,
     includedFiles: [...includedFiles],
   };
-}
-
-function splitIntoTokenChunks(text: string): string[] {
-  if (!text) return [];
-  const chunks: string[] = [];
-  for (const word of text.split(/(\s+)/)) {
-    if (word) {
-      chunks.push(word);
-    }
-  }
-  return chunks;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }
 
 function createStreamId(): string {

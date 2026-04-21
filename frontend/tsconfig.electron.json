@@ -11,7 +11,7 @@
     "noUnusedParameters": true,
     "sourceMap": true,
     "outDir": "dist-electron",
-    "rootDir": "electron"
+    "rootDir": "."
   },
-  "include": ["electron/**/*.ts"]
+  "include": ["electron/**/*.ts", "src/types.ts"]
 }

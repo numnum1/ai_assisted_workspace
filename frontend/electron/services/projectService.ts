@@ -1,7 +1,7 @@
 import { dialog, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { FileNode } from '../../src/types.ts';
+import type { FileNode } from '../../src/types.js';
 
 export interface ProjectCurrentResult {
   path: string;
