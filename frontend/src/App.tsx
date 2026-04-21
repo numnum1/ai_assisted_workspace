@@ -1,21 +1,38 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
-import type { Layout } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload } from 'lucide-react';
-import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
-import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
-import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
-import { MetaPanel } from './components/meta/MetaPanel.tsx';
-import { ChatPanel } from './components/chat/ChatPanel.tsx';
-import { FieldEditorPanel } from './components/editor/FieldEditorPanel.tsx';
-import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
-import { ContextBar } from './components/chat/ContextBar.tsx';
-import { buildMainChatContextPreviewRequest } from './components/chat/contextPreviewRequest.ts';
-import { CommandPalette } from './components/git/CommandPalette.tsx';
-import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx';
-import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
-import { ProjectSettingsModal } from './components/settings/ProjectSettingsModal.tsx';
-import type { CommandAction } from './components/git/CommandPalette.tsx';
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
+import { Panel, Group, Separator, usePanelRef } from "react-resizable-panels";
+import type { Layout } from "react-resizable-panels";
+import {
+  FolderOpen,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  GitCommitHorizontal,
+  RefreshCw,
+  Maximize2,
+  Minimize2,
+  Upload,
+} from "lucide-react";
+import { FileTreeOutliner } from "./components/outliner/FileTreeOutliner.tsx";
+import { MarkdownFileEditor } from "./components/editor/MarkdownFileEditor.tsx";
+import { SubprojectTypeDialog } from "./components/settings/SubprojectTypeDialog.tsx";
+import { MetaPanel } from "./components/meta/MetaPanel.tsx";
+import { ChatPanel } from "./components/chat/ChatPanel.tsx";
+import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
+import { PromptPackModal } from "./components/chat/PromptPackModal.tsx";
+import { ContextBar } from "./components/chat/ContextBar.tsx";
+import { buildMainChatContextPreviewRequest } from "./components/chat/contextPreviewRequest.ts";
+import { CommandPalette } from "./components/git/CommandPalette.tsx";
+import { GitCredentialsDialog } from "./components/git/GitCredentialsDialog.tsx";
+import { FileHistoryModal } from "./components/git/FileHistoryModal.tsx";
+import { ProjectSettingsModal } from "./components/settings/ProjectSettingsModal.tsx";
+import type { CommandAction } from "./components/git/CommandPalette.tsx";
 import type {
   AgentPreset,
   Mode,
@@ -29,32 +46,44 @@ import type {
   AltVersionSession,
   LlmPublic,
   ChatSessionKind,
-} from './types.ts';
-import type { NewChatConfirmPayload } from './components/chat/NewChatDialog.tsx';
-import { CHAT_TOOLKIT_IDS } from './types.ts';
-import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
-import { buildThreadHiddenBootstrap } from './components/chat/chatThreadUtils.ts';
-import type { GuidedThreadOfferPayload } from './components/chat/guidedThreadOfferUtils.ts';
-import { Settings } from 'lucide-react';
-import { useProject } from './hooks/useProject.ts';
-import { useChapter } from './hooks/useChapter.ts';
-import { useChat } from './hooks/useChat.ts';
-import { useReferencedFiles } from './hooks/useContext.ts';
-import { useChatHistory, conversationMessagesToDisplay } from './hooks/useChatHistory.ts';
-import { useWorkspaceMode } from './hooks/useWorkspaceMode.ts';
-import { useWorkspaceLevelConfigMap } from './hooks/useWorkspaceLevelConfigMap.ts';
-import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
-import { useFileTabs } from './hooks/useFileTabs.ts';
-import { EditorTabs } from './components/editor/EditorTabs.tsx';
-import { SearchPanel } from './components/editor/SearchPanel.tsx';
-import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
-import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
-import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
-import { QuickChatWindow } from './components/chat/QuickChatWindow.tsx';
+} from "./types.ts";
+import type { NewChatConfirmPayload } from "./components/chat/NewChatDialog.tsx";
+import { CHAT_TOOLKIT_IDS } from "./types.ts";
+import {
+  modesApi,
+  gitApi,
+  projectApi,
+  projectConfigApi,
+  bookApi,
+  llmApi,
+  chatApi,
+  AuthRequiredError,
+} from "./api.ts";
+import { buildThreadHiddenBootstrap } from "./components/chat/chatThreadUtils.ts";
+import type { GuidedThreadOfferPayload } from "./components/chat/guidedThreadOfferUtils.ts";
+import { Settings } from "lucide-react";
+import { useProject } from "./hooks/useProject.ts";
+import { useChapter } from "./hooks/useChapter.ts";
+import { useChat } from "./hooks/useChat.ts";
+import { useReferencedFiles } from "./hooks/useContext.ts";
+import {
+  useChatHistory,
+  conversationMessagesToDisplay,
+} from "./hooks/useChatHistory.ts";
+import { useWorkspaceMode } from "./hooks/useWorkspaceMode.ts";
+import { useWorkspaceLevelConfigMap } from "./hooks/useWorkspaceLevelConfigMap.ts";
+import { useOutlinerScope } from "./hooks/useOutlinerScope.ts";
+import { useFileTabs } from "./hooks/useFileTabs.ts";
+import { EditorTabs } from "./components/editor/EditorTabs.tsx";
+import { SearchPanel } from "./components/editor/SearchPanel.tsx";
+import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
+import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
+import { AlternativeVersionPanel } from "./components/editor/AlternativeVersionPanel.tsx";
+import { QuickChatWindow } from "./components/chat/QuickChatWindow.tsx";
 import {
   ensureSteeringPlanMarkedComplete,
   parseSteeringPlanFromAssistant,
-} from './components/chat/planFenceUtils.ts';
+} from "./components/chat/planFenceUtils.ts";
 import {
   agentExecutionPartialFromParent,
   applyGuidedAgentFromNewChatDialog,
@@ -65,7 +94,7 @@ import {
   guidedPresetPartialFromParent,
   isNewChatConfirmPayload,
   threadExecutionOverrideFromPreset,
-} from './components/chat/chatAgentUtils.ts';
+} from "./components/chat/chatAgentUtils.ts";
 import {
   GUIDED_AGENT_KICKOFF_USER_MESSAGE,
   cancelGuidedAgentKickoffIfPendingMismatchesActive,
@@ -73,13 +102,13 @@ import {
   hasPendingGuidedAgentKickoffFor,
   scheduleGuidedAgentPresetKickoff,
   tryMarkGuidedAgentKickoffStarted,
-} from './components/chat/guidedAgentKickoff.ts';
+} from "./components/chat/guidedAgentKickoff.ts";
 
 /** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
-const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
+const PROMPT_PACK_DISPLAY_NAME = "Prompt-Paket";
 
 function nonPromptModes(mds: Mode[]): Mode[] {
-  return mds.filter((m) => m.id !== 'prompt-pack');
+  return mds.filter((m) => m.id !== "prompt-pack");
 }
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
@@ -87,31 +116,52 @@ function standardChatModes(mds: Mode[]): Mode[] {
   return nonPromptModes(mds).filter((m) => !m.agentOnly);
 }
 
-function resolveDefaultModeId(mds: Mode[], configured: string | undefined): string {
-  const id = configured?.trim() ?? '';
+function resolveDefaultModeId(
+  mds: Mode[],
+  configured: string | undefined,
+): string {
+  const id = configured?.trim() ?? "";
   if (id && mds.some((m) => m.id === id)) return id;
-  if (mds.some((m) => m.id === 'review')) return 'review';
+  if (mds.some((m) => m.id === "review")) return "review";
   if (mds.length > 0) return mds[0].id;
-  return 'review';
+  return "review";
 }
 
 function conversationHasVisibleMessages(conv: Conversation): boolean {
   return conv.messages.length > 0;
 }
 
+function conversationPreviewDependencyKey(
+  conv: Conversation | undefined,
+): string {
+  if (!conv) return "no-conversation";
+  return JSON.stringify({
+    id: conv.id,
+    sessionKind: conv.sessionKind ?? "standard",
+    steeringPlan:
+      conv.sessionKind === "guided" ? (conv.steeringPlan ?? null) : null,
+    messages: conv.messages,
+  });
+}
+
 /**
  * Resolves mode id from persisted conversation (non–prompt-pack only).
  * Agent-only modes are kept for guided sessions; for standard chat they are ignored.
  */
-function resolvePersistedChatModeId(conv: Conversation, nonPrompt: Mode[], allModes: Mode[]): string | null {
-  const sessionKind = conv.sessionKind ?? 'standard';
+function resolvePersistedChatModeId(
+  conv: Conversation,
+  nonPrompt: Mode[],
+  allModes: Mode[],
+): string | null {
+  const sessionKind = conv.sessionKind ?? "standard";
   const allowed = (modeId: string): boolean => {
     const m = nonPrompt.find((x) => x.id === modeId);
     if (!m) return false;
-    if (m.agentOnly && sessionKind !== 'guided') return false;
+    if (m.agentOnly && sessionKind !== "guided") return false;
     return true;
   };
-  if (conv.mode && conv.mode !== 'prompt-pack' && allowed(conv.mode)) return conv.mode;
+  if (conv.mode && conv.mode !== "prompt-pack" && allowed(conv.mode))
+    return conv.mode;
   return null;
 }
 
@@ -124,13 +174,14 @@ function effectiveChatModeIdForRequest(
   toolbarModeId: string,
   allModes: Mode[],
 ): string {
-  if (!conv || (conv.sessionKind ?? 'standard') !== 'guided') return toolbarModeId;
+  if (!conv || (conv.sessionKind ?? "standard") !== "guided")
+    return toolbarModeId;
   const nonPrompt = nonPromptModes(allModes);
   return resolvePersistedChatModeId(conv, nonPrompt, allModes) ?? toolbarModeId;
 }
 
-const LLM_PREFS_KEY = 'chat-llm-prefs';
-const CHAT_DISABLED_TOOLKITS_KEY = 'chat-disabled-toolkits';
+const LLM_PREFS_KEY = "chat-llm-prefs";
+const CHAT_DISABLED_TOOLKITS_KEY = "chat-disabled-toolkits";
 
 function loadInitialDisabledToolkits(): Set<string> {
   try {
@@ -138,11 +189,11 @@ function loadInitialDisabledToolkits(): Set<string> {
     if (raw) {
       const arr = JSON.parse(raw) as unknown;
       if (Array.isArray(arr)) {
-        return new Set(arr.filter((x): x is string => typeof x === 'string'));
+        return new Set(arr.filter((x): x is string => typeof x === "string"));
       }
     }
-    if (localStorage.getItem('chat-tools-disabled') === 'true') {
-      localStorage.removeItem('chat-tools-disabled');
+    if (localStorage.getItem("chat-tools-disabled") === "true") {
+      localStorage.removeItem("chat-tools-disabled");
       return new Set(CHAT_TOOLKIT_IDS);
     }
   } catch {
@@ -159,11 +210,18 @@ function saveDisabledToolkits(s: Set<string>) {
   }
 }
 
-function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null {
+function loadLlmPrefs(): {
+  llmId: string | null;
+  useReasoning: boolean;
+} | null {
   try {
     const raw = localStorage.getItem(LLM_PREFS_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { llmId: string | null; useReasoning: boolean; useWebSearch?: boolean };
+    const parsed = JSON.parse(raw) as {
+      llmId: string | null;
+      useReasoning: boolean;
+      useWebSearch?: boolean;
+    };
     return { llmId: parsed.llmId, useReasoning: parsed.useReasoning };
   } catch {
     return null;
@@ -172,26 +230,31 @@ function loadLlmPrefs(): { llmId: string | null; useReasoning: boolean } | null 
 
 function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
   try {
-    localStorage.setItem(LLM_PREFS_KEY, JSON.stringify({ llmId: llmId ?? null, useReasoning }));
+    localStorage.setItem(
+      LLM_PREFS_KEY,
+      JSON.stringify({ llmId: llmId ?? null, useReasoning }),
+    );
   } catch {
     // localStorage full or unavailable — silently ignore
   }
 }
 
-const MAIN_PANEL_LAYOUT_KEY = 'assistant-main-panel-layout';
-const MAIN_PANEL_IDS = ['outliner', 'editor', 'chat'] as const;
+const MAIN_PANEL_LAYOUT_KEY = "assistant-main-panel-layout";
+const MAIN_PANEL_IDS = ["outliner", "editor", "chat"] as const;
 
 function loadMainPanelLayout(): Layout | undefined {
   try {
     const raw = localStorage.getItem(MAIN_PANEL_LAYOUT_KEY);
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as unknown;
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return undefined;
     const rec = parsed as Record<string, unknown>;
     const layout: Layout = {};
     for (const id of MAIN_PANEL_IDS) {
       const v = rec[id];
-      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return undefined;
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0)
+        return undefined;
       layout[id] = v;
     }
     const sum = MAIN_PANEL_IDS.reduce((acc, id) => acc + layout[id], 0);
@@ -207,7 +270,7 @@ function saveMainPanelLayout(layout: Layout) {
     const payload: Layout = {};
     for (const id of MAIN_PANEL_IDS) {
       const v = layout[id];
-      if (typeof v !== 'number' || !Number.isFinite(v)) return;
+      if (typeof v !== "number" || !Number.isFinite(v)) return;
       payload[id] = v;
     }
     localStorage.setItem(MAIN_PANEL_LAYOUT_KEY, JSON.stringify(payload));
@@ -217,37 +280,47 @@ function saveMainPanelLayout(layout: Layout) {
 }
 
 /** Compare disabled toolkit ids regardless of order or Set vs array (avoids update loops on new references). */
-function disabledToolkitsSignature(ids: ReadonlySet<string> | readonly string[] | undefined | null): string {
-  if (!ids) return '';
+function disabledToolkitsSignature(
+  ids: ReadonlySet<string> | readonly string[] | undefined | null,
+): string {
+  if (!ids) return "";
   const list = [...ids];
-  if (list.length === 0) return '';
-  return [...list].sort().join('\0');
+  if (list.length === 0) return "";
+  return [...list].sort().join("\0");
 }
 
-function disabledToolkitSetMatchesArray(s: ReadonlySet<string>, arr: readonly string[] | undefined): boolean {
+function disabledToolkitSetMatchesArray(
+  s: ReadonlySet<string>,
+  arr: readonly string[] | undefined,
+): boolean {
   return disabledToolkitsSignature(s) === disabledToolkitsSignature(arr);
 }
 
 function agentExecutionMatchesGlobals(
   conv: Conversation,
-  globals: { llmId: string | undefined; useReasoning: boolean; disabledToolkits: ReadonlySet<string> },
+  globals: {
+    llmId: string | undefined;
+    useReasoning: boolean;
+    disabledToolkits: ReadonlySet<string>;
+  },
 ): boolean {
   const patch = buildAgentExecutionPatchFromGlobals(globals);
   return (
     conv.agentLlmId === patch.agentLlmId &&
     conv.agentUseReasoning === patch.agentUseReasoning &&
-    disabledToolkitsSignature(conv.agentDisabledToolkits) === disabledToolkitsSignature(patch.agentDisabledToolkits)
+    disabledToolkitsSignature(conv.agentDisabledToolkits) ===
+      disabledToolkitsSignature(patch.agentDisabledToolkits)
   );
 }
 
 /** Fingerprint persisted agent fields so we can tell when the conversation (not the toolbar) changed. */
 function agentPersistSignature(conv: Conversation): string {
-  if (!conversationHasAgentExecution(conv)) return '';
+  if (!conversationHasAgentExecution(conv)) return "";
   return [
-    conv.agentLlmId ?? '∅',
-    conv.agentUseReasoning === undefined ? '∅' : String(conv.agentUseReasoning),
+    conv.agentLlmId ?? "∅",
+    conv.agentUseReasoning === undefined ? "∅" : String(conv.agentUseReasoning),
     disabledToolkitsSignature(conv.agentDisabledToolkits),
-  ].join('|');
+  ].join("|");
 }
 
 function App() {
@@ -256,7 +329,7 @@ function App() {
   const refs = useReferencedFiles();
   const [modes, setModes] = useState<Mode[]>([]);
   const [agentPresets, setAgentPresets] = useState<AgentPreset[]>([]);
-  const [selectedMode, setSelectedMode] = useState('review');
+  const [selectedMode, setSelectedMode] = useState("review");
   const [useReasoning, setUseReasoning] = useState(false);
   const [quickChatOpen, setQuickChatOpen] = useState(false);
   const [webSearchAvailable, setWebSearchAvailable] = useState(false);
@@ -264,15 +337,18 @@ function App() {
   const [llms, setLlms] = useState<LlmPublic[]>([]);
   const llmsRef = useRef(llms);
   llmsRef.current = llms;
-  const [disabledToolkits, setDisabledToolkits] = useState(loadInitialDisabledToolkits);
-  const [chatDownloadFeatureEnabled, setChatDownloadFeatureEnabled] = useState(false);
+  const [disabledToolkits, setDisabledToolkits] = useState(
+    loadInitialDisabledToolkits,
+  );
+  const [chatDownloadFeatureEnabled, setChatDownloadFeatureEnabled] =
+    useState(false);
 
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
-  const projectDefaultChatModeIdRef = useRef('review');
+  const projectDefaultChatModeIdRef = useRef("review");
   /** Avoid toolbar ↔ conversation ping-pong: only pull agent fields from conv when conv or active chat actually changed. */
   const prevModeSyncActiveIdRef = useRef<string | null>(null);
-  const prevAgentPersistSigRef = useRef('');
+  const prevAgentPersistSigRef = useRef("");
   /**
    * Skips re-running applyLlmPrefsFromStorage on every mode-sync effect pass (same project/chat/load gen).
    * Re-applying on each pass caused setState + dependency churn → maximum update depth exceeded.
@@ -286,7 +362,10 @@ function App() {
     modesSig: string;
   } | null>(null);
 
-  const handleToggleReasoning = useCallback(() => setUseReasoning(v => !v), []);
+  const handleToggleReasoning = useCallback(
+    () => setUseReasoning((v) => !v),
+    [],
+  );
   const handleToggleToolkit = useCallback((kitId: string) => {
     setDisabledToolkits((prev) => {
       const next = new Set(prev);
@@ -299,25 +378,28 @@ function App() {
     });
   }, []);
 
-  const handleLlmChange = useCallback((id: string | undefined) => {
-    setModeLlmId(id);
-    if (id) {
-      const llm = llms.find((l) => l.id === id);
-      if (llm) {
-        const hasReasoning = !!llm.reasoningModel;
-        const hasFast = !!llm.fastModel;
-        if (!hasReasoning) {
-          setUseReasoning(false);
-        } else if (!hasFast) {
-          setUseReasoning(true);
+  const handleLlmChange = useCallback(
+    (id: string | undefined) => {
+      setModeLlmId(id);
+      if (id) {
+        const llm = llms.find((l) => l.id === id);
+        if (llm) {
+          const hasReasoning = !!llm.reasoningModel;
+          const hasFast = !!llm.fastModel;
+          if (!hasReasoning) {
+            setUseReasoning(false);
+          } else if (!hasFast) {
+            setUseReasoning(true);
+          }
+          // both available → keep current toggle state
         }
-        // both available → keep current toggle state
+      } else {
+        const mode = modes.find((m) => m.id === selectedMode);
+        setUseReasoning(mode?.useReasoning ?? false);
       }
-    } else {
-      const mode = modes.find((m) => m.id === selectedMode);
-      setUseReasoning(mode?.useReasoning ?? false);
-    }
-  }, [llms, modes, selectedMode]);
+    },
+    [llms, modes, selectedMode],
+  );
 
   const reasoningAvailable = useMemo(() => {
     if (!modeLlmId) return true;
@@ -331,31 +413,36 @@ function App() {
     return !llm || !!llm.fastModel;
   }, [modeLlmId, llms]);
 
-  const handleModeChange = useCallback((modeId: string, modeList?: typeof modes) => {
-    const list = modeList ?? modes;
-    const m = list.find(x => x.id === modeId);
-    const llmId = m?.llmId ?? undefined;
+  const handleModeChange = useCallback(
+    (modeId: string, modeList?: typeof modes) => {
+      const list = modeList ?? modes;
+      const m = list.find((x) => x.id === modeId);
+      const llmId = m?.llmId ?? undefined;
 
-    let newUseReasoning = m?.useReasoning ?? false;
-    if (llmId) {
-      const llm = llms.find((l) => l.id === llmId);
-      if (llm) {
-        const hasReasoning = !!llm.reasoningModel;
-        const hasFast = !!llm.fastModel;
-        if (!hasReasoning) {
-          newUseReasoning = false;
-        } else if (!hasFast) {
-          newUseReasoning = true;
+      let newUseReasoning = m?.useReasoning ?? false;
+      if (llmId) {
+        const llm = llms.find((l) => l.id === llmId);
+        if (llm) {
+          const hasReasoning = !!llm.reasoningModel;
+          const hasFast = !!llm.fastModel;
+          if (!hasReasoning) {
+            newUseReasoning = false;
+          } else if (!hasFast) {
+            newUseReasoning = true;
+          }
+          // both available → use mode preference
         }
-        // both available → use mode preference
       }
-    }
 
-    // Functional updates avoid redundant renders and break feedback loops with useChatHistory(currentMode).
-    setSelectedMode((prev) => (prev === modeId ? prev : modeId));
-    setModeLlmId((prev) => (prev === llmId ? prev : llmId));
-    setUseReasoning((prev) => (prev === newUseReasoning ? prev : newUseReasoning));
-  }, [modes, llms]);
+      // Functional updates avoid redundant renders and break feedback loops with useChatHistory(currentMode).
+      setSelectedMode((prev) => (prev === modeId ? prev : modeId));
+      setModeLlmId((prev) => (prev === llmId ? prev : llmId));
+      setUseReasoning((prev) =>
+        prev === newUseReasoning ? prev : newUseReasoning,
+      );
+    },
+    [modes, llms],
+  );
 
   const applyLlmPrefsFromStorage = useCallback(() => {
     const providers = llmsRef.current;
@@ -384,10 +471,12 @@ function App() {
     onAssistantResponseComplete: (fullText, meta) => {
       // Reload the conversation from backend to get the authoritative ConversationMessage[] state.
       history.refreshConversation(meta.conversationId);
-      if (meta.sessionKind !== 'guided') return;
+      if (meta.sessionKind !== "guided") return;
       const parsed = parseSteeringPlanFromAssistant(fullText);
       if (parsed) {
-        history.patchConversation(meta.conversationId, { steeringPlan: parsed });
+        history.patchConversation(meta.conversationId, {
+          steeringPlan: parsed,
+        });
       }
     },
   });
@@ -396,18 +485,28 @@ function App() {
   const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
 
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
-  const [workspaceModesRefreshNonce, setWorkspaceModesRefreshNonce] = useState(0);
+  const [workspaceModesRefreshNonce, setWorkspaceModesRefreshNonce] =
+    useState(0);
   const [inlineChaptersNonce, setInlineChaptersNonce] = useState(0);
-  const [subprojectDialog, setSubprojectDialog] = useState<{ path: string; initialType?: string | null } | null>(null);
-  const outlinerScope = useOutlinerScope(project.projectPath ? project.projectPath : null);
+  const [subprojectDialog, setSubprojectDialog] = useState<{
+    path: string;
+    initialType?: string | null;
+  } | null>(null);
+  const outlinerScope = useOutlinerScope(
+    project.projectPath ? project.projectPath : null,
+  );
 
   // Ctrl+L: capture editor selection for chat
-  const [activeSelection, setActiveSelection] = useState<SelectionContext | null>(null);
-  const activeSelectionReplaceFnRef = useRef<((from: number, to: number, text: string) => void) | null>(null);
+  const [activeSelection, setActiveSelection] =
+    useState<SelectionContext | null>(null);
+  const activeSelectionReplaceFnRef = useRef<
+    ((from: number, to: number, text: string) => void) | null
+  >(null);
   const chatFocusTriggerRef = useRef<(() => void) | null>(null);
 
   // Ctrl+Alt+A: alternative version panel
-  const [altVersionSession, setAltVersionSession] = useState<AltVersionSession | null>(null);
+  const [altVersionSession, setAltVersionSession] =
+    useState<AltVersionSession | null>(null);
 
   const leftPanelRef = usePanelRef();
   const centerPanelRef = usePanelRef();
@@ -415,17 +514,26 @@ function App() {
 
   const mainPanelDefaultLayout = useMemo(() => loadMainPanelLayout(), []);
 
-  const handleCtrlL = useCallback((sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => {
-    setActiveSelection(sel);
-    activeSelectionReplaceFnRef.current = replaceFn;
-    chatFocusTriggerRef.current?.();
-  }, []);
+  const handleCtrlL = useCallback(
+    (
+      sel: SelectionContext,
+      replaceFn: (from: number, to: number, text: string) => void,
+    ) => {
+      setActiveSelection(sel);
+      activeSelectionReplaceFnRef.current = replaceFn;
+      chatFocusTriggerRef.current?.();
+    },
+    [],
+  );
 
-  const handleReplaceSelection = useCallback((replacement: string, ctx: SelectionContext) => {
-    if (!activeSelectionReplaceFnRef.current) return;
-    activeSelectionReplaceFnRef.current(ctx.from, ctx.to, replacement);
-    activeSelectionReplaceFnRef.current = null;
-  }, []);
+  const handleReplaceSelection = useCallback(
+    (replacement: string, ctx: SelectionContext) => {
+      if (!activeSelectionReplaceFnRef.current) return;
+      activeSelectionReplaceFnRef.current(ctx.from, ctx.to, replacement);
+      activeSelectionReplaceFnRef.current = null;
+    },
+    [],
+  );
 
   const handleDismissSelection = useCallback(() => {
     setActiveSelection(null);
@@ -444,20 +552,25 @@ function App() {
     setSelectedMeta(null);
     setMetaExpanded(false);
     setFocusedField(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
 
   // Load messages when switching conversations — convert ConversationMessage[] to ChatMessage[] for display.
   useEffect(() => {
     if (history.activeConversation) {
-      chat.loadMessages(conversationMessagesToDisplay(history.activeConversation.messages));
+      chat.loadMessages(
+        conversationMessagesToDisplay(history.activeConversation.messages),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
 
   const loadModes = useCallback(async () => {
     try {
-      const [mds, status] = await Promise.all([modesApi.getAll(), projectConfigApi.status()]);
+      const [mds, status] = await Promise.all([
+        modesApi.getAll(),
+        projectConfigApi.status(),
+      ]);
       setModes(mds);
       const forDefault = standardChatModes(mds);
       let configured: string | undefined;
@@ -476,7 +589,7 @@ function App() {
         }
       }
       setAgentPresets(agents);
-      if (configured === 'prompt-pack') configured = undefined;
+      if (configured === "prompt-pack") configured = undefined;
       if (configured) {
         const cfgMode = mds.find((m) => m.id === configured);
         if (cfgMode?.agentOnly) configured = undefined;
@@ -544,13 +657,14 @@ function App() {
     const standardSel = standardChatModes(modes);
     const conv = history.activeConversation;
     if (!conv) return;
-    const sessionKind = conv.sessionKind ?? 'standard';
-    const allowedForSession = sessionKind === 'guided' ? nonPrompt : standardSel;
+    const sessionKind = conv.sessionKind ?? "standard";
+    const allowedForSession =
+      sessionKind === "guided" ? nonPrompt : standardSel;
     let desired: string;
     /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
     /** Guided/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
     const trulyEmptyForModeSync =
-      sessionKind !== 'guided' &&
+      sessionKind !== "guided" &&
       !conversationHasVisibleMessages(conv) &&
       conv.messages.length === 0;
     if (trulyEmptyForModeSync) {
@@ -589,7 +703,8 @@ function App() {
         let gReason = useReasoning;
         let gDisabled: ReadonlySet<string> = disabledToolkits;
         if (convAfter.agentLlmId !== undefined) gLlm = convAfter.agentLlmId;
-        if (convAfter.agentUseReasoning !== undefined) gReason = convAfter.agentUseReasoning;
+        if (convAfter.agentUseReasoning !== undefined)
+          gReason = convAfter.agentUseReasoning;
         if (convAfter.agentDisabledToolkits !== undefined) {
           gDisabled = new Set(convAfter.agentDisabledToolkits);
         }
@@ -597,25 +712,41 @@ function App() {
         setUseReasoning((prev) => (prev === gReason ? prev : gReason));
         if (convAfter.agentDisabledToolkits !== undefined) {
           setDisabledToolkits((prev) => {
-            if (disabledToolkitSetMatchesArray(prev, convAfter.agentDisabledToolkits)) return prev;
+            if (
+              disabledToolkitSetMatchesArray(
+                prev,
+                convAfter.agentDisabledToolkits,
+              )
+            )
+              return prev;
             return new Set(convAfter.agentDisabledToolkits);
           });
         }
-        const target = { llmId: gLlm, useReasoning: gReason, disabledToolkits: gDisabled };
+        const target = {
+          llmId: gLlm,
+          useReasoning: gReason,
+          disabledToolkits: gDisabled,
+        };
         if (!agentExecutionMatchesGlobals(convAfter, target)) {
-          history.patchConversation(convAfter.id, buildAgentExecutionPatchFromGlobals(target));
+          history.patchConversation(
+            convAfter.id,
+            buildAgentExecutionPatchFromGlobals(target),
+          );
         }
       } else {
         const globals = { llmId: modeLlmId, useReasoning, disabledToolkits };
         if (!agentExecutionMatchesGlobals(convAfter, globals)) {
-          history.patchConversation(convAfter.id, buildAgentExecutionPatchFromGlobals(globals));
+          history.patchConversation(
+            convAfter.id,
+            buildAgentExecutionPatchFromGlobals(globals),
+          );
         }
       }
     } else if (prefsHydratedRef.current) {
-      const pp = project.projectPath ?? '';
+      const pp = project.projectPath ?? "";
       const aid = history.activeId;
       const gen = modesAndLlmLoadGeneration;
-      const modesSig = modes.map((m) => m.id).join('\0');
+      const modesSig = modes.map((m) => m.id).join("\0");
       const prevSync = lastNonAgentToolbarPrefsSyncRef.current;
       if (
         !prevSync ||
@@ -641,7 +772,9 @@ function App() {
     history.activeConversation?.sessionKind,
     history.activeConversation?.agentLlmId,
     history.activeConversation?.agentUseReasoning,
-    disabledToolkitsSignature(history.activeConversation?.agentDisabledToolkits),
+    disabledToolkitsSignature(
+      history.activeConversation?.agentDisabledToolkits,
+    ),
     modes,
     project.projectPath,
     modesAndLlmLoadGeneration,
@@ -664,52 +797,81 @@ function App() {
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
-  const [focusedField, setFocusedField] = useState<{ fieldKey: string; fieldLabel: string; value: string } | null>(null);
+  const [focusedField, setFocusedField] = useState<{
+    fieldKey: string;
+    fieldLabel: string;
+    value: string;
+  } | null>(null);
 
-  const handleSaveMeta = useCallback(async (
-    type: MetaNodeType,
-    meta: NodeMeta,
-    chapterId: string,
-    sceneId?: string,
-    actionId?: string,
-  ) => {
-    if (type === 'book') {
-      await bookApi.updateMeta(meta, chapter.structureRoot ?? undefined);
-      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
-    } else if (type === 'chapter') {
-      await chapter.updateChapterMeta(chapterId, meta);
-      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
-    } else if (type === 'scene' && sceneId) {
-      await chapter.updateSceneMeta(chapterId, sceneId, meta);
-      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
-    } else if (type === 'action' && sceneId && actionId) {
-      await chapter.updateActionMeta(chapterId, sceneId, actionId, meta);
-      setSelectedMeta(prev => prev ? { ...prev, meta } : null);
-    }
-  }, [chapter]);
+  const handleSaveMeta = useCallback(
+    async (
+      type: MetaNodeType,
+      meta: NodeMeta,
+      chapterId: string,
+      sceneId?: string,
+      actionId?: string,
+    ) => {
+      if (type === "book") {
+        await bookApi.updateMeta(meta, chapter.structureRoot ?? undefined);
+        setSelectedMeta((prev) => (prev ? { ...prev, meta } : null));
+      } else if (type === "chapter") {
+        await chapter.updateChapterMeta(chapterId, meta);
+        setSelectedMeta((prev) => (prev ? { ...prev, meta } : null));
+      } else if (type === "scene" && sceneId) {
+        await chapter.updateSceneMeta(chapterId, sceneId, meta);
+        setSelectedMeta((prev) => (prev ? { ...prev, meta } : null));
+      } else if (type === "action" && sceneId && actionId) {
+        await chapter.updateActionMeta(chapterId, sceneId, actionId, meta);
+        setSelectedMeta((prev) => (prev ? { ...prev, meta } : null));
+      }
+    },
+    [chapter],
+  );
 
-  const handleApplyFieldUpdate = useCallback(async (field: string, value: string) => {
-    if (!selectedMeta || selectedMeta.type !== 'scene' || !selectedMeta.sceneId) return;
-    const curr = selectedMeta.meta;
-    const newMeta: NodeMeta = field === 'title'
-      ? { ...curr, title: value }
-      : field === 'description'
-        ? { ...curr, description: value }
-        : { ...curr, extras: { ...(curr.extras ?? {}), [field]: value } };
-    await handleSaveMeta('scene', newMeta, selectedMeta.chapterId, selectedMeta.sceneId);
-    // Keep field editor in sync when the AI applies a suggestion via chat
-    setFocusedField(prev => prev?.fieldKey === field ? { ...prev, value } : prev);
-  }, [selectedMeta, handleSaveMeta]);
+  const handleApplyFieldUpdate = useCallback(
+    async (field: string, value: string) => {
+      if (
+        !selectedMeta ||
+        selectedMeta.type !== "scene" ||
+        !selectedMeta.sceneId
+      )
+        return;
+      const curr = selectedMeta.meta;
+      const newMeta: NodeMeta =
+        field === "title"
+          ? { ...curr, title: value }
+          : field === "description"
+            ? { ...curr, description: value }
+            : { ...curr, extras: { ...(curr.extras ?? {}), [field]: value } };
+      await handleSaveMeta(
+        "scene",
+        newMeta,
+        selectedMeta.chapterId,
+        selectedMeta.sceneId,
+      );
+      // Keep field editor in sync when the AI applies a suggestion via chat
+      setFocusedField((prev) =>
+        prev?.fieldKey === field ? { ...prev, value } : prev,
+      );
+    },
+    [selectedMeta, handleSaveMeta],
+  );
 
-  const handleOpenFieldEditor = useCallback((fieldKey: string, fieldLabel: string, value: string) => {
-    setFocusedField({ fieldKey, fieldLabel, value });
-    setMetaExpanded(false);
-  }, []);
+  const handleOpenFieldEditor = useCallback(
+    (fieldKey: string, fieldLabel: string, value: string) => {
+      setFocusedField({ fieldKey, fieldLabel, value });
+      setMetaExpanded(false);
+    },
+    [],
+  );
 
-  const handleFieldEditorSave = useCallback(async (value: string) => {
-    if (!focusedField) return;
-    await handleApplyFieldUpdate(focusedField.fieldKey, value);
-  }, [focusedField, handleApplyFieldUpdate]);
+  const handleFieldEditorSave = useCallback(
+    async (value: string) => {
+      if (!focusedField) return;
+      await handleApplyFieldUpdate(focusedField.fieldKey, value);
+    },
+    [focusedField, handleApplyFieldUpdate],
+  );
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -722,20 +884,24 @@ function App() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      e.target.value = '';
+      e.target.value = "";
       const reader = new FileReader();
       reader.onload = (evt) => {
         try {
           const text = evt.target?.result;
-          if (typeof text !== 'string') return;
+          if (typeof text !== "string") return;
           const parsed = JSON.parse(text);
           if (!Array.isArray(parsed)) {
-            window.alert('Invalid chat history file: expected a JSON array of conversations.');
+            window.alert(
+              "Invalid chat history file: expected a JSON array of conversations.",
+            );
             return;
           }
           history.importConversations(parsed);
         } catch {
-          window.alert('Failed to parse chat history file. Make sure it is a valid JSON file.');
+          window.alert(
+            "Failed to parse chat history file. Make sure it is a valid JSON file.",
+          );
         }
       };
       reader.readAsText(file);
@@ -789,7 +955,9 @@ function App() {
         setTreeRefreshKey((k) => k + 1);
         await fetchGitState();
       } catch (err) {
-        window.alert(err instanceof Error ? err.message : 'Revert fehlgeschlagen');
+        window.alert(
+          err instanceof Error ? err.message : "Revert fehlgeschlagen",
+        );
       }
     },
     [gitStatus, fetchGitState],
@@ -803,17 +971,17 @@ function App() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+      if (e.ctrlKey && e.shiftKey && e.key === "A") {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
-      if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+      if (e.ctrlKey && e.shiftKey && e.key === "F") {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   const [centerPaneWide, setCenterPaneWide] = useState(false);
@@ -822,13 +990,15 @@ function App() {
     saveMainPanelLayout(layout);
     const left = leftPanelRef.current;
     const right = rightPanelRef.current;
-    if (left && right) setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
+    if (left && right)
+      setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
   }, []);
 
   useLayoutEffect(() => {
     const left = leftPanelRef.current;
     const right = rightPanelRef.current;
-    if (left && right) setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
+    if (left && right)
+      setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync once after persisted layout applies
   }, []);
 
@@ -836,13 +1006,14 @@ function App() {
     const syncSidebarsWideState = () => {
       const left = leftPanelRef.current;
       const right = rightPanelRef.current;
-      if (left && right) setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
+      if (left && right)
+        setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
     };
 
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) return;
 
-      if (e.altKey && (e.key === 'e' || e.key === 'E')) {
+      if (e.altKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();
         setQuickChatOpen((v) => !v);
         return;
@@ -851,7 +1022,7 @@ function App() {
       if (!e.altKey || e.shiftKey) return;
 
       const code = e.code;
-      if (code === 'Digit1' || code === 'Numpad1') {
+      if (code === "Digit1" || code === "Numpad1") {
         e.preventDefault();
         const p = leftPanelRef.current;
         if (!p) return;
@@ -860,7 +1031,7 @@ function App() {
         syncSidebarsWideState();
         return;
       }
-      if (code === 'Digit2' || code === 'Numpad2') {
+      if (code === "Digit2" || code === "Numpad2") {
         e.preventDefault();
         const p = centerPanelRef.current;
         if (!p) return;
@@ -868,7 +1039,7 @@ function App() {
         else p.collapse();
         return;
       }
-      if (code === 'Digit3' || code === 'Numpad3') {
+      if (code === "Digit3" || code === "Numpad3") {
         e.preventDefault();
         const p = rightPanelRef.current;
         if (!p) return;
@@ -877,8 +1048,8 @@ function App() {
         syncSidebarsWideState();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- panel refs stable; single global shortcut registration
   }, []);
 
@@ -920,56 +1091,70 @@ function App() {
     );
   }, [syncStatus]);
 
-  const handleOpenProject = useCallback(async (path: string) => {
-    await project.openProject(path);
-    await chapter.refreshChapters();
-    loadModes();
-  }, [project, chapter, loadModes]);
+  const handleOpenProject = useCallback(
+    async (path: string) => {
+      await project.openProject(path);
+      await chapter.refreshChapters();
+      loadModes();
+    },
+    [project, chapter, loadModes],
+  );
 
-  const workspaceModeId = chapter.activeSubprojectType ?? 'default';
-  const levelConfigByModeId = useWorkspaceLevelConfigMap(project.projectPath ?? null, workspaceModesRefreshNonce);
+  const workspaceModeId = chapter.activeSubprojectType ?? "default";
+  const levelConfigByModeId = useWorkspaceLevelConfigMap(
+    project.projectPath ?? null,
+    workspaceModesRefreshNonce,
+  );
   const {
     schema: workspaceModeSchema,
     metaSchemas: workspaceMetaSchemas,
     refresh: refreshWorkspaceModeSchema,
-  } = useWorkspaceMode(project.projectPath ?? '', workspaceModeId);
+  } = useWorkspaceMode(project.projectPath ?? "", workspaceModeId);
 
   const proseEditorMode = chapter.activeChapter
-    ? (workspaceModeSchema?.editorMode ?? 'prose')
-    : 'standard';
+    ? (workspaceModeSchema?.editorMode ?? "prose")
+    : "standard";
 
   const fieldLabels = useMemo(() => {
-    const schema = workspaceMetaSchemas?.['scene'];
+    const schema = workspaceMetaSchemas?.["scene"];
     if (!schema) return {} as Record<string, string>;
-    return Object.fromEntries(schema.fields.map(f => [f.key, f.label])) as Record<string, string>;
+    return Object.fromEntries(
+      schema.fields.map((f) => [f.key, f.label]),
+    ) as Record<string, string>;
   }, [workspaceMetaSchemas]);
 
   const MediaProjectEditor =
-    getMediaProjectPlugin(workspaceModeId)?.ViewComponent ?? DefaultMediaProjectEditor;
+    getMediaProjectPlugin(workspaceModeId)?.ViewComponent ??
+    DefaultMediaProjectEditor;
 
   const fileEditor = useFileTabs(project.projectPath ?? null);
 
   /** Full system message the backend would send on the next main-chat request (debounced preview). */
-  const [systemPromptPreview, setSystemPromptPreview] = useState<string | null>(null);
+  const [systemPromptPreview, setSystemPromptPreview] = useState<string | null>(
+    null,
+  );
 
   const commandActions: CommandAction[] = useMemo(() => {
     const actions: CommandAction[] = [
       {
-        id: 'open-folder',
-        label: 'Open Folder',
-        shortcut: 'Ctrl+Shift+A',
+        id: "open-folder",
+        label: "Open Folder",
+        shortcut: "Ctrl+Shift+A",
         icon: <FolderOpen size={16} />,
         handler: () => {},
       },
       {
-        id: 'project-settings',
-        label: 'Project Settings',
+        id: "project-settings",
+        label: "Project Settings",
         icon: <Settings size={16} />,
-        handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
+        handler: () => {
+          setPaletteOpen(false);
+          setSettingsOpen(true);
+        },
       },
       {
-        id: 'import-chat',
-        label: 'Import Chat History',
+        id: "import-chat",
+        label: "Import Chat History",
         icon: <Upload size={16} />,
         handler: () => {
           importFileInputRef.current?.click();
@@ -977,14 +1162,14 @@ function App() {
       },
       hasUncommitted
         ? {
-            id: 'git-commit',
-            label: 'Commit',
+            id: "git-commit",
+            label: "Commit",
             icon: <GitCommitHorizontal size={16} />,
             handler: () => {},
           }
         : {
-            id: 'git-sync',
-            label: 'Sync',
+            id: "git-sync",
+            label: "Sync",
             icon: <RefreshCw size={16} />,
             badge: syncBadge,
             handler: () => {},
@@ -994,7 +1179,8 @@ function App() {
   }, [hasUncommitted, syncBadge]);
 
   const showMetaChrome =
-    selectedMeta != null && (chapter.activeChapter != null || selectedMeta.type === 'book');
+    selectedMeta != null &&
+    (chapter.activeChapter != null || selectedMeta.type === "book");
 
   const onProjectGeneralSaved = useCallback(() => {
     loadModes();
@@ -1013,9 +1199,10 @@ function App() {
       const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const mode = modes.find((m) => m.id === modeId);
       // Derive activeFile: scene JSON when a scene is selected, otherwise the open file
-      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-        : (fileEditor.selectedPath ?? null);
+      const activeFile =
+        selectedMeta?.type === "scene" && selectedMeta.sceneId
+          ? `${chapter.structureRoot ? chapter.structureRoot + "/" : ""}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+          : (fileEditor.selectedPath ?? null);
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
         useReasoning,
@@ -1023,7 +1210,7 @@ function App() {
       });
       const streamSession = {
         conversationId: conv?.id ?? history.activeId,
-        sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
+        sessionKind: (conv?.sessionKind ?? "standard") as ChatSessionKind,
         steeringPlan: conv?.steeringPlan,
       };
       chat.sendMessage(
@@ -1064,6 +1251,11 @@ function App() {
     ],
   );
 
+  const conversationPreviewKey = useMemo(
+    () => conversationPreviewDependencyKey(history.activeConversation),
+    [history.activeConversation],
+  );
+
   useEffect(() => {
     if (!project.projectPath) {
       setSystemPromptPreview(null);
@@ -1072,10 +1264,15 @@ function App() {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       const conv = history.activeConversation;
-      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-        : (fileEditor.selectedPath ?? null);
-      const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
+      const activeFile =
+        selectedMeta?.type === "scene" && selectedMeta.sceneId
+          ? `${chapter.structureRoot ? chapter.structureRoot + "/" : ""}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+          : (fileEditor.selectedPath ?? null);
+      const previewModeId = effectiveChatModeIdForRequest(
+        conv,
+        selectedMode,
+        modes,
+      );
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
         useReasoning,
@@ -1104,7 +1301,7 @@ function App() {
     };
   }, [
     project.projectPath,
-    history.activeConversation,
+    conversationPreviewKey,
     selectedMode,
     modes,
     refs.referencedFiles,
@@ -1119,9 +1316,10 @@ function App() {
 
   const handleEditMessage = useCallback(
     (index: number, newContent: string) => {
-      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-        : (fileEditor.selectedPath ?? null);
+      const activeFile =
+        selectedMeta?.type === "scene" && selectedMeta.sceneId
+          ? `${chapter.structureRoot ? chapter.structureRoot + "/" : ""}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+          : (fileEditor.selectedPath ?? null);
       const conv = history.activeConversation;
       const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const exec = getEffectiveChatExecution(conv, {
@@ -1139,7 +1337,7 @@ function App() {
         activeFieldKey: focusedField?.fieldKey ?? null,
         disabledToolkits: exec.disabledToolkits,
         conversationId: conv?.id ?? history.activeId,
-        sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
+        sessionKind: (conv?.sessionKind ?? "standard") as ChatSessionKind,
         steeringPlan: conv?.steeringPlan,
       });
       history.patchConversation(history.activeId, { mode: modeId });
@@ -1168,8 +1366,8 @@ function App() {
       const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const mode = modes.find((m) => m.id === modeId);
       const activeFile =
-        selectedMeta?.type === 'scene' && selectedMeta.sceneId
-          ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+        selectedMeta?.type === "scene" && selectedMeta.sceneId
+          ? `${chapter.structureRoot ? chapter.structureRoot + "/" : ""}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
           : (fileEditor.selectedPath ?? null);
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
@@ -1178,7 +1376,7 @@ function App() {
       });
       const streamSession = {
         conversationId: conv.id,
-        sessionKind: 'guided' as ChatSessionKind,
+        sessionKind: "guided" as ChatSessionKind,
         steeringPlan: conv.steeringPlan,
       };
       chat.sendMessage(
@@ -1223,7 +1421,7 @@ function App() {
     cancelGuidedAgentKickoffIfPendingMismatchesActive(conv.id);
 
     if (!hasPendingGuidedAgentKickoffFor(conv.id)) return;
-    if (conv.sessionKind !== 'guided') return;
+    if (conv.sessionKind !== "guided") return;
     if (!conv.agentPresetId?.trim()) return;
     if (!conv.steeringPlan?.trim()) return;
     if (conv.messages.length > 0) return;
@@ -1238,7 +1436,12 @@ function App() {
 
     clearPendingGuidedAgentKickoff();
     performGuidedAgentPresetKickoff(conv);
-  }, [history.activeConversation, chat.messages, chat.streaming, performGuidedAgentPresetKickoff]);
+  }, [
+    history.activeConversation,
+    chat.messages,
+    chat.streaming,
+    performGuidedAgentPresetKickoff,
+  ]);
 
   const modesForChat = useMemo(() => {
     const base = standardChatModes(modes);
@@ -1251,7 +1454,7 @@ function App() {
 
   const handlePromptPackGenerate = useCallback(
     (message: string, files: string[]) => {
-      const m = modes.find(x => x.id === 'prompt-pack');
+      const m = modes.find((x) => x.id === "prompt-pack");
       const conv = history.activeConversation;
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
@@ -1261,10 +1464,10 @@ function App() {
       chat.sendMessage(
         message,
         null,
-        'prompt-pack',
+        "prompt-pack",
         files,
-        m?.name ?? 'Prompt-Paket',
-        m?.color ?? '#f9e2af',
+        m?.name ?? "Prompt-Paket",
+        m?.color ?? "#f9e2af",
         exec.useReasoning,
         exec.llmId,
         undefined,
@@ -1272,19 +1475,28 @@ function App() {
         exec.disabledToolkits,
         {
           conversationId: conv?.id ?? history.activeId,
-          sessionKind: 'standard',
+          sessionKind: "standard",
         },
         undefined,
       );
-      history.patchConversation(history.activeId, { mode: 'prompt-pack' });
+      history.patchConversation(history.activeId, { mode: "prompt-pack" });
       setPromptPackOpen(false);
     },
-    [chat.sendMessage, modes, useReasoning, modeLlmId, disabledToolkits, history.activeConversation, history.activeId, history.patchConversation],
+    [
+      chat.sendMessage,
+      modes,
+      useReasoning,
+      modeLlmId,
+      disabledToolkits,
+      history.activeConversation,
+      history.activeId,
+      history.patchConversation,
+    ],
   );
 
   useEffect(() => {
     if (!modes.length) return;
-    if (selectedMode === 'prompt-pack') {
+    if (selectedMode === "prompt-pack") {
       const std = standardChatModes(modes);
       const fallbackId = resolveDefaultModeId(std, undefined);
       handleModeChange(fallbackId, modes);
@@ -1296,14 +1508,16 @@ function App() {
       if (isNewChatConfirmPayload(kindOrPayload)) {
         const payload = kindOrPayload;
         const preset =
-          payload.sessionKind === 'guided' && payload.agentPresetId
+          payload.sessionKind === "guided" && payload.agentPresetId
             ? agentPresets.find((a) => a.id === payload.agentPresetId)
             : undefined;
-        if (preset && payload.sessionKind === 'guided') {
+        if (preset && payload.sessionKind === "guided") {
           handleModeChange(preset.modeId, modes);
         }
         const modeForCreate =
-          preset && payload.sessionKind === 'guided' ? preset.modeId : selectedMode;
+          preset && payload.sessionKind === "guided"
+            ? preset.modeId
+            : selectedMode;
         const titleArg = payload.title.trim() || undefined;
         const newConv = history.createConversation(
           modeForCreate,
@@ -1311,14 +1525,17 @@ function App() {
           titleArg,
           payload.sessionKind,
         );
-        if (preset && payload.sessionKind === 'guided') {
+        if (preset && payload.sessionKind === "guided") {
           const agentPatch = buildGuidedAgentPatchFromPreset(
             preset,
             payload.initialSteeringPlan,
             payload.agentPresetId,
           );
           history.patchConversation(newConv.id, agentPatch);
-          if (agentPatch.steeringPlan?.trim() && agentPatch.agentPresetId?.trim()) {
+          if (
+            agentPatch.steeringPlan?.trim() &&
+            agentPatch.agentPresetId?.trim()
+          ) {
             scheduleGuidedAgentPresetKickoff(newConv.id);
           }
         } else {
@@ -1332,16 +1549,25 @@ function App() {
         }
         return;
       }
-      const sk = (kindOrPayload as ChatSessionKind | undefined) ?? 'standard';
+      const sk = (kindOrPayload as ChatSessionKind | undefined) ?? "standard";
       const std = standardChatModes(modes);
       let modeForNew = selectedMode;
-      if (sk === 'standard' && !std.some((m) => m.id === modeForNew)) {
+      if (sk === "standard" && !std.some((m) => m.id === modeForNew)) {
         modeForNew = resolveDefaultModeId(std, undefined);
         handleModeChange(modeForNew, modes);
       }
       history.createConversation(modeForNew, undefined, undefined, sk);
     },
-    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, handleModeChange, agentPresets],
+    [
+      history,
+      selectedMode,
+      modeLlmId,
+      useReasoning,
+      disabledToolkits,
+      modes,
+      handleModeChange,
+      agentPresets,
+    ],
   );
 
   const handleDiscardCurrentChat = useCallback(
@@ -1349,14 +1575,16 @@ function App() {
       if (isNewChatConfirmPayload(kindOrPayload)) {
         const payload = kindOrPayload;
         const preset =
-          payload.sessionKind === 'guided' && payload.agentPresetId
+          payload.sessionKind === "guided" && payload.agentPresetId
             ? agentPresets.find((a) => a.id === payload.agentPresetId)
             : undefined;
-        if (preset && payload.sessionKind === 'guided') {
+        if (preset && payload.sessionKind === "guided") {
           handleModeChange(preset.modeId, modes);
         }
         const modeForCreate =
-          preset && payload.sessionKind === 'guided' ? preset.modeId : selectedMode;
+          preset && payload.sessionKind === "guided"
+            ? preset.modeId
+            : selectedMode;
         const newConv = history.discardActiveAndCreateConversation(
           modeForCreate,
           payload.sessionKind,
@@ -1365,14 +1593,17 @@ function App() {
         if (t) {
           history.patchConversation(newConv.id, { title: t });
         }
-        if (preset && payload.sessionKind === 'guided') {
+        if (preset && payload.sessionKind === "guided") {
           const agentPatch = buildGuidedAgentPatchFromPreset(
             preset,
             payload.initialSteeringPlan,
             payload.agentPresetId,
           );
           history.patchConversation(newConv.id, agentPatch);
-          if (agentPatch.steeringPlan?.trim() && agentPatch.agentPresetId?.trim()) {
+          if (
+            agentPatch.steeringPlan?.trim() &&
+            agentPatch.agentPresetId?.trim()
+          ) {
             scheduleGuidedAgentPresetKickoff(newConv.id);
           }
         } else {
@@ -1386,47 +1617,77 @@ function App() {
         }
         return;
       }
-      const skDiscard = (kindOrPayload as ChatSessionKind | undefined) ?? 'standard';
+      const skDiscard =
+        (kindOrPayload as ChatSessionKind | undefined) ?? "standard";
       const stdDiscard = standardChatModes(modes);
       let modeDiscard = selectedMode;
-      if (skDiscard === 'standard' && !stdDiscard.some((m) => m.id === modeDiscard)) {
+      if (
+        skDiscard === "standard" &&
+        !stdDiscard.some((m) => m.id === modeDiscard)
+      ) {
         modeDiscard = resolveDefaultModeId(stdDiscard, undefined);
         handleModeChange(modeDiscard, modes);
       }
       history.discardActiveAndCreateConversation(modeDiscard, skDiscard);
     },
-    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, handleModeChange, agentPresets],
+    [
+      history,
+      selectedMode,
+      modeLlmId,
+      useReasoning,
+      disabledToolkits,
+      modes,
+      handleModeChange,
+      agentPresets,
+    ],
   );
 
-  const handleForkToNewConversation = useCallback((index: number) => {
-    if (history.activeConversation?.isThread) return;
-    const forkedMessages = chat.messages.slice(0, index + 1);
-    const baseTitle = history.activeConversation?.title ?? 'Chat';
-    const base = `${baseTitle}-fork`;
-    const existingTitles = new Set(history.conversations.map((c) => c.title));
-    let n = 1;
-    while (existingTitles.has(`${base} (${n})`)) n++;
-    const parent = history.activeConversation;
-    const sk = parent?.sessionKind ?? 'standard';
-    const preset =
-      parent?.agentPresetId != null
-        ? agentPresets.find((a) => a.id === parent.agentPresetId)
-        : undefined;
-    const threadModeId = preset?.threadModeId?.trim();
-    const forkMode =
-      threadModeId && modes.some((m) => m.id === threadModeId) ? threadModeId : selectedMode;
-    const newConv = history.createConversation(forkMode, forkedMessages, `${base} (${n})`, sk);
-    if (sk === 'guided' && parent?.steeringPlan) {
-      history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
-    }
-    const agentPatch = parent ? agentExecutionPartialFromParent(parent) : {};
-    const guidedPresetPatch = parent && sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
-    const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
-    const forkPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
-    if (Object.keys(forkPatches).length > 0) {
-      history.patchConversation(newConv.id, forkPatches);
-    }
-  }, [agentPresets, chat.messages, history, llms, modes, selectedMode]);
+  const handleForkToNewConversation = useCallback(
+    (index: number) => {
+      if (history.activeConversation?.isThread) return;
+      const forkedMessages = chat.messages.slice(0, index + 1);
+      const baseTitle = history.activeConversation?.title ?? "Chat";
+      const base = `${baseTitle}-fork`;
+      const existingTitles = new Set(history.conversations.map((c) => c.title));
+      let n = 1;
+      while (existingTitles.has(`${base} (${n})`)) n++;
+      const parent = history.activeConversation;
+      const sk = parent?.sessionKind ?? "standard";
+      const preset =
+        parent?.agentPresetId != null
+          ? agentPresets.find((a) => a.id === parent.agentPresetId)
+          : undefined;
+      const threadModeId = preset?.threadModeId?.trim();
+      const forkMode =
+        threadModeId && modes.some((m) => m.id === threadModeId)
+          ? threadModeId
+          : selectedMode;
+      const newConv = history.createConversation(
+        forkMode,
+        forkedMessages,
+        `${base} (${n})`,
+        sk,
+      );
+      if (sk === "guided" && parent?.steeringPlan) {
+        history.patchConversation(newConv.id, {
+          steeringPlan: parent.steeringPlan,
+        });
+      }
+      const agentPatch = parent ? agentExecutionPartialFromParent(parent) : {};
+      const guidedPresetPatch =
+        parent && sk === "guided" ? guidedPresetPartialFromParent(parent) : {};
+      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
+      const forkPatches = {
+        ...agentPatch,
+        ...guidedPresetPatch,
+        ...threadExec,
+      };
+      if (Object.keys(forkPatches).length > 0) {
+        history.patchConversation(newConv.id, forkPatches);
+      }
+    },
+    [agentPresets, chat.messages, history, llms, modes, selectedMode],
+  );
 
   /** New conversation: parent transcript for API only (hidden); UI shows only new thread messages. */
   const handleStartThreadFromMessage = useCallback(
@@ -1435,15 +1696,19 @@ function App() {
       if (!parent || parent.isThread) return;
       if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
 
-      const baseTitle = parent.title?.trim() || 'Chat';
+      const baseTitle = parent.title?.trim() || "Chat";
       const base = `${baseTitle}-Thread`;
       const existingTitles = new Set(history.conversations.map((c) => c.title));
       let n = 1;
       while (existingTitles.has(`${base} (${n})`)) n++;
 
-      const initialMessages = buildThreadHiddenBootstrap(baseTitle, chat.messages, messageIndex);
+      const initialMessages = buildThreadHiddenBootstrap(
+        baseTitle,
+        chat.messages,
+        messageIndex,
+      );
 
-      const sk = parent.sessionKind ?? 'standard';
+      const sk = parent.sessionKind ?? "standard";
       const preset =
         parent.agentPresetId != null
           ? agentPresets.find((a) => a.id === parent.agentPresetId)
@@ -1452,20 +1717,27 @@ function App() {
       const threadMode =
         threadModeId && modes.some((m) => m.id === threadModeId)
           ? threadModeId
-          : (parent.mode || selectedMode);
+          : parent.mode || selectedMode;
       const newConv = history.createConversation(
         threadMode,
         initialMessages,
         `${base} (${n})`,
         sk,
       );
-      if (sk === 'guided' && parent.steeringPlan) {
-        history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
+      if (sk === "guided" && parent.steeringPlan) {
+        history.patchConversation(newConv.id, {
+          steeringPlan: parent.steeringPlan,
+        });
       }
       const agentPatch = agentExecutionPartialFromParent(parent);
-      const guidedPresetPatch = sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
+      const guidedPresetPatch =
+        sk === "guided" ? guidedPresetPartialFromParent(parent) : {};
       const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
-      const threadPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
+      const threadPatches = {
+        ...agentPatch,
+        ...guidedPresetPatch,
+        ...threadExec,
+      };
       if (Object.keys(threadPatches).length > 0) {
         history.patchConversation(newConv.id, threadPatches);
       }
@@ -1484,30 +1756,43 @@ function App() {
       if (!parent || parent.isThread) return;
       if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
 
-      const baseTitle = parent.title?.trim() || 'Chat';
+      const baseTitle = parent.title?.trim() || "Chat";
       const base = offer.threadTitle?.trim() || `${baseTitle}-Thread`;
       const existingTitles = new Set(history.conversations.map((c) => c.title));
       let n = 1;
       while (existingTitles.has(`${base} (${n})`)) n++;
       const title = `${base} (${n})`;
 
-      const initialMessages = buildThreadHiddenBootstrap(baseTitle, chat.messages, messageIndex);
+      const initialMessages = buildThreadHiddenBootstrap(
+        baseTitle,
+        chat.messages,
+        messageIndex,
+      );
 
       const pid = offer.agentPresetId?.trim();
       const preset = pid ? agentPresets.find((a) => a.id === pid) : undefined;
       const threadModeIdFromPreset = preset?.threadModeId?.trim();
       const modeIdOffer = offer.modeId?.trim();
       const threadMode =
-        threadModeIdFromPreset && modes.some((m) => m.id === threadModeIdFromPreset)
+        threadModeIdFromPreset &&
+        modes.some((m) => m.id === threadModeIdFromPreset)
           ? threadModeIdFromPreset
           : modeIdOffer && modes.some((m) => m.id === modeIdOffer)
             ? modeIdOffer
-            : (parent.mode || selectedMode);
+            : parent.mode || selectedMode;
 
-      const newConv = history.createConversation(threadMode, initialMessages, title, 'guided');
+      const newConv = history.createConversation(
+        threadMode,
+        initialMessages,
+        title,
+        "guided",
+      );
 
       if (preset) {
-        history.patchConversation(newConv.id, buildGuidedAgentPatchFromPreset(preset, undefined, pid));
+        history.patchConversation(
+          newConv.id,
+          buildGuidedAgentPatchFromPreset(preset, undefined, pid),
+        );
         history.patchConversation(newConv.id, {
           steeringPlan: offer.steeringPlanMarkdown.trim(),
           mode: threadMode,
@@ -1517,7 +1802,10 @@ function App() {
           steeringPlan: offer.steeringPlanMarkdown.trim(),
         });
         if (conversationHasAgentExecution(parent)) {
-          history.patchConversation(newConv.id, agentExecutionPartialFromParent(parent));
+          history.patchConversation(
+            newConv.id,
+            agentExecutionPartialFromParent(parent),
+          );
         } else {
           history.patchConversation(
             newConv.id,
@@ -1540,17 +1828,30 @@ function App() {
         parentConversationId: parent.id,
       });
     },
-    [agentPresets, chat.messages, disabledToolkits, history, llms, modeLlmId, modes, selectedMode, useReasoning],
+    [
+      agentPresets,
+      chat.messages,
+      disabledToolkits,
+      history,
+      llms,
+      modeLlmId,
+      modes,
+      selectedMode,
+      useReasoning,
+    ],
   );
 
-  const handleSwitchChat = useCallback((id: string) => {
-    history.switchConversation(id);
-  }, [history]);
+  const handleSwitchChat = useCallback(
+    (id: string) => {
+      history.switchConversation(id);
+    },
+    [history],
+  );
 
   const handleMarkSteeringPlanComplete = useCallback(() => {
     const conv = history.activeConversation;
-    if (!conv || conv.sessionKind !== 'guided') return;
-    const current = conv.steeringPlan ?? '';
+    if (!conv || conv.sessionKind !== "guided") return;
+    const current = conv.steeringPlan ?? "";
     if (!current.trim()) return;
     const next = ensureSteeringPlanMarkedComplete(current);
     history.patchConversation(conv.id, { steeringPlan: next });
@@ -1587,7 +1888,7 @@ function App() {
           collapsedSize={0}
         >
           <div className="left-column">
-            <div className={`outliner-slot${showMetaChrome ? ' split' : ''}`}>
+            <div className={`outliner-slot${showMetaChrome ? " split" : ""}`}>
               <FileTreeOutliner
                 projectPath={project.projectPath ?? null}
                 selectedPath={fileEditor.selectedPath}
@@ -1598,14 +1899,16 @@ function App() {
                   setFocusedField(null);
                   void fileEditor.openFile(path);
                 }}
-              onOpenFileMeta={(path) => {
+                onOpenFileMeta={(path) => {
                   chapter.closeChapter();
                   setSelectedMeta(null);
                   setMetaExpanded(false);
                   setFocusedField(null);
                   void fileEditor.openFile(path);
                 }}
-                onRevealInExplorer={() => projectApi.reveal().catch(console.error)}
+                onRevealInExplorer={() =>
+                  projectApi.reveal().catch(console.error)
+                }
                 refreshNonce={treeRefreshKey}
                 onTreeMutated={() => setTreeRefreshKey((k) => k + 1)}
                 onFsChange={fileEditor.syncWithFilesystem}
@@ -1614,7 +1917,13 @@ function App() {
                 activeStructureRoot={chapter.structureRoot}
                 editorPosition={chapter.editorPosition}
                 levelConfigByModeId={levelConfigByModeId}
-                onActivateSubprojectStructure={async (subPath, subType, chapterId, scroll, selection) => {
+                onActivateSubprojectStructure={async (
+                  subPath,
+                  subType,
+                  chapterId,
+                  scroll,
+                  selection,
+                ) => {
                   chapter.setStructureRoot(subPath, subType);
                   setMetaExpanded(false);
                   setFocusedField(null);
@@ -1625,20 +1934,29 @@ function App() {
                   chapter.setStructureRoot(subPath, subType);
                   await fn();
                 }}
-                onSubprojectStructureChanged={() => setInlineChaptersNonce((n) => n + 1)}
+                onSubprojectStructureChanged={() =>
+                  setInlineChaptersNonce((n) => n + 1)
+                }
                 onOpenBookMeta={async (subPath, subType) => {
                   chapter.setStructureRoot(subPath, subType);
                   const meta = await bookApi.getMeta(subPath);
-                  setSelectedMeta({ type: 'book', chapterId: '', meta });
+                  setSelectedMeta({ type: "book", chapterId: "", meta });
                   setMetaExpanded(false);
                 }}
-                onCreateChapterInSubproject={async (subPath, subType, title) => {
+                onCreateChapterInSubproject={async (
+                  subPath,
+                  subType,
+                  title,
+                ) => {
                   chapter.setStructureRoot(subPath, subType);
                   await chapter.createChapter(title);
                   setInlineChaptersNonce((n) => n + 1);
                 }}
                 onConfigureSubproject={(path, existingType) => {
-                  setSubprojectDialog({ path, initialType: existingType ?? undefined });
+                  setSubprojectDialog({
+                    path,
+                    initialType: existingType ?? undefined,
+                  });
                 }}
                 scopeToPath={outlinerScope.scopePath}
                 onClearOutlinerScope={outlinerScope.clearScopePath}
@@ -1656,7 +1974,11 @@ function App() {
                   selection={selectedMeta}
                   metaSchemas={workspaceMetaSchemas}
                   onSave={handleSaveMeta}
-                  onClose={() => { setSelectedMeta(null); setMetaExpanded(false); setFocusedField(null); }}
+                  onClose={() => {
+                    setSelectedMeta(null);
+                    setMetaExpanded(false);
+                    setFocusedField(null);
+                  }}
                   onExpand={() => setMetaExpanded(true)}
                   onFocusField={handleOpenFieldEditor}
                 />
@@ -1676,85 +1998,101 @@ function App() {
           collapsedSize={0}
         >
           <div className="center-editor-pane">
-          <EditorTabs
-            tabs={fileEditor.tabs}
-            activeTabPath={fileEditor.activeTabPath}
-            onSelectTab={(path) => void fileEditor.openFile(path)}
-            onCloseTab={fileEditor.closeTab}
-            onCloseOtherTabs={fileEditor.closeOtherTabs}
-            onCloseAllTabs={fileEditor.closeAllTabs}
-          />
-          {searchOpen && (
-            <SearchPanel
-              onOpenFile={(path) => {
-                void fileEditor.openFile(path);
-                setSearchOpen(false);
-              }}
-              onClose={() => setSearchOpen(false)}
+            <EditorTabs
+              tabs={fileEditor.tabs}
+              activeTabPath={fileEditor.activeTabPath}
+              onSelectTab={(path) => void fileEditor.openFile(path)}
+              onCloseTab={fileEditor.closeTab}
+              onCloseOtherTabs={fileEditor.closeOtherTabs}
+              onCloseAllTabs={fileEditor.closeAllTabs}
             />
-          )}
-          <button
-            type="button"
-            className="center-pane-wide-toggle"
-            onClick={handleToggleCenterPanels}
-            title={centerPaneWide ? 'Seitenleisten wieder anzeigen' : 'Seitenleisten ausblenden (breiter Editor)'}
-            aria-pressed={centerPaneWide}
-          >
-            {centerPaneWide ? <Minimize2 size={17} strokeWidth={2} /> : <Maximize2 size={17} strokeWidth={2} />}
-          </button>
-          {focusedField && showMetaChrome ? (
-            <div className="field-editor-center">
-              <FieldEditorPanel
-                fieldLabel={focusedField.fieldLabel}
-                sceneTitle={selectedMeta?.meta.title || undefined}
-                value={focusedField.value}
-                onSave={handleFieldEditorSave}
-                onClose={() => setFocusedField(null)}
+            {searchOpen && (
+              <SearchPanel
+                onOpenFile={(path) => {
+                  void fileEditor.openFile(path);
+                  setSearchOpen(false);
+                }}
+                onClose={() => setSearchOpen(false)}
               />
-            </div>
-          ) : metaExpanded && showMetaChrome ? (
-            <div className="meta-panel-center">
-              <MetaPanel
-                selection={selectedMeta!}
-                metaSchemas={workspaceMetaSchemas}
-                onSave={handleSaveMeta}
-                onClose={() => setMetaExpanded(false)}
-                expanded={true}
-                onFocusField={handleOpenFieldEditor}
+            )}
+            <button
+              type="button"
+              className="center-pane-wide-toggle"
+              onClick={handleToggleCenterPanels}
+              title={
+                centerPaneWide
+                  ? "Seitenleisten wieder anzeigen"
+                  : "Seitenleisten ausblenden (breiter Editor)"
+              }
+              aria-pressed={centerPaneWide}
+            >
+              {centerPaneWide ? (
+                <Minimize2 size={17} strokeWidth={2} />
+              ) : (
+                <Maximize2 size={17} strokeWidth={2} />
+              )}
+            </button>
+            {focusedField && showMetaChrome ? (
+              <div className="field-editor-center">
+                <FieldEditorPanel
+                  fieldLabel={focusedField.fieldLabel}
+                  sceneTitle={selectedMeta?.meta.title || undefined}
+                  value={focusedField.value}
+                  onSave={handleFieldEditorSave}
+                  onClose={() => setFocusedField(null)}
+                />
+              </div>
+            ) : metaExpanded && showMetaChrome ? (
+              <div className="meta-panel-center">
+                <MetaPanel
+                  selection={selectedMeta!}
+                  metaSchemas={workspaceMetaSchemas}
+                  onSave={handleSaveMeta}
+                  onClose={() => setMetaExpanded(false)}
+                  expanded={true}
+                  onFocusField={handleOpenFieldEditor}
+                />
+              </div>
+            ) : !chapter.activeChapter ? (
+              <MarkdownFileEditor
+                path={fileEditor.selectedPath}
+                content={fileEditor.content}
+                dirty={fileEditor.dirty}
+                loading={fileEditor.loading}
+                error={fileEditor.error}
+                onChange={fileEditor.setContent}
+                onSave={() => {
+                  void fileEditor.save();
+                  fetchGitState();
+                }}
+                onClearError={fileEditor.clearError}
+                onCloseFile={fileEditor.closeFile}
+                onCtrlL={handleCtrlL}
+                onAltVersion={handleAltVersion}
               />
-            </div>
-          ) : !chapter.activeChapter ? (
-            <MarkdownFileEditor
-              path={fileEditor.selectedPath}
-              content={fileEditor.content}
-              dirty={fileEditor.dirty}
-              loading={fileEditor.loading}
-              error={fileEditor.error}
-              onChange={fileEditor.setContent}
-              onSave={() => { void fileEditor.save(); fetchGitState(); }}
-              onClearError={fileEditor.clearError}
-              onCloseFile={fileEditor.closeFile}
-              onCtrlL={handleCtrlL}
-              onAltVersion={handleAltVersion}
-            />
-          ) : (
-            <MediaProjectEditor
-              editorMode={proseEditorMode}
-              proseLeafAtScene={workspaceModeSchema?.proseLeafLevel === 'scene'}
-              chapter={chapter.activeChapter}
-              actionContents={chapter.actionContents}
-              scrollTarget={chapter.scrollTarget}
-              hasDirtyActions={chapter.hasDirtyActions}
-              onActionChange={chapter.updateActionContent}
-              onActionSave={chapter.saveAction}
-              onSaveAll={() => { chapter.saveAllDirty(); fetchGitState(); }}
-              onClose={chapter.closeChapter}
-              onScrollTargetConsumed={chapter.clearScrollTarget}
-              onEditorFocus={chapter.updateEditorPosition}
-              onCtrlL={handleCtrlL}
-              onAltVersion={handleAltVersion}
-            />
-          )}
+            ) : (
+              <MediaProjectEditor
+                editorMode={proseEditorMode}
+                proseLeafAtScene={
+                  workspaceModeSchema?.proseLeafLevel === "scene"
+                }
+                chapter={chapter.activeChapter}
+                actionContents={chapter.actionContents}
+                scrollTarget={chapter.scrollTarget}
+                hasDirtyActions={chapter.hasDirtyActions}
+                onActionChange={chapter.updateActionContent}
+                onActionSave={chapter.saveAction}
+                onSaveAll={() => {
+                  chapter.saveAllDirty();
+                  fetchGitState();
+                }}
+                onClose={chapter.closeChapter}
+                onScrollTargetConsumed={chapter.clearScrollTarget}
+                onEditorFocus={chapter.updateEditorPosition}
+                onCtrlL={handleCtrlL}
+                onAltVersion={handleAltVersion}
+              />
+            )}
           </div>
         </Panel>
 
@@ -1802,8 +2140,10 @@ function App() {
             onNewChat={handleNewChat}
             onDiscardCurrentChat={handleDiscardCurrentChat}
             agentPresets={agentPresets}
-            activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
-            steeringPlan={history.activeConversation?.steeringPlan ?? ''}
+            activeSessionKind={
+              history.activeConversation?.sessionKind ?? "standard"
+            }
+            steeringPlan={history.activeConversation?.steeringPlan ?? ""}
             activeIsThread={history.activeConversation?.isThread === true}
             onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
             onSwitchChat={handleSwitchChat}
@@ -1811,7 +2151,9 @@ function App() {
             onRenameChat={history.renameConversation}
             onToggleSavedToProject={history.toggleSavedToProject}
             onClearAllBrowserChats={history.clearAllBrowserChats}
-            clearAllBrowserChatsDisabled={!project.projectPath || !history.hydrated}
+            clearAllBrowserChatsDisabled={
+              !project.projectPath || !history.hydrated
+            }
             chatDownloadEnabled={chatDownloadFeatureEnabled}
             onOpenPromptPack={() => setPromptPackOpen(true)}
             structureRoot={chapter.structureRoot}
@@ -1837,11 +2179,16 @@ function App() {
         isDirty={chapter.hasDirtyActions}
         systemPromptPreview={systemPromptPreview}
         onFetchContextBlocks={async () => {
-          const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-            ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-            : (fileEditor.selectedPath ?? null);
+          const activeFile =
+            selectedMeta?.type === "scene" && selectedMeta.sceneId
+              ? `${chapter.structureRoot ? chapter.structureRoot + "/" : ""}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
+              : (fileEditor.selectedPath ?? null);
           const conv = history.activeConversation;
-          const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
+          const previewModeId = effectiveChatModeIdForRequest(
+            conv,
+            selectedMode,
+            modes,
+          );
           const exec = getEffectiveChatExecution(conv, {
             llmId: modeLlmId,
             useReasoning,
@@ -1889,7 +2236,7 @@ function App() {
         onClose={() => setPromptPackOpen(false)}
         onGenerate={handlePromptPackGenerate}
         streaming={chat.streaming}
-        hasPromptPackMode={modes.some(m => m.id === 'prompt-pack')}
+        hasPromptPackMode={modes.some((m) => m.id === "prompt-pack")}
       />
 
       {subprojectDialog && (
@@ -1905,7 +2252,10 @@ function App() {
       )}
 
       {fileHistoryPath && (
-        <FileHistoryModal filePath={fileHistoryPath} onClose={() => setFileHistoryPath(null)} />
+        <FileHistoryModal
+          filePath={fileHistoryPath}
+          onClose={() => setFileHistoryPath(null)}
+        />
       )}
 
       {altVersionSession && (
@@ -1927,7 +2277,7 @@ function App() {
         ref={importFileInputRef}
         type="file"
         accept=".json,application/json"
-        style={{ display: 'none' }}
+        style={{ display: "none" }}
         onChange={handleImportChatFile}
       />
     </div>
