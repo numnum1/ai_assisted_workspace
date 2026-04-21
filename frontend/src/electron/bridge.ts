@@ -1,11 +1,19 @@
 import type {
   AgentPreset,
+  ChatRequest,
   FileNode,
   Mode,
   ProjectConfig,
   WorkspaceModeInfo,
   WorkspaceModeSchema,
 } from "../types.ts";
+
+export interface ContextBlock {
+  type: string;
+  label: string;
+  content: string;
+  estimatedTokens: number;
+}
 
 export interface WikiSearchResult {
   path: string;
@@ -23,6 +31,13 @@ export interface GlossaryData {
   exists: boolean;
   prefixMarkdown?: string;
   entries?: GlossaryEntry[];
+}
+
+export interface ChatContextPreviewResult {
+  includedFiles: string[];
+  estimatedTokens: number;
+  contextBlocks: ContextBlock[];
+  systemPrompt: string;
 }
 
 export interface ProjectCurrentResult {
@@ -108,6 +123,9 @@ export interface AppBridge {
     get: () => Promise<GlossaryData>;
     addEntry: (term: string, definition: string) => Promise<{ status: string }>;
     deleteEntry: (term: string) => Promise<{ status: string }>;
+  };
+  chat?: {
+    previewContext: (body: ChatRequest) => Promise<ChatContextPreviewResult>;
   };
   projectConfig?: {
     status: () => Promise<{ initialized: boolean }>;

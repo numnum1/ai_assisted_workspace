@@ -40,6 +40,7 @@ import {
   removeSubproject,
 } from "./services/subprojectService.ts";
 import { listWikiFiles, searchWiki } from "./services/wikiService.ts";
+import { previewChatContext } from "./services/chatService.ts";
 import {
   addGlossaryEntry,
   deleteGlossaryEntry,
@@ -115,6 +116,10 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("glossary:deleteEntry", (_event, term: string) =>
     deleteGlossaryEntry(getCurrentProjectPath(), term),
+  );
+
+  ipcMain.handle("chat:previewContext", (_event, body) =>
+    previewChatContext(getCurrentProjectPath(), body),
   );
 
   ipcMain.handle("projectConfig:status", () =>

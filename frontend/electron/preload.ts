@@ -30,6 +30,10 @@ contextBridge.exposeInMainWorld("appBridge", {
     move: (path: string, targetParentPath: string) =>
       ipcRenderer.invoke("files:move", path, targetParentPath),
   },
+  chat: {
+    previewContext: (body: unknown) =>
+      ipcRenderer.invoke("chat:previewContext", body),
+  },
   wiki: {
     listFiles: () => ipcRenderer.invoke("wiki:listFiles"),
     search: (query: string, limit?: number) =>

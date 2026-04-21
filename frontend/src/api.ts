@@ -754,13 +754,27 @@ export interface ContextBlock {
 }
 
 export const chatApi = {
-  previewContext: (body: ChatRequest) =>
-    post<{
+  previewContext: async (
+    body: ChatRequest,
+  ): Promise<{
+    includedFiles: string[];
+    estimatedTokens: number;
+    contextBlocks: ContextBlock[];
+    systemPrompt: string;
+  }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.chat) {
+        return electronApi.chat.previewContext(body);
+      }
+    }
+    return post<{
       includedFiles: string[];
       estimatedTokens: number;
       contextBlocks: ContextBlock[];
       systemPrompt: string;
-    }>("/chat/context-preview", body),
+    }>("/chat/context-preview", body);
+  },
 };
 
 /**
