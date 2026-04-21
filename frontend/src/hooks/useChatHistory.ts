@@ -1,80 +1,22 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { ChatSessionKind, Conversation, ChatMessage } from '../types.ts';
-import { fetchProjectChatHistory, persistProjectChatHistory } from '../api.ts';
-import { buildConversationById, effectiveSavedToProject } from '../components/chat/chatHistoryUtils.ts';
-
-/** Pre–per-project keys: one list for all folders (migrated once into first opened project) */
-const LEGACY_STORAGE_KEY = 'chat-history';
+import type {
+  ChatSessionKind,
+  Conversation,
+  ChatMessage,
+  ConversationMessage,
+  UserConversationMessage,
+  AssistantConversationMessage,
+  ChatPart,
+  ConversationPatch,
+} from '../types.ts';
+import { extractMessageText } from '../types.ts';
+import { conversationsApi } from '../api.ts';
 
 const MAX_CONVERSATIONS = 50;
-const SAVE_DEBOUNCE_MS = 500;
-const PROJECT_SAVE_DEBOUNCE_MS = 500;
 
-/** Stable localStorage key per opened project root path */
-export function chatHistoryStorageKey(projectPath: string): string | null {
-  const p = projectPath?.trim();
-  if (!p) return null;
-  return `${LEGACY_STORAGE_KEY}:${p}`;
-}
-
-function lastActiveStorageKey(storageKey: string | null): string | null {
-  if (!storageKey) return null;
-  return `${storageKey}:lastActive`;
-}
-
-function loadLastActiveChatId(storageKey: string | null): string | null {
-  const sub = lastActiveStorageKey(storageKey);
-  if (!sub) return null;
-  try {
-    const raw = localStorage.getItem(sub);
-    if (!raw?.trim()) return null;
-    return raw.trim();
-  } catch {
-    return null;
-  }
-}
-
-function saveLastActiveChatId(storageKey: string | null, id: string | null) {
-  const sub = lastActiveStorageKey(storageKey);
-  if (!sub) return;
-  try {
-    if (!id?.trim()) {
-      localStorage.removeItem(sub);
-    } else {
-      localStorage.setItem(sub, id.trim());
-    }
-  } catch {
-    // localStorage full or unavailable — silently ignore
-  }
-}
-
-function loadConversations(storageKey: string | null): Conversation[] {
-  if (!storageKey) return [];
-  try {
-    let raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (raw) {
-        localStorage.removeItem(LEGACY_STORAGE_KEY);
-      }
-    }
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
-  } catch {
-    return [];
-  }
-}
-
-function saveConversations(conversations: Conversation[], storageKey: string | null) {
-  if (!storageKey) return;
-  try {
-    localStorage.setItem(storageKey, JSON.stringify(conversations));
-  } catch {
-    // localStorage full or unavailable — silently ignore
-  }
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function generateTitle(messages: ChatMessage[]): string {
   const firstUser = messages.find((m) => m.role === 'user' && !m.hidden);
@@ -88,8 +30,8 @@ function createEmptyConversation(mode: string, sessionKind: ChatSessionKind = 's
     id: crypto.randomUUID(),
     title: 'Neuer Chat',
     messages: [],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: Math.floor(Date.now() / 1000),
+    updatedAt: Math.floor(Date.now() / 1000),
     mode,
   };
   if (sessionKind === 'guided') {
@@ -99,170 +41,128 @@ function createEmptyConversation(mode: string, sessionKind: ChatSessionKind = 's
 }
 
 function hasVisibleMessages(c: Conversation): boolean {
-  if (c.messages.some((m) => !m.hidden)) return true;
-  // Thread with only hidden parent bootstrap still counts as non-empty (do not drop tab).
+  for (const msg of c.messages) {
+    if (msg.messageType === 'USER' || msg.messageType === 'ASSISTANT') return true;
+  }
   if (c.isThread && c.messages.length > 0) return true;
   return false;
 }
 
-function resolveActiveId(conversations: Conversation[], lastActiveId: string | null): string {
-  if (lastActiveId && conversations.some((c) => c.id === lastActiveId)) {
-    return lastActiveId;
-  }
-  return conversations[0].id;
-}
-
-/** Merge project file (Git) with localStorage; project wins on id collision */
-function mergeWithProject(
-  projectChats: Conversation[] | null,
-  currentMode: string,
-  storageKey: string | null,
-  lastActiveId: string | null,
-): {
-  conversations: Conversation[];
-  activeId: string;
-} {
-  const local = loadConversations(storageKey);
-  const projectList = projectChats ?? [];
-
-  const byId = new Map<string, Conversation>();
-  for (const c of projectList) {
-    byId.set(c.id, { ...c, savedToProject: true });
-  }
-  for (const c of local) {
-    if (!byId.has(c.id)) {
-      byId.set(c.id, { ...c, savedToProject: c.savedToProject === true });
+/**
+ * Converts a streaming {@link ChatMessage[]} accumulation to {@link ConversationMessage[]}
+ * for optimistic local-state updates.  The authoritative version comes from the backend
+ * after each completed turn.
+ */
+export function chatMessagesToConversationMessages(messages: ChatMessage[]): ConversationMessage[] {
+  const result: ConversationMessage[] = [];
+  const nowSec = Math.floor(Date.now() / 1000);
+  for (const msg of messages) {
+    if (msg.role === 'user' && !msg.hidden) {
+      const part: ChatPart = { type: 'CHAT', content: msg.content, status: 'COMPLETED' };
+      const userMsg: UserConversationMessage = {
+        messageType: 'USER',
+        timestamp: nowSec,
+        parts: [part],
+        ...(msg.resolvedContent ? { resolvedContent: msg.resolvedContent } : {}),
+      };
+      result.push(userMsg);
+    } else if (msg.role === 'assistant') {
+      const part: ChatPart = { type: 'CHAT', content: msg.content, status: 'COMPLETED' };
+      const assistantMsg: AssistantConversationMessage = {
+        messageType: 'ASSISTANT',
+        timestamp: nowSec,
+        parts: [part],
+      };
+      result.push(assistantMsg);
     }
+    // tool and system messages are not stored in the display model
   }
-
-  let rest = Array.from(byId.values()).sort((a, b) => b.updatedAt - a.updatedAt);
-  rest = rest.slice(0, MAX_CONVERSATIONS);
-
-  if (rest.length === 0) {
-    const empty = createEmptyConversation(currentMode);
-    return { conversations: [empty], activeId: empty.id };
-  }
-
-  return {
-    conversations: rest,
-    activeId: resolveActiveId(rest, lastActiveId),
-  };
+  return result;
 }
 
-function initialChatState(projectPath: string, currentMode: string) {
-  const key = chatHistoryStorageKey(projectPath);
-  return mergeWithProject(null, currentMode, key, loadLastActiveChatId(key));
+/**
+ * Converts {@link ConversationMessage[]} (backend format) back to a flat {@link ChatMessage[]}
+ * suitable for display in the current UI components.
+ */
+export function conversationMessagesToDisplay(messages: ConversationMessage[]): ChatMessage[] {
+  return messages.map((msg) => {
+    if (msg.messageType === 'USER') {
+      return {
+        role: 'user' as const,
+        content: extractMessageText(msg),
+        resolvedContent: msg.resolvedContent,
+      };
+    } else {
+      return {
+        role: 'assistant' as const,
+        content: extractMessageText(msg),
+      };
+    }
+  });
 }
+
+function resolveActiveId(conversations: Conversation[], preferredId: string | null): string {
+  if (preferredId && conversations.some((c) => c.id === preferredId)) {
+    return preferredId;
+  }
+  return conversations[0]?.id ?? '';
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
 
 export function useChatHistory(currentMode: string, projectPath: string) {
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    initialChatState(projectPath, currentMode).conversations,
-  );
-  const [activeId, setActiveId] = useState<string>(() =>
-    initialChatState(projectPath, currentMode).activeId,
-  );
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<string>('');
   const [hydrated, setHydrated] = useState(false);
 
   const projectPathRef = useRef(projectPath);
   projectPathRef.current = projectPath;
-
   const currentModeRef = useRef(currentMode);
   currentModeRef.current = currentMode;
-
-  useEffect(() => {
-    const key = chatHistoryStorageKey(projectPath);
-    if (!key) {
-      const nc = createEmptyConversation(currentModeRef.current);
-      setConversations([nc]);
-      setActiveId(nc.id);
-      setHydrated(false);
-      return;
-    }
-
-    const lastActive = loadLastActiveChatId(key);
-    const localMerged = mergeWithProject(null, currentModeRef.current, key, lastActive);
-    setConversations(localMerged.conversations);
-    setActiveId(localMerged.activeId);
-    setHydrated(false);
-
-    let cancelled = false;
-    (async () => {
-      const project = await fetchProjectChatHistory();
-      if (cancelled) return;
-      const merged = mergeWithProject(
-        project,
-        currentModeRef.current,
-        key,
-        loadLastActiveChatId(key),
-      );
-      setConversations(merged.conversations);
-      setActiveId(merged.activeId);
-      setHydrated(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath]);
-
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const projectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
-
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
 
+  // Load conversations from backend on project change
   useEffect(() => {
-    if (!hydrated) return;
-    const key = chatHistoryStorageKey(projectPathRef.current);
-    if (!key) return;
-    saveLastActiveChatId(key, activeId);
-  }, [hydrated, activeId, projectPath]);
+    setHydrated(false);
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!hydrated) return;
-    const key = chatHistoryStorageKey(projectPathRef.current);
-    if (!key) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveConversations(conversationsRef.current, key);
-    }, SAVE_DEBOUNCE_MS);
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [conversations, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (projectTimerRef.current) clearTimeout(projectTimerRef.current);
-    projectTimerRef.current = setTimeout(() => {
-      persistProjectChatHistory(conversationsRef.current).catch((err) => {
-        console.error('persistProjectChatHistory failed', err);
-      });
-    }, PROJECT_SAVE_DEBOUNCE_MS);
-
-    return () => {
-      if (projectTimerRef.current) clearTimeout(projectTimerRef.current);
-    };
-  }, [conversations, hydrated]);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (!hydrated) return;
-      const key = chatHistoryStorageKey(projectPathRef.current);
-      if (key) {
-        saveConversations(conversationsRef.current, key);
-        saveLastActiveChatId(key, activeIdRef.current);
+    (async () => {
+      try {
+        const all = await conversationsApi.getAll();
+        if (cancelled) return;
+        const sorted = [...all].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_CONVERSATIONS);
+        if (sorted.length === 0) {
+          const empty = createEmptyConversation(currentModeRef.current);
+          // Create on backend
+          conversationsApi.create(empty).catch(() => { /* ignore */ });
+          setConversations([empty]);
+          setActiveId(empty.id);
+        } else {
+          setConversations(sorted);
+          setActiveId(resolveActiveId(sorted, null));
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Failed to load conversations from backend:', err);
+        // Fallback: create a local empty conversation
+        const empty = createEmptyConversation(currentModeRef.current);
+        setConversations([empty]);
+        setActiveId(empty.id);
       }
-      void persistProjectChatHistory(conversationsRef.current);
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hydrated]);
+      setHydrated(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [projectPath]);
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? conversations[0];
 
+  // Update mode on single empty conversation when mode changes
   useEffect(() => {
     setConversations((prev) => {
       if (prev.length !== 1) return prev;
@@ -273,21 +173,40 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     });
   }, [currentMode]);
 
+  /**
+   * Called from useChat during/after streaming to keep the local Conversation.messages in sync.
+   * Converts ChatMessage[] → ConversationMessage[] for the local optimistic state.
+   * The backend saves authoritatively after each completed turn.
+   */
   const updateMessages = useCallback(
     (messages: ChatMessage[]) => {
-      setConversations((prev) => {
-        return prev.map((c) => {
-          if (c.id !== activeId) return c;
+      const convMessages = chatMessagesToConversationMessages(messages);
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== activeIdRef.current) return c;
           const title =
             c.title === 'Neuer Chat' && messages.length > 0
               ? generateTitle(messages)
               : c.title;
-          return { ...c, messages, title, updatedAt: Date.now() };
-        });
-      });
+          return { ...c, messages: convMessages, title, updatedAt: Math.floor(Date.now() / 1000) };
+        }),
+      );
     },
-    [activeId],
+    [],
   );
+
+  /**
+   * Reload a single conversation from the backend and update local state.
+   * Called after streaming completes to sync the authoritative ConversationMessage[].
+   */
+  const refreshConversation = useCallback(async (id: string) => {
+    try {
+      const updated = await conversationsApi.getById(id);
+      setConversations((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    } catch (err) {
+      console.error('Failed to refresh conversation:', id, err);
+    }
+  }, []);
 
   const createConversation = useCallback(
     (
@@ -296,149 +215,155 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       title?: string,
       sessionKind: ChatSessionKind = 'standard',
     ) => {
-      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
+      const newConv = createEmptyConversation(mode ?? currentModeRef.current, sessionKind);
       if (initialMessages && initialMessages.length > 0) {
-        newConv.messages = initialMessages;
+        newConv.messages = chatMessagesToConversationMessages(initialMessages);
         newConv.title = title ?? generateTitle(initialMessages);
       } else if (title) {
         newConv.title = title;
       }
+
       setConversations((prev) => {
-        const active = prev.find((c) => c.id === activeId);
-        const dropEmptyActive =
-          active !== undefined && !hasVisibleMessages(active);
-        const withoutEmptyActive = dropEmptyActive
-          ? prev.filter((c) => c.id !== activeId)
-          : prev;
+        const active = prev.find((c) => c.id === activeIdRef.current);
+        const dropEmptyActive = active !== undefined && !hasVisibleMessages(active);
+        const withoutEmptyActive = dropEmptyActive ? prev.filter((c) => c.id !== activeIdRef.current) : prev;
         const updated = [newConv, ...withoutEmptyActive];
-        if (updated.length > MAX_CONVERSATIONS) {
-          return updated.slice(0, MAX_CONVERSATIONS);
-        }
-        return updated;
+        return updated.length > MAX_CONVERSATIONS ? updated.slice(0, MAX_CONVERSATIONS) : updated;
       });
       setActiveId(newConv.id);
+
+      // Persist on backend
+      conversationsApi.create(newConv).then((created) => {
+        setConversations((prev) => prev.map((c) => (c.id === newConv.id ? created : c)));
+      }).catch((err) => console.error('Failed to create conversation:', err));
+
       return newConv;
     },
-    [activeId, currentMode],
+    [],
   );
 
   const patchConversation = useCallback((id: string, patch: Partial<Conversation>) => {
     setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)),
+      prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Math.floor(Date.now() / 1000) } : c)),
     );
+    // Sync to backend
+    const backendPatch: ConversationPatch = {};
+    if ('title' in patch && patch.title !== undefined) backendPatch.title = patch.title;
+    if ('savedToProject' in patch && patch.savedToProject !== undefined) backendPatch.savedToProject = patch.savedToProject;
+    if ('steeringPlan' in patch) {
+      // steeringPlan is a Conversation field, not directly in ConversationPatch — handle via client side only for now
+    }
+    if (Object.keys(backendPatch).length > 0) {
+      conversationsApi.patch(id, backendPatch).catch((err) => console.error('Failed to patch conversation:', err));
+    }
   }, []);
 
-  /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
   const discardActiveAndCreateConversation = useCallback(
     (mode?: string, sessionKind: ChatSessionKind = 'standard') => {
-      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
+      const newConv = createEmptyConversation(mode ?? currentModeRef.current, sessionKind);
       setConversations((prev) => {
-        const filtered = prev.filter((c) => c.id !== activeId);
+        const filtered = prev.filter((c) => c.id !== activeIdRef.current);
         let updated = [newConv, ...filtered];
-        if (updated.length > MAX_CONVERSATIONS) {
-          updated = updated.slice(0, MAX_CONVERSATIONS);
-        }
+        if (updated.length > MAX_CONVERSATIONS) updated = updated.slice(0, MAX_CONVERSATIONS);
         return updated;
       });
       setActiveId(newConv.id);
+
+      // Delete old on backend, create new
+      const oldId = activeIdRef.current;
+      conversationsApi.delete(oldId).catch(() => { /* ignore */ });
+      conversationsApi.create(newConv).then((created) => {
+        setConversations((prev) => prev.map((c) => (c.id === newConv.id ? created : c)));
+      }).catch((err) => console.error('Failed to create conversation:', err));
+
       return newConv;
     },
-    [activeId, currentMode],
+    [],
   );
 
-  const deleteConversation = useCallback(
-    (id: string) => {
-      setConversations((prev) => {
-        const deleted = prev.find((c) => c.id === id);
-        const idsToRemove = new Set<string>([id]);
-        if (deleted && !deleted.isThread) {
-          for (const c of prev) {
-            if (c.isThread && c.parentConversationId === id) {
-              idsToRemove.add(c.id);
-            }
-          }
+  const deleteConversation = useCallback((id: string) => {
+    setConversations((prev) => {
+      const deleted = prev.find((c) => c.id === id);
+      const idsToRemove = new Set<string>([id]);
+      if (deleted && !deleted.isThread) {
+        for (const c of prev) {
+          if (c.isThread && c.parentConversationId === id) idsToRemove.add(c.id);
         }
-        const filtered = prev.filter((c) => !idsToRemove.has(c.id));
-        if (filtered.length === 0) {
-          const newConv = createEmptyConversation(currentMode);
-          setActiveId(newConv.id);
-          return [newConv];
-        }
-        if (idsToRemove.has(activeId)) {
-          setActiveId(filtered[0].id);
-        }
-        return filtered;
-      });
-    },
-    [activeId, currentMode],
-  );
+      }
+      const filtered = prev.filter((c) => !idsToRemove.has(c.id));
+      if (filtered.length === 0) {
+        const newConv = createEmptyConversation(currentModeRef.current);
+        setActiveId(newConv.id);
+        conversationsApi.create(newConv).catch(() => { /* ignore */ });
+        return [newConv];
+      }
+      if (idsToRemove.has(activeIdRef.current)) {
+        setActiveId(filtered[0].id);
+      }
+      return filtered;
+    });
+    conversationsApi.delete(id).catch((err) => console.error('Failed to delete conversation:', err));
+  }, []);
 
   const switchConversation = useCallback((id: string) => {
     setActiveId(id);
   }, []);
 
   const renameConversation = useCallback((id: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
     setConversations((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, title: newTitle.trim() || c.title, updatedAt: Date.now() } : c,
-      ),
+      prev.map((c) => (c.id === id ? { ...c, title: trimmed, updatedAt: Math.floor(Date.now() / 1000) } : c)),
     );
+    conversationsApi.patch(id, { title: trimmed }).catch((err) => console.error('Failed to rename conversation:', err));
   }, []);
 
   const toggleSavedToProject = useCallback((id: string) => {
     setConversations((prev) => {
       const target = prev.find((c) => c.id === id);
       if (target?.isThread) return prev;
-      return prev.map((c) =>
-        c.id === id ? { ...c, savedToProject: !c.savedToProject, updatedAt: Date.now() } : c,
+      const updated = prev.map((c) =>
+        c.id === id ? { ...c, savedToProject: !c.savedToProject, updatedAt: Math.floor(Date.now() / 1000) } : c,
       );
+      const newSavedToProject = updated.find((c) => c.id === id)?.savedToProject ?? false;
+      conversationsApi.patch(id, { savedToProject: newSavedToProject }).catch((err) =>
+        console.error('Failed to toggle savedToProject:', err),
+      );
+      return updated;
     });
   }, []);
 
-  /**
-   * Removes only chats that are not pinned to the project file (`savedToProject`).
-   * Pinned chats stay in state, localStorage, and `.assistant/chat-history.json`.
-   */
   const clearAllBrowserChats = useCallback(() => {
     if (!hydrated) return;
-    const key = chatHistoryStorageKey(projectPathRef.current);
-    if (!key) return;
-    if (projectTimerRef.current) {
-      clearTimeout(projectTimerRef.current);
-      projectTimerRef.current = null;
-    }
     const newConv = createEmptyConversation(currentModeRef.current);
-    const list = conversationsRef.current;
-    const byId = buildConversationById(list);
-    const pinned = list.filter((c) => effectiveSavedToProject(c, byId));
-    const sortedPinned = [...pinned].sort((a, b) => b.updatedAt - a.updatedAt);
-    const next = [newConv, ...sortedPinned].slice(0, MAX_CONVERSATIONS);
+    const pinned = conversationsRef.current.filter((c) => c.savedToProject);
+    const next = [newConv, ...pinned].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_CONVERSATIONS);
+    // Delete non-pinned from backend
+    const pinnedIds = new Set(pinned.map((c) => c.id));
+    for (const c of conversationsRef.current) {
+      if (!pinnedIds.has(c.id)) {
+        conversationsApi.delete(c.id).catch(() => { /* ignore */ });
+      }
+    }
+    conversationsApi.create(newConv).catch(() => { /* ignore */ });
     setConversations(next);
     setActiveId(newConv.id);
-    conversationsRef.current = next;
-    saveConversations(next, key);
   }, [hydrated]);
 
-  /**
-   * Merges an imported list of conversations into the current state.
-   * Conversations whose IDs already exist are skipped to avoid duplicates.
-   * Imported conversations are not auto-pinned to the project file.
-   */
-  const importConversations = useCallback(
-    (imported: Conversation[]) => {
-      if (!imported.length) return;
-      setConversations((prev) => {
-        const existingIds = new Set(prev.map((c) => c.id));
-        const incoming = imported
-          .filter((c) => !existingIds.has(c.id))
-          .map((c) => ({ ...c, savedToProject: false as const }));
-        if (!incoming.length) return prev;
-        const merged = [...incoming, ...prev].slice(0, MAX_CONVERSATIONS);
-        return merged;
-      });
-    },
-    [],
-  );
+  const importConversations = useCallback((imported: Conversation[]) => {
+    if (!imported.length) return;
+    setConversations((prev) => {
+      const existingIds = new Set(prev.map((c) => c.id));
+      const incoming = imported
+        .filter((c) => !existingIds.has(c.id))
+        .map((c) => ({ ...c, savedToProject: false as const }));
+      if (!incoming.length) return prev;
+      for (const c of incoming) {
+        conversationsApi.create(c).catch(() => { /* ignore */ });
+      }
+      return [...incoming, ...prev].slice(0, MAX_CONVERSATIONS);
+    });
+  }, []);
 
   return {
     conversations,
@@ -446,6 +371,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     activeId,
     hydrated,
     updateMessages,
+    refreshConversation,
     createConversation,
     patchConversation,
     discardActiveAndCreateConversation,

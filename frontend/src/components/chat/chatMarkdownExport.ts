@@ -1,15 +1,9 @@
-import type { ChatMessage, Conversation } from '../../types.ts';
+import type { Conversation, ConversationMessage } from '../../types.ts';
+import { extractMessageText } from '../../types.ts';
 
 export function safeDownloadBasename(title: string): string {
   const t = title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim() || 'chat';
   return t.length > 80 ? t.slice(0, 80) : t;
-}
-
-function roleHeading(role: ChatMessage['role']): string {
-  if (role === 'user') return 'User';
-  if (role === 'assistant') return 'Assistant';
-  if (role === 'tool') return 'Tool';
-  return role;
 }
 
 export function conversationToMarkdown(conv: Conversation): string {
@@ -23,23 +17,24 @@ export function conversationToMarkdown(conv: Conversation): string {
   lines.push('');
 
   for (const m of conv.messages) {
-    if (m.hidden) continue;
-    if (m.role === 'system') continue;
-    lines.push(`### ${roleHeading(m.role)}`);
+    const role = m.messageType === 'USER' ? 'User' : 'Assistant';
+    lines.push(`### ${role}`);
     lines.push('');
-    const body = (m.content ?? '').trim();
-    if (body) {
-      lines.push(body);
-      lines.push('');
-    }
-    if (m.toolCalls?.length) {
-      lines.push('_(Tool-Aufrufe in dieser Nachricht)_');
-      for (const tc of m.toolCalls) {
-        const args = tc.function?.arguments ?? '';
-        const short = args.length > 400 ? `${args.slice(0, 400)}…` : args;
-        lines.push(`- \`${tc.function?.name ?? tc.type}\`: \`${short.replace(/`/g, "'")}\``);
+    // Render each visible part
+    for (const part of m.parts) {
+      if (part.type === 'CHAT' || part.type === 'THOUGHTS' || part.type === 'EXPLORING') {
+        const body = part.content.trim();
+        if (body) {
+          lines.push(body);
+          lines.push('');
+        }
+      } else if (part.type === 'READ_FILE') {
+        lines.push(`_[Datei gelesen: \`${part.file}\`]_`);
+        lines.push('');
+      } else if (part.type === 'READ_LINES') {
+        lines.push(`_[Zeilen gelesen: \`${part.file}\` ${part.startLine}–${part.endLine}]_`);
+        lines.push('');
       }
-      lines.push('');
     }
   }
 

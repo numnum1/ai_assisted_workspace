@@ -11,7 +11,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true,
+        defaultImpl = NormalConversation.class)
 @JsonSubTypes({
         @JsonSubTypes.Type(value = NormalConversation.class, name = "NORMAL"),
         @JsonSubTypes.Type(value = NonAgenticGuidedConversation.class, name = "NON_AGENTIC_GUIDED"),

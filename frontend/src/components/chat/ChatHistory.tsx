@@ -250,7 +250,7 @@ export function ChatHistory({
             </div>
           )}
           <div className="chat-history-item-meta">
-            {conv.messages.filter((m) => !m.hidden).length} Nachrichten · {formatDate(conv.updatedAt)}
+            {conv.messages.length} Nachrichten · {formatDate(conv.updatedAt)}
           </div>
         </div>
         <div className="chat-history-item-actions">

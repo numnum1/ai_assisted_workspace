@@ -86,13 +86,17 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
     return { sessionKind: 'standard' };
   }
   const sk = meta.sessionKind ?? 'standard';
+  const base: Partial<ChatRequest> = {
+    ...(meta.conversationId ? { conversationId: meta.conversationId } : {}),
+  };
   if (sk === 'guided') {
     return {
+      ...base,
       sessionKind: 'guided',
       steeringPlan: meta.steeringPlan ?? null,
     };
   }
-  return { sessionKind: 'standard' };
+  return { ...base, sessionKind: 'standard' };
 }
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, options?: UseChatOptions) {

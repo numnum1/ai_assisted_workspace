@@ -2,14 +2,10 @@ package com.assistant.ai_provider;
 
 import com.assistant.ai_provider.model.*;
 import com.assistant.config.AppConfig;
+import com.assistant.project.LLMService;
 import com.assistant.project.ProjectConfigService;
 import com.assistant.tools.WebSearchTool;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,29 +13,40 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 @Service
 public class AiProviderService {
 
-    private static final Logger log = LoggerFactory.getLogger(AiProviderService.class);
+    private static final Logger log = LoggerFactory.getLogger(
+        AiProviderService.class
+    );
     private static final String FILE_NAME = "ai-providers.json";
 
     private final ProjectConfigService projectConfigService;
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
     private final WebSearchTool webSearchTool;
+    private final LLMService llmService;
 
     private final Object lock = new Object();
 
     public AiProviderService(
-            ProjectConfigService projectConfigService,
-            AppConfig appConfig,
-            ObjectMapper objectMapper,
-            @Autowired(required = false) WebSearchTool webSearchTool) {
+        ProjectConfigService projectConfigService,
+        AppConfig appConfig,
+        ObjectMapper objectMapper,
+        @Autowired(required = false) WebSearchTool webSearchTool,
+        @Lazy LLMService llmService
+    ) {
         this.projectConfigService = projectConfigService;
         this.appConfig = appConfig;
         this.objectMapper = objectMapper;
         this.webSearchTool = webSearchTool;
+        this.llmService = llmService;
     }
 
     private Path storeFile() {
@@ -53,7 +60,10 @@ public class AiProviderService {
      * Falls back to the first entry in the list when {@code llmId} is blank or not found.
      * Falls back to {@link AppConfig.Ai} when the list is empty.
      */
-    public ResolvedAiCredentials getResolved(String llmId, boolean useReasoning) {
+    public ResolvedAiCredentials getResolved(
+        String llmId,
+        boolean useReasoning
+    ) {
         AiProvidersState state = loadState();
         if (state.getProviders() == null || state.getProviders().isEmpty()) {
             return credentialsFromAppConfig();
@@ -92,6 +102,10 @@ public class AiProviderService {
         return out;
     }
 
+    public List<AiProvider> listProviders() {
+        return new ArrayList<>(loadState().getProviders());
+    }
+
     public AiProviderPublic create(AiProviderRequest req) throws IOException {
         validateCreate(req);
         synchronized (lock) {
@@ -101,29 +115,43 @@ public class AiProviderService {
             applyRequest(req, p, true);
             state.getProviders().add(p);
             saveState(state);
+            llmService.reloadLlms();
             return toPublic(p);
         }
     }
 
-    public AiProviderPublic update(String id, AiProviderRequest req) throws IOException {
-        if (id == null || id.isBlank()) throw new IllegalArgumentException("id required");
+    public AiProviderPublic update(String id, AiProviderRequest req)
+        throws IOException {
+        if (id == null || id.isBlank()) throw new IllegalArgumentException(
+            "id required"
+        );
         synchronized (lock) {
             AiProvidersState state = loadState();
             AiProvider existing = findById(state, id);
-            if (existing == null) throw new IllegalArgumentException("Unknown LLM id: " + id);
+            if (existing == null) throw new IllegalArgumentException(
+                "Unknown LLM id: " + id
+            );
             applyRequest(req, existing, false);
             saveState(state);
+            llmService.reloadLlms();
             return toPublic(existing);
         }
     }
 
     public void delete(String id) throws IOException {
-        if (id == null || id.isBlank()) throw new IllegalArgumentException("id required");
+        if (id == null || id.isBlank()) throw new IllegalArgumentException(
+            "id required"
+        );
         synchronized (lock) {
             AiProvidersState state = loadState();
-            boolean removed = state.getProviders().removeIf(p -> id.equals(p.getId()));
-            if (!removed) throw new IllegalArgumentException("Unknown LLM id: " + id);
+            boolean removed = state
+                .getProviders()
+                .removeIf(p -> id.equals(p.getId()));
+            if (!removed) throw new IllegalArgumentException(
+                "Unknown LLM id: " + id
+            );
             saveState(state);
+            llmService.reloadLlms();
         }
     }
 
@@ -133,42 +161,65 @@ public class AiProviderService {
         String url = normalizeBaseUrl(p.getFastApiUrl());
         String model = nullToEmpty(p.getFastModel());
         if (url.isBlank() && model.isBlank()) return null;
-        return new ResolvedAiCredentials(url, nullToEmpty(p.getFastApiKey()), model);
+        return new ResolvedAiCredentials(
+            url,
+            nullToEmpty(p.getFastApiKey()),
+            model
+        );
     }
 
     private ResolvedAiCredentials extractReasoning(AiProvider p) {
         String url = normalizeBaseUrl(p.getReasoningApiUrl());
         String model = nullToEmpty(p.getReasoningModel());
         if (url.isBlank() && model.isBlank()) return null;
-        String effectiveUrl = url.isBlank() ? normalizeBaseUrl(p.getFastApiUrl()) : url;
-        String key = (p.getReasoningApiKey() != null && !p.getReasoningApiKey().isBlank())
-                ? p.getReasoningApiKey()
-                : nullToEmpty(p.getFastApiKey());
+        String effectiveUrl = url.isBlank()
+            ? normalizeBaseUrl(p.getFastApiUrl())
+            : url;
+        String key = (p.getReasoningApiKey() != null &&
+            !p.getReasoningApiKey().isBlank())
+            ? p.getReasoningApiKey()
+            : nullToEmpty(p.getFastApiKey());
         return new ResolvedAiCredentials(effectiveUrl, key, model);
     }
 
     private ResolvedAiCredentials credentialsFromAppConfig() {
         AppConfig.Ai ai = appConfig.getAi();
         return new ResolvedAiCredentials(
-                normalizeBaseUrl(ai.getApiUrl()),
-                nullToEmpty(ai.getApiKey()),
-                nullToEmpty(ai.getModel()));
+            normalizeBaseUrl(ai.getApiUrl()),
+            nullToEmpty(ai.getApiKey()),
+            nullToEmpty(ai.getModel())
+        );
     }
 
-    private void applyRequest(AiProviderRequest req, AiProvider p, boolean isCreate) {
+    private void applyRequest(
+        AiProviderRequest req,
+        AiProvider p,
+        boolean isCreate
+    ) {
         if (req.getName() != null && !req.getName().isBlank()) {
             p.setName(req.getName().trim());
         }
-        if (req.getFastApiUrl() != null) p.setFastApiUrl(req.getFastApiUrl().trim());
-        if (req.getFastModel() != null) p.setFastModel(req.getFastModel().trim());
+        if (req.getFastApiUrl() != null) p.setFastApiUrl(
+            req.getFastApiUrl().trim()
+        );
+        if (req.getFastModel() != null) p.setFastModel(
+            req.getFastModel().trim()
+        );
         if (req.getFastApiKey() != null && !req.getFastApiKey().isBlank()) {
             p.setFastApiKey(req.getFastApiKey());
         } else if (isCreate) {
             p.setFastApiKey("");
         }
-        if (req.getReasoningApiUrl() != null) p.setReasoningApiUrl(req.getReasoningApiUrl().trim());
-        if (req.getReasoningModel() != null) p.setReasoningModel(req.getReasoningModel().trim());
-        if (req.getReasoningApiKey() != null && !req.getReasoningApiKey().isBlank()) {
+        if (req.getReasoningApiUrl() != null) p.setReasoningApiUrl(
+            req.getReasoningApiUrl().trim()
+        );
+        if (req.getReasoningModel() != null) p.setReasoningModel(
+            req.getReasoningModel().trim()
+        );
+        if (
+            req.getReasoningApiKey() != null &&
+            !req.getReasoningApiKey().isBlank()
+        ) {
             p.setReasoningApiKey(req.getReasoningApiKey());
         } else if (isCreate) {
             p.setReasoningApiKey("");
@@ -180,11 +231,18 @@ public class AiProviderService {
 
     private void validateCreate(AiProviderRequest req) {
         if (req == null) throw new IllegalArgumentException("body required");
-        if (req.getName() == null || req.getName().isBlank()) throw new IllegalArgumentException("name required");
-        boolean hasFastModel = req.getFastModel() != null && !req.getFastModel().isBlank();
-        boolean hasReasoningModel = req.getReasoningModel() != null && !req.getReasoningModel().isBlank();
+        if (
+            req.getName() == null || req.getName().isBlank()
+        ) throw new IllegalArgumentException("name required");
+        boolean hasFastModel =
+            req.getFastModel() != null && !req.getFastModel().isBlank();
+        boolean hasReasoningModel =
+            req.getReasoningModel() != null &&
+            !req.getReasoningModel().isBlank();
         if (!hasFastModel && !hasReasoningModel) {
-            throw new IllegalArgumentException("At least one model (fast or reasoning) is required");
+            throw new IllegalArgumentException(
+                "At least one model (fast or reasoning) is required"
+            );
         }
     }
 
@@ -202,10 +260,14 @@ public class AiProviderService {
         pub.setName(p.getName());
         pub.setFastApiUrl(p.getFastApiUrl());
         pub.setFastModel(p.getFastModel());
-        pub.setFastApiKeySet(p.getFastApiKey() != null && !p.getFastApiKey().isBlank());
+        pub.setFastApiKeySet(
+            p.getFastApiKey() != null && !p.getFastApiKey().isBlank()
+        );
         pub.setReasoningApiUrl(p.getReasoningApiUrl());
         pub.setReasoningModel(p.getReasoningModel());
-        pub.setReasoningApiKeySet(p.getReasoningApiKey() != null && !p.getReasoningApiKey().isBlank());
+        pub.setReasoningApiKeySet(
+            p.getReasoningApiKey() != null && !p.getReasoningApiKey().isBlank()
+        );
         pub.setMaxTokens(p.getMaxTokens());
         return pub;
     }
@@ -230,15 +292,20 @@ public class AiProviderService {
         return p.getMaxTokens();
     }
 
-    private AiProvidersState loadState() {
+    public AiProvidersState loadState() {
         synchronized (lock) {
             Path path = storeFile();
             if (!Files.isRegularFile(path)) return new AiProvidersState();
             try {
                 String json = Files.readString(path, StandardCharsets.UTF_8);
                 if (json.isBlank()) return new AiProvidersState();
-                AiProvidersState state = objectMapper.readValue(json, AiProvidersState.class);
-                if (state.getProviders() == null) state.setProviders(new ArrayList<>());
+                AiProvidersState state = objectMapper.readValue(
+                    json,
+                    AiProvidersState.class
+                );
+                if (state.getProviders() == null) state.setProviders(
+                    new ArrayList<>()
+                );
                 return state;
             } catch (Exception e) {
                 log.warn("Could not read {}: {}", path, e.getMessage());
@@ -250,11 +317,15 @@ public class AiProviderService {
     private void saveState(AiProvidersState state) throws IOException {
         Path path = storeFile();
         Files.createDirectories(path.getParent());
-        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(state);
+        String json = objectMapper
+            .writerWithDefaultPrettyPrinter()
+            .writeValueAsString(state);
         Files.writeString(path, json, StandardCharsets.UTF_8);
     }
 
-    private static String nullToEmpty(String s) { return s == null ? "" : s; }
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
+    }
 
     private static String normalizeBaseUrl(String url) {
         if (url == null || url.isBlank()) return "";

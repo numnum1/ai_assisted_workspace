@@ -40,7 +40,7 @@ import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
-import { useChatHistory } from './hooks/useChatHistory.ts';
+import { useChatHistory, conversationMessagesToDisplay } from './hooks/useChatHistory.ts';
 import { useWorkspaceMode } from './hooks/useWorkspaceMode.ts';
 import { useWorkspaceLevelConfigMap } from './hooks/useWorkspaceLevelConfigMap.ts';
 import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
@@ -96,7 +96,7 @@ function resolveDefaultModeId(mds: Mode[], configured: string | undefined): stri
 }
 
 function conversationHasVisibleMessages(conv: Conversation): boolean {
-  return conv.messages.some((m) => !m.hidden);
+  return conv.messages.length > 0;
 }
 
 /**
@@ -112,14 +112,6 @@ function resolvePersistedChatModeId(conv: Conversation, nonPrompt: Mode[], allMo
     return true;
   };
   if (conv.mode && conv.mode !== 'prompt-pack' && allowed(conv.mode)) return conv.mode;
-
-  for (let i = conv.messages.length - 1; i >= 0; i--) {
-    const m = conv.messages[i];
-    if (m.hidden || m.role !== 'user' || !m.mode) continue;
-    if (m.mode === PROMPT_PACK_DISPLAY_NAME) continue;
-    const found = allModes.find((mode) => mode.name === m.mode);
-    if (found && found.id !== 'prompt-pack' && allowed(found.id)) return found.id;
-  }
   return null;
 }
 
@@ -390,6 +382,8 @@ function App() {
   const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages, {
     onAssistantResponseComplete: (fullText, meta) => {
+      // Reload the conversation from backend to get the authoritative ConversationMessage[] state.
+      history.refreshConversation(meta.conversationId);
       if (meta.sessionKind !== 'guided') return;
       const parsed = parseSteeringPlanFromAssistant(fullText);
       if (parsed) {
@@ -453,10 +447,10 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
 
-  // Load messages when switching conversations
+  // Load messages when switching conversations — convert ConversationMessage[] to ChatMessage[] for display.
   useEffect(() => {
     if (history.activeConversation) {
-      chat.loadMessages(history.activeConversation.messages);
+      chat.loadMessages(conversationMessagesToDisplay(history.activeConversation.messages));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
@@ -549,6 +543,7 @@ function App() {
     const nonPrompt = nonPromptModes(modes);
     const standardSel = standardChatModes(modes);
     const conv = history.activeConversation;
+    if (!conv) return;
     const sessionKind = conv.sessionKind ?? 'standard';
     const allowedForSession = sessionKind === 'guided' ? nonPrompt : standardSel;
     let desired: string;
@@ -642,11 +637,11 @@ function App() {
     history.hydrated,
     history.activeId,
     history.patchConversation,
-    history.activeConversation.mode,
-    history.activeConversation.sessionKind,
-    history.activeConversation.agentLlmId,
-    history.activeConversation.agentUseReasoning,
-    disabledToolkitsSignature(history.activeConversation.agentDisabledToolkits),
+    history.activeConversation?.mode,
+    history.activeConversation?.sessionKind,
+    history.activeConversation?.agentLlmId,
+    history.activeConversation?.agentUseReasoning,
+    disabledToolkitsSignature(history.activeConversation?.agentDisabledToolkits),
     modes,
     project.projectPath,
     modesAndLlmLoadGeneration,
@@ -1233,7 +1228,7 @@ function App() {
     if (!conv.steeringPlan?.trim()) return;
     if (conv.messages.length > 0) return;
     // Wait until loadMessages has applied this conversation (avoid sendMessage using a stale message list).
-    if (chat.messages.length !== conv.messages.length) return;
+    if (chat.messages.length > 0) return;
     if (chat.streaming) return;
 
     if (!tryMarkGuidedAgentKickoffStarted(conv.id)) {
