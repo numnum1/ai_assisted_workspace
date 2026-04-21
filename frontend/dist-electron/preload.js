@@ -23,5 +23,35 @@ contextBridge.exposeInMainWorld("appBridge", {
         rename: (path, newName) => ipcRenderer.invoke("files:rename", path, newName),
         move: (path, targetParentPath) => ipcRenderer.invoke("files:move", path, targetParentPath),
     },
+    wiki: {
+        listFiles: () => ipcRenderer.invoke("wiki:listFiles"),
+        search: (query, limit) => ipcRenderer.invoke("wiki:search", query, limit),
+    },
+    glossary: {
+        get: () => ipcRenderer.invoke("glossary:get"),
+        addEntry: (term, definition) => ipcRenderer.invoke("glossary:addEntry", term, definition),
+        deleteEntry: (term) => ipcRenderer.invoke("glossary:deleteEntry", term),
+    },
+    subproject: {
+        info: (path) => ipcRenderer.invoke("subproject:info", path),
+        init: (path, type, name) => ipcRenderer.invoke("subproject:init", path, type, name),
+        remove: (path) => ipcRenderer.invoke("subproject:remove", path),
+    },
+    projectConfig: {
+        status: () => ipcRenderer.invoke("projectConfig:status"),
+        getWorkspaceMode: (modeId) => ipcRenderer.invoke("projectConfig:getWorkspaceMode", modeId ?? null),
+        listWorkspaceModes: () => ipcRenderer.invoke("projectConfig:listWorkspaceModes"),
+        getWorkspaceModesDataDir: () => ipcRenderer.invoke("projectConfig:getWorkspaceModesDataDir"),
+        revealWorkspaceModesDataDir: () => ipcRenderer.invoke("projectConfig:revealWorkspaceModesDataDir"),
+        get: () => ipcRenderer.invoke("projectConfig:get"),
+        init: () => ipcRenderer.invoke("projectConfig:init"),
+        update: (config) => ipcRenderer.invoke("projectConfig:update", config),
+        getModes: () => ipcRenderer.invoke("projectConfig:getModes"),
+        saveMode: (id, mode) => ipcRenderer.invoke("projectConfig:saveMode", id, mode),
+        deleteMode: (id) => ipcRenderer.invoke("projectConfig:deleteMode", id),
+        listAgents: () => ipcRenderer.invoke("projectConfig:listAgents"),
+        saveAgent: (id, preset) => ipcRenderer.invoke("projectConfig:saveAgent", id, preset),
+        deleteAgent: (id) => ipcRenderer.invoke("projectConfig:deleteAgent", id),
+    },
 });
 //# sourceMappingURL=preload.js.map

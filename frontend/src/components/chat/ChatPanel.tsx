@@ -1,5 +1,13 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, memo } from 'react';
-import type { RefObject } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  memo,
+} from "react";
+import type { RefObject } from "react";
 import {
   Search,
   Scissors,
@@ -15,9 +23,9 @@ import {
   Trash2,
   RotateCcw,
   MessageSquare,
-} from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type {
   AgentPreset,
   ChatMessage,
@@ -26,38 +34,51 @@ import type {
   SelectionContext,
   LlmPublic,
   ChatSessionKind,
-} from '../../types.ts';
-import { ChatInput } from './ChatInput.tsx';
-import { ModeSelector } from './ModeSelector.tsx';
-import { ChatHistory } from './ChatHistory.tsx';
-import { NewChatButton } from './NewChatButton.tsx';
-import { NewChatDialog, type NewChatConfirmPayload } from './NewChatDialog.tsx';
-import { ChatMessageMarkdown } from './ChatMessageMarkdown.tsx';
-import { ChatComposerCard } from './ChatComposerCard.tsx';
-import { SuggestedActionsCard } from './SuggestedActionsCard.tsx';
-import { ToolCallDisplay } from './ToolCallDisplay.tsx';
-import { parseClarificationQuestions, hasClarificationFence } from './clarificationUtils.ts';
-import { parseGuidedThreadOffer, type GuidedThreadOfferPayload } from './guidedThreadOfferUtils.ts';
-import { GuidedThreadOfferCard } from './GuidedThreadOfferCard.tsx';
-import { ThreadBranchPicker, type ThreadBranchItem } from './ThreadBranchPicker.tsx';
-import type { CardState } from './ChangeCard.tsx';
-import { ChangeCardGroup } from './ChangeCardGroup.tsx';
-import { buildChatRenderUnits } from './chatRenderUnits.ts';
-import { WriteFileBatchComposerBar } from './WriteFileBatchComposerBar.tsx';
+} from "../../types.ts";
+import { glossaryApi } from "../../api.ts";
+import { ChatInput } from "./ChatInput.tsx";
+import { ModeSelector } from "./ModeSelector.tsx";
+import { ChatHistory } from "./ChatHistory.tsx";
+import { NewChatButton } from "./NewChatButton.tsx";
+import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
+import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
+import { ChatComposerCard } from "./ChatComposerCard.tsx";
+import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
+import { ToolCallDisplay } from "./ToolCallDisplay.tsx";
+import {
+  parseClarificationQuestions,
+  hasClarificationFence,
+} from "./clarificationUtils.ts";
+import {
+  parseGuidedThreadOffer,
+  type GuidedThreadOfferPayload,
+} from "./guidedThreadOfferUtils.ts";
+import { GuidedThreadOfferCard } from "./GuidedThreadOfferCard.tsx";
+import {
+  ThreadBranchPicker,
+  type ThreadBranchItem,
+} from "./ThreadBranchPicker.tsx";
+import type { CardState } from "./ChangeCard.tsx";
+import { ChangeCardGroup } from "./ChangeCardGroup.tsx";
+import { buildChatRenderUnits } from "./chatRenderUnits.ts";
+import { WriteFileBatchComposerBar } from "./WriteFileBatchComposerBar.tsx";
 import {
   collectAllWriteFileItems,
   getTrailingWriteFileBatch,
   isSameWriteFileBatch,
-} from './writeFileBatchUtils.ts';
-import { parseSteeringPlan, type ParsedSteeringPlan } from './planFenceUtils.ts';
-import { SteeringPlanViewer } from './SteeringPlanViewer.tsx';
+} from "./writeFileBatchUtils.ts";
+import {
+  parseSteeringPlan,
+  type ParsedSteeringPlan,
+} from "./planFenceUtils.ts";
+import { SteeringPlanViewer } from "./SteeringPlanViewer.tsx";
 import {
   buildConversationById,
   listThreadsForRoot,
   resolveThreadBranchRootId,
-} from './chatHistoryUtils.ts';
+} from "./chatHistoryUtils.ts";
 
-const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
+const PROMPT_PACK_DISPLAY_NAME = "Prompt-Paket";
 
 function resolveGuidedExecutionSummary(
   modes: Mode[],
@@ -65,11 +86,12 @@ function resolveGuidedExecutionSummary(
   llms: LlmPublic[],
   selectedLlmId: string | undefined,
 ): { modeLabel: string; llmLabel: string } {
-  const modeLabel = modes.find((m) => m.id === selectedMode)?.name ?? selectedMode;
+  const modeLabel =
+    modes.find((m) => m.id === selectedMode)?.name ?? selectedMode;
   const lid = selectedLlmId?.trim();
   const llmLabel = lid
     ? (llms.find((l) => l.id === lid)?.name ?? lid)
-    : 'Standard';
+    : "Standard";
   return { modeLabel, llmLabel };
 }
 
@@ -101,11 +123,16 @@ interface ChatPanelProps {
   /** Start a new chat with system intro + parent transcript through this message index (inclusive). */
   onStartThreadFromMessage: (messageIndex: number) => void;
   /** Accept an AI-offered guided thread (payload from ```guided_thread_offer). */
-  onAcceptGuidedThreadOffer?: (assistantMessageIndex: number, payload: GuidedThreadOfferPayload) => void;
+  onAcceptGuidedThreadOffer?: (
+    assistantMessageIndex: number,
+    payload: GuidedThreadOfferPayload,
+  ) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessage: (index: number) => void;
   onNewChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
-  onDiscardCurrentChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
+  onDiscardCurrentChat: (
+    kindOrPayload?: ChatSessionKind | NewChatConfirmPayload,
+  ) => void;
   /** Active conversation session kind (for guided UI). */
   activeSessionKind?: ChatSessionKind;
   /** When true, thread/fork-from-message actions are hidden (not supported inside a thread). */
@@ -147,7 +174,11 @@ interface MessageEditBoxProps {
   onCancel: () => void;
 }
 
-const MessageEditBox = memo(function MessageEditBox({ initialContent, onSave, onCancel }: MessageEditBoxProps) {
+const MessageEditBox = memo(function MessageEditBox({
+  initialContent,
+  onSave,
+  onCancel,
+}: MessageEditBoxProps) {
   const [draft, setDraft] = useState(initialContent);
 
   return (
@@ -157,15 +188,23 @@ const MessageEditBox = memo(function MessageEditBox({ initialContent, onSave, on
         value={draft}
         onChange={(e) => {
           setDraft(e.target.value);
-          e.target.style.height = 'auto';
+          e.target.style.height = "auto";
           e.target.style.height = `${e.target.scrollHeight}px`;
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
-          else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSave(draft); }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          } else if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSave(draft);
+          }
         }}
         ref={(el) => {
-          if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+          if (el) {
+            el.style.height = "auto";
+            el.style.height = `${el.scrollHeight}px`;
+          }
         }}
         autoFocus
       />
@@ -200,7 +239,7 @@ function getContrastingTextColor(hexColor?: string): string | undefined {
   const g = parseInt(hexColor.slice(3, 5), 16);
   const b = parseInt(hexColor.slice(5, 7), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? '#1e1e2e' : '#f5f5ff';
+  return luminance > 0.6 ? "#1e1e2e" : "#f5f5ff";
 }
 
 const EMPTY_SNAPSHOT_DISMISS = new Set<string>();
@@ -268,23 +307,31 @@ function ChatMessagesPane({
   onOpenPromptPack,
 }: ChatMessagesPaneProps) {
   const visibleEntries = useMemo(
-    () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
+    () =>
+      messages
+        .map((msg, originalIdx) => ({ msg, originalIdx }))
+        .filter(({ msg }) => !msg.hidden),
     [messages],
   );
-  const renderUnits = useMemo(() => buildChatRenderUnits(visibleEntries), [visibleEntries]);
+  const renderUnits = useMemo(
+    () => buildChatRenderUnits(visibleEntries),
+    [visibleEntries],
+  );
   const trailingWriteFileBatch = useMemo(
     () => getTrailingWriteFileBatch(visibleEntries),
     [visibleEntries],
   );
 
   const dismissIds = readOnly ? EMPTY_SNAPSHOT_DISMISS : bulkDismissIds;
-  const batchForced = readOnly ? EMPTY_COMPOSER_BATCH_FORCED : composerBatchForced;
+  const batchForced = readOnly
+    ? EMPTY_COMPOSER_BATCH_FORCED
+    : composerBatchForced;
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
 
   return (
     <div
-      className={`chat-messages${readOnly ? ' chat-messages--readonly' : ''}`}
+      className={`chat-messages${readOnly ? " chat-messages--readonly" : ""}`}
       ref={scrollRef}
       onMouseUp={readOnly ? undefined : onMouseUp}
     >
@@ -292,29 +339,33 @@ function ChatMessagesPane({
         <div className="chat-empty">
           <p>Start a conversation with your AI assistant.</p>
           <p className="chat-empty-hint">
-            Drag files from the project tree into the input area to reference them,
-            or use @filename syntax in your message.
+            Drag files from the project tree into the input area to reference
+            them, or use @filename syntax in your message.
             {onOpenPromptPack && !readOnly && (
               <>
-                {' '}
-                Für einen fertigen Export-Prompt nutze das Zauberstab-Symbol oben (Prompt-Paket).
+                {" "}
+                Für einen fertigen Export-Prompt nutze das Zauberstab-Symbol
+                oben (Prompt-Paket).
               </>
             )}
           </p>
         </div>
       )}
       {renderUnits.map((unit) => {
-        if (unit.type === 'writeFileGroup') {
+        if (unit.type === "writeFileGroup") {
           const isComposerBatch =
             !readOnly &&
             Boolean(
-              trailingWriteFileBatch && isSameWriteFileBatch(unit.items, trailingWriteFileBatch),
+              trailingWriteFileBatch &&
+              isSameWriteFileBatch(unit.items, trailingWriteFileBatch),
             );
-          const visibleWriteItems = unit.items.filter((i) => !dismissIds.has(i.data.snapshotId));
+          const visibleWriteItems = unit.items.filter(
+            (i) => !dismissIds.has(i.data.snapshotId),
+          );
           if (visibleWriteItems.length === 0) return null;
           return (
             <ChangeCardGroup
-              key={`wf-${unit.items.map((x) => x.originalIdx).join('-')}`}
+              key={`wf-${unit.items.map((x) => x.originalIdx).join("-")}`}
               items={visibleWriteItems}
               onFileChanged={fileCb}
               externalForced={isComposerBatch ? batchForced : undefined}
@@ -323,7 +374,7 @@ function ChatMessagesPane({
           );
         }
 
-        if (unit.type === 'toolCall') {
+        if (unit.type === "toolCall") {
           const isStreamingTool = streaming && unit.resultMsg === undefined;
           return (
             <ToolCallDisplay
@@ -333,7 +384,10 @@ function ChatMessagesPane({
               isStreaming={isStreamingTool}
               isLast={unit.toolCallIdx === unit.toolCallCount - 1}
               onStartThread={
-                !readOnly && !activeIsThread && !streaming && unit.toolCallIdx === 0
+                !readOnly &&
+                !activeIsThread &&
+                !streaming &&
+                unit.toolCallIdx === 0
                   ? () => onStartThreadFromMessage(unit.assistantIdx)
                   : undefined
               }
@@ -345,15 +399,19 @@ function ChatMessagesPane({
         const visArr = visibleEntries;
         const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
         const isLastUserMsg =
-          msg.role === 'user' && !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === 'user');
+          msg.role === "user" &&
+          !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === "user");
         const showCopyForPromptPack =
-          msg.role === 'assistant' &&
+          msg.role === "assistant" &&
           msg.content.trim() &&
-          prevUser?.role === 'user' &&
+          prevUser?.role === "user" &&
           prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
 
-        if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
-          const term = msg.content.slice('glossary_add:success:'.length);
+        if (
+          msg.role === "tool" &&
+          msg.content?.startsWith("glossary_add:success:")
+        ) {
+          const term = msg.content.slice("glossary_add:success:".length);
           return (
             <div key={originalIdx} className="glossary-indicator">
               <span className="glossary-indicator-icon">📖</span>
@@ -364,11 +422,12 @@ function ChatMessagesPane({
           );
         }
 
-        if (msg.role === 'tool' && msg.toolCallId) {
+        if (msg.role === "tool" && msg.toolCallId) {
           const isAttachedToToolCall = renderUnits.some(
             (u) =>
-              u.type === 'toolCall' &&
-              (u as { resultMsg?: { toolCallId?: string } }).resultMsg?.toolCallId === msg.toolCallId,
+              u.type === "toolCall" &&
+              (u as { resultMsg?: { toolCallId?: string } }).resultMsg
+                ?.toolCallId === msg.toolCallId,
           );
           if (isAttachedToToolCall) {
             return null;
@@ -380,7 +439,7 @@ function ChatMessagesPane({
             <div
               className={`chat-message ${msg.role}`}
               style={
-                msg.role === 'user' && msg.modeColor
+                msg.role === "user" && msg.modeColor
                   ? {
                       backgroundColor: msg.modeColor,
                       borderLeftColor: msg.modeColor,
@@ -392,55 +451,68 @@ function ChatMessagesPane({
               <div
                 className="chat-message-role"
                 style={
-                  msg.role === 'user' && msg.modeColor
+                  msg.role === "user" && msg.modeColor
                     ? { color: getContrastingTextColor(msg.modeColor) }
                     : undefined
                 }
               >
-                {msg.role === 'user' ? (
+                {msg.role === "user" ? (
                   <span>
                     You
                     {msg.mode && (
                       <span
                         className="chat-message-mode"
-                        style={{ color: getContrastingTextColor(msg.modeColor) }}
+                        style={{
+                          color: getContrastingTextColor(msg.modeColor),
+                        }}
                       >
-                        {' · '}
+                        {" · "}
                         {msg.mode}
                       </span>
                     )}
                   </span>
-                ) : msg.role === 'system' ? (
+                ) : msg.role === "system" ? (
                   <span>Thread · Kontext</span>
                 ) : (
-                  'Assistant'
+                  "Assistant"
                 )}
               </div>
               <div
                 className={
-                  msg.role === 'assistant'
-                    ? 'chat-message-content chat-message-md'
-                    : msg.role === 'system'
-                      ? 'chat-message-content chat-message-system-md chat-message-md'
-                      : 'chat-message-content'
+                  msg.role === "assistant"
+                    ? "chat-message-content chat-message-md"
+                    : msg.role === "system"
+                      ? "chat-message-content chat-message-system-md chat-message-md"
+                      : "chat-message-content"
                 }
               >
-                {msg.role === 'assistant' ? (
+                {msg.role === "assistant" ? (
                   <ChatMessageMarkdown
                     content={msg.content}
-                    streamingCursor={!readOnly && streaming && originalIdx === messages.length - 1}
+                    streamingCursor={
+                      !readOnly &&
+                      streaming &&
+                      originalIdx === messages.length - 1
+                    }
                     selectionContext={msg.selectionContext}
                     onReplace={
                       !readOnly && msg.selectionContext && onReplaceSelection
-                        ? (text) => onReplaceSelection(text, msg.selectionContext!)
+                        ? (text) =>
+                            onReplaceSelection(text, msg.selectionContext!)
                         : undefined
                     }
-                    onApplyFieldUpdate={readOnly ? undefined : onApplyFieldUpdate}
+                    onApplyFieldUpdate={
+                      readOnly ? undefined : onApplyFieldUpdate
+                    }
                     fieldLabels={fieldLabels}
-                    suppressClarificationWidget={hasClarificationFence(msg.content)}
+                    suppressClarificationWidget={hasClarificationFence(
+                      msg.content,
+                    )}
                   />
-                ) : msg.role === 'system' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                ) : msg.role === "system" ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
                 ) : readOnly || editingIdx !== originalIdx ? (
                   msg.content
                 ) : (
@@ -466,7 +538,11 @@ function ChatMessagesPane({
                     }
                   }}
                 >
-                  {copiedIdx === originalIdx ? <Check size={14} /> : <Copy size={14} />}
+                  {copiedIdx === originalIdx ? (
+                    <Check size={14} />
+                  ) : (
+                    <Copy size={14} />
+                  )}
                 </button>
               )}
               {!readOnly && !streaming && editingIdx !== originalIdx && (
@@ -481,7 +557,7 @@ function ChatMessagesPane({
                       <MessageSquare size={12} />
                     </button>
                   )}
-                  {msg.role === 'user' && isLastUserMsg && (
+                  {msg.role === "user" && isLastUserMsg && (
                     <button
                       type="button"
                       className="chat-fork-btn chat-resend-btn"
@@ -491,7 +567,7 @@ function ChatMessagesPane({
                       <RotateCcw size={12} />
                     </button>
                   )}
-                  {msg.role === 'user' && (
+                  {msg.role === "user" && (
                     <button
                       type="button"
                       className="chat-fork-btn chat-edit-btn"
@@ -544,23 +620,30 @@ function ChatMessagesPane({
       {!readOnly && error && (
         <div className="chat-message error">
           <div className="chat-message-content">
-            {error === 'NETWORK_ERROR' ? (
+            {error === "NETWORK_ERROR" ? (
               <>
-                <strong>Verbindungsproblem:</strong> Die KI-API ist nicht erreichbar.
+                <strong>Verbindungsproblem:</strong> Die KI-API ist nicht
+                erreichbar.
                 <br />
-                Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.
+                Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die
+                DNS-Auflösung blockieren.
               </>
-            ) : error === 'MODEL_EMPTY_RESPONSE' ? (
-              'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+            ) : error === "MODEL_EMPTY_RESPONSE" ? (
+              "Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter)."
             ) : (
               `Error: ${error}`
             )}
           </div>
-          {(error === 'MODEL_EMPTY_RESPONSE' || error === 'NETWORK_ERROR') && onRetry && (
-            <button type="button" className="chat-retry-btn" onClick={onRetry}>
-              Erneut versuchen
-            </button>
-          )}
+          {(error === "MODEL_EMPTY_RESPONSE" || error === "NETWORK_ERROR") &&
+            onRetry && (
+              <button
+                type="button"
+                className="chat-retry-btn"
+                onClick={onRetry}
+              >
+                Erneut versuchen
+              </button>
+            )}
         </div>
       )}
     </div>
@@ -591,11 +674,11 @@ function GuidedSteeringPlanSection({
 
   let markTitle: string | undefined;
   if (parsedSteeringPlan.isComplete) {
-    markTitle = 'Plan ist bereits als abgeschlossen markiert';
+    markTitle = "Plan ist bereits als abgeschlossen markiert";
   } else if (streaming) {
-    markTitle = 'Während einer Antwort nicht möglich';
+    markTitle = "Während einer Antwort nicht möglich";
   } else if (!hasPlan) {
-    markTitle = 'Zuerst einen Plan durch die Assistentin anlegen lassen';
+    markTitle = "Zuerst einen Plan durch die Assistentin anlegen lassen";
   }
 
   return (
@@ -607,7 +690,7 @@ function GuidedSteeringPlanSection({
         aria-expanded={open}
       >
         Arbeitsplan
-        <span className="chat-steering-plan-chevron">{open ? '▼' : '▶'}</span>
+        <span className="chat-steering-plan-chevron">{open ? "▼" : "▶"}</span>
       </button>
       {open && (
         <div className="chat-steering-plan-body">
@@ -628,8 +711,9 @@ function GuidedSteeringPlanSection({
             </>
           ) : (
             <p className="chat-steering-plan-empty">
-              Noch kein Plan — die Assistentin legt ihn in der ersten inhaltlichen Antwort als Markdown-Block mit
-              Sprache <code>plan</code> an.
+              Noch kein Plan — die Assistentin legt ihn in der ersten
+              inhaltlichen Antwort als Markdown-Block mit Sprache{" "}
+              <code>plan</code> an.
             </p>
           )}
         </div>
@@ -688,15 +772,17 @@ export function ChatPanel({
   onRetry,
   onFileChanged,
   agentPresets = [],
-  activeSessionKind = 'standard',
-  steeringPlan = '',
+  activeSessionKind = "standard",
+  steeringPlan = "",
   onMarkSteeringPlanComplete,
   activeIsThread = false,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const parentMessagesScrollRef = useRef<HTMLDivElement>(null);
-  const prevLastVisibleRoleRef = useRef<'user' | 'assistant' | undefined>(undefined);
+  const prevLastVisibleRoleRef = useRef<"user" | "assistant" | undefined>(
+    undefined,
+  );
   const prevStreamingRef = useRef(false);
   /** When false, stop auto-scrolling for the current stream (user scrolled up or reply grew too large). */
   const autoScrollActiveRef = useRef(true);
@@ -706,17 +792,24 @@ export function ChatPanel({
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [renamingTitle, setRenamingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState('');
+  const [titleDraft, setTitleDraft] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [glossaryPopup, setGlossaryPopup] = useState<{ x: number; y: number; selectedText: string } | null>(null);
-  const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string } | null>(null);
+  const [glossaryPopup, setGlossaryPopup] = useState<{
+    x: number;
+    y: number;
+    selectedText: string;
+  } | null>(null);
+  const [glossaryForm, setGlossaryForm] = useState<{
+    term: string;
+    definition: string;
+  } | null>(null);
   const [glossarySaving, setGlosarySaving] = useState(false);
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
   /** Guided/agent session: UI toggles like Reasoning are hidden; keep in state for easy local overrides later. */
-  const [agentMode, setAgentMode] = useState(activeSessionKind === 'guided');
+  const [agentMode, setAgentMode] = useState(activeSessionKind === "guided");
 
   useEffect(() => {
-    setAgentMode(activeSessionKind === 'guided');
+    setAgentMode(activeSessionKind === "guided");
   }, [activeSessionKind]);
 
   const parsedSteeringPlan = useMemo((): ParsedSteeringPlan => {
@@ -724,7 +817,10 @@ export function ChatPanel({
   }, [steeringPlan]);
 
   const visibleEntries = useMemo(
-    () => messages.map((msg, originalIdx) => ({ msg, originalIdx })).filter(({ msg }) => !msg.hidden),
+    () =>
+      messages
+        .map((msg, originalIdx) => ({ msg, originalIdx }))
+        .filter(({ msg }) => !msg.hidden),
     [messages],
   );
 
@@ -733,9 +829,13 @@ export function ChatPanel({
     [visibleEntries],
   );
   const composerBatchKey =
-    trailingWriteFileBatch?.map((i) => i.data.snapshotId).join('\0') ?? '';
-  const [composerBatchForced, setComposerBatchForced] = useState<Record<string, CardState>>({});
-  const [toolbarSettledIds, setToolbarSettledIds] = useState(() => new Set<string>());
+    trailingWriteFileBatch?.map((i) => i.data.snapshotId).join("\0") ?? "";
+  const [composerBatchForced, setComposerBatchForced] = useState<
+    Record<string, CardState>
+  >({});
+  const [toolbarSettledIds, setToolbarSettledIds] = useState(
+    () => new Set<string>(),
+  );
   const [bulkDismissIds, setBulkDismissIds] = useState(() => new Set<string>());
 
   const allWriteFileItems = useMemo(
@@ -743,7 +843,10 @@ export function ChatPanel({
     [visibleEntries],
   );
   const pendingWriteFileItems = useMemo(
-    () => allWriteFileItems.filter((i) => !toolbarSettledIds.has(i.data.snapshotId)),
+    () =>
+      allWriteFileItems.filter(
+        (i) => !toolbarSettledIds.has(i.data.snapshotId),
+      ),
     [allWriteFileItems, toolbarSettledIds],
   );
 
@@ -756,14 +859,19 @@ export function ChatPanel({
     setBulkDismissIds(new Set());
   }, [activeConversationId]);
 
-  const [guidedThreadOfferDismissed, setGuidedThreadOfferDismissed] = useState(() => new Set<number>());
+  const [guidedThreadOfferDismissed, setGuidedThreadOfferDismissed] = useState(
+    () => new Set<number>(),
+  );
   useEffect(() => {
     setGuidedThreadOfferDismissed(new Set());
   }, [activeConversationId]);
 
-  const mergeComposerBatchForced = useCallback((patch: Record<string, CardState>) => {
-    setComposerBatchForced((p) => ({ ...p, ...patch }));
-  }, []);
+  const mergeComposerBatchForced = useCallback(
+    (patch: Record<string, CardState>) => {
+      setComposerBatchForced((p) => ({ ...p, ...patch }));
+    },
+    [],
+  );
 
   const handleSnapshotSettled = useCallback((snapshotId: string) => {
     setToolbarSettledIds((prev) => new Set(prev).add(snapshotId));
@@ -793,12 +901,12 @@ export function ChatPanel({
       .map((m, originalIdx) => ({ m, originalIdx }))
       .filter(({ m }) => !m.hidden);
     const last = vis[vis.length - 1];
-    if (!last || last.m.role !== 'assistant') return null;
+    if (!last || last.m.role !== "assistant") return null;
     const qs = parseClarificationQuestions(last.m.content);
     if (!qs?.length) return null;
     const userAfter = messages
       .slice(last.originalIdx + 1)
-      .some((m) => !m.hidden && m.role === 'user');
+      .some((m) => !m.hidden && m.role === "user");
     if (userAfter) return null;
     return qs;
   }, [messages]);
@@ -809,12 +917,12 @@ export function ChatPanel({
       .map((m, originalIdx) => ({ m, originalIdx }))
       .filter(({ m }) => !m.hidden);
     const last = vis[vis.length - 1];
-    if (!last || last.m.role !== 'assistant') return null;
+    if (!last || last.m.role !== "assistant") return null;
     const offer = parseGuidedThreadOffer(last.m.content);
     if (!offer) return null;
     const userAfter = messages
       .slice(last.originalIdx + 1)
-      .some((m) => !m.hidden && m.role === 'user');
+      .some((m) => !m.hidden && m.role === "user");
     if (userAfter) return null;
     if (guidedThreadOfferDismissed.has(last.originalIdx)) return null;
     return { offer, assistantIdx: last.originalIdx };
@@ -827,18 +935,31 @@ export function ChatPanel({
   }, [pendingGuidedThreadOffer]);
 
   const handleAcceptGuidedThreadOfferClick = useCallback(() => {
-    if (!pendingGuidedThreadOffer || !onAcceptGuidedThreadOffer || activeIsThread) return;
-    onAcceptGuidedThreadOffer(pendingGuidedThreadOffer.assistantIdx, pendingGuidedThreadOffer.offer);
+    if (
+      !pendingGuidedThreadOffer ||
+      !onAcceptGuidedThreadOffer ||
+      activeIsThread
+    )
+      return;
+    onAcceptGuidedThreadOffer(
+      pendingGuidedThreadOffer.assistantIdx,
+      pendingGuidedThreadOffer.offer,
+    );
   }, [pendingGuidedThreadOffer, onAcceptGuidedThreadOffer, activeIsThread]);
 
-  const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title ?? '';
+  const activeTitle =
+    conversations.find((c) => c.id === activeConversationId)?.title ?? "";
 
   const threadRail = useMemo(() => {
     const byId = buildConversationById(conversations);
     const activeConv = byId.get(activeConversationId);
     const rootId = resolveThreadBranchRootId(activeConv);
     if (!rootId) {
-      return { showRail: false, rootConv: null as Conversation | null, threads: [] as Conversation[] };
+      return {
+        showRail: false,
+        rootConv: null as Conversation | null,
+        threads: [] as Conversation[],
+      };
     }
     const rootConv = byId.get(rootId) ?? null;
     if (!rootConv || rootConv.isThread) {
@@ -853,13 +974,16 @@ export function ChatPanel({
   }, [conversations, activeConversationId]);
 
   /** Maps Conversation data to the richer ThreadBranchItem for the git-style picker */
-  const mapToBranchItem = useCallback((conv: Conversation): ThreadBranchItem => ({
-    id: conv.id,
-    title: conv.title,
-    messageCount: conv.messages.filter((m) => !m.hidden).length,
-    updatedAt: conv.updatedAt,
-    savedToProject: conv.savedToProject,
-  }), []);
+  const mapToBranchItem = useCallback(
+    (conv: Conversation): ThreadBranchItem => ({
+      id: conv.id,
+      title: conv.title,
+      messageCount: conv.messages.filter((m) => !m.hidden).length,
+      updatedAt: conv.updatedAt,
+      savedToProject: conv.savedToProject,
+    }),
+    [],
+  );
 
   const mainBranchItem = useMemo(() => {
     if (!threadRail.rootConv) return null;
@@ -870,9 +994,13 @@ export function ChatPanel({
     return threadRail.threads.map(mapToBranchItem);
   }, [threadRail.threads, mapToBranchItem]);
 
-  const showThreadSplit = Boolean(isFullscreen && activeIsThread && threadRail.rootConv);
-  const splitRoot = showThreadSplit && threadRail.rootConv ? threadRail.rootConv : null;
-  const threadsRailRoot = threadRail.showRail && threadRail.rootConv ? threadRail.rootConv : null;
+  const showThreadSplit = Boolean(
+    isFullscreen && activeIsThread && threadRail.rootConv,
+  );
+  const splitRoot =
+    showThreadSplit && threadRail.rootConv ? threadRail.rootConv : null;
+  const threadsRailRoot =
+    threadRail.showRail && threadRail.rootConv ? threadRail.rootConv : null;
 
   const cancelEdit = useCallback(() => setEditingIdx(null), []);
 
@@ -887,7 +1015,7 @@ export function ChatPanel({
   );
 
   const handleMessagesMouseUp = useCallback(() => {
-    if (disabledToolkits.has('glossary')) {
+    if (disabledToolkits.has("glossary")) {
       setGlossaryPopup(null);
       return;
     }
@@ -916,11 +1044,7 @@ export function ChatPanel({
     if (!glossaryForm) return;
     setGlosarySaving(true);
     try {
-      await fetch('/api/glossary/entries', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ term: glossaryForm.term, definition: glossaryForm.definition }),
-      });
+      await glossaryApi.addEntry(glossaryForm.term, glossaryForm.definition);
     } finally {
       setGlosarySaving(false);
       setGlossaryForm(null);
@@ -934,7 +1058,7 @@ export function ChatPanel({
     if (hasMessages) {
       setNewChatDialogOpen(true);
     } else {
-      onNewChat('standard');
+      onNewChat("standard");
     }
   };
 
@@ -952,7 +1076,7 @@ export function ChatPanel({
   };
 
   useEffect(() => {
-    if (disabledToolkits.has('glossary')) {
+    if (disabledToolkits.has("glossary")) {
       setGlossaryPopup(null);
       setGlossaryForm(null);
     }
@@ -970,8 +1094,12 @@ export function ChatPanel({
   useLayoutEffect(() => {
     const el = messagesScrollRef.current;
     if (!el) return;
-    const scrollToEnd = () => { el.scrollTop = el.scrollHeight; };
-    requestAnimationFrame(() => { requestAnimationFrame(scrollToEnd); });
+    const scrollToEnd = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToEnd);
+    });
   }, [activeConversationId, messages.length]);
 
   useLayoutEffect(() => {
@@ -984,7 +1112,11 @@ export function ChatPanel({
     requestAnimationFrame(() => {
       requestAnimationFrame(scrollToEnd);
     });
-  }, [showThreadSplit, threadRail.rootConv?.id, threadRail.rootConv?.messages.length]);
+  }, [
+    showThreadSplit,
+    threadRail.rootConv?.id,
+    threadRail.rootConv?.messages.length,
+  ]);
 
   useEffect(() => {
     prevLastVisibleRoleRef.current = undefined;
@@ -1004,9 +1136,13 @@ export function ChatPanel({
     const visible = messages.filter((m) => !m.hidden);
     const last = visible[visible.length - 1];
     const role =
-      last?.role === 'user' ? 'user' : last?.role === 'assistant' ? 'assistant' : undefined;
+      last?.role === "user"
+        ? "user"
+        : last?.role === "assistant"
+          ? "assistant"
+          : undefined;
     const prev = prevLastVisibleRoleRef.current;
-    if (role === 'user' && prev !== 'user') {
+    if (role === "user" && prev !== "user") {
       const el = messagesScrollRef.current;
       if (el) {
         requestAnimationFrame(() => {
@@ -1022,7 +1158,7 @@ export function ChatPanel({
     if (!streaming) return;
     const visible = messages.filter((m) => !m.hidden);
     const last = visible[visible.length - 1];
-    if (!last || last.role !== 'assistant') return;
+    if (!last || last.role !== "assistant") return;
     if (!autoScrollActiveRef.current) return;
     if (last.content.length > AUTOSCROLL_CHAR_LIMIT) {
       autoScrollActiveRef.current = false;
@@ -1041,19 +1177,20 @@ export function ChatPanel({
     const el = messagesScrollRef.current;
     if (!el || !streaming) return;
     const onScroll = () => {
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const distanceFromBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight;
       if (distanceFromBottom > 60) {
         autoScrollActiveRef.current = false;
       }
     };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
   }, [streaming]);
 
   useEffect(() => {
     if (!isFullscreen) return;
     const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prevOverflow;
     };
@@ -1062,14 +1199,14 @@ export function ChatPanel({
   useEffect(() => {
     if (!isFullscreen) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('.chat-expand-overlay')) return;
-      if (document.querySelector('.new-chat-dialog-overlay')) return;
-      if (document.querySelector('.glossary-save-overlay')) return;
+      if (e.key !== "Escape") return;
+      if (document.querySelector(".chat-expand-overlay")) return;
+      if (document.querySelector(".new-chat-dialog-overlay")) return;
+      if (document.querySelector(".glossary-save-overlay")) return;
       setIsFullscreen(false);
     };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [isFullscreen]);
 
   const toggleChatFullscreen = useCallback(() => {
@@ -1109,41 +1246,46 @@ export function ChatPanel({
     />
   );
 
-  const parentReadonlyMessagesEl =
-    splitRoot ? (
-      <ChatMessagesPane
-        messages={splitRoot.messages}
-        readOnly
-        scrollRef={parentMessagesScrollRef}
-        streaming={false}
-        error={null}
-        toolActivity={null}
-        activeIsThread={false}
-        editingIdx={null}
-        setEditingIdx={() => {}}
-        copiedIdx={null}
-        setCopiedIdx={() => {}}
-        bulkDismissIds={EMPTY_SNAPSHOT_DISMISS}
-        composerBatchForced={EMPTY_COMPOSER_BATCH_FORCED}
-        onForkFromMessage={() => {}}
-        onStartThreadFromMessage={() => {}}
-        onForkToNewConversation={() => {}}
-        onEditMessage={() => {}}
-        onDeleteMessage={() => {}}
-        commitEdit={() => {}}
-        cancelEdit={() => {}}
-        fieldLabels={fieldLabels}
-      />
-    ) : null;
+  const parentReadonlyMessagesEl = splitRoot ? (
+    <ChatMessagesPane
+      messages={splitRoot.messages}
+      readOnly
+      scrollRef={parentMessagesScrollRef}
+      streaming={false}
+      error={null}
+      toolActivity={null}
+      activeIsThread={false}
+      editingIdx={null}
+      setEditingIdx={() => {}}
+      copiedIdx={null}
+      setCopiedIdx={() => {}}
+      bulkDismissIds={EMPTY_SNAPSHOT_DISMISS}
+      composerBatchForced={EMPTY_COMPOSER_BATCH_FORCED}
+      onForkFromMessage={() => {}}
+      onStartThreadFromMessage={() => {}}
+      onForkToNewConversation={() => {}}
+      onEditMessage={() => {}}
+      onDeleteMessage={() => {}}
+      commitEdit={() => {}}
+      cancelEdit={() => {}}
+      fieldLabels={fieldLabels}
+    />
+  ) : null;
 
   /** Guided header must match persisted conversation (agent preset), not global toolbar state. */
   const guidedExecSummary = useMemo(() => {
-    if (activeSessionKind !== 'guided') return null;
+    if (activeSessionKind !== "guided") return null;
     const conv = conversations.find((c) => c.id === activeConversationId);
     if (!conv) {
-      return resolveGuidedExecutionSummary(modes, selectedMode, llms, selectedLlmId);
+      return resolveGuidedExecutionSummary(
+        modes,
+        selectedMode,
+        llms,
+        selectedLlmId,
+      );
     }
-    const llmForLabel = conv.agentLlmId !== undefined ? conv.agentLlmId : selectedLlmId;
+    const llmForLabel =
+      conv.agentLlmId !== undefined ? conv.agentLlmId : selectedLlmId;
     return resolveGuidedExecutionSummary(modes, conv.mode, llms, llmForLabel);
   }, [
     activeSessionKind,
@@ -1158,7 +1300,7 @@ export function ChatPanel({
   return (
     <div
       ref={panelRef}
-      className={`chat-panel${isFullscreen ? ' chat-panel--expanded' : ''}${showThreadSplit ? ' chat-panel--thread-split' : ''}`}
+      className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}${showThreadSplit ? " chat-panel--thread-split" : ""}`}
     >
       <div className="chat-header">
         {guidedExecSummary ? (
@@ -1171,20 +1313,24 @@ export function ChatPanel({
             <span className="chat-guided-execution-summary-text">
               {guidedExecSummary.modeLabel}
               <span className="chat-guided-execution-sep" aria-hidden>
-                {' '}
-                ·{' '}
+                {" "}
+                ·{" "}
               </span>
               {guidedExecSummary.llmLabel}
             </span>
           </div>
         ) : (
-          <ModeSelector modes={modes} selectedMode={selectedMode} onModeChange={onModeChange} />
+          <ModeSelector
+            modes={modes}
+            selectedMode={selectedMode}
+            onModeChange={onModeChange}
+          />
         )}
         <div className="chat-header-actions">
           {!guidedExecSummary && llms.length > 0 && onLlmChange && (
             <select
               className="chat-llm-select"
-              value={selectedLlmId ?? ''}
+              value={selectedLlmId ?? ""}
               onChange={(e) => onLlmChange(e.target.value || undefined)}
               title="LLM auswählen"
             >
@@ -1208,15 +1354,19 @@ export function ChatPanel({
           )}
           <button
             type="button"
-            className={`chat-history-btn ${isFullscreen ? 'active' : ''}`}
+            className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
             onClick={() => toggleChatFullscreen()}
-            title={isFullscreen ? 'Vergrößerte Ansicht schließen (Esc)' : 'Chat vergrößern'}
+            title={
+              isFullscreen
+                ? "Vergrößerte Ansicht schließen (Esc)"
+                : "Chat vergrößern"
+            }
             aria-pressed={isFullscreen}
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
           <button
-            className={`chat-history-btn ${historyOpen ? 'active' : ''}`}
+            className={`chat-history-btn ${historyOpen ? "active" : ""}`}
             onClick={() => setHistoryOpen((prev) => !prev)}
             title="Chat-Historie"
           >
@@ -1230,19 +1380,30 @@ export function ChatPanel({
               className="chat-header-rename-input"
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
-              onBlur={() => { onRenameChat(activeConversationId, titleDraft); setRenamingTitle(false); }}
+              onBlur={() => {
+                onRenameChat(activeConversationId, titleDraft);
+                setRenamingTitle(false);
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') { onRenameChat(activeConversationId, titleDraft); setRenamingTitle(false); }
-                if (e.key === 'Escape') setRenamingTitle(false);
+                if (e.key === "Enter") {
+                  onRenameChat(activeConversationId, titleDraft);
+                  setRenamingTitle(false);
+                }
+                if (e.key === "Escape") setRenamingTitle(false);
               }}
               autoFocus
             />
           ) : (
-            <span className="chat-header-title" title={activeTitle}>{activeTitle}</span>
+            <span className="chat-header-title" title={activeTitle}>
+              {activeTitle}
+            </span>
           )}
           <button
             className="chat-header-rename-btn"
-            onClick={() => { setTitleDraft(activeTitle); setRenamingTitle(true); }}
+            onClick={() => {
+              setTitleDraft(activeTitle);
+              setRenamingTitle(true);
+            }}
             title="Chat umbenennen"
           >
             <Pencil size={11} />
@@ -1255,7 +1416,7 @@ export function ChatPanel({
           conversations={conversations}
           activeId={activeConversationId}
           onSelect={onSwitchChat}
-          onCreate={(sk) => onNewChat(sk ?? 'standard')}
+          onCreate={(sk) => onNewChat(sk ?? "standard")}
           onDelete={onDeleteChat}
           onRename={onRenameChat}
           onToggleSavedToProject={onToggleSavedToProject}
@@ -1266,17 +1427,24 @@ export function ChatPanel({
         />
       )}
 
-      <div className={`chat-panel-body${showThreadSplit ? ' chat-panel-body--thread-split' : ''}`}>
+      <div
+        className={`chat-panel-body${showThreadSplit ? " chat-panel-body--thread-split" : ""}`}
+      >
         {splitRoot ? (
           <>
             <div className="chat-thread-split-left">
               <div className="chat-thread-split-pane-header">
                 <span className="chat-thread-split-pane-label">Haupt-Chat</span>
-                <span className="chat-thread-split-pane-title" title={splitRoot.title}>
+                <span
+                  className="chat-thread-split-pane-title"
+                  title={splitRoot.title}
+                >
                   {splitRoot.title}
                 </span>
               </div>
-              <div className="chat-thread-split-left-scroll">{parentReadonlyMessagesEl}</div>
+              <div className="chat-thread-split-left-scroll">
+                {parentReadonlyMessagesEl}
+              </div>
             </div>
             <div className="chat-thread-split-right">
               <div className="chat-thread-split-switcher">
@@ -1294,7 +1462,7 @@ export function ChatPanel({
               </div>
               <div className="chat-panel-body-main">
                 {interactiveMessagesEl}
-                {activeSessionKind === 'guided' && (
+                {activeSessionKind === "guided" && (
                   <GuidedSteeringPlanSection
                     open={steeringPlanOpen}
                     onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
@@ -1343,7 +1511,9 @@ export function ChatPanel({
                     fullscreen={isFullscreen}
                     structureRoot={structureRoot}
                     useReasoning={useReasoning && reasoningAvailable}
-                    onToggleReasoning={agentMode ? undefined : onToggleReasoning}
+                    onToggleReasoning={
+                      agentMode ? undefined : onToggleReasoning
+                    }
                     disabledToolkits={disabledToolkits}
                     onToggleToolkit={agentMode ? undefined : onToggleToolkit}
                     reasoningAvailable={reasoningAvailable}
@@ -1360,7 +1530,7 @@ export function ChatPanel({
           <>
             <div className="chat-panel-body-main">
               {interactiveMessagesEl}
-              {activeSessionKind === 'guided' && (
+              {activeSessionKind === "guided" && (
                 <GuidedSteeringPlanSection
                   open={steeringPlanOpen}
                   onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
@@ -1426,23 +1596,31 @@ export function ChatPanel({
                 <div className="chat-threads-rail-list">
                   <button
                     type="button"
-                    className={`chat-threads-rail-item${threadsRailRoot.id === activeConversationId ? ' active' : ''}`}
+                    className={`chat-threads-rail-item${threadsRailRoot.id === activeConversationId ? " active" : ""}`}
                     onClick={() => onSwitchChat(threadsRailRoot.id)}
                     title={threadsRailRoot.title}
                   >
-                    <span className="chat-threads-rail-item-meta">Haupt-Chat</span>
-                    <span className="chat-threads-rail-item-title">{threadsRailRoot.title}</span>
+                    <span className="chat-threads-rail-item-meta">
+                      Haupt-Chat
+                    </span>
+                    <span className="chat-threads-rail-item-title">
+                      {threadsRailRoot.title}
+                    </span>
                   </button>
                   {threadRail.threads.map((t) => (
                     <button
                       key={t.id}
                       type="button"
-                      className={`chat-threads-rail-item${t.id === activeConversationId ? ' active' : ''}`}
+                      className={`chat-threads-rail-item${t.id === activeConversationId ? " active" : ""}`}
                       onClick={() => onSwitchChat(t.id)}
                       title={t.title}
                     >
-                      <span className="chat-threads-rail-item-meta">Thread</span>
-                      <span className="chat-threads-rail-item-title">{t.title}</span>
+                      <span className="chat-threads-rail-item-meta">
+                        Thread
+                      </span>
+                      <span className="chat-threads-rail-item-title">
+                        {t.title}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1462,7 +1640,7 @@ export function ChatPanel({
         />
       )}
 
-      {glossaryPopup && !glossaryForm && !disabledToolkits.has('glossary') && (
+      {glossaryPopup && !glossaryForm && !disabledToolkits.has("glossary") && (
         <div
           className="glossary-selection-popup"
           style={{ left: glossaryPopup.x, top: glossaryPopup.y }}
@@ -1471,7 +1649,10 @@ export function ChatPanel({
             className="glossary-selection-btn"
             onMouseDown={(e) => {
               e.preventDefault();
-              setGlossaryForm({ term: glossaryPopup.selectedText, definition: '' });
+              setGlossaryForm({
+                term: glossaryPopup.selectedText,
+                definition: "",
+              });
             }}
           >
             📖 Als Glossar-Begriff speichern
@@ -1479,16 +1660,27 @@ export function ChatPanel({
         </div>
       )}
 
-      {glossaryForm && !disabledToolkits.has('glossary') && (
-        <div className="glossary-save-overlay" onClick={() => { setGlossaryForm(null); setGlossaryPopup(null); }}>
-          <div className="glossary-save-dialog" onClick={(e) => e.stopPropagation()}>
+      {glossaryForm && !disabledToolkits.has("glossary") && (
+        <div
+          className="glossary-save-overlay"
+          onClick={() => {
+            setGlossaryForm(null);
+            setGlossaryPopup(null);
+          }}
+        >
+          <div
+            className="glossary-save-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="glossary-save-title">Glossar-Eintrag speichern</div>
             <label className="glossary-save-label">
               Begriff
               <input
                 className="glossary-save-input"
                 value={glossaryForm.term}
-                onChange={(e) => setGlossaryForm({ ...glossaryForm, term: e.target.value })}
+                onChange={(e) =>
+                  setGlossaryForm({ ...glossaryForm, term: e.target.value })
+                }
                 autoFocus
               />
             </label>
@@ -1497,7 +1689,12 @@ export function ChatPanel({
               <textarea
                 className="glossary-save-textarea"
                 value={glossaryForm.definition}
-                onChange={(e) => setGlossaryForm({ ...glossaryForm, definition: e.target.value })}
+                onChange={(e) =>
+                  setGlossaryForm({
+                    ...glossaryForm,
+                    definition: e.target.value,
+                  })
+                }
                 rows={3}
                 placeholder="Kurze Erklärung..."
               />
@@ -1505,16 +1702,23 @@ export function ChatPanel({
             <div className="glossary-save-actions">
               <button
                 className="glossary-save-cancel"
-                onClick={() => { setGlossaryForm(null); setGlossaryPopup(null); }}
+                onClick={() => {
+                  setGlossaryForm(null);
+                  setGlossaryPopup(null);
+                }}
               >
                 Abbrechen
               </button>
               <button
                 className="glossary-save-confirm"
-                disabled={!glossaryForm.term.trim() || !glossaryForm.definition.trim() || glossarySaving}
+                disabled={
+                  !glossaryForm.term.trim() ||
+                  !glossaryForm.definition.trim() ||
+                  glossarySaving
+                }
                 onClick={handleSaveToGlossary}
               >
-                {glossarySaving ? 'Speichere…' : 'Speichern'}
+                {glossarySaving ? "Speichere…" : "Speichern"}
               </button>
             </div>
           </div>

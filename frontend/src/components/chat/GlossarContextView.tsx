@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { glossaryApi } from "../../api.ts";
 
 type GlossaryEntryDto = { term: string; definition: string };
 
@@ -26,16 +27,17 @@ type GlossarData = {
 function normalizeGlossaryPayload(json: GlossaryApiResponse): GlossarData {
   const entries = Array.isArray(json.entries)
     ? json.entries
-        .filter((e) => e && typeof e.term === 'string')
+        .filter((e) => e && typeof e.term === "string")
         .map((e) => ({
           term: e.term,
-          definition: typeof e.definition === 'string' ? e.definition : '',
+          definition: typeof e.definition === "string" ? e.definition : "",
         }))
     : [];
   return {
-    content: typeof json.content === 'string' ? json.content : '',
+    content: typeof json.content === "string" ? json.content : "",
     exists: Boolean(json.exists),
-    prefixMarkdown: typeof json.prefixMarkdown === 'string' ? json.prefixMarkdown : '',
+    prefixMarkdown:
+      typeof json.prefixMarkdown === "string" ? json.prefixMarkdown : "",
     entries,
   };
 }
@@ -51,15 +53,10 @@ export function GlossarContextView({ expanded }: GlossarContextViewProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/glossary');
-      if (!res.ok) {
-        setError(`Anfrage fehlgeschlagen (${res.status})`);
-        return;
-      }
-      const json = (await res.json()) as GlossaryApiResponse;
+      const json = (await glossaryApi.get()) as GlossaryApiResponse;
       setData(normalizeGlossaryPayload(json));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Netzwerkfehler');
+      setError(e instanceof Error ? e.message : "Netzwerkfehler");
     } finally {
       setLoading(false);
     }
@@ -81,21 +78,15 @@ export function GlossarContextView({ expanded }: GlossarContextViewProps) {
       setError(null);
       setDeletingTerm(term);
       try {
-        const res = await fetch(`/api/glossary/entries?term=${encodeURIComponent(term)}`, {
-          method: 'DELETE',
-        });
-        if (res.status === 404) {
-          setError('Eintrag oder Glossar nicht gefunden.');
+        await glossaryApi.deleteEntry(term);
+        await load();
+      } catch (e) {
+        if (e instanceof Error && /not found/i.test(e.message)) {
+          setError("Eintrag oder Glossar nicht gefunden.");
           await load();
           return;
         }
-        if (!res.ok) {
-          setError(`Löschen fehlgeschlagen (${res.status})`);
-          return;
-        }
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Netzwerkfehler');
+        setError(e instanceof Error ? e.message : "Netzwerkfehler");
       } finally {
         setDeletingTerm(null);
       }
@@ -106,10 +97,13 @@ export function GlossarContextView({ expanded }: GlossarContextViewProps) {
   const hasStructuredBody =
     data !== null &&
     data.exists &&
-    (data.prefixMarkdown.trim() !== '' || data.entries.length > 0);
+    (data.prefixMarkdown.trim() !== "" || data.entries.length > 0);
 
   const isTrulyEmpty =
-    data !== null && data.exists && data.content.trim() === '' && !hasStructuredBody;
+    data !== null &&
+    data.exists &&
+    data.content.trim() === "" &&
+    !hasStructuredBody;
 
   return (
     <div className="glossar-context-view">
@@ -121,7 +115,7 @@ export function GlossarContextView({ expanded }: GlossarContextViewProps) {
           disabled={loading}
           title="Glossar aktualisieren"
         >
-          {loading ? '…' : '↻'}
+          {loading ? "…" : "↻"}
         </button>
       </div>
       {error && (
@@ -133,27 +127,38 @@ export function GlossarContextView({ expanded }: GlossarContextViewProps) {
         <div className="glossar-context-view-loading">Lade Glossar…</div>
       )}
       {data !== null && !data.exists && (
-        <p className="glossar-context-view-empty">Kein Glossar (.assistant/glossary.md) vorhanden.</p>
+        <p className="glossar-context-view-empty">
+          Kein Glossar (.assistant/glossary.md) vorhanden.
+        </p>
       )}
       {isTrulyEmpty && (
         <p className="glossar-context-view-empty">Das Glossar ist noch leer.</p>
       )}
       {data !== null && data.exists && hasStructuredBody && (
         <div className="glossar-context-view-body">
-          {data.prefixMarkdown.trim() !== '' && (
+          {data.prefixMarkdown.trim() !== "" && (
             <div className="glossar-context-view-prefix">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.prefixMarkdown}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {data.prefixMarkdown}
+              </ReactMarkdown>
             </div>
           )}
           {data.entries.length > 0 && (
             <ul className="glossar-context-view-entry-list">
               {data.entries.map((entry, index) => (
-                <li key={`${index}-${entry.term}`} className="glossar-context-view-entry">
+                <li
+                  key={`${index}-${entry.term}`}
+                  className="glossar-context-view-entry"
+                >
                   <div className="glossar-context-view-entry-text">
-                    <strong className="glossar-context-view-entry-term">{entry.term}</strong>
+                    <strong className="glossar-context-view-entry-term">
+                      {entry.term}
+                    </strong>
                     <span className="glossar-context-view-entry-sep">: </span>
                     <span className="glossar-context-view-entry-def">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.definition}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {entry.definition}
+                      </ReactMarkdown>
                     </span>
                   </div>
                   <button
@@ -164,7 +169,7 @@ export function GlossarContextView({ expanded }: GlossarContextViewProps) {
                     disabled={deletingTerm !== null}
                     onClick={() => void handleDeleteEntry(entry.term)}
                   >
-                    {deletingTerm === entry.term ? '…' : '×'}
+                    {deletingTerm === entry.term ? "…" : "×"}
                   </button>
                 </li>
               ))}
@@ -175,10 +180,12 @@ export function GlossarContextView({ expanded }: GlossarContextViewProps) {
       {data !== null &&
         data.exists &&
         !hasStructuredBody &&
-        data.content.trim() !== '' &&
+        data.content.trim() !== "" &&
         !isTrulyEmpty && (
           <div className="glossar-context-view-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {data.content}
+            </ReactMarkdown>
           </div>
         )}
     </div>

@@ -1,3 +1,30 @@
+import type {
+  AgentPreset,
+  FileNode,
+  Mode,
+  ProjectConfig,
+  WorkspaceModeInfo,
+  WorkspaceModeSchema,
+} from "../types.ts";
+
+export interface WikiSearchResult {
+  path: string;
+  title: string;
+  snippet: string;
+}
+
+export interface GlossaryEntry {
+  term: string;
+  definition: string;
+}
+
+export interface GlossaryData {
+  content: string;
+  exists: boolean;
+  prefixMarkdown?: string;
+  entries?: GlossaryEntry[];
+}
+
 export interface ProjectCurrentResult {
   path: string;
   hasProject: boolean;
@@ -9,14 +36,6 @@ export interface ProjectBrowseResult {
   path?: string;
 }
 
-export interface FileNode {
-  name: string;
-  path: string;
-  directory: boolean;
-  children: FileNode[] | null;
-  subprojectType?: string | null;
-}
-
 export interface FileContentResult {
   path: string;
   content: string;
@@ -26,6 +45,12 @@ export interface FileContentResult {
 export interface FileMutationResult {
   status: string;
   path: string;
+}
+
+export interface SubprojectInfoResult {
+  subproject: boolean;
+  type?: string;
+  name?: string;
 }
 
 export interface AppBridge {
@@ -65,6 +90,40 @@ export interface AppBridge {
       path: string,
       targetParentPath: string,
     ) => Promise<FileMutationResult>;
+  };
+  subproject?: {
+    info: (path: string) => Promise<SubprojectInfoResult>;
+    init: (
+      path: string,
+      type: string,
+      name: string,
+    ) => Promise<{ status: string }>;
+    remove: (path: string) => Promise<{ status: string }>;
+  };
+  wiki?: {
+    listFiles: () => Promise<string[]>;
+    search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
+  };
+  glossary?: {
+    get: () => Promise<GlossaryData>;
+    addEntry: (term: string, definition: string) => Promise<{ status: string }>;
+    deleteEntry: (term: string) => Promise<{ status: string }>;
+  };
+  projectConfig?: {
+    status: () => Promise<{ initialized: boolean }>;
+    getWorkspaceMode: (modeId?: string | null) => Promise<WorkspaceModeSchema>;
+    listWorkspaceModes: () => Promise<WorkspaceModeInfo[]>;
+    getWorkspaceModesDataDir: () => Promise<{ path: string; exists: boolean }>;
+    revealWorkspaceModesDataDir: () => Promise<{ status: string }>;
+    get: () => Promise<ProjectConfig>;
+    init: () => Promise<ProjectConfig>;
+    update: (config: ProjectConfig) => Promise<ProjectConfig>;
+    getModes: () => Promise<Mode[]>;
+    saveMode: (id: string, mode: Mode) => Promise<Mode>;
+    deleteMode: (id: string) => Promise<{ status: string }>;
+    listAgents: () => Promise<AgentPreset[]>;
+    saveAgent: (id: string, preset: AgentPreset) => Promise<AgentPreset>;
+    deleteAgent: (id: string) => Promise<{ status: string }>;
   };
 }
 

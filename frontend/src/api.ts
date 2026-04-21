@@ -18,6 +18,15 @@ import type {
   LlmsListResponse,
   Conversation,
 } from "./types.ts";
+
+type GlossaryEntryDto = { term: string; definition: string };
+
+type GlossaryApiResponse = {
+  content: string;
+  exists: boolean;
+  prefixMarkdown?: string;
+  entries?: GlossaryEntryDto[];
+};
 import {
   buildConversationById,
   effectiveSavedToProject,
@@ -40,6 +49,7 @@ type ProjectOpenResponse = {
   tree: FileNode;
   initialized: boolean;
 };
+type ProjectConfigStatusResponse = { initialized: boolean };
 
 function getElectronApi() {
   return getAppBridge();
@@ -296,43 +306,142 @@ export const projectApi = {
 };
 
 export const projectConfigApi = {
-  status: () => get<{ initialized: boolean }>("/project-config/status"),
-  getWorkspaceMode: (modeId?: string | null) =>
-    modeId != null && modeId !== ""
+  status: async (): Promise<ProjectConfigStatusResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) return electronApi.projectConfig.status();
+    }
+    return get<ProjectConfigStatusResponse>("/project-config/status");
+  },
+  getWorkspaceMode: async (
+    modeId?: string | null,
+  ): Promise<WorkspaceModeSchema> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.getWorkspaceMode(modeId);
+      }
+    }
+    return modeId != null && modeId !== ""
       ? get<WorkspaceModeSchema>(
           `/project-config/workspace-mode?id=${encodeURIComponent(modeId)}`,
         )
-      : get<WorkspaceModeSchema>("/project-config/workspace-mode"),
-  listWorkspaceModes: () =>
-    get<WorkspaceModeInfo[]>("/project-config/workspace-modes"),
-  getWorkspaceModesDataDir: () =>
-    get<{ path: string; exists: boolean }>(
+      : get<WorkspaceModeSchema>("/project-config/workspace-mode");
+  },
+  listWorkspaceModes: async (): Promise<WorkspaceModeInfo[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.listWorkspaceModes();
+      }
+    }
+    return get<WorkspaceModeInfo[]>("/project-config/workspace-modes");
+  },
+  getWorkspaceModesDataDir: async (): Promise<{
+    path: string;
+    exists: boolean;
+  }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.getWorkspaceModesDataDir();
+      }
+    }
+    return get<{ path: string; exists: boolean }>(
       "/project-config/workspace-modes/data-dir",
-    ),
-  revealWorkspaceModesDataDir: () =>
-    post<{ status: string }>(
+    );
+  },
+  revealWorkspaceModesDataDir: async (): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.revealWorkspaceModesDataDir();
+      }
+    }
+    return post<{ status: string }>(
       "/project-config/workspace-modes/reveal-data-dir",
       {},
-    ),
-  get: () => get<ProjectConfig>("/project-config"),
-  init: () => post<ProjectConfig>("/project-config/init", {}),
-  update: (config: ProjectConfig) =>
-    put<ProjectConfig>("/project-config", config),
-  getModes: () => get<Mode[]>("/project-config/modes"),
-  saveMode: (id: string, mode: Mode) =>
-    put<Mode>(`/project-config/modes/${id}`, mode),
-  deleteMode: (id: string) =>
-    fetch(`/api/project-config/modes/${id}`, { method: "DELETE" }).then((r) =>
-      r.json(),
-    ),
-  listAgents: () => get<AgentPreset[]>("/project-config/agents"),
-  saveAgent: (id: string, preset: AgentPreset) =>
-    put<AgentPreset>(
+    );
+  },
+  get: async (): Promise<ProjectConfig> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) return electronApi.projectConfig.get();
+    }
+    return get<ProjectConfig>("/project-config");
+  },
+  init: async (): Promise<ProjectConfig> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) return electronApi.projectConfig.init();
+    }
+    return post<ProjectConfig>("/project-config/init", {});
+  },
+  update: async (config: ProjectConfig): Promise<ProjectConfig> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.update(config);
+      }
+    }
+    return put<ProjectConfig>("/project-config", config);
+  },
+  getModes: async (): Promise<Mode[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig)
+        return electronApi.projectConfig.getModes();
+    }
+    return get<Mode[]>("/project-config/modes");
+  },
+  saveMode: async (id: string, mode: Mode): Promise<Mode> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.saveMode(id, mode);
+      }
+    }
+    return put<Mode>(`/project-config/modes/${id}`, mode);
+  },
+  deleteMode: async (id: string): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.deleteMode(id);
+      }
+    }
+    return fetch(`/api/project-config/modes/${id}`, { method: "DELETE" }).then(
+      (r) => r.json(),
+    );
+  },
+  listAgents: async (): Promise<AgentPreset[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig)
+        return electronApi.projectConfig.listAgents();
+    }
+    return get<AgentPreset[]>("/project-config/agents");
+  },
+  saveAgent: async (id: string, preset: AgentPreset): Promise<AgentPreset> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.saveAgent(id, preset);
+      }
+    }
+    return put<AgentPreset>(
       `/project-config/agents/${encodeURIComponent(id)}`,
       preset,
-    ),
-  deleteAgent: (id: string) =>
-    fetch(`${BASE}/project-config/agents/${encodeURIComponent(id)}`, {
+    );
+  },
+  deleteAgent: async (id: string): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.projectConfig) {
+        return electronApi.projectConfig.deleteAgent(id);
+      }
+    }
+    return fetch(`${BASE}/project-config/agents/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }).then(async (r) => {
       if (!r.ok) {
@@ -348,7 +457,8 @@ export const projectConfigApi = {
         );
       }
       return r.json() as Promise<{ status: string }>;
-    }),
+    });
+  },
 };
 
 export interface LlmCreateRequest {
@@ -546,24 +656,94 @@ export const bookApi = {
 };
 
 export const subprojectApi = {
-  info: (path: string) =>
-    get<{ subproject: boolean; type?: string; name?: string }>(
+  info: async (
+    path: string,
+  ): Promise<{ subproject: boolean; type?: string; name?: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.subproject) return electronApi.subproject.info(path);
+    }
+    return get<{ subproject: boolean; type?: string; name?: string }>(
       `/subproject/info?path=${encodeURIComponent(path)}`,
-    ),
-  init: (path: string, type: string, name: string) =>
-    post<{ status: string }>("/subproject/init", { path, type, name }),
-  remove: (path: string) =>
-    del<{ status: string }>(
+    );
+  },
+  init: async (
+    path: string,
+    type: string,
+    name: string,
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.subproject) {
+        return electronApi.subproject.init(path, type, name);
+      }
+    }
+    return post<{ status: string }>("/subproject/init", { path, type, name });
+  },
+  remove: async (path: string): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.subproject) return electronApi.subproject.remove(path);
+    }
+    return del<{ status: string }>(
       `/subproject/remove?path=${encodeURIComponent(path)}`,
-    ),
+    );
+  },
 };
 
 export const wikiApi = {
-  listFiles: () => get<string[]>("/wiki/files"),
-  search: (q: string, limit?: number) =>
-    get<Array<{ path: string; title: string; snippet: string }>>(
+  listFiles: async (): Promise<string[]> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.wiki) return electronApi.wiki.listFiles();
+    }
+    return get<string[]>("/wiki/files");
+  },
+  search: async (
+    q: string,
+    limit?: number,
+  ): Promise<Array<{ path: string; title: string; snippet: string }>> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.wiki) return electronApi.wiki.search(q, limit);
+    }
+    return get<Array<{ path: string; title: string; snippet: string }>>(
       `/wiki/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ""}`,
-    ),
+    );
+  },
+};
+
+export const glossaryApi = {
+  get: async (): Promise<GlossaryApiResponse> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.glossary) return electronApi.glossary.get();
+    }
+    return get<GlossaryApiResponse>("/glossary");
+  },
+  addEntry: async (
+    term: string,
+    definition: string,
+  ): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.glossary) {
+        return electronApi.glossary.addEntry(term, definition);
+      }
+    }
+    return post<{ status: string }>("/glossary/entries", { term, definition });
+  },
+  deleteEntry: async (term: string): Promise<{ status: string }> => {
+    if (isRunningInElectron()) {
+      const electronApi = getElectronApi();
+      if (electronApi?.glossary) {
+        return electronApi.glossary.deleteEntry(term);
+      }
+    }
+    return del<{ status: string }>(
+      `/glossary/entries?term=${encodeURIComponent(term)}`,
+    );
+  },
 };
 
 export interface ContextBlock {

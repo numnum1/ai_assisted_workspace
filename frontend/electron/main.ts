@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -7,7 +7,7 @@ import {
   getCurrentProjectPath,
   openProject,
   revealProject,
-} from "./services/projectService.js";
+} from "./services/projectService.ts";
 import {
   createFile,
   createFolder,
@@ -17,7 +17,34 @@ import {
   movePath,
   renamePath,
   saveContent,
-} from "./services/filesService.js";
+} from "./services/filesService.ts";
+import {
+  deleteProjectAgent as removeAgentPreset,
+  deleteProjectMode as removeProjectMode,
+  getProjectConfig,
+  getProjectConfigStatus,
+  getWorkspaceMode,
+  getWorkspaceModesDataDir,
+  initProjectConfig,
+  listProjectAgents as listAgentPresets,
+  getProjectModes as listProjectModes,
+  listWorkspaceModes,
+  revealWorkspaceModesDataDir,
+  saveProjectAgent as saveAgentPreset,
+  updateProjectConfig as saveProjectConfig,
+  saveProjectMode,
+} from "./services/projectConfigService.ts";
+import {
+  getSubprojectInfo,
+  initSubproject,
+  removeSubproject,
+} from "./services/subprojectService.ts";
+import { listWikiFiles, searchWiki } from "./services/wikiService.ts";
+import {
+  addGlossaryEntry,
+  deleteGlossaryEntry,
+  getGlossary,
+} from "./services/glossaryService.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +87,80 @@ function registerIpcHandlers(): void {
     (_event, filePath: string, targetParentPath: string) =>
       movePath(getCurrentProjectPath(), filePath, targetParentPath),
   );
+
+  ipcMain.handle("subproject:info", (_event, targetPath: string) =>
+    getSubprojectInfo(getCurrentProjectPath(), targetPath),
+  );
+  ipcMain.handle(
+    "subproject:init",
+    (_event, targetPath: string, type: string, name: string) =>
+      initSubproject(getCurrentProjectPath(), targetPath, type, name),
+  );
+  ipcMain.handle("subproject:remove", (_event, targetPath: string) =>
+    removeSubproject(getCurrentProjectPath(), targetPath),
+  );
+
+  ipcMain.handle("wiki:listFiles", () =>
+    listWikiFiles(getCurrentProjectPath()),
+  );
+  ipcMain.handle("wiki:search", (_event, query: string, limit?: number) =>
+    searchWiki(getCurrentProjectPath(), query, limit),
+  );
+
+  ipcMain.handle("glossary:get", () => getGlossary(getCurrentProjectPath()));
+  ipcMain.handle(
+    "glossary:addEntry",
+    (_event, term: string, definition: string) =>
+      addGlossaryEntry(getCurrentProjectPath(), term, definition),
+  );
+  ipcMain.handle("glossary:deleteEntry", (_event, term: string) =>
+    deleteGlossaryEntry(getCurrentProjectPath(), term),
+  );
+
+  ipcMain.handle("projectConfig:status", () =>
+    getProjectConfigStatus(getCurrentProjectPath()),
+  );
+  ipcMain.handle(
+    "projectConfig:getWorkspaceMode",
+    (_event, modeId?: string | null) =>
+      getWorkspaceMode(getCurrentProjectPath(), modeId),
+  );
+  ipcMain.handle("projectConfig:listWorkspaceModes", () =>
+    listWorkspaceModes(getCurrentProjectPath()),
+  );
+  ipcMain.handle("projectConfig:getWorkspaceModesDataDir", () =>
+    getWorkspaceModesDataDir(),
+  );
+  ipcMain.handle("projectConfig:revealWorkspaceModesDataDir", () =>
+    revealWorkspaceModesDataDir(),
+  );
+  ipcMain.handle("projectConfig:get", () =>
+    getProjectConfig(getCurrentProjectPath()),
+  );
+  ipcMain.handle("projectConfig:init", () =>
+    initProjectConfig(getCurrentProjectPath()),
+  );
+  ipcMain.handle("projectConfig:update", (_event, config) =>
+    saveProjectConfig(getCurrentProjectPath(), config),
+  );
+  ipcMain.handle("projectConfig:getModes", () =>
+    listProjectModes(getCurrentProjectPath()),
+  );
+  ipcMain.handle("projectConfig:saveMode", (_event, id: string, mode) =>
+    saveProjectMode(getCurrentProjectPath(), id, mode),
+  );
+  ipcMain.handle("projectConfig:deleteMode", (_event, id: string) =>
+    removeProjectMode(getCurrentProjectPath(), id),
+  );
+  ipcMain.handle("projectConfig:listAgents", () =>
+    listAgentPresets(getCurrentProjectPath()),
+  );
+  ipcMain.handle("projectConfig:saveAgent", (_event, id: string, preset) =>
+    saveAgentPreset(getCurrentProjectPath(), id, preset),
+  );
+  ipcMain.handle("projectConfig:deleteAgent", (_event, id: string) =>
+    removeAgentPreset(getCurrentProjectPath(), id),
+  );
 }
 
 function createWindow(): void {
@@ -81,6 +182,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   registerIpcHandlers();
   createWindow();
 

@@ -30,4 +30,47 @@ contextBridge.exposeInMainWorld("appBridge", {
     move: (path: string, targetParentPath: string) =>
       ipcRenderer.invoke("files:move", path, targetParentPath),
   },
+  wiki: {
+    listFiles: () => ipcRenderer.invoke("wiki:listFiles"),
+    search: (query: string, limit?: number) =>
+      ipcRenderer.invoke("wiki:search", query, limit),
+  },
+  glossary: {
+    get: () => ipcRenderer.invoke("glossary:get"),
+    addEntry: (term: string, definition: string) =>
+      ipcRenderer.invoke("glossary:addEntry", term, definition),
+    deleteEntry: (term: string) =>
+      ipcRenderer.invoke("glossary:deleteEntry", term),
+  },
+  subproject: {
+    info: (path: string) => ipcRenderer.invoke("subproject:info", path),
+    init: (path: string, type: string, name: string) =>
+      ipcRenderer.invoke("subproject:init", path, type, name),
+    remove: (path: string) => ipcRenderer.invoke("subproject:remove", path),
+  },
+  projectConfig: {
+    status: () => ipcRenderer.invoke("projectConfig:status"),
+    getWorkspaceMode: (modeId?: string | null) =>
+      ipcRenderer.invoke("projectConfig:getWorkspaceMode", modeId ?? null),
+    listWorkspaceModes: () =>
+      ipcRenderer.invoke("projectConfig:listWorkspaceModes"),
+    getWorkspaceModesDataDir: () =>
+      ipcRenderer.invoke("projectConfig:getWorkspaceModesDataDir"),
+    revealWorkspaceModesDataDir: () =>
+      ipcRenderer.invoke("projectConfig:revealWorkspaceModesDataDir"),
+    get: () => ipcRenderer.invoke("projectConfig:get"),
+    init: () => ipcRenderer.invoke("projectConfig:init"),
+    update: (config: unknown) =>
+      ipcRenderer.invoke("projectConfig:update", config),
+    getModes: () => ipcRenderer.invoke("projectConfig:getModes"),
+    saveMode: (id: string, mode: unknown) =>
+      ipcRenderer.invoke("projectConfig:saveMode", id, mode),
+    deleteMode: (id: string) =>
+      ipcRenderer.invoke("projectConfig:deleteMode", id),
+    listAgents: () => ipcRenderer.invoke("projectConfig:listAgents"),
+    saveAgent: (id: string, preset: unknown) =>
+      ipcRenderer.invoke("projectConfig:saveAgent", id, preset),
+    deleteAgent: (id: string) =>
+      ipcRenderer.invoke("projectConfig:deleteAgent", id),
+  },
 });
