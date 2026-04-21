@@ -17,13 +17,13 @@ public class ModeController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Mode>> getAllModes() {
-        return ResponseEntity.ok(modeService.getAllModes());
+    public ResponseEntity<List<Mode<?>>> getAllModes() {
+        return ResponseEntity.ok(new java.util.ArrayList<>(modeService.getAllModes()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Mode> getMode(@PathVariable String id) {
-        Mode mode = modeService.getMode(id);
+    public ResponseEntity<Mode<?>> getMode(@PathVariable String id) {
+        Mode<?> mode = modeService.getMode(id);
         if (mode == null) {
             return ResponseEntity.notFound().build();
         }

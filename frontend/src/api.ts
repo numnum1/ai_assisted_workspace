@@ -17,8 +17,8 @@ import type {
   LlmPublic,
   LlmsListResponse,
   Conversation,
+  ConversationPatch,
 } from './types.ts';
-import { buildConversationById, effectiveSavedToProject } from './components/chat/chatHistoryUtils.ts';
 
 const BASE = '/api';
 
@@ -106,30 +106,26 @@ export const filesApi = {
     post<{ status: string; path: string }>('/files/move', { path, targetParentPath }),
 };
 
-/** Persisted chat subset for Git sync (see useChatHistory) */
-export const PROJECT_CHAT_HISTORY_PATH = '.assistant/chat-history.json';
-
-/** Load project-stored chats; returns null if missing or unreadable */
-export async function fetchProjectChatHistory(): Promise<Conversation[] | null> {
-  const res = await fetch(`${BASE}/files/content/${encodeFilePathForApi(PROJECT_CHAT_HISTORY_PATH)}`);
-  if (!res.ok) return null;
-  try {
-    const data = (await res.json()) as { content?: string };
-    if (typeof data.content !== 'string') return null;
-    const parsed = JSON.parse(data.content) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed as Conversation[];
-  } catch {
-    return null;
-  }
-}
-
-/** Writes roots with `savedToProject` plus any threads whose parent chain is pinned. */
-export async function persistProjectChatHistory(conversations: Conversation[]): Promise<void> {
-  const byId = buildConversationById(conversations);
-  const payload = conversations.filter((c) => effectiveSavedToProject(c, byId));
-  await filesApi.saveContent(PROJECT_CHAT_HISTORY_PATH, JSON.stringify(payload));
-}
+export const conversationsApi = {
+  getAll: () => get<Conversation[]>('/conversations'),
+  getById: (id: string) => get<Conversation>(`/conversations/${encodeURIComponent(id)}`),
+  create: (conversation: Partial<Conversation>) => post<Conversation>('/conversations', conversation),
+  patch: (id: string, patch: ConversationPatch) =>
+    fetch(`${BASE}/conversations/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).then(async (res) => {
+      if (!res.ok) {
+        let detail = '';
+        try { const d = await res.json(); detail = d.error ?? d.message ?? ''; } catch { /* ignore */ }
+        throw new Error(detail || `PATCH /conversations/${id}: ${res.status}`);
+      }
+      return res.json() as Promise<Conversation>;
+    }),
+  replace: (id: string, conversation: Conversation) => put<Conversation>(`/conversations/${encodeURIComponent(id)}`, conversation),
+  delete: (id: string) => del<void>(`/conversations/${encodeURIComponent(id)}`),
+};
 
 export const modesApi = {
   getAll: () => get<Mode[]>('/modes'),

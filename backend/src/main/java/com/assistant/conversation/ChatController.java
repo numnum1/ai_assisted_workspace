@@ -6,6 +6,13 @@ import com.assistant.ai_provider.old_models.ChatRequest;
 import com.assistant.ai_provider.old_models.ToolCall;
 import com.assistant.ai_provider.AiApiClient;
 import com.assistant.ai_provider.AiProviderService;
+import com.assistant.conversation.history.ChatHistoryService;
+import com.assistant.conversation.history.ConversationHistoryBuilder;
+import com.assistant.conversation.model.AssistantConversationMessage;
+import com.assistant.conversation.model.ChatPart;
+import com.assistant.conversation.model.Conversation;
+import com.assistant.conversation.model.ConversationMessage;
+import com.assistant.conversation.model.UserConversationMessage;
 import com.assistant.conversation.services.ChatCompletionStreamParser;
 import com.assistant.context.ContextService;
 import com.assistant.tools.ToolExecutor;
@@ -19,11 +26,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.net.ConnectException;
 import java.net.UnknownHostException;
+import java.time.Instant;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
@@ -36,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -55,18 +65,36 @@ public class ChatController {
     private final ToolExecutor toolExecutor;
     private final AiProviderService aiProviderService;
     private final ObjectMapper objectMapper;
+    private final ChatHistoryService chatHistoryService;
+    private final ConversationHistoryBuilder conversationHistoryBuilder;
+    private final ConversationValidator conversationValidator;
 
-    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor, AiProviderService aiProviderService, ObjectMapper objectMapper) {
+    public ChatController(ContextService contextService, AiApiClient aiApiClient, ToolExecutor toolExecutor,
+                          AiProviderService aiProviderService, ObjectMapper objectMapper,
+                          ChatHistoryService chatHistoryService, ConversationHistoryBuilder conversationHistoryBuilder,
+                          ConversationValidator conversationValidator) {
         this.contextService = contextService;
         this.aiApiClient = aiApiClient;
         this.toolExecutor = toolExecutor;
         this.aiProviderService = aiProviderService;
         this.objectMapper = objectMapper;
+        this.chatHistoryService = chatHistoryService;
+        this.conversationHistoryBuilder = conversationHistoryBuilder;
+        this.conversationValidator = conversationValidator;
     }
 
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request) {
         logIncomingChatRequest(request);
+
+        // If a conversationId is provided, load history from backend storage.
+        if (StringUtils.hasText(request.getConversationId())) {
+            chatHistoryService.findById(request.getConversationId()).ifPresent(conv -> {
+                List<ChatMessage> apiHistory = conversationHistoryBuilder.toApiMessages(conv);
+                request.setHistory(apiHistory);
+                log.info("Loaded {} history messages from conversation id={}", apiHistory.size(), conv.getId());
+            });
+        }
 
         AssembledContext context = contextService.assemble(request);
         List<Map<String, Object>> tools = toolsForRequest(request);
@@ -98,19 +126,22 @@ public class ChatController {
                 resolvedUserContent != null ? resolvedUserContent.length() : 0,
                 previewForLog(resolvedUserContent, 600));
 
+        ChatStreamSession session = new ChatStreamSession();
+
         Flux<ServerSentEvent<String>> assistantPhase =
                 (tools == null || tools.isEmpty())
                         ? Mono.fromCallable(() -> skipToolResolutionForDirectStreaming(context.getMessages()))
-                                .flatMapMany(r -> resolvedToClientFlux(r, request, tools, llmId, useReasoning))
+                                .flatMapMany(r -> resolvedToClientFlux(r, request, tools, llmId, useReasoning, session))
                         : toolResolutionStreamingFlux(
-                                context.getMessages(), tools, llmId, useReasoning, request);
+                                context.getMessages(), tools, llmId, useReasoning, request, session);
 
+        final String resolvedUserContentFinal = resolvedUserContent;
         return Flux.concat(
                         Flux.just(ServerSentEvent.<String>builder()
                                 .event("context").data(toContextJson(context, llmId)).build()),
                         Flux.just(ServerSentEvent.<String>builder()
                                 .event("resolved_user_message")
-                                        .data(escapeForSse(resolvedUserContent != null ? resolvedUserContent : ""))
+                                        .data(escapeForSse(resolvedUserContentFinal != null ? resolvedUserContentFinal : ""))
                                         .build()),
                         assistantPhase.onErrorResume(e -> {
                             log.error("Chat pipeline error (mode={}, llmId={})", request.getMode(), llmId, e);
@@ -119,7 +150,14 @@ public class ChatController {
                         }),
                         Flux.just(ServerSentEvent.<String>builder()
                                 .event("done").data("[DONE]").build()))
-                .doOnComplete(() -> log.info("Chat SSE session completed (done event sent)"));
+                .doOnComplete(() -> {
+                    if (StringUtils.hasText(request.getConversationId())) {
+                        Schedulers.boundedElastic().schedule(() ->
+                                saveConversationAfterStream(request, resolvedUserContentFinal,
+                                        session.getFinalText(), session.getToolChain()));
+                    }
+                    log.info("Chat SSE session completed (done event sent)");
+                });
     }
 
     /**
@@ -143,7 +181,8 @@ public class ChatController {
             ChatRequest request,
             List<Map<String, Object>> tools,
             String llmId,
-            boolean useReasoning) {
+            boolean useReasoning,
+            ChatStreamSession session) {
         Flux<ServerSentEvent<String>> toolEvents = Flux.fromIterable(resolved.toolCallEvents());
         Flux<ServerSentEvent<String>> toolHistoryEvent = resolved.toolHistoryJson() != null
                 ? Flux.just(ServerSentEvent.<String>builder()
@@ -159,6 +198,7 @@ public class ChatController {
         Flux<ServerSentEvent<String>> tokenStream;
         if (resolved.preGeneratedContent() != null) {
             String preGen = resolved.preGeneratedContent();
+            session.setFinalText(preGen);
             int cp = preGen.codePointCount(0, preGen.length());
             int approxEvents = cp == 0 ? 1 : (cp + PRE_GENERATED_SSE_CHUNK_CODE_POINTS - 1) / PRE_GENERATED_SSE_CHUNK_CODE_POINTS;
             log.info(
@@ -179,6 +219,7 @@ public class ChatController {
                     .doOnNext(chunk -> {
                         streamChunks.incrementAndGet();
                         streamChars.addAndGet(chunk.length());
+                        session.appendText(chunk);
                     })
                     .doOnComplete(() -> {
                         int chunks = streamChunks.get();
@@ -215,13 +256,14 @@ public class ChatController {
             List<Map<String, Object>> tools,
             String llmId,
             boolean useReasoning,
-            ChatRequest request) {
+            ChatRequest request,
+            ChatStreamSession session) {
         return Flux.create(
                 sink -> Schedulers.boundedElastic()
                         .schedule(() -> {
                             try {
                                 runStreamingToolLoop(
-                                        sink, new ArrayList<>(initialMessages), tools, llmId, useReasoning, request);
+                                        sink, new ArrayList<>(initialMessages), tools, llmId, useReasoning, request, session);
                                 sink.complete();
                             } catch (Throwable t) {
                                 sink.error(t);
@@ -236,11 +278,13 @@ public class ChatController {
             List<Map<String, Object>> tools,
             String llmId,
             boolean useReasoning,
-            ChatRequest request) {
+            ChatRequest request,
+            ChatStreamSession session) {
         log.info(
                 "Tool resolution (streaming): starting with {} messages, {} tool definitions registered",
                 currentMessages.size(),
                 tools != null ? tools.size() : 0);
+        final int initialHistorySize = currentMessages.size();
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
             if (sink.isCancelled()) {
@@ -290,6 +334,8 @@ public class ChatController {
                             round + 1,
                             accumulated.length());
                 }
+                session.setFinalText(accumulated);
+                session.setToolChain(currentMessages.subList(initialHistorySize, currentMessages.size()));
                 log.trace("Finished successfully streaming tool round {} (text-only)", round + 1);
                 return;
             }
@@ -309,6 +355,8 @@ public class ChatController {
                         round + 1,
                         preGen.length());
                 tokenFluxFromPreGenerated(preGen).doOnNext(sink::next).blockLast(Duration.ofMinutes(2));
+                session.setFinalText(preGen);
+                session.setToolChain(currentMessages.subList(initialHistorySize, currentMessages.size()));
                 log.trace("Finished successfully after ask_clarification in round {}", round + 1);
                 return;
             }
@@ -328,6 +376,8 @@ public class ChatController {
                             planLen);
                     log.debug("propose_guided_thread fence preview: {}", previewForLog(preGen, 800));
                     tokenFluxFromPreGenerated(preGen).doOnNext(sink::next).blockLast(Duration.ofMinutes(2));
+                    session.setFinalText(preGen);
+                    session.setToolChain(currentMessages.subList(initialHistorySize, currentMessages.size()));
                     log.trace("Finished successfully after propose_guided_thread in round {}", round + 1);
                     return;
                 }
@@ -336,7 +386,7 @@ public class ChatController {
                         round + 1);
             }
 
-            emitToolExecutionAndHistory(sink, currentMessages, toolCalls, accumulated, round);
+            emitToolExecutionAndHistory(sink, currentMessages, toolCalls, accumulated, round, session);
         }
         log.warn("Streaming tool loop stopped after {} rounds (max)", MAX_TOOL_ROUNDS);
     }
@@ -346,7 +396,8 @@ public class ChatController {
             List<ChatMessage> currentMessages,
             List<ToolCall> toolCalls,
             String assistantStreamContent,
-            int round) {
+            int round,
+            ChatStreamSession session) {
         for (ToolCall tc : toolCalls) {
             String description = toolExecutor.describeToolCall(tc);
             log.trace("Emitting tool_call SSE event for round {}: {}", round + 1, description);
@@ -723,5 +774,72 @@ public class ChatController {
             return "AI error: " + e.getMessage();
         }
         return "An unexpected error occurred while contacting the AI API";
+    }
+
+    private void saveConversationAfterStream(ChatRequest request, String resolvedUserContent,
+                                             String finalAssistantText, List<ChatMessage> toolChain) {
+        String conversationId = request.getConversationId();
+        if (!StringUtils.hasText(conversationId)) return;
+        log.trace("Received request to save conversation after stream id={}", conversationId);
+        try {
+            Conversation conversation = chatHistoryService.findById(conversationId).orElse(null);
+            if (conversation == null) {
+                log.warn("Cannot save after stream: conversation not found id={}", conversationId);
+                return;
+            }
+            long now = Instant.now().getEpochSecond();
+
+            UserConversationMessage userMsg = new UserConversationMessage();
+            userMsg.setTimestamp(now);
+            userMsg.setParts(new ArrayList<>(List.of(new ChatPart(request.getMessage()))));
+            if (StringUtils.hasText(resolvedUserContent)
+                    && !resolvedUserContent.equals(request.getMessage())) {
+                userMsg.setResolvedContent(resolvedUserContent);
+            }
+
+            AssistantConversationMessage assistantMsg = new AssistantConversationMessage();
+            assistantMsg.setTimestamp(now);
+            String text = finalAssistantText != null ? finalAssistantText : "";
+            assistantMsg.setParts(new ArrayList<>(List.of(new ChatPart(text))));
+            if (toolChain != null && !toolChain.isEmpty()) {
+                assistantMsg.setToolChain(new ArrayList<>(toolChain));
+            }
+
+            List<ConversationMessage> messages = new ArrayList<>(conversation.getMessages());
+            messages.add(userMsg);
+            messages.add(assistantMsg);
+            conversation.setMessages(messages);
+            conversation.setUpdatedAt(now);
+
+            chatHistoryService.save(conversation, conversationValidator);
+            log.info("Finished saving conversation after stream id={}, totalMessages={}", conversationId, messages.size());
+        } catch (Exception e) {
+            log.error("Failed to save conversation after stream id={}", conversationId, e);
+        }
+    }
+
+    /**
+     * Per-request mutable state accumulated during the streaming pipeline for post-stream persistence.
+     */
+    static final class ChatStreamSession {
+        private final AtomicReference<String> finalTextRef = new AtomicReference<>("");
+        private final AtomicReference<List<ChatMessage>> toolChainRef = new AtomicReference<>(null);
+
+        void appendText(String chunk) {
+            if (chunk != null) finalTextRef.updateAndGet(s -> s + chunk);
+        }
+
+        void setFinalText(String text) {
+            if (text != null) finalTextRef.set(text);
+        }
+
+        void setToolChain(List<ChatMessage> chain) {
+            if (chain != null && !chain.isEmpty()) {
+                toolChainRef.set(new ArrayList<>(chain));
+            }
+        }
+
+        String getFinalText() { return finalTextRef.get(); }
+        List<ChatMessage> getToolChain() { return toolChainRef.get(); }
     }
 }

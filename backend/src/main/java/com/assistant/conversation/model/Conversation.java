@@ -21,11 +21,11 @@ import java.util.List;
 @Getter
 @Setter
 public abstract class Conversation {
+    private String id;
     private String title;
     private Mode mode;
     @Setter(AccessLevel.PRIVATE)
     private long createdAt;
-    @Setter(AccessLevel.PRIVATE)
     private long updatedAt;
     private boolean savedToProject;
     @Setter(AccessLevel.NONE)

@@ -17,6 +17,8 @@ public class UserConversationMessage extends ConversationMessage {
     private List<MessagePart> parts = new ArrayList<>();
     @Setter(AccessLevel.NONE)
     private List<String> attachedFiles = new ArrayList<>();
+    /** File-expanded user message content used for LLM history reconstruction. */
+    private String resolvedContent;
 
     @Override
     public ConversationSpeaker getSpeaker() {

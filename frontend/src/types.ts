@@ -66,6 +66,101 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
+// ---------------------------------------------------------------------------
+// New OO conversation model (mirrors backend conversation.model package)
+// ---------------------------------------------------------------------------
+
+export type TurnStatus = 'STREAMING' | 'COMPLETED';
+
+export interface ChatPart {
+  type: 'CHAT';
+  content: string;
+  status: TurnStatus;
+}
+export interface ThoughtsPart {
+  type: 'THOUGHTS';
+  content: string;
+  status: TurnStatus;
+}
+export interface ExploringPart {
+  type: 'EXPLORING';
+  content: string;
+  status: TurnStatus;
+}
+export interface ReadFilePart {
+  type: 'READ_FILE';
+  file: string;
+  toolCallId?: string;
+  status: TurnStatus;
+}
+export interface ReadLinesPart {
+  type: 'READ_LINES';
+  file: string;
+  startLine: number;
+  endLine: number;
+  toolCallId?: string;
+  status: TurnStatus;
+}
+export interface MultipleChoiceOption {
+  title: string;
+  selected: boolean;
+}
+export interface MultipleChoicePart {
+  type: 'MULTIPLE_CHOICE';
+  options: MultipleChoiceOption[];
+  hasAlternativeSelected: boolean;
+  alternative?: string;
+  status: TurnStatus;
+}
+export interface ThreadStartPart {
+  type: 'THREAD_START';
+  conversationId: string;
+  status: TurnStatus;
+}
+export interface ThreadMergePart {
+  type: 'THREAD_MERGE';
+  conversationId: string;
+  summary?: string;
+  status: TurnStatus;
+}
+
+export type MessagePart =
+  | ChatPart
+  | ThoughtsPart
+  | ExploringPart
+  | ReadFilePart
+  | ReadLinesPart
+  | MultipleChoicePart
+  | ThreadStartPart
+  | ThreadMergePart;
+
+export interface UserConversationMessage {
+  messageType: 'USER';
+  timestamp: number;
+  parts: MessagePart[];
+  attachedFiles?: string[];
+  /** File-expanded content used for LLM history reconstruction (omitted when same as ChatPart content). */
+  resolvedContent?: string;
+}
+
+export interface AssistantConversationMessage {
+  messageType: 'ASSISTANT';
+  timestamp: number;
+  parts: MessagePart[];
+}
+
+export type ConversationMessage = UserConversationMessage | AssistantConversationMessage;
+
+/** Extract the primary text content from a ConversationMessage (first ChatPart). */
+export function extractMessageText(msg: ConversationMessage): string {
+  for (const part of msg.parts) {
+    if (part.type === 'CHAT') return part.content;
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
@@ -85,11 +180,17 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   message: string;
+  /** When set, the backend loads conversation history from storage instead of using {@link history}. */
+  conversationId?: string;
   activeFile: string | null;
   activeFieldKey?: string | null;
   mode: string;
   referencedFiles: string[];
-  history: ChatMessage[];
+  /**
+   * Legacy fallback history array (used when {@link conversationId} is absent, e.g. Quick Chat).
+   * For regular chats, omit this — the backend loads history by conversationId.
+   */
+  history?: ChatMessage[];
   useReasoning?: boolean;
   /** Quick Chat: minimal context, web search only, no project tools. */
   quickChat?: boolean;
@@ -137,7 +238,12 @@ export interface GitSyncStatus {
 export interface Conversation {
   id: string;
   title: string;
-  messages: ChatMessage[];
+  /**
+   * Stored conversation messages in the new OO format (backend model).
+   * During an active streaming session, the local UI accumulates `ChatMessage[]` separately;
+   * this field is updated from the backend after each completed turn.
+   */
+  messages: ConversationMessage[];
   createdAt: number;
   updatedAt: number;
   mode: string;
@@ -165,6 +271,15 @@ export interface Conversation {
   agentUseReasoning?: boolean;
   /** When set: fixed disabled toolkits for this conversation (same ids as global). */
   agentDisabledToolkits?: ChatToolkitId[];
+}
+
+/** Partial update for a Conversation (PATCH /api/conversations/{id}). */
+export interface ConversationPatch {
+  id?: string;
+  title?: string;
+  planTitle?: string;
+  planContent?: string;
+  savedToProject?: boolean;
 }
 
 /** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */

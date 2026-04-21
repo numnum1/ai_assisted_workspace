@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
-@Deprecated
 @Component
 public class ConversationValidator {
 

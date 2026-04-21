@@ -12,6 +12,8 @@ import java.util.List;
 public class ChatRequest {
 
     private String message;
+    /** ID of the stored conversation; when set, the backend loads history from storage. */
+    private String conversationId;
     private String activeFile;
     private String activeFieldKey;
     private String mode;

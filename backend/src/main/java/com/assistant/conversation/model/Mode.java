@@ -1,14 +1,14 @@
 package com.assistant.conversation.model;
 
-import com.assistant.project.dto.ModeDto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.web.servlet.ModelAndViewDefiningException;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class Mode<LlmType extends LLM> {
     private String name;
     private String systemPrompt;
@@ -16,4 +16,14 @@ public class Mode<LlmType extends LLM> {
     private boolean agentOnly;
     private LlmType llm;
     private boolean useReasoningByDefault;
+    private List<String> autoIncludes = new ArrayList<>();
+
+    public Mode(String name, String systemPrompt, String color, boolean agentOnly, LlmType llm, boolean useReasoningByDefault) {
+        this.name = name;
+        this.systemPrompt = systemPrompt;
+        this.color = color;
+        this.agentOnly = agentOnly;
+        this.llm = llm;
+        this.useReasoningByDefault = useReasoningByDefault;
+    }
 }
