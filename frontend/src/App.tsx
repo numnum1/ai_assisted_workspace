@@ -460,6 +460,7 @@ function App() {
     if (!project.projectPath) return;
     chapter.setProjectPath(project.projectPath);
     chapter.closeChapter();
+    void chapter.refreshChapters();
     setSelectedMeta(null);
     setMetaExpanded(false);
     setFocusedField(null);
