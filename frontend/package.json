@@ -6,7 +6,6 @@
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "npm run dev:electron",
-    "dev:vite": "vite",
     "dev:electron": "concurrently -k -n vite,tsc,preload,electron -c blue,yellow,green,magenta \"vite --mode electron\" \"tsc -p tsconfig.electron.json --watch\" \"npm run dev:electron-preload\" \"wait-on tcp:5173 dist-electron/electron/main.js dist-electron/electron/preload.cjs && electron dist-electron/electron/main.js\"",
     "dev:electron-preload": "esbuild electron/preload.ts --bundle --platform=node --format=cjs --outfile=dist-electron/electron/preload.cjs --external:electron --watch",
     "electron:watch": "concurrently -k -n tsc,preload,electron -c yellow,green,magenta \"tsc -p tsconfig.electron.json --watch\" \"npm run dev:electron-preload\" \"wait-on tcp:5173 dist-electron/electron/main.js dist-electron/electron/preload.cjs && electron dist-electron/electron/main.js\"",

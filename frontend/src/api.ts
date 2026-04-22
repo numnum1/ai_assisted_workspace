@@ -35,42 +35,7 @@ import {
   buildConversationById,
   effectiveSavedToProject,
 } from "./components/chat/chatHistoryUtils.ts";
-import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
-
-/**
- * Spring REST prefix when the UI runs in the browser (Vite proxies `/api` → backend).
- * In Electron, data must go through `appBridge` / IPC — HTTP to this app is disabled.
- */
-function httpApiPrefix(): string {
-  if (isRunningInElectron()) {
-    throw new Error(
-      "HTTP /api is disabled in Electron; this call should use the preload appBridge.",
-    );
-  }
-  return "/api";
-}
-
-/**
- * `vite --mode electron` serves the same bundle to the Electron window and to any browser tab.
- * Only the Electron window has `appBridge`; browser tabs must not call `/api` (no proxy, no Spring).
- */
-function isElectronShellUserAgent(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /\bElectron\//.test(navigator.userAgent);
-}
-
-function assertWebSpringApiAvailable(): void {
-  if (import.meta.env.MODE !== "electron") return;
-  if (isRunningInElectron()) return;
-  if (isElectronShellUserAgent()) {
-    throw new Error(
-      "Electron-Fenster hat kein `window.appBridge` (Preload lädt nicht). Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten. In der Konsole des **Main-Prozesses** nach Preload-Fehlern suchen.",
-    );
-  }
-  throw new Error(
-    "Dieses Dev-Bundle läuft mit `vite --mode electron`: Im normalen Browser-Tab gibt es kein Preload und kein `/api`. Bitte nur das Electron-Fenster nutzen, oder `npm run dev:vite` + Spring auf Port 8012.",
-  );
-}
+import { getAppBridge } from "./electron/bridge.ts";
 
 type FileContentResponse = { path: string; content: string; lines: number };
 type FileMutationResponse = { status: string; path: string };
@@ -141,179 +106,61 @@ async function invokeGitBridge<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-async function get<T>(path: string): Promise<T> {
-  assertWebSpringApiAvailable();
-  const res = await fetch(`${httpApiPrefix()}${path}`);
-  if (res.status === 401) throw new AuthRequiredError();
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const d = await res.json();
-      detail = d.error ?? d.message ?? "";
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail || `GET ${path}: ${res.status}`);
-  }
-  return res.json();
-}
-
-async function postRaw(path: string, body: unknown): Promise<Response> {
-  assertWebSpringApiAvailable();
-  return fetch(`${httpApiPrefix()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await postRaw(path, body);
-  if (res.status === 401) throw new AuthRequiredError();
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const d = await res.json();
-      detail = d.error ?? d.message ?? "";
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail || `POST ${path}: ${res.status}`);
-  }
-  return res.json();
-}
-
-async function put<T>(path: string, body: unknown): Promise<T> {
-  assertWebSpringApiAvailable();
-  const res = await fetch(`${httpApiPrefix()}${path}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`PUT ${path}: ${res.status}`);
-  return res.json();
-}
-
-async function del<T>(path: string): Promise<T> {
-  assertWebSpringApiAvailable();
-  const res = await fetch(`${httpApiPrefix()}${path}`, { method: "DELETE" });
-  if (res.status === 401) throw new AuthRequiredError();
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const d = await res.json();
-      detail = d.error ?? d.message ?? "";
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail || `DELETE ${path}: ${res.status}`);
-  }
-  return res.json();
-}
-
-/** Encode each path segment for /api/files/content/... URLs */
-function encodeFilePathForApi(relativePath: string): string {
-  return relativePath.split("/").map(encodeURIComponent).join("/");
-}
-
-/** Optional chapter/book structure root (subfolder path relative to project) */
-function structureRootQuery(structureRoot?: string | null): string {
-  if (structureRoot == null || structureRoot === "" || structureRoot === ".")
-    return "";
-  return `?root=${encodeURIComponent(structureRoot)}`;
-}
-
 export const filesApi = {
   getTree: async (): Promise<FileNode> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files) return electronApi.files.getTree();
-    }
-    return get<FileNode>("/files");
+    const api = getElectronApi();
+    if (api?.files) return api.files.getTree();
+    throw new Error("Electron bridge not available");
   },
   getContent: async (path: string): Promise<FileContentResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files) return electronApi.files.getContent(path);
-    }
-    return get<FileContentResponse>(
-      `/files/content/${encodeFilePathForApi(path)}`,
-    );
+    const api = getElectronApi();
+    if (api?.files) return api.files.getContent(path);
+    throw new Error("Electron bridge not available");
   },
   saveContent: async (
     path: string,
     content: string,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files)
-        return electronApi.files.saveContent(path, content);
-    }
-    return put<{ status: string }>(
-      `/files/content/${encodeFilePathForApi(path)}`,
-      { content },
-    );
+    const api = getElectronApi();
+    if (api?.files) return api.files.saveContent(path, content);
+    throw new Error("Electron bridge not available");
   },
   deleteContent: async (path: string): Promise<FileMutationResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files) return electronApi.files.deleteContent(path);
-    }
-    return del<FileMutationResponse>(
-      `/files/content/${encodeFilePathForApi(path)}`,
-    );
+    const api = getElectronApi();
+    if (api?.files) return api.files.deleteContent(path);
+    throw new Error("Electron bridge not available");
   },
   createFile: async (
     parentPath: string,
     name: string,
   ): Promise<FileMutationResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files)
-        return electronApi.files.createFile(parentPath, name);
-    }
-    return post<FileMutationResponse>("/files/create-file", {
-      parentPath,
-      name,
-    });
+    const api = getElectronApi();
+    if (api?.files) return api.files.createFile(parentPath, name);
+    throw new Error("Electron bridge not available");
   },
   createFolder: async (
     parentPath: string,
     name: string,
   ): Promise<FileMutationResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files)
-        return electronApi.files.createFolder(parentPath, name);
-    }
-    return post<FileMutationResponse>("/files/create-folder", {
-      parentPath,
-      name,
-    });
+    const api = getElectronApi();
+    if (api?.files) return api.files.createFolder(parentPath, name);
+    throw new Error("Electron bridge not available");
   },
   rename: async (
     path: string,
     newName: string,
   ): Promise<FileMutationResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files) return electronApi.files.rename(path, newName);
-    }
-    return post<FileMutationResponse>("/files/rename", { path, newName });
+    const api = getElectronApi();
+    if (api?.files) return api.files.rename(path, newName);
+    throw new Error("Electron bridge not available");
   },
   move: async (
     path: string,
     targetParentPath: string,
   ): Promise<FileMutationResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.files)
-        return electronApi.files.move(path, targetParentPath);
-    }
-    return post<FileMutationResponse>("/files/move", {
-      path,
-      targetParentPath,
-    });
+    const api = getElectronApi();
+    if (api?.files) return api.files.move(path, targetParentPath);
+    throw new Error("Electron bridge not available");
   },
 };
 
@@ -349,192 +196,110 @@ export async function persistProjectChatHistory(
 
 export const modesApi = {
   getAll: async (): Promise<Mode[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.getModes();
-      }
-    }
-    return get<Mode[]>("/modes");
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.getModes();
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const projectApi = {
   current: async (): Promise<ProjectCurrentResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.project) return electronApi.project.current();
-    }
-    return get<ProjectCurrentResponse>("/project/current");
+    const api = getElectronApi();
+    if (api?.project) return api.project.current();
+    throw new Error("Electron bridge not available");
   },
   reveal: async (): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.project) return electronApi.project.reveal();
-    }
-    return post<{ status: string }>("/project/reveal", {});
+    const api = getElectronApi();
+    if (api?.project) return api.project.reveal();
+    throw new Error("Electron bridge not available");
   },
   browse: async (): Promise<ProjectBrowseResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.project) return electronApi.project.browse();
-    }
-    const res = await postRaw("/project/browse", {});
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Browse failed: ${res.status}`);
-    return data;
+    const api = getElectronApi();
+    if (api?.project) return api.project.browse();
+    throw new Error("Electron bridge not available");
   },
   open: async (path: string): Promise<ProjectOpenResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.project) return electronApi.project.open(path);
-    }
-    const res = await postRaw("/project/open", { path });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Failed to open: ${res.status}`);
-    return data;
+    const api = getElectronApi();
+    if (api?.project) return api.project.open(path);
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const projectConfigApi = {
   status: async (): Promise<ProjectConfigStatusResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) return electronApi.projectConfig.status();
-    }
-    return get<ProjectConfigStatusResponse>("/project-config/status");
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.status();
+    throw new Error("Electron bridge not available");
   },
   getWorkspaceMode: async (
     modeId?: string | null,
   ): Promise<WorkspaceModeSchema> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.getWorkspaceMode(modeId);
-      }
-    }
-    return modeId != null && modeId !== ""
-      ? get<WorkspaceModeSchema>(
-          `/project-config/workspace-mode?id=${encodeURIComponent(modeId)}`,
-        )
-      : get<WorkspaceModeSchema>("/project-config/workspace-mode");
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.getWorkspaceMode(modeId);
+    throw new Error("Electron bridge not available");
   },
   listWorkspaceModes: async (): Promise<WorkspaceModeInfo[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.listWorkspaceModes();
-      }
-    }
-    return get<WorkspaceModeInfo[]>("/project-config/workspace-modes");
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.listWorkspaceModes();
+    throw new Error("Electron bridge not available");
   },
   getWorkspaceModesDataDir: async (): Promise<{
     path: string;
     exists: boolean;
   }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.getWorkspaceModesDataDir();
-      }
-    }
-    return get<{ path: string; exists: boolean }>(
-      "/project-config/workspace-modes/data-dir",
-    );
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.getWorkspaceModesDataDir();
+    throw new Error("Electron bridge not available");
   },
   revealWorkspaceModesDataDir: async (): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.revealWorkspaceModesDataDir();
-      }
-    }
-    return post<{ status: string }>(
-      "/project-config/workspace-modes/reveal-data-dir",
-      {},
-    );
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.revealWorkspaceModesDataDir();
+    throw new Error("Electron bridge not available");
   },
   get: async (): Promise<ProjectConfig> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) return electronApi.projectConfig.get();
-    }
-    return get<ProjectConfig>("/project-config");
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.get();
+    throw new Error("Electron bridge not available");
   },
   init: async (): Promise<ProjectConfig> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) return electronApi.projectConfig.init();
-    }
-    return post<ProjectConfig>("/project-config/init", {});
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.init();
+    throw new Error("Electron bridge not available");
   },
   update: async (config: ProjectConfig): Promise<ProjectConfig> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.update(config);
-      }
-    }
-    return put<ProjectConfig>("/project-config", config);
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.update(config);
+    throw new Error("Electron bridge not available");
   },
   getModes: async (): Promise<Mode[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig)
-        return electronApi.projectConfig.getModes();
-    }
-    return get<Mode[]>("/project-config/modes");
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.getModes();
+    throw new Error("Electron bridge not available");
   },
   saveMode: async (id: string, mode: Mode): Promise<Mode> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.saveMode(id, mode);
-      }
-    }
-    return put<Mode>(`/project-config/modes/${id}`, mode);
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.saveMode(id, mode);
+    throw new Error("Electron bridge not available");
   },
   deleteMode: async (id: string): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.deleteMode(id);
-      }
-    }
-    return del<{ status: string }>(
-      `/project-config/modes/${encodeURIComponent(id)}`,
-    );
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.deleteMode(id);
+    throw new Error("Electron bridge not available");
   },
   listAgents: async (): Promise<AgentPreset[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig)
-        return electronApi.projectConfig.listAgents();
-    }
-    return get<AgentPreset[]>("/project-config/agents");
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.listAgents();
+    throw new Error("Electron bridge not available");
   },
   saveAgent: async (id: string, preset: AgentPreset): Promise<AgentPreset> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.saveAgent(id, preset);
-      }
-    }
-    return put<AgentPreset>(
-      `/project-config/agents/${encodeURIComponent(id)}`,
-      preset,
-    );
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.saveAgent(id, preset);
+    throw new Error("Electron bridge not available");
   },
   deleteAgent: async (id: string): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.projectConfig) {
-        return electronApi.projectConfig.deleteAgent(id);
-      }
-    }
-    return del<{ status: string }>(
-      `/project-config/agents/${encodeURIComponent(id)}`,
-    );
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.deleteAgent(id);
+    throw new Error("Electron bridge not available");
   },
 };
 
@@ -562,152 +327,91 @@ export interface LlmUpdateRequest {
 
 export const llmApi = {
   list: async (): Promise<LlmsListResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.llms) return electronApi.llms.list();
-    }
-    return get<LlmsListResponse>("/llms");
+    const api = getElectronApi();
+    if (api?.llms) return api.llms.list();
+    throw new Error("Electron bridge not available");
   },
   create: async (body: LlmCreateRequest): Promise<LlmPublic> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.llms) return electronApi.llms.create(body);
-    }
-    return post<LlmPublic>("/llms", body);
+    const api = getElectronApi();
+    if (api?.llms) return api.llms.create(body);
+    throw new Error("Electron bridge not available");
   },
   update: async (id: string, body: LlmUpdateRequest): Promise<LlmPublic> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.llms) return electronApi.llms.update(id, body);
-    }
-    return put<LlmPublic>(`/llms/${encodeURIComponent(id)}`, body);
+    const api = getElectronApi();
+    if (api?.llms) return api.llms.update(id, body);
+    throw new Error("Electron bridge not available");
   },
   remove: async (id: string): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.llms) return electronApi.llms.remove(id);
-    }
-    return del<{ status: string }>(`/llms/${encodeURIComponent(id)}`);
+    const api = getElectronApi();
+    if (api?.llms) return api.llms.remove(id);
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const gitApi = {
   status: async (): Promise<GitStatus> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.status());
-      }
-    }
-    return get<GitStatus>("/git/status");
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.status());
+    throw new Error("Electron bridge not available");
   },
   commit: async (
     message: string,
     files?: string[],
   ): Promise<{ hash: string; message: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.commit(message, files));
-      }
-    }
-    return post<{ hash: string; message: string }>("/git/commit", {
-      message,
-      files,
-    });
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.commit(message, files));
+    throw new Error("Electron bridge not available");
   },
   revertFile: async (
     path: string,
     untracked: boolean,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() =>
-          electronApi.git!.revertFile(path, untracked),
-        );
-      }
-    }
-    return post<{ status: string }>("/git/revert-file", { path, untracked });
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.revertFile(path, untracked));
+    throw new Error("Electron bridge not available");
   },
   revertDirectory: async (path: string): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.revertDirectory(path));
-      }
-    }
-    return post<{ status: string }>("/git/revert-directory", { path });
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.revertDirectory(path));
+    throw new Error("Electron bridge not available");
   },
   diff: async (): Promise<{ diff: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.diff());
-      }
-    }
-    return get<{ diff: string }>("/git/diff");
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.diff());
+    throw new Error("Electron bridge not available");
   },
   log: async (limit = 20): Promise<GitCommit[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.log(limit));
-      }
-    }
-    return get<GitCommit[]>(`/git/log?limit=${limit}`);
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.log(limit));
+    throw new Error("Electron bridge not available");
   },
   init: async (): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.init());
-      }
-    }
-    return post<{ status: string }>("/git/init", {});
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.init());
+    throw new Error("Electron bridge not available");
   },
   aheadBehind: async (): Promise<GitSyncStatus> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.aheadBehind());
-      }
-    }
-    return get<GitSyncStatus>("/git/ahead-behind");
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.aheadBehind());
+    throw new Error("Electron bridge not available");
   },
   sync: async (): Promise<{ action: string; details: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.sync());
-      }
-    }
-    return post<{ action: string; details: string }>("/git/sync", {});
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.sync());
+    throw new Error("Electron bridge not available");
   },
   setCredentials: async (
     username: string,
     token: string,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() =>
-          electronApi.git!.setCredentials(username, token),
-        );
-      }
-    }
-    return post<{ status: string }>("/git/credentials", { username, token });
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.setCredentials(username, token));
+    throw new Error("Electron bridge not available");
   },
   fileHistory: async (path: string): Promise<GitCommit[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() => electronApi.git!.fileHistory(path));
-      }
-    }
-    return get<GitCommit[]>(
-      `/git/file-history?path=${encodeURIComponent(path)}`,
-    );
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.fileHistory(path));
+    throw new Error("Electron bridge not available");
   },
   fileAtCommit: async (
     path: string,
@@ -718,22 +422,9 @@ export const gitApi = {
     content: string;
     exists: boolean;
   }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.git) {
-        return invokeGitBridge(() =>
-          electronApi.git!.fileAtCommit(path, hash),
-        );
-      }
-    }
-    return get<{
-      path: string;
-      hash: string;
-      content: string;
-      exists: boolean;
-    }>(
-      `/git/file-at-commit?path=${encodeURIComponent(path)}&hash=${encodeURIComponent(hash)}`,
-    );
+    const api = getElectronApi();
+    if (api?.git) return invokeGitBridge(() => api.git!.fileAtCommit(path, hash));
+    throw new Error("Electron bridge not available");
   },
 };
 
@@ -741,76 +432,42 @@ export const chapterApi = {
   list: async (
     structureRoot?: string | null,
   ): Promise<ChapterSummary[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.list(structureRoot);
-      }
-    }
-    return get<ChapterSummary[]>(
-      `/chapters${structureRootQuery(structureRoot)}`,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.list(structureRoot);
+    throw new Error("Electron bridge not available");
   },
   getStructure: async (
     id: string,
     structureRoot?: string | null,
   ): Promise<ChapterNode> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.getStructure(id, structureRoot);
-      }
-    }
-    return get<ChapterNode>(`/chapters/${id}${structureRootQuery(structureRoot)}`);
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.getStructure(id, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   create: async (
     title: string,
     structureRoot?: string | null,
   ): Promise<ChapterSummary> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.create(title, structureRoot);
-      }
-    }
-    return post<ChapterSummary>(
-      `/chapters${structureRootQuery(structureRoot)}`,
-      { title },
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.create(title, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   updateMeta: async (
     chapterId: string,
     meta: NodeMeta,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.updateMeta(
-          chapterId,
-          meta,
-          structureRoot,
-        );
-      }
-    }
-    return put<{ status: string }>(
-      `/chapters/${chapterId}/meta${structureRootQuery(structureRoot)}`,
-      meta,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.updateMeta(chapterId, meta, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   delete: async (
     chapterId: string,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.delete(chapterId, structureRoot);
-      }
-    }
-    return del<{ status: string }>(
-      `/chapters/${chapterId}${structureRootQuery(structureRoot)}`,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.delete(chapterId, structureRoot);
+    throw new Error("Electron bridge not available");
   },
 
   createScene: async (
@@ -818,20 +475,9 @@ export const chapterApi = {
     title: string,
     structureRoot?: string | null,
   ): Promise<SceneNode> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.createScene(
-          chapterId,
-          title,
-          structureRoot,
-        );
-      }
-    }
-    return post<SceneNode>(
-      `/chapters/${chapterId}/scenes${structureRootQuery(structureRoot)}`,
-      { title },
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.createScene(chapterId, title, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   updateSceneMeta: async (
     chapterId: string,
@@ -839,40 +485,18 @@ export const chapterApi = {
     meta: NodeMeta,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.updateSceneMeta(
-          chapterId,
-          sceneId,
-          meta,
-          structureRoot,
-        );
-      }
-    }
-    return put<{ status: string }>(
-      `/chapters/${chapterId}/scenes/${sceneId}/meta${structureRootQuery(structureRoot)}`,
-      meta,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.updateSceneMeta(chapterId, sceneId, meta, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   deleteScene: async (
     chapterId: string,
     sceneId: string,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.deleteScene(
-          chapterId,
-          sceneId,
-          structureRoot,
-        );
-      }
-    }
-    return del<{ status: string }>(
-      `/chapters/${chapterId}/scenes/${sceneId}${structureRootQuery(structureRoot)}`,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.deleteScene(chapterId, sceneId, structureRoot);
+    throw new Error("Electron bridge not available");
   },
 
   createAction: async (
@@ -881,21 +505,9 @@ export const chapterApi = {
     title: string,
     structureRoot?: string | null,
   ): Promise<ActionNode> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.createAction(
-          chapterId,
-          sceneId,
-          title,
-          structureRoot,
-        );
-      }
-    }
-    return post<ActionNode>(
-      `/chapters/${chapterId}/scenes/${sceneId}/actions${structureRootQuery(structureRoot)}`,
-      { title },
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.createAction(chapterId, sceneId, title, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   updateActionMeta: async (
     chapterId: string,
@@ -904,22 +516,9 @@ export const chapterApi = {
     meta: NodeMeta,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.updateActionMeta(
-          chapterId,
-          sceneId,
-          actionId,
-          meta,
-          structureRoot,
-        );
-      }
-    }
-    return put<{ status: string }>(
-      `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/meta${structureRootQuery(structureRoot)}`,
-      meta,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.updateActionMeta(chapterId, sceneId, actionId, meta, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   deleteAction: async (
     chapterId: string,
@@ -927,20 +526,9 @@ export const chapterApi = {
     actionId: string,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.deleteAction(
-          chapterId,
-          sceneId,
-          actionId,
-          structureRoot,
-        );
-      }
-    }
-    return del<{ status: string }>(
-      `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}${structureRootQuery(structureRoot)}`,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.deleteAction(chapterId, sceneId, actionId, structureRoot);
+    throw new Error("Electron bridge not available");
   },
 
   getActionContent: async (
@@ -949,20 +537,9 @@ export const chapterApi = {
     actionId: string,
     structureRoot?: string | null,
   ): Promise<{ content: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.getActionContent(
-          chapterId,
-          sceneId,
-          actionId,
-          structureRoot,
-        );
-      }
-    }
-    return get<{ content: string }>(
-      `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`,
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.getActionContent(chapterId, sceneId, actionId, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   saveActionContent: async (
     chapterId: string,
@@ -971,22 +548,9 @@ export const chapterApi = {
     content: string,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.saveActionContent(
-          chapterId,
-          sceneId,
-          actionId,
-          content,
-          structureRoot,
-        );
-      }
-    }
-    return put<{ status: string }>(
-      `/chapters/${chapterId}/scenes/${sceneId}/actions/${actionId}/content${structureRootQuery(structureRoot)}`,
-      { content },
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.saveActionContent(chapterId, sceneId, actionId, content, structureRoot);
+    throw new Error("Electron bridge not available");
   },
 
   reorderScenes: async (
@@ -994,20 +558,9 @@ export const chapterApi = {
     ids: string[],
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.reorderScenes(
-          chapterId,
-          ids,
-          structureRoot,
-        );
-      }
-    }
-    return put<{ status: string }>(
-      `/chapters/${chapterId}/reorder${structureRootQuery(structureRoot)}`,
-      { ids },
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.reorderScenes(chapterId, ids, structureRoot);
+    throw new Error("Electron bridge not available");
   },
   reorderActions: async (
     chapterId: string,
@@ -1015,63 +568,33 @@ export const chapterApi = {
     ids: string[],
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.reorderActions(
-          chapterId,
-          sceneId,
-          ids,
-          structureRoot,
-        );
-      }
-    }
-    return put<{ status: string }>(
-      `/chapters/${chapterId}/scenes/${sceneId}/reorder${structureRootQuery(structureRoot)}`,
-      { ids },
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.reorderActions(chapterId, sceneId, ids, structureRoot);
+    throw new Error("Electron bridge not available");
   },
 
   randomizeIds: async (
     structureRoot?: string | null,
   ): Promise<{ renamed: number }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chapter) {
-        return electronApi.chapter.randomizeIds(structureRoot);
-      }
-    }
-    return post<{ renamed: number }>(
-      `/chapters/randomize-ids${structureRootQuery(structureRoot)}`,
-      {},
-    );
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.randomizeIds(structureRoot);
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const bookApi = {
   getMeta: async (structureRoot?: string | null): Promise<NodeMeta> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.book) {
-        return electronApi.book.getMeta(structureRoot);
-      }
-    }
-    return get<NodeMeta>(`/book/meta${structureRootQuery(structureRoot)}`);
+    const api = getElectronApi();
+    if (api?.book) return api.book.getMeta(structureRoot);
+    throw new Error("Electron bridge not available");
   },
   updateMeta: async (
     meta: NodeMeta,
     structureRoot?: string | null,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.book) {
-        return electronApi.book.updateMeta(meta, structureRoot);
-      }
-    }
-    return put<{ status: string }>(
-      `/book/meta${structureRootQuery(structureRoot)}`,
-      meta,
-    );
+    const api = getElectronApi();
+    if (api?.book) return api.book.updateMeta(meta, structureRoot);
+    throw new Error("Electron bridge not available");
   },
 };
 
@@ -1079,90 +602,60 @@ export const subprojectApi = {
   info: async (
     path: string,
   ): Promise<{ subproject: boolean; type?: string; name?: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.subproject) return electronApi.subproject.info(path);
-    }
-    return get<{ subproject: boolean; type?: string; name?: string }>(
-      `/subproject/info?path=${encodeURIComponent(path)}`,
-    );
+    const api = getElectronApi();
+    if (api?.subproject) return api.subproject.info(path);
+    throw new Error("Electron bridge not available");
   },
   init: async (
     path: string,
     type: string,
     name: string,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.subproject) {
-        return electronApi.subproject.init(path, type, name);
-      }
-    }
-    return post<{ status: string }>("/subproject/init", { path, type, name });
+    const api = getElectronApi();
+    if (api?.subproject) return api.subproject.init(path, type, name);
+    throw new Error("Electron bridge not available");
   },
   remove: async (path: string): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.subproject) return electronApi.subproject.remove(path);
-    }
-    return del<{ status: string }>(
-      `/subproject/remove?path=${encodeURIComponent(path)}`,
-    );
+    const api = getElectronApi();
+    if (api?.subproject) return api.subproject.remove(path);
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const wikiApi = {
   listFiles: async (): Promise<string[]> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.wiki) return electronApi.wiki.listFiles();
-    }
-    return get<string[]>("/wiki/files");
+    const api = getElectronApi();
+    if (api?.wiki) return api.wiki.listFiles();
+    throw new Error("Electron bridge not available");
   },
   search: async (
     q: string,
     limit?: number,
   ): Promise<Array<{ path: string; title: string; snippet: string }>> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.wiki) return electronApi.wiki.search(q, limit);
-    }
-    return get<Array<{ path: string; title: string; snippet: string }>>(
-      `/wiki/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ""}`,
-    );
+    const api = getElectronApi();
+    if (api?.wiki) return api.wiki.search(q, limit);
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const glossaryApi = {
   get: async (): Promise<GlossaryApiResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.glossary) return electronApi.glossary.get();
-    }
-    return get<GlossaryApiResponse>("/glossary");
+    const api = getElectronApi();
+    if (api?.glossary) return api.glossary.get();
+    throw new Error("Electron bridge not available");
   },
   addEntry: async (
     term: string,
     definition: string,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.glossary) {
-        return electronApi.glossary.addEntry(term, definition);
-      }
-    }
-    return post<{ status: string }>("/glossary/entries", { term, definition });
+    const api = getElectronApi();
+    if (api?.glossary) return api.glossary.addEntry(term, definition);
+    throw new Error("Electron bridge not available");
   },
   deleteEntry: async (term: string): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.glossary) {
-        return electronApi.glossary.deleteEntry(term);
-      }
-    }
-    return del<{ status: string }>(
-      `/glossary/entries?term=${encodeURIComponent(term)}`,
-    );
+    const api = getElectronApi();
+    if (api?.glossary) return api.glossary.deleteEntry(term);
+    throw new Error("Electron bridge not available");
   },
 };
 
@@ -1175,92 +668,48 @@ export interface ContextBlock {
 
 export const searchApi = {
   query: async (query: string, limit = 200): Promise<SearchResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.search) {
-        return electronApi.search.query(query, limit);
-      }
-    }
-    return get<SearchResponse>(
-      `/search?q=${encodeURIComponent(query)}&limit=${limit}`,
-    );
+    const api = getElectronApi();
+    if (api?.search) return api.search.query(query, limit);
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const typedFilesApi = {
   getContent: async (path: string): Promise<TypedFileContentResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.typedFiles) {
-        return electronApi.typedFiles.getContent(path);
-      }
-    }
-    return get<TypedFileContentResponse>(
-      `/typed-files/content/${encodeFilePathForApi(path)}`,
-    );
+    const api = getElectronApi();
+    if (api?.typedFiles) return api.typedFiles.getContent(path);
+    throw new Error("Electron bridge not available");
   },
   saveContent: async (
     path: string,
     data: Record<string, unknown>,
   ): Promise<{ status: string }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.typedFiles) {
-        return electronApi.typedFiles.saveContent(path, data);
-      }
-    }
-    return put<{ status: string }>(
-      `/typed-files/content/${encodeFilePathForApi(path)}`,
-      { data },
-    );
+    const api = getElectronApi();
+    if (api?.typedFiles) return api.typedFiles.saveContent(path, data);
+    throw new Error("Electron bridge not available");
   },
   fill: async (path: string): Promise<TypedFileFillResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.typedFiles) {
-        return electronApi.typedFiles.fill(path);
-      }
-    }
-    return post<TypedFileFillResponse>(
-      `/typed-files/fill/${encodeFilePathForApi(path)}`,
-      {},
-    );
+    const api = getElectronApi();
+    if (api?.typedFiles) return api.typedFiles.fill(path);
+    throw new Error("Electron bridge not available");
   },
 };
 
 export const snapshotsApi = {
   get: async (id: string): Promise<SnapshotResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.snapshots) {
-        return electronApi.snapshots.get(id);
-      }
-    }
-    return get<SnapshotResponse>(`/snapshots/${encodeURIComponent(id)}`);
+    const api = getElectronApi();
+    if (api?.snapshots) return api.snapshots.get(id);
+    throw new Error("Electron bridge not available");
   },
   apply: async (id: string): Promise<SnapshotApplyResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.snapshots) {
-        return electronApi.snapshots.apply(id);
-      }
-    }
-    return post<SnapshotApplyResponse>(
-      `/snapshots/${encodeURIComponent(id)}/apply`,
-      {},
-    );
+    const api = getElectronApi();
+    if (api?.snapshots) return api.snapshots.apply(id);
+    throw new Error("Electron bridge not available");
   },
   revert: async (id: string): Promise<SnapshotRevertResponse> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.snapshots) {
-        return electronApi.snapshots.revert(id);
-      }
-    }
-    return post<SnapshotRevertResponse>(
-      `/snapshots/${encodeURIComponent(id)}/revert`,
-      {},
-    );
+    const api = getElectronApi();
+    if (api?.snapshots) return api.snapshots.revert(id);
+    throw new Error("Electron bridge not available");
   },
 };
 
@@ -1284,20 +733,10 @@ export const chatApi = {
     systemPrompt: string;
   }> => {
     const bridge = getAppBridge();
-    if (bridge?.chat) {
-      return bridge.chat.previewContext(body);
-    }
-    if (bridge?.isElectron) {
-      throw new Error(
-        "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten.",
-      );
-    }
-    return post<{
-      includedFiles: string[];
-      estimatedTokens: number;
-      contextBlocks: ContextBlock[];
-      systemPrompt: string;
-    }>("/chat/context-preview", body);
+    if (bridge?.chat) return bridge.chat.previewContext(body);
+    throw new Error(
+      "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten.",
+    );
   },
 };
 
@@ -1460,145 +899,12 @@ export function streamChat(
     return controller;
   }
 
-  if (bridge?.isElectron) {
-    queueMicrotask(() =>
-      onError(
-        new Error(
-          "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann Dev neu starten.",
-        ),
+  queueMicrotask(() =>
+    onError(
+      new Error(
+        "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann Dev neu starten.",
       ),
-    );
-    return controller;
-  }
-
-  assertWebSpringApiAvailable();
-  fetch(`${httpApiPrefix()}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    signal: controller.signal,
-  })
-    .then(async (res) => {
-      if (!res.ok) {
-        let detail = `Chat error: ${res.status}`;
-        try {
-          const body = await res.text();
-          if (body) detail += ` — ${body}`;
-        } catch {
-          /* ignore */
-        }
-        throw new Error(detail);
-      }
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let currentEvent = "";
-      let doneHandled = false;
-      let errorHandled = false;
-      let tokenCount = 0;
-      let fullAssistantText = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("event:")) {
-            currentEvent = line.substring(6).trim();
-          } else if (line.startsWith("data:")) {
-            const data = line.substring(5);
-            if (currentEvent === "context") {
-              try {
-                onContext(JSON.parse(data));
-              } catch (e) {
-                console.warn(
-                  "[streamChat] Failed to parse context event data:",
-                  e,
-                  "raw:",
-                  data.substring(0, 200),
-                );
-              }
-            } else if (currentEvent === "error") {
-              console.warn(
-                "[streamChat] Received error event from backend:",
-                data,
-              );
-              onError(new Error(data));
-              errorHandled = true;
-              doneHandled = true;
-            } else if (currentEvent === "done") {
-              if (!errorHandled) {
-                if (tokenCount === 0) {
-                  console.warn(
-                    "[streamChat] Stream ended (done event) but 0 tokens were received — model returned no content. " +
-                      "Check backend logs for finish_reason=length or empty completion warnings.",
-                  );
-                  onError(new Error("MODEL_EMPTY_RESPONSE"));
-                } else {
-                  onDone(fullAssistantText);
-                }
-              }
-              doneHandled = true;
-            } else if (currentEvent === "tool_call") {
-              const unescaped = data.replace(/\\n/g, "\n");
-              onToolCall?.(unescaped);
-            } else if (currentEvent === "tool_history") {
-              try {
-                onToolHistory?.(JSON.parse(data));
-              } catch (e) {
-                console.warn(
-                  "[streamChat] Failed to parse tool_history event data:",
-                  e,
-                  "raw:",
-                  data.substring(0, 200),
-                );
-              }
-            } else if (currentEvent === "resolved_user_message") {
-              const unescaped = data.replace(/\\n/g, "\n");
-              onResolvedUserMessage?.(unescaped);
-            } else if (currentEvent === "context_update") {
-              try {
-                const parsed = JSON.parse(data);
-                onContextUpdate?.(parsed.estimatedTokens);
-              } catch (e) {
-                console.warn(
-                  "[streamChat] Failed to parse context_update event data:",
-                  e,
-                  "raw:",
-                  data.substring(0, 200),
-                );
-              }
-            } else if (currentEvent === "token") {
-              tokenCount++;
-              const unescaped = data.replace(/\\n/g, "\n");
-              fullAssistantText += unescaped;
-              onToken(unescaped);
-              await yieldMacrotaskForTokenPaint();
-            }
-            currentEvent = "";
-          }
-        }
-      }
-      if (!doneHandled) {
-        if (tokenCount === 0) {
-          console.warn(
-            "[streamChat] SSE stream closed by server without a done event and 0 tokens received.",
-          );
-          onError(new Error("MODEL_EMPTY_RESPONSE"));
-        } else {
-          onDone(fullAssistantText);
-        }
-      }
-    })
-    .catch((err) => {
-      if (err.name !== "AbortError") onError(err);
-    });
-
+    ),
+  );
   return controller;
 }
