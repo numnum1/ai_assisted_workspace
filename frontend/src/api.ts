@@ -18,7 +18,10 @@ import type {
   LlmsListResponse,
   Conversation,
 } from "./types.ts";
-import type { FileContentResult as ElectronFileContentResult } from "./electron/bridge.ts";
+import type {
+  ChatStreamEvent,
+  FileContentResult as ElectronFileContentResult,
+} from "./electron/bridge.ts";
 
 type GlossaryEntryDto = { term: string; definition: string };
 
@@ -34,7 +37,40 @@ import {
 } from "./components/chat/chatHistoryUtils.ts";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
 
-const BASE = "/api";
+/**
+ * Spring REST prefix when the UI runs in the browser (Vite proxies `/api` → backend).
+ * In Electron, data must go through `appBridge` / IPC — HTTP to this app is disabled.
+ */
+function httpApiPrefix(): string {
+  if (isRunningInElectron()) {
+    throw new Error(
+      "HTTP /api is disabled in Electron; this call should use the preload appBridge.",
+    );
+  }
+  return "/api";
+}
+
+/**
+ * `vite --mode electron` serves the same bundle to the Electron window and to any browser tab.
+ * Only the Electron window has `appBridge`; browser tabs must not call `/api` (no proxy, no Spring).
+ */
+function isElectronShellUserAgent(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /\bElectron\//.test(navigator.userAgent);
+}
+
+function assertWebSpringApiAvailable(): void {
+  if (import.meta.env.MODE !== "electron") return;
+  if (isRunningInElectron()) return;
+  if (isElectronShellUserAgent()) {
+    throw new Error(
+      "Electron-Fenster hat kein `window.appBridge` (Preload lädt nicht). Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten. In der Konsole des **Main-Prozesses** nach Preload-Fehlern suchen.",
+    );
+  }
+  throw new Error(
+    "Dieses Dev-Bundle läuft mit `vite --mode electron`: Im normalen Browser-Tab gibt es kein Preload und kein `/api`. Bitte nur das Electron-Fenster nutzen, oder `npm run dev:vite` + Spring auf Port 8012.",
+  );
+}
 
 type FileContentResponse = { path: string; content: string; lines: number };
 type FileMutationResponse = { status: string; path: string };
@@ -106,7 +142,8 @@ async function invokeGitBridge<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  assertWebSpringApiAvailable();
+  const res = await fetch(`${httpApiPrefix()}${path}`);
   if (res.status === 401) throw new AuthRequiredError();
   if (!res.ok) {
     let detail = "";
@@ -122,7 +159,8 @@ async function get<T>(path: string): Promise<T> {
 }
 
 async function postRaw(path: string, body: unknown): Promise<Response> {
-  return fetch(`${BASE}${path}`, {
+  assertWebSpringApiAvailable();
+  return fetch(`${httpApiPrefix()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -146,7 +184,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  assertWebSpringApiAvailable();
+  const res = await fetch(`${httpApiPrefix()}${path}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -156,7 +195,8 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: "DELETE" });
+  assertWebSpringApiAvailable();
+  const res = await fetch(`${httpApiPrefix()}${path}`, { method: "DELETE" });
   if (res.status === 401) throw new AuthRequiredError();
   if (!res.ok) {
     let detail = "";
@@ -461,8 +501,8 @@ export const projectConfigApi = {
         return electronApi.projectConfig.deleteMode(id);
       }
     }
-    return fetch(`/api/project-config/modes/${id}`, { method: "DELETE" }).then(
-      (r) => r.json(),
+    return del<{ status: string }>(
+      `/project-config/modes/${encodeURIComponent(id)}`,
     );
   },
   listAgents: async (): Promise<AgentPreset[]> => {
@@ -492,23 +532,9 @@ export const projectConfigApi = {
         return electronApi.projectConfig.deleteAgent(id);
       }
     }
-    return fetch(`${BASE}/project-config/agents/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }).then(async (r) => {
-      if (!r.ok) {
-        let detail = "";
-        try {
-          const d = await r.json();
-          detail = d.error ?? "";
-        } catch {
-          /* ignore */
-        }
-        throw new Error(
-          detail || `DELETE project-config/agents/${id}: ${r.status}`,
-        );
-      }
-      return r.json() as Promise<{ status: string }>;
-    });
+    return del<{ status: string }>(
+      `/project-config/agents/${encodeURIComponent(id)}`,
+    );
   },
 };
 
@@ -1244,16 +1270,6 @@ export async function getFileContentForChangeCard(
   return filesApi.getContent(path);
 }
 
-type ChatStreamEventName =
-  | "context"
-  | "error"
-  | "done"
-  | "tool_call"
-  | "tool_history"
-  | "resolved_user_message"
-  | "context_update"
-  | "token";
-
 function decodeElectronStreamData(data: string): string {
   return data.replace(/\\n/g, "\n");
 }
@@ -1267,11 +1283,14 @@ export const chatApi = {
     contextBlocks: ContextBlock[];
     systemPrompt: string;
   }> => {
-    if (isRunningInElectron()) {
-      const electronApi = getElectronApi();
-      if (electronApi?.chat) {
-        return electronApi.chat.previewContext(body);
-      }
+    const bridge = getAppBridge();
+    if (bridge?.chat) {
+      return bridge.chat.previewContext(body);
+    }
+    if (bridge?.isElectron) {
+      throw new Error(
+        "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten.",
+      );
     }
     return post<{
       includedFiles: string[];
@@ -1292,6 +1311,47 @@ function yieldMacrotaskForTokenPaint(): Promise<void> {
   });
 }
 
+/**
+ * Maps Main-process IPC `chat:streamEvent` payloads `{ streamId, event, data }`
+ * to renderer `ChatStreamEvent` `{ type, payload }` expected by `handleStreamEvent`.
+ */
+function ipcChatStreamPayloadToBridgeEvent(raw: unknown): ChatStreamEvent | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const type = (r["event"] ?? r["type"]) as string | undefined;
+  const data = r["data"];
+  if (!type) return null;
+
+  const stringData = typeof data === "string" ? data : null;
+  const parseJson = (): unknown => {
+    try {
+      return typeof data === "string" ? JSON.parse(data) : data;
+    } catch {
+      return null;
+    }
+  };
+
+  if (
+    type === "token" ||
+    type === "tool_call" ||
+    type === "resolved_user_message"
+  ) {
+    return { type, payload: stringData ?? "" } as ChatStreamEvent;
+  }
+  if (
+    type === "context" ||
+    type === "tool_history" ||
+    type === "done" ||
+    type === "error" ||
+    type === "context_update"
+  ) {
+    const payload = parseJson();
+    if (payload == null) return null;
+    return { type, payload } as ChatStreamEvent;
+  }
+  return null;
+}
+
 export function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,
@@ -1309,105 +1369,110 @@ export function streamChat(
 ): AbortController {
   const controller = new AbortController();
 
-  if (isRunningInElectron()) {
-    const electronApi = getElectronApi();
-    if (electronApi?.chat) {
-      let errorHandled = false;
-      let tokenCount = 0;
-      let fullAssistantText = "";
-      let activeStreamId: string | null = null;
-      let unsubscribe: (() => void) | null = null;
+  const bridge = getAppBridge();
+  if (bridge?.chat) {
+    const chatBridge = bridge.chat;
+    let errorHandled = false;
+    let tokenCount = 0;
+    let fullAssistantText = "";
+    let activeStreamId: string | null = null;
+    let unsubscribe: (() => void) | null = null;
 
-      const cleanup = () => {
-        unsubscribe?.();
-        unsubscribe = null;
-        activeStreamId = null;
-      };
+    const cleanup = () => {
+      unsubscribe?.();
+      unsubscribe = null;
+      activeStreamId = null;
+    };
 
-      const handleStreamEvent = async (
-        chatEvent: import("./electron/bridge.ts").ChatStreamEvent,
-      ): Promise<void> => {
-        if (activeStreamId == null) {
-          return;
-        }
-
-        if (chatEvent.type === "context") {
-          onContext(chatEvent.payload);
-        } else if (chatEvent.type === "error") {
-          console.warn(
-            "[streamChat] Received error event from Electron chat bridge:",
-            chatEvent.payload.message,
-          );
-          onError(new Error(chatEvent.payload.message));
-          errorHandled = true;
-          cleanup();
-        } else if (chatEvent.type === "done") {
-          if (!errorHandled) {
-            if (tokenCount === 0) {
-              console.warn(
-                "[streamChat] Electron stream ended (done event) but 0 tokens were received — model returned no content.",
-              );
-              onError(new Error("MODEL_EMPTY_RESPONSE"));
-            } else {
-              onDone(chatEvent.payload.fullAssistantText);
-            }
-          }
-          cleanup();
-        } else if (chatEvent.type === "tool_call") {
-          onToolCall?.(decodeElectronStreamData(chatEvent.payload));
-        } else if (chatEvent.type === "tool_history") {
-          onToolHistory?.(chatEvent.payload);
-        } else if (chatEvent.type === "resolved_user_message") {
-          onResolvedUserMessage?.(decodeElectronStreamData(chatEvent.payload));
-        } else if (chatEvent.type === "context_update") {
-          onContextUpdate?.(chatEvent.payload.estimatedTokens);
-        } else if (chatEvent.type === "token") {
-          tokenCount++;
-          const unescaped = decodeElectronStreamData(chatEvent.payload);
-          fullAssistantText += unescaped;
-          onToken(unescaped);
-          await yieldMacrotaskForTokenPaint();
-        }
-      };
-
-      const chatBridge = electronApi.chat;
-      if (!chatBridge) {
-        return controller;
+    const handleStreamEvent = async (chatEvent: ChatStreamEvent): Promise<void> => {
+      if (activeStreamId == null) {
+        return;
       }
 
-      void chatBridge
-        .startStream(request)
-        .then(({ streamId }) => {
-          activeStreamId = streamId;
-
-          const subscription = chatBridge.onStreamEvent(streamId, (payload) => {
-            void handleStreamEvent(payload);
-          });
-          unsubscribe = () => subscription.unsubscribe();
-
-          controller.signal.addEventListener(
-            "abort",
-            () => {
-              cleanup();
-              void chatBridge.stopStream(streamId);
-            },
-            { once: true },
-          );
-        })
-        .catch((err) => {
-          cleanup();
-          if (err instanceof Error) {
-            onError(err);
-            return;
+      if (chatEvent.type === "context") {
+        onContext(chatEvent.payload);
+      } else if (chatEvent.type === "error") {
+        console.warn(
+          "[streamChat] Received error event from Electron chat bridge:",
+          chatEvent.payload.message,
+        );
+        onError(new Error(chatEvent.payload.message));
+        errorHandled = true;
+        cleanup();
+      } else if (chatEvent.type === "done") {
+        if (!errorHandled) {
+          if (tokenCount === 0) {
+            console.warn(
+              "[streamChat] Electron stream ended (done event) but 0 tokens were received — model returned no content.",
+            );
+            onError(new Error("MODEL_EMPTY_RESPONSE"));
+          } else {
+            onDone(chatEvent.payload.fullAssistantText);
           }
-          onError(new Error(String(err)));
-        });
+        }
+        cleanup();
+      } else if (chatEvent.type === "tool_call") {
+        onToolCall?.(decodeElectronStreamData(chatEvent.payload));
+      } else if (chatEvent.type === "tool_history") {
+        onToolHistory?.(chatEvent.payload);
+      } else if (chatEvent.type === "resolved_user_message") {
+        onResolvedUserMessage?.(decodeElectronStreamData(chatEvent.payload));
+      } else if (chatEvent.type === "context_update") {
+        onContextUpdate?.(chatEvent.payload.estimatedTokens);
+      } else if (chatEvent.type === "token") {
+        tokenCount++;
+        const unescaped = decodeElectronStreamData(chatEvent.payload);
+        fullAssistantText += unescaped;
+        onToken(unescaped);
+        await yieldMacrotaskForTokenPaint();
+      }
+    };
 
-      return controller;
-    }
+    void chatBridge
+      .startStream(request)
+      .then(({ streamId }) => {
+        activeStreamId = streamId;
+
+        const subscription = chatBridge.onStreamEvent(streamId, (payload) => {
+          const evt = ipcChatStreamPayloadToBridgeEvent(payload);
+          if (evt) void handleStreamEvent(evt);
+        });
+        unsubscribe = () => subscription.unsubscribe();
+
+        controller.signal.addEventListener(
+          "abort",
+          () => {
+            cleanup();
+            void chatBridge.stopStream(streamId);
+          },
+          { once: true },
+        );
+      })
+      .catch((err) => {
+        cleanup();
+        if (err instanceof Error) {
+          onError(err);
+          return;
+        }
+        onError(new Error(String(err)));
+      });
+
+    return controller;
   }
 
-  fetch(`${BASE}/chat`, {
+  if (bridge?.isElectron) {
+    queueMicrotask(() =>
+      onError(
+        new Error(
+          "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann Dev neu starten.",
+        ),
+      ),
+    );
+    return controller;
+  }
+
+  assertWebSpringApiAvailable();
+  fetch(`${httpApiPrefix()}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

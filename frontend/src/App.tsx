@@ -278,6 +278,19 @@ function App() {
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
   const projectDefaultChatModeIdRef = useRef('review');
+  /**
+   * Ref-mirrors of toolbar state so the conv-sync effect can read current values without
+   * listing them as reactive deps — which would cause snap-back any time the user changes
+   * mode, LLM, or reasoning (handleModeChange sets all three at once).
+   */
+  const selectedModeRef = useRef(selectedMode);
+  selectedModeRef.current = selectedMode;
+  const modeLlmIdRef = useRef(modeLlmId);
+  modeLlmIdRef.current = modeLlmId;
+  const useReasoningRef = useRef(useReasoning);
+  useReasoningRef.current = useReasoning;
+  const disabledToolkitsRef = useRef(disabledToolkits);
+  disabledToolkitsRef.current = disabledToolkits;
   /** Avoid toolbar ↔ conversation ping-pong: only pull agent fields from conv when conv or active chat actually changed. */
   const prevModeSyncActiveIdRef = useRef<string | null>(null);
   const prevAgentPersistSigRef = useRef('');
@@ -572,7 +585,8 @@ function App() {
     }
     // Only apply mode row when the resolved id differs; otherwise handleModeChange would still
     // rewrite llm/reasoning from the mode and fight the agent / prefs block below → update depth loops.
-    if (desired !== selectedMode) {
+    // Read via ref so that a manual user mode-change does not re-trigger this effect and snap back.
+    if (desired !== selectedModeRef.current) {
       handleModeChange(desired, modes);
     }
     const convAfter = history.activeConversation;
@@ -590,9 +604,9 @@ function App() {
       const pullAgentFromConv = switchedConv || agentPersistChanged;
 
       if (pullAgentFromConv) {
-        let gLlm: string | undefined = modeLlmId;
-        let gReason = useReasoning;
-        let gDisabled: ReadonlySet<string> = disabledToolkits;
+        let gLlm: string | undefined = modeLlmIdRef.current;
+        let gReason = useReasoningRef.current;
+        let gDisabled: ReadonlySet<string> = disabledToolkitsRef.current;
         if (convAfter.agentLlmId !== undefined) gLlm = convAfter.agentLlmId;
         if (convAfter.agentUseReasoning !== undefined) gReason = convAfter.agentUseReasoning;
         if (convAfter.agentDisabledToolkits !== undefined) {
@@ -611,7 +625,7 @@ function App() {
           history.patchConversation(convAfter.id, buildAgentExecutionPatchFromGlobals(target));
         }
       } else {
-        const globals = { llmId: modeLlmId, useReasoning, disabledToolkits };
+        const globals = { llmId: modeLlmIdRef.current, useReasoning: useReasoningRef.current, disabledToolkits: disabledToolkitsRef.current };
         if (!agentExecutionMatchesGlobals(convAfter, globals)) {
           history.patchConversation(convAfter.id, buildAgentExecutionPatchFromGlobals(globals));
         }
@@ -652,10 +666,9 @@ function App() {
     modesAndLlmLoadGeneration,
     handleModeChange,
     applyLlmPrefsFromStorage,
-    selectedMode,
-    modeLlmId,
-    useReasoning,
-    disabledToolkits,
+    // selectedMode, modeLlmId, useReasoning, disabledToolkits intentionally omitted:
+    // all four are read via refs so that handleModeChange (which sets all four at once)
+    // does not re-trigger this effect and snap the selector back to the conversation mode.
   ]);
 
   useEffect(() => {
@@ -1597,13 +1610,6 @@ function App() {
                 projectPath={project.projectPath ?? null}
                 selectedPath={fileEditor.selectedPath}
                 onSelectFile={(path) => {
-                  chapter.closeChapter();
-                  setSelectedMeta(null);
-                  setMetaExpanded(false);
-                  setFocusedField(null);
-                  void fileEditor.openFile(path);
-                }}
-              onOpenFileMeta={(path) => {
                   chapter.closeChapter();
                   setSelectedMeta(null);
                   setMetaExpanded(false);

@@ -567,16 +567,26 @@ function createWindow(): void {
     width: 1400,
     height: 900,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      /** CJS-Bundle (`preload.cjs` via esbuild): `tsc`-ESM-Preload + `"type":"module"` führt oft dazu, dass der Preload nicht läuft → kein `window.appBridge`. */
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
   });
+  win.webContents.on("preload-error", (_event, preloadPath, error) => {
+    console.error(
+      `[electron] preload-error path=${preloadPath}`,
+      error instanceof Error ? error.stack ?? error.message : error,
+    );
+  });
+  // win.webContents.openDevTools();
 
   if (!app.isPackaged) {
     void win.loadURL("http://localhost:5173");
   } else {
-    void win.loadFile(path.join(__dirname, "../dist/index.html"));
+    /** `main` liegt unter `dist-electron/electron/`; Vite-Build ist `dist/` neben `dist-electron/`. */
+    void win.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
 }
 

@@ -304,9 +304,11 @@ async function getAllWorkspaceModeSchemas(): Promise<WorkspaceModeSchema[]> {
 export async function getProjectConfigStatus(
   projectPath: string | null,
 ): Promise<{ initialized: boolean }> {
-  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
+  if (!projectPath) {
+    return { initialized: false };
+  }
   return {
-    initialized: await exists(getAssistantDir(resolvedProjectPath)),
+    initialized: await exists(getAssistantDir(projectPath)),
   };
 }
 
@@ -351,8 +353,10 @@ export async function updateProjectConfig(
 export async function getProjectModes(
   projectPath: string | null,
 ): Promise<Mode[]> {
-  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
-  const stored = await readJsonFile<Mode[]>(getModesPath(resolvedProjectPath));
+  if (!projectPath) {
+    return DEFAULT_MODES.map(normalizeMode);
+  }
+  const stored = await readJsonFile<Mode[]>(getModesPath(projectPath));
   const modes =
     Array.isArray(stored) && stored.length > 0 ? stored : DEFAULT_MODES;
   return modes.map(normalizeMode);

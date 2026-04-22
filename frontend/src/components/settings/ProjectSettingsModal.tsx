@@ -581,10 +581,10 @@ export function ProjectSettingsModal({
           name: name.trim(),
           fastApiUrl: fastApiUrl.trim(),
           fastModel: fastModel.trim(),
-          ...(fastApiKey.trim() ? { fastApiKey: fastApiKey.trim() } : {}),
+          fastApiKey: fastApiKey.trim(),
           reasoningApiUrl: reasoningApiUrl.trim(),
           reasoningModel: reasoningModel.trim(),
-          ...(reasoningApiKey.trim() ? { reasoningApiKey: reasoningApiKey.trim() } : {}),
+          reasoningApiKey: reasoningApiKey.trim(),
           maxTokens: maxTokensPayload,
         });
       }

@@ -120,19 +120,23 @@ npm install
 
 ### 3. Development
 
-**Terminal 1 — backend (8012):**
-```bash
-cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=local
-```
-
-**Terminal 2 — frontend (5173):**
+**Desktop (default — no Java for `/api`; logic runs in Electron):**
 ```bash
 cd frontend
 npm run dev
 ```
+Starts Vite on **5173** (`vite --mode electron`: **kein** `/api`-Proxy), compiles the Electron main process, and opens the **Electron** window (IPC statt Spring).
 
-Open http://localhost:5173 — Vite proxies `/api` to the backend.
+**Browser + Spring (legacy):** start the backend, then only the Vite dev server:
+```bash
+cd backend
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+```bash
+cd frontend
+npm run dev:vite
+```
+Open http://localhost:5173 — Vite proxies `/api` to the backend on **8012**.
 
 ### 4. Production (single server)
 

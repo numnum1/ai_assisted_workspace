@@ -6,12 +6,10 @@ import type { ParsedSteeringPlan } from './planFenceUtils.ts';
 
 interface SteeringPlanViewerProps {
   parsedPlan: ParsedSteeringPlan;
-  isOpen?: boolean;
 }
 
 export const SteeringPlanViewer: React.FC<SteeringPlanViewerProps> = ({
   parsedPlan,
-  isOpen = true,
 }) => {
   const { isComplete, title, status, progress, currentStep, totalSteps, steps, rawMarkdown } = parsedPlan;
 
