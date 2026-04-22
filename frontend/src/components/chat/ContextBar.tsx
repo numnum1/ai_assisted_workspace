@@ -34,7 +34,6 @@ function typeIcon(type: string): string {
     case 'structure': return '🏗️';
     case 'file-tree': return '📁';
     case 'file': return '📄';
-    case 'active-file': return '✏️';
     default: return '📌';
   }
 }

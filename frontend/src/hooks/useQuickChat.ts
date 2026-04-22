@@ -100,7 +100,6 @@ export function useQuickChat() {
       : undefined;
     const chatRequest: ChatRequest = {
       message: text,
-      activeFile: null,
       activeFieldKey: null,
       mode: 'review',
       referencedFiles: [],

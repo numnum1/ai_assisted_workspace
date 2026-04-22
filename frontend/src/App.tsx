@@ -1031,10 +1031,6 @@ function App() {
       const conv = history.activeConversation;
       const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const mode = modes.find((m) => m.id === modeId);
-      // Derive activeFile: scene JSON when a scene is selected, otherwise the open file
-      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-        : (fileEditor.selectedPath ?? null);
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
         useReasoning,
@@ -1047,7 +1043,6 @@ function App() {
       };
       chat.sendMessage(
         message,
-        activeFile,
         modeId,
         refs.referencedFiles,
         mode?.name,
@@ -1072,9 +1067,6 @@ function App() {
       useReasoning,
       modeLlmId,
       activeSelection,
-      selectedMeta,
-      chapter.structureRoot,
-      fileEditor.selectedPath,
       focusedField,
       disabledToolkits,
       history.activeConversation,
@@ -1091,9 +1083,6 @@ function App() {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       const conv = history.activeConversation;
-      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-        : (fileEditor.selectedPath ?? null);
       const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
@@ -1103,7 +1092,6 @@ function App() {
       const req = buildMainChatContextPreviewRequest({
         previewModeId,
         exec,
-        activeFile,
         activeFieldKey: focusedField?.fieldKey,
         referencedFiles: refs.referencedFiles,
         conv,
@@ -1129,18 +1117,12 @@ function App() {
     refs.referencedFiles,
     useReasoning,
     modeLlmId,
-    selectedMeta,
-    chapter.structureRoot,
-    fileEditor.selectedPath,
     focusedField?.fieldKey,
     disabledToolkits,
   ]);
 
   const handleEditMessage = useCallback(
     (index: number, newContent: string) => {
-      const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-        ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-        : (fileEditor.selectedPath ?? null);
       const conv = history.activeConversation;
       const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const exec = getEffectiveChatExecution(conv, {
@@ -1149,7 +1131,6 @@ function App() {
         disabledToolkits,
       });
       chat.editMessage(index, newContent, {
-        activeFile,
         mode: modeId,
         referencedFiles: refs.referencedFiles,
         useReasoning: exec.useReasoning,
@@ -1171,9 +1152,6 @@ function App() {
       useReasoning,
       modeLlmId,
       activeSelection,
-      selectedMeta,
-      chapter.structureRoot,
-      fileEditor.selectedPath,
       focusedField,
       disabledToolkits,
       history.activeConversation,
@@ -1186,10 +1164,6 @@ function App() {
     (conv: Conversation) => {
       const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
       const mode = modes.find((m) => m.id === modeId);
-      const activeFile =
-        selectedMeta?.type === 'scene' && selectedMeta.sceneId
-          ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-          : (fileEditor.selectedPath ?? null);
       const exec = getEffectiveChatExecution(conv, {
         llmId: modeLlmId,
         useReasoning,
@@ -1202,7 +1176,6 @@ function App() {
       };
       chat.sendMessage(
         GUIDED_AGENT_KICKOFF_USER_MESSAGE,
-        activeFile,
         modeId,
         refs.referencedFiles,
         mode?.name,
@@ -1225,9 +1198,6 @@ function App() {
       refs.referencedFiles,
       useReasoning,
       modeLlmId,
-      selectedMeta,
-      chapter.structureRoot,
-      fileEditor.selectedPath,
       focusedField,
       disabledToolkits,
       history.patchConversation,
@@ -1279,7 +1249,6 @@ function App() {
       });
       chat.sendMessage(
         message,
-        null,
         'prompt-pack',
         files,
         m?.name ?? 'Prompt-Paket',
@@ -1849,9 +1818,6 @@ function App() {
         isDirty={chapter.hasDirtyActions}
         systemPromptPreview={systemPromptPreview}
         onFetchContextBlocks={async () => {
-          const activeFile = (selectedMeta?.type === 'scene' && selectedMeta.sceneId)
-            ? `${chapter.structureRoot ? chapter.structureRoot + '/' : ''}.project/chapter/${selectedMeta.chapterId}/${selectedMeta.sceneId}.json`
-            : (fileEditor.selectedPath ?? null);
           const conv = history.activeConversation;
           const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
           const exec = getEffectiveChatExecution(conv, {
@@ -1863,7 +1829,6 @@ function App() {
             buildMainChatContextPreviewRequest({
               previewModeId,
               exec,
-              activeFile,
               activeFieldKey: focusedField?.fieldKey,
               referencedFiles: refs.referencedFiles,
               conv,

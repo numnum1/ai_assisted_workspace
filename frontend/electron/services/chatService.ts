@@ -844,11 +844,6 @@ function buildSystemPrompt(
     lines.push(`Modus: ${mode}`);
   }
 
-  const activeFile = normalizeText(request.activeFile);
-  if (activeFile) {
-    lines.push(`Aktive Datei: ${activeFile}`);
-  }
-
   const referencedFiles = Array.isArray(request.referencedFiles)
     ? request.referencedFiles
         .map((value) => normalizeText(value))
@@ -1141,23 +1136,6 @@ async function buildPreviewContext(
       referenced.content,
     );
     if (fileBlock) blocks.push(fileBlock);
-  }
-
-  const activeFile = normalizeText(request.activeFile);
-  if (activeFile && !includedFiles.has(activeFile)) {
-    const activeFileData = await readReferencedProjectFile(
-      projectPath,
-      activeFile,
-    );
-    if (activeFileData) {
-      includedFiles.add(activeFile);
-      const activeFileBlock = createContextBlock(
-        "active-file",
-        `Active File: ${activeFile}`,
-        activeFileData.content,
-      );
-      if (activeFileBlock) blocks.push(activeFileBlock);
-    }
   }
 
   const referencedFiles = Array.isArray(request.referencedFiles)

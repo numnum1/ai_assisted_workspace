@@ -137,7 +137,6 @@ export function PromptPackPanel({
       chatApi
         .previewContext({
           message: '',
-          activeFile: null,
           mode: PROMPT_PACK_MODE_ID,
           referencedFiles,
           history: [],

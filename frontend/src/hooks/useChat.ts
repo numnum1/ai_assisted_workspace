@@ -16,7 +16,6 @@ import { attachAssistantStream, type StreamCallbacks } from './assistantStream.t
  */
 /** Params for API context when editing the last user message and re-streaming */
 export interface EditMessageSendParams {
-  activeFile: string | null;
   mode: string;
   referencedFiles: string[];
   useReasoning?: boolean;
@@ -147,7 +146,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   const sendMessage = useCallback(
     (
       text: string,
-      activeFile: string | null,
       mode: string,
       referencedFiles: string[],
       modeName?: string,
@@ -190,7 +188,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
 
       const request: ChatRequest = {
         message: text,
-        activeFile,
         activeFieldKey: activeFieldKey ?? null,
         mode,
         referencedFiles,
@@ -300,7 +297,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       };
       const request: ChatRequest = {
         message: trimmed,
-        activeFile: sendParams.activeFile,
         activeFieldKey: sendParams.activeFieldKey ?? null,
         mode: sendParams.mode,
         referencedFiles: sendParams.referencedFiles,

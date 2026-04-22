@@ -85,7 +85,6 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   message: string;
-  activeFile: string | null;
   activeFieldKey?: string | null;
   mode: string;
   referencedFiles: string[];
