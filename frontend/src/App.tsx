@@ -815,10 +815,18 @@ function App() {
   );
 
   useEffect(() => {
-    fetchGitState();
-    const interval = setInterval(fetchGitState, 30_000);
+    void fetchGitState();
+    const interval = setInterval(() => {
+      void fetchGitState();
+    }, 10 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [fetchGitState]);
+  }, [fetchGitState, project.projectPath]);
+
+  useEffect(() => {
+    if (paletteOpen) {
+      void fetchGitState();
+    }
+  }, [paletteOpen, fetchGitState]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
