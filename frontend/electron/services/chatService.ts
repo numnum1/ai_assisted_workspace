@@ -2,6 +2,7 @@ import type { ChatRequest, ChatMessage, ToolCall } from "../../src/types.js";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { getProjectModes } from "./projectConfigService.js";
 
 export interface ContextBlock {
   type: string;
@@ -724,6 +725,17 @@ function normalizeText(value: string | null | undefined): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+async function resolveModeSystemPrompt(
+  projectPath: string | null,
+  modeId: string,
+): Promise<string> {
+  const id = normalizeText(modeId);
+  if (!id) return "";
+  const modes = await getProjectModes(projectPath);
+  const found = modes.find((m) => m.id === id);
+  return normalizeText(found?.systemPrompt ?? "");
+}
+
 function estimateTokens(text: string): number {
   const normalized = normalizeText(text);
   if (!normalized) return 0;
@@ -829,13 +841,20 @@ function buildSessionBlock(request: ChatRequest): ContextBlock | null {
 function buildSystemPrompt(
   request: ChatRequest,
   context: PreviewBuildContext,
+  modeSystemPrompt: string,
 ): string {
-  const lines: string[] = [
-    "Du bist ein lokaler Schreibassistent in einer Electron-Anwendung.",
-    "Erstelle eine strukturierte, hilfreiche Antwort auf Basis des aktuellen Projekts.",
-  ];
+  const lines: string[] = [];
+  const modeGuidance = normalizeText(modeSystemPrompt);
+  if (modeGuidance) {
+    lines.push(modeGuidance);
+  } else {
+    lines.push(
+      "Du arbeitest in einer lokalen Electron-Anwendung mit bereitgestelltem Projektkontext. Antworte sachlich und hilfreich.",
+    );
+  }
 
   if (context.projectPath) {
+    lines.push("");
     lines.push(`Projektpfad: ${context.projectPath}`);
   }
 
@@ -1183,6 +1202,9 @@ export async function previewChatContext(
   projectPath: string | null,
   request: ChatRequest,
 ): Promise<ChatContextPreviewResult> {
+  console.debug(
+    `[chat] previewChatContext: mode=${normalizeText(request.mode)}, project=${projectPath ?? "(none)"}`,
+  );
   const previewContext = await buildPreviewContext(projectPath, request);
 
   const context: PreviewBuildContext = {
@@ -1190,7 +1212,14 @@ export async function previewChatContext(
     projectConfig: previewContext.projectConfig,
   };
 
-  const systemPrompt = buildSystemPrompt(request, context);
+  const modeSystemPrompt = await resolveModeSystemPrompt(
+    projectPath,
+    request.mode,
+  );
+  const systemPrompt = buildSystemPrompt(request, context, modeSystemPrompt);
+  console.debug(
+    `[chat] previewChatContext: done (systemPrompt=${systemPrompt.length} chars, modeSystemPrompt=${modeSystemPrompt.length} chars)`,
+  );
   const estimatedTokens =
     estimateTokens(systemPrompt) +
     previewContext.blocks.reduce(
