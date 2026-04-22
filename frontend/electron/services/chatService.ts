@@ -900,11 +900,6 @@ function buildSystemPrompt(
   return lines.join("\n");
 }
 
-function getVisibleHistory(request: ChatRequest): ChatMessage[] {
-  const history = Array.isArray(request.history) ? request.history : [];
-  return history.filter((message) => !message.hidden);
-}
-
 interface ProjectConfigData {
   name: string;
   description: string;
@@ -1256,14 +1251,6 @@ async function runChatStream(
         maxContextTokens: endpoint.maxTokens,
       },
     });
-
-    const visibleHistory = getVisibleHistory(request);
-    if (visibleHistory.length > 0) {
-      emit({
-        type: "tool_history",
-        data: visibleHistory,
-      });
-    }
 
     if (request.message && request.message.trim()) {
       emit({
