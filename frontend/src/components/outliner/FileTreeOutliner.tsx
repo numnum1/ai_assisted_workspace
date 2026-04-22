@@ -7,6 +7,7 @@ import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
 import { resolveLevelConfig } from '../../hooks/useWorkspaceLevelConfigMap.ts';
 import { readExpandedPaths, writeExpandedPaths } from '../../hooks/outlinerExpandedStorage.ts';
+import { useTextPrompt } from '../../hooks/useTextPrompt.tsx';
 
 function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
   if (root.path === targetPath) return root;
@@ -458,6 +459,7 @@ export function FileTreeOutliner({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['.']));
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [promptDialog, prompt] = useTextPrompt();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
@@ -726,8 +728,9 @@ export function FileTreeOutliner({
     ],
   );
 
-  const handleNewFolder = (parentPath: string) => {
-    const name = window.prompt('Name des neuen Ordners:');
+  const handleNewFolder = async (parentPath: string) => {
+    setMenu(null);
+    const name = await prompt('Name des neuen Ordners:');
     const n = name != null ? normalizeTreeItemName(name) : null;
     if (n == null) return;
     void runMutation(async () => {
@@ -735,8 +738,9 @@ export function FileTreeOutliner({
     });
   };
 
-  const handleNewFile = (parentPath: string) => {
-    const name = window.prompt('Name der neuen Datei:', 'unbenannt.md');
+  const handleNewFile = async (parentPath: string) => {
+    setMenu(null);
+    const name = await prompt('Name der neuen Datei:', 'unbenannt.md');
     const n = name != null ? normalizeTreeItemName(name) : null;
     if (n == null) return;
     void runMutation(async () => {
@@ -744,9 +748,10 @@ export function FileTreeOutliner({
     });
   };
 
-  const handleRename = (path: string, isDir: boolean) => {
+  const handleRename = async (path: string, isDir: boolean) => {
+    setMenu(null);
     const base = path === '.' ? '' : (path.split('/').pop() ?? '');
-    const next = window.prompt(isDir ? 'Neuer Ordnername:' : 'Neuer Dateiname:', base);
+    const next = await prompt(isDir ? 'Neuer Ordnername:' : 'Neuer Dateiname:', base);
     const n = next != null ? normalizeTreeItemName(next) : null;
     if (n == null) return;
     void runMutation(async () => {
@@ -827,12 +832,12 @@ export function FileTreeOutliner({
     [onSelectFile, refreshAfterMutation],
   );
 
-  const handleNewChapterInSubproject = (path: string, type: string) => {
+  const handleNewChapterInSubproject = async (path: string, type: string) => {
+    setMenu(null);
     const { chapter } = resolveLevelConfig(levelConfigByModeId, type);
-    const title = window.prompt(`Titel (${chapter.label}):`, chapter.labelNew);
+    const title = await prompt(`Titel (${chapter.label}):`, chapter.labelNew);
     if (!title?.trim()) return;
     void onCreateChapterInSubproject?.(path, type, title.trim());
-    setMenu(null);
   };
 
   const showCreate = menu?.directory === true;
@@ -899,17 +904,17 @@ export function FileTreeOutliner({
         >
           {showCreate && (
             <>
-              <button type="button" className="file-tree-context-item" onClick={() => handleNewFolder(menu.path)}>
+              <button type="button" className="file-tree-context-item" onClick={() => void handleNewFolder(menu.path)}>
                 Neuer Ordner…
               </button>
-              <button type="button" className="file-tree-context-item" onClick={() => handleNewFile(menu.path)}>
+              <button type="button" className="file-tree-context-item" onClick={() => void handleNewFile(menu.path)}>
                 Neue Datei…
               </button>
             </>
           )}
           {showRenameDelete && (
             <>
-              <button type="button" className="file-tree-context-item" onClick={() => handleRename(menu.path, menu.directory)}>
+              <button type="button" className="file-tree-context-item" onClick={() => void handleRename(menu.path, menu.directory)}>
                 Umbenennen…
               </button>
               <button
@@ -1000,7 +1005,7 @@ export function FileTreeOutliner({
                 <button
                   type="button"
                   className="file-tree-context-item"
-                  onClick={() => handleNewChapterInSubproject(menu.path, menu.subprojectType!)}
+                  onClick={() => void handleNewChapterInSubproject(menu.path, menu.subprojectType!)}
                 >
                   {resolveLevelConfig(levelConfigByModeId, menu.subprojectType).chapter.labelNew}…
                 </button>
@@ -1042,6 +1047,7 @@ export function FileTreeOutliner({
           )}
         </div>
       )}
+      {promptDialog}
     </div>
   );
 }

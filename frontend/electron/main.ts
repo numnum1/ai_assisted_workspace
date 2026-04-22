@@ -580,7 +580,7 @@ function createWindow(): void {
       error instanceof Error ? error.stack ?? error.message : error,
     );
   });
-  // win.webContents.openDevTools();
+  win.webContents.openDevTools();
 
   if (!app.isPackaged) {
     void win.loadURL("http://localhost:5173");

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronDown, FolderOpen } from 'lucide-react';
 import type { ChapterSummary, ChapterNode, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../../types.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
+import { useTextPrompt } from '../../hooks/useTextPrompt.tsx';
 
 interface OutlinerProps {
   levelConfig: OutlinerLevelConfig;
@@ -69,6 +70,7 @@ export function Outliner({
   const [expandedScenes, setExpandedScenes] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [renameState, setRenameState] = useState<RenameState>(null);
+  const [promptDialog, prompt] = useTextPrompt();
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -177,7 +179,7 @@ export function Outliner({
     setRenameState(null);
   }, [renameState, renameValue, onRenameChapter, onRenameScene, onRenameAction]);
 
-  const promptCreate = useCallback((
+  const promptCreate = useCallback(async (
     type: 'chapter' | 'scene' | 'action',
     chapterId?: string,
     sceneId?: string
@@ -191,12 +193,12 @@ export function Outliner({
       type === 'chapter' ? levelConfig.chapter.labelNew
         : type === 'scene' ? levelConfig.scene.labelNew
           : levelConfig.action.labelNew;
-    const title = window.prompt(`Titel für neue ${label}:`, defaultTitle);
+    const title = await prompt(`Titel für neue ${label}:`, defaultTitle);
     if (!title?.trim()) return;
     if (type === 'chapter') onCreateChapter(title.trim());
     else if (type === 'scene' && chapterId) onCreateScene(chapterId, title.trim());
     else if (type === 'action' && chapterId && sceneId) onCreateAction(chapterId, sceneId, title.trim());
-  }, [levelConfig, onCreateChapter, onCreateScene, onCreateAction]);
+  }, [levelConfig, prompt, onCreateChapter, onCreateScene, onCreateAction]);
 
   const handleMoveScene = useCallback((chapterId: string, sceneId: string, direction: 'up' | 'down') => {
     if (!activeChapter || activeChapter.id !== chapterId) return;
@@ -393,13 +395,13 @@ export function Outliner({
           onMouseDown={e => e.stopPropagation()}
         >
           {contextMenu.type === 'root' && (
-            <div className="tree-context-menu-item" onClick={() => promptCreate('chapter')}>
+            <div className="tree-context-menu-item" onClick={() => void promptCreate('chapter')}>
               {levelConfig.chapter.labelNew}
             </div>
           )}
           {contextMenu.type === 'chapter' && contextMenu.chapterId && (
             <>
-              <div className="tree-context-menu-item" onClick={() => promptCreate('scene', contextMenu.chapterId)}>
+              <div className="tree-context-menu-item" onClick={() => void promptCreate('scene', contextMenu.chapterId)}>
                 {levelConfig.scene.labelNew}
               </div>
               <div className="tree-context-menu-item" onClick={() => {
@@ -420,7 +422,7 @@ export function Outliner({
           )}
           {contextMenu.type === 'scene' && contextMenu.chapterId && contextMenu.sceneId && (
             <>
-              <div className="tree-context-menu-item" onClick={() => promptCreate('action', contextMenu.chapterId, contextMenu.sceneId)}>
+              <div className="tree-context-menu-item" onClick={() => void promptCreate('action', contextMenu.chapterId, contextMenu.sceneId)}>
                 {levelConfig.action.labelNew}
               </div>
               <div className="tree-context-menu-item" onClick={() => {
@@ -472,6 +474,7 @@ export function Outliner({
           )}
         </div>
       )}
+      {promptDialog}
     </div>
   );
 }

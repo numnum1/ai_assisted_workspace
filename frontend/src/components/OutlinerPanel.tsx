@@ -10,6 +10,7 @@ import {
   LayoutList,
 } from "lucide-react";
 import { typedFilesApi } from "../api.ts";
+import { useTextPrompt } from "../hooks/useTextPrompt.tsx";
 
 interface OutlinerScene {
   path: string;
@@ -61,8 +62,10 @@ export function OutlinerPanel({
   onCreateScene,
   onRefresh,
 }: OutlinerPanelProps) {
+  const [promptDialog, prompt] = useTextPrompt();
+
   const handleAddChapter = async () => {
-    const name = window.prompt("Kapitelname (z.B. kapitel-08):");
+    const name = await prompt("Kapitelname (z.B. kapitel-08):");
     if (!name?.trim()) return;
     try {
       await onCreateChapter(name.trim());
@@ -121,6 +124,7 @@ export function OutlinerPanel({
           ))
         )}
       </div>
+      {promptDialog}
     </div>
   );
 }
@@ -147,13 +151,14 @@ function ChapterNode({
   onCreateScene,
 }: ChapterNodeProps) {
   const [expanded, setExpanded] = useState(true);
+  const [promptDialog, prompt] = useTextPrompt();
 
   const chapterMetaPath = chapter.metaPath;
   const isMetaActive = activeFile === chapterMetaPath;
 
   const handleAddScene = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const name = window.prompt("Szenenname (z.B. szene-04):");
+    const name = await prompt("Szenenname (z.B. szene-04):");
     if (!name?.trim()) return;
     try {
       const result = await onCreateScene(chapter.path, name.trim(), true);
@@ -235,6 +240,7 @@ function ChapterNode({
             chapterPath={chapter.path}
           />
         ))}
+      {promptDialog}
     </div>
   );
 }

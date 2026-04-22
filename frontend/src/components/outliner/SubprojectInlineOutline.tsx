@@ -3,6 +3,7 @@ import { ChevronRight, ChevronDown } from 'lucide-react';
 import type { ChapterSummary, ChapterNode, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../../types.ts';
 import { chapterApi } from '../../api.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
+import { useTextPrompt } from '../../hooks/useTextPrompt.tsx';
 
 type OutlineCtx =
   | { type: 'root' }
@@ -57,6 +58,7 @@ export function SubprojectInlineOutline({
   const [loadingChapterId, setLoadingChapterId] = useState<string | null>(null);
   const [menu, setMenu] = useState<OutlineMenuState | null>(null);
   const [renameState, setRenameState] = useState<RenameState | null>(null);
+  const [promptDialog, prompt] = useTextPrompt();
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -230,7 +232,7 @@ export function SubprojectInlineOutline({
           : kind === 'scene'
             ? levelConfig.scene.labelNew
             : levelConfig.action.labelNew;
-      const title = window.prompt(`Titel für neue ${label}:`, def);
+      const title = await prompt(`Titel für neue ${label}:`, def);
       if (!title?.trim()) return;
       await runWithRoot(async () => {
         if (kind === 'chapter') await chapterApi.create(title.trim(), subprojectPath);
@@ -242,7 +244,7 @@ export function SubprojectInlineOutline({
       if (kind !== 'chapter' && chapterId) await loadStructure(chapterId);
       onStructureMutated();
     },
-    [levelConfig, runWithRoot, subprojectPath, onStructureMutated, loadStructure],
+    [levelConfig, prompt, runWithRoot, subprojectPath, onStructureMutated, loadStructure],
   );
 
   const handleMoveScene = useCallback(
@@ -734,9 +736,10 @@ export function SubprojectInlineOutline({
                   </button>
                 </>
               )}
-            </div>
-          );
-        })()}
+        </div>
+      );
+    })()}
+      {promptDialog}
     </div>
   );
 }
