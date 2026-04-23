@@ -10,7 +10,6 @@ import { ChatPanel } from './components/chat/ChatPanel.tsx';
 import { FieldEditorPanel } from './components/editor/FieldEditorPanel.tsx';
 import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
 import { ContextBar } from './components/chat/ContextBar.tsx';
-import { buildMainChatContextPreviewRequest } from './components/chat/contextPreviewRequest.ts';
 import { CommandPalette } from './components/git/CommandPalette.tsx';
 import { GitCredentialsDialog } from './components/git/GitCredentialsDialog.tsx';
 import { FileHistoryModal } from './components/git/FileHistoryModal.tsx';
@@ -32,7 +31,7 @@ import type {
 } from './types.ts';
 import type { NewChatConfirmPayload } from './components/chat/NewChatDialog.tsx';
 import { CHAT_TOOLKIT_IDS } from './types.ts';
-import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, chatApi, AuthRequiredError } from './api.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, AuthRequiredError } from './api.ts';
 import { buildThreadHiddenBootstrap } from './components/chat/chatThreadUtils.ts';
 import type { GuidedThreadOfferPayload } from './components/chat/guidedThreadOfferUtils.ts';
 import { Settings } from 'lucide-react';
@@ -67,6 +66,11 @@ import {
   threadExecutionOverrideFromPreset,
 } from './components/chat/chatAgentUtils.ts';
 import {
+  nonPromptModes,
+  resolvePersistedChatModeId,
+  effectiveChatModeIdForRequest,
+} from './components/chat/effectiveChatModeForRequest.ts';
+import {
   GUIDED_AGENT_KICKOFF_USER_MESSAGE,
   cancelGuidedAgentKickoffIfPendingMismatchesActive,
   clearPendingGuidedAgentKickoff,
@@ -74,13 +78,7 @@ import {
   scheduleGuidedAgentPresetKickoff,
   tryMarkGuidedAgentKickoffStarted,
 } from './components/chat/guidedAgentKickoff.ts';
-
-/** Matches user message label for prompt-pack mode in chat UI (see ChatPanel). */
-const PROMPT_PACK_DISPLAY_NAME = 'Prompt-Paket';
-
-function nonPromptModes(mds: Mode[]): Mode[] {
-  return mds.filter((m) => m.id !== 'prompt-pack');
-}
+import { useConversationModel } from './hooks/useConversationModel.ts';
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
 function standardChatModes(mds: Mode[]): Mode[] {
@@ -97,44 +95,6 @@ function resolveDefaultModeId(mds: Mode[], configured: string | undefined): stri
 
 function conversationHasVisibleMessages(conv: Conversation): boolean {
   return conv.messages.some((m) => !m.hidden);
-}
-
-/**
- * Resolves mode id from persisted conversation (non–prompt-pack only).
- * Agent-only modes are kept for guided sessions; for standard chat they are ignored.
- */
-function resolvePersistedChatModeId(conv: Conversation, nonPrompt: Mode[], allModes: Mode[]): string | null {
-  const sessionKind = conv.sessionKind ?? 'standard';
-  const allowed = (modeId: string): boolean => {
-    const m = nonPrompt.find((x) => x.id === modeId);
-    if (!m) return false;
-    if (m.agentOnly && sessionKind !== 'guided') return false;
-    return true;
-  };
-  if (conv.mode && conv.mode !== 'prompt-pack' && allowed(conv.mode)) return conv.mode;
-
-  for (let i = conv.messages.length - 1; i >= 0; i--) {
-    const m = conv.messages[i];
-    if (m.hidden || m.role !== 'user' || !m.mode) continue;
-    if (m.mode === PROMPT_PACK_DISPLAY_NAME) continue;
-    const found = allModes.find((mode) => mode.name === m.mode);
-    if (found && found.id !== 'prompt-pack' && allowed(found.id)) return found.id;
-  }
-  return null;
-}
-
-/**
- * Outbound chat / preview requests: guided sessions use persisted {@link Conversation.mode}
- * (incl. agent-only presets), so an empty-tab toolbar sync cannot send the wrong mode id.
- */
-function effectiveChatModeIdForRequest(
-  conv: Conversation | undefined,
-  toolbarModeId: string,
-  allModes: Mode[],
-): string {
-  if (!conv || (conv.sessionKind ?? 'standard') !== 'guided') return toolbarModeId;
-  const nonPrompt = nonPromptModes(allModes);
-  return resolvePersistedChatModeId(conv, nonPrompt, allModes) ?? toolbarModeId;
 }
 
 const LLM_PREFS_KEY = 'chat-llm-prefs';
@@ -449,6 +409,10 @@ function App() {
   const handleDismissSelection = useCallback(() => {
     setActiveSelection(null);
     activeSelectionReplaceFnRef.current = null;
+  }, []);
+
+  const clearActiveSelectionForChat = useCallback(() => {
+    setActiveSelection(null);
   }, []);
 
   const handleAltVersion = useCallback((session: AltVersionSession) => {
@@ -976,9 +940,6 @@ function App() {
 
   const fileEditor = useFileTabs(project.projectPath ?? null);
 
-  /** Full system message the backend would send on the next main-chat request (debounced preview). */
-  const [systemPromptPreview, setSystemPromptPreview] = useState<string | null>(null);
-
   const commandActions: CommandAction[] = useMemo(() => {
     const actions: CommandAction[] = [
       {
@@ -1034,139 +995,22 @@ function App() {
     void refreshWorkspaceModeSchema();
   }, [refreshWorkspaceModeSchema]);
 
-  const handleSendMessage = useCallback(
-    (message: string) => {
-      const conv = history.activeConversation;
-      const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
-      const mode = modes.find((m) => m.id === modeId);
-      const exec = getEffectiveChatExecution(conv, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
-      const streamSession = {
-        conversationId: conv?.id ?? history.activeId,
-        sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
-        steeringPlan: conv?.steeringPlan,
-      };
-      chat.sendMessage(
-        message,
-        modeId,
-        refs.referencedFiles,
-        mode?.name,
-        mode?.color,
-        exec.useReasoning,
-        exec.llmId,
-        activeSelection ?? undefined,
-        focusedField?.fieldKey ?? null,
-        exec.disabledToolkits,
-        streamSession,
-        undefined,
-      );
-      history.patchConversation(history.activeId, { mode: modeId });
-      // Clear active selection after sending — the Replace button will use stored selectionContext on the message
-      setActiveSelection(null);
-    },
-    [
-      chat.sendMessage,
-      selectedMode,
-      modes,
-      refs.referencedFiles,
-      useReasoning,
-      modeLlmId,
-      activeSelection,
-      focusedField,
-      disabledToolkits,
-      history.activeConversation,
-      history.activeId,
-      history.patchConversation,
-    ],
-  );
-
-  useEffect(() => {
-    if (!project.projectPath) {
-      setSystemPromptPreview(null);
-      return;
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      const conv = history.activeConversation;
-      const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
-      const exec = getEffectiveChatExecution(conv, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
-      const req = buildMainChatContextPreviewRequest({
-        previewModeId,
-        exec,
-        activeFieldKey: focusedField?.fieldKey,
-        referencedFiles: refs.referencedFiles,
-        conv,
-      });
-      chatApi
-        .previewContext(req)
-        .then((res) => {
-          if (!cancelled) setSystemPromptPreview(res.systemPrompt ?? null);
-        })
-        .catch(() => {
-          if (!cancelled) setSystemPromptPreview(null);
-        });
-    }, 300);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [
-    project.projectPath,
-    history.activeConversation,
+  const conversation = useConversationModel({
+    projectPath: project.projectPath,
+    activeConversation: history.activeConversation,
+    activeConversationId: history.activeId,
     selectedMode,
     modes,
-    refs.referencedFiles,
-    useReasoning,
     modeLlmId,
-    focusedField?.fieldKey,
+    useReasoning,
     disabledToolkits,
-  ]);
-
-  const handleEditMessage = useCallback(
-    (index: number, newContent: string) => {
-      const conv = history.activeConversation;
-      const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
-      const exec = getEffectiveChatExecution(conv, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
-      chat.editMessage(index, newContent, {
-        mode: modeId,
-        referencedFiles: refs.referencedFiles,
-        useReasoning: exec.useReasoning,
-        llmId: exec.llmId,
-        selectionContext: activeSelection ?? undefined,
-        activeFieldKey: focusedField?.fieldKey ?? null,
-        disabledToolkits: exec.disabledToolkits,
-        conversationId: conv?.id ?? history.activeId,
-        sessionKind: (conv?.sessionKind ?? 'standard') as ChatSessionKind,
-        steeringPlan: conv?.steeringPlan,
-      });
-      history.patchConversation(history.activeId, { mode: modeId });
-      setActiveSelection(null);
-    },
-    [
-      chat.editMessage,
-      selectedMode,
-      refs.referencedFiles,
-      useReasoning,
-      modeLlmId,
-      activeSelection,
-      focusedField,
-      disabledToolkits,
-      history.activeConversation,
-      history.activeId,
-      history.patchConversation,
-    ],
-  );
+    referencedFiles: refs.referencedFiles,
+    focusedFieldKey: focusedField?.fieldKey,
+    activeSelection,
+    chat,
+    patchConversation: history.patchConversation,
+    onActiveSelectionClear: clearActiveSelectionForChat,
+  });
 
   const performGuidedAgentPresetKickoff = useCallback(
     (conv: Conversation) => {
@@ -1758,10 +1602,10 @@ function App() {
           collapsedSize={0}
         >
           <ChatPanel
-            messages={chat.messages}
-            streaming={chat.streaming}
-            error={chat.error}
-            toolActivity={chat.toolActivity}
+            messages={conversation.messages}
+            streaming={conversation.streaming}
+            error={conversation.error}
+            toolActivity={conversation.toolActivity}
             modes={modesForChat}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}
@@ -1777,17 +1621,17 @@ function App() {
             llms={llms}
             selectedLlmId={modeLlmId}
             onLlmChange={handleLlmChange}
-            onSend={handleSendMessage}
-            onStop={chat.stopStreaming}
-            onRetry={chat.retry}
+            onSend={conversation.send}
+            onStop={conversation.stopStreaming}
+            onRetry={conversation.retry}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
-            onForkFromMessage={chat.forkFromMessage}
+            onForkFromMessage={conversation.forkFromMessage}
             onForkToNewConversation={handleForkToNewConversation}
             onStartThreadFromMessage={handleStartThreadFromMessage}
             onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
-            onEditMessage={handleEditMessage}
-            onDeleteMessage={chat.deleteMessage}
+            onEditMessage={conversation.editMessage}
+            onDeleteMessage={conversation.deleteMessage}
             onNewChat={handleNewChat}
             onDiscardCurrentChat={handleDiscardCurrentChat}
             agentPresets={agentPresets}
@@ -1821,29 +1665,11 @@ function App() {
       </Group>
 
       <ContextBar
-        contextInfo={chat.contextInfo}
+        contextInfo={conversation.contextInfo}
         activeFile={activeChapterTitle}
         isDirty={chapter.hasDirtyActions}
-        systemPromptPreview={systemPromptPreview}
-        onFetchContextBlocks={async () => {
-          const conv = history.activeConversation;
-          const previewModeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
-          const exec = getEffectiveChatExecution(conv, {
-            llmId: modeLlmId,
-            useReasoning,
-            disabledToolkits,
-          });
-          const result = await chatApi.previewContext(
-            buildMainChatContextPreviewRequest({
-              previewModeId,
-              exec,
-              activeFieldKey: focusedField?.fieldKey,
-              referencedFiles: refs.referencedFiles,
-              conv,
-            }),
-          );
-          return result.contextBlocks ?? [];
-        }}
+        systemPromptPreview={conversation.systemPrompt}
+        onFetchContextBlocks={conversation.fetchContextBlocks}
       />
 
       {credDialogOpen && (
@@ -1873,7 +1699,7 @@ function App() {
         open={promptPackOpen}
         onClose={() => setPromptPackOpen(false)}
         onGenerate={handlePromptPackGenerate}
-        streaming={chat.streaming}
+        streaming={conversation.streaming}
         hasPromptPackMode={modes.some(m => m.id === 'prompt-pack')}
       />
 
