@@ -16,6 +16,10 @@ interface MarkdownFileEditorProps {
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
   /** Called on Ctrl+Alt+A to open the alternative version panel */
   onAltVersion?: (session: AltVersionSession) => void;
+  /** 1-based line to scroll to after open (paired with scrollNonce). */
+  scrollToLine?: number;
+  scrollNonce?: number;
+  onScrollHandled?: () => void;
 }
 
 export function MarkdownFileEditor({
@@ -30,6 +34,9 @@ export function MarkdownFileEditor({
   onCloseFile,
   onCtrlL,
   onAltVersion,
+  scrollToLine,
+  scrollNonce,
+  onScrollHandled,
 }: MarkdownFileEditorProps) {
   if (!path) {
     return (
@@ -93,6 +100,9 @@ export function MarkdownFileEditor({
           alwaysShowMarkdownStylingCharacters
           alwaysShowHtmlComments
           showReferencesAsLinks
+          scrollToLine={scrollToLine}
+          scrollNonce={scrollNonce}
+          onScrollHandled={onScrollHandled}
           className="markdown-file-editor-cm"
         />
       </div>

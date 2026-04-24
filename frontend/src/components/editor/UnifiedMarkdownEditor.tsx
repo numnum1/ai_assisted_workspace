@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
-import { EditorState, Compartment } from '@codemirror/state';
+import { EditorState, Compartment, EditorSelection } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { createReadingTheme } from './readingTheme';
@@ -39,6 +39,11 @@ export interface UnifiedMarkdownEditorProps extends MarkdownEditorConfig {
   onSave: () => void;
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
   onAltVersion?: (session: AltVersionSession) => void;
+  /** 1-based line to scroll to (used with scrollNonce). */
+  scrollToLine?: number;
+  /** Changes whenever a new scroll-to-line request is made (e.g. timestamp). */
+  scrollNonce?: number;
+  onScrollHandled?: () => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -86,6 +91,9 @@ export function UnifiedMarkdownEditor({
   layout = 'fixed',
   enableGermanQuotes = false,
   editorId = 'file' as const,
+  scrollToLine,
+  scrollNonce,
+  onScrollHandled,
   className,
   style,
 }: UnifiedMarkdownEditorProps) {
@@ -258,6 +266,20 @@ export function UnifiedMarkdownEditor({
       effects: themeCompartment.current.reconfigure(buildDynamicExtensions()),
     });
   }, [buildDynamicExtensions]);
+
+  useEffect(() => {
+    if (scrollNonce == null || scrollToLine == null) return;
+    const view = viewRef.current;
+    if (!view) return;
+    const doc = view.state.doc;
+    const lineNo = Math.max(1, Math.min(scrollToLine, doc.lines));
+    const pos = doc.line(lineNo).from;
+    view.dispatch({
+      selection: EditorSelection.cursor(pos),
+      effects: EditorView.scrollIntoView(pos, { y: 'center' }),
+    });
+    onScrollHandled?.();
+  }, [scrollNonce, scrollToLine, onScrollHandled]);
 
   return <div ref={editorRef} className={className} style={style} />;
 }

@@ -1523,8 +1523,8 @@ function App() {
           />
           {searchOpen && (
             <SearchPanel
-              onOpenFile={(path) => {
-                void fileEditor.openFile(path);
+              onOpenFile={(path, line) => {
+                void fileEditor.openFile(path, line);
                 setSearchOpen(false);
               }}
               onClose={() => setSearchOpen(false)}
@@ -1573,6 +1573,9 @@ function App() {
               onCloseFile={fileEditor.closeFile}
               onCtrlL={handleCtrlL}
               onAltVersion={handleAltVersion}
+              scrollToLine={fileEditor.pendingScroll?.line}
+              scrollNonce={fileEditor.pendingScroll?.nonce}
+              onScrollHandled={fileEditor.clearPendingScroll}
             />
           ) : (
             <MediaProjectEditor
