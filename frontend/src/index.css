@@ -3296,6 +3296,10 @@ body.file-tree-native-dragging {
 
 /* Persistent tool-call blocks (Cursor-style) in chat */
 .chat-tool-call {
+  /* Do not let flex column parents (.chat-messages, .quick-chat-messages) shrink
+     the card: otherwise overflow:hidden clips the body and content looks "capped" */
+  flex-shrink: 0;
+  min-height: min-content;
   margin: 8px 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -3380,6 +3384,9 @@ body.file-tree-native-dragging {
 }
 
 .chat-tool-call-body {
+  /* Inner column must not be squeezed when parent is in a flex context */
+  flex-shrink: 0;
+  min-height: min-content;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -3390,6 +3397,8 @@ body.file-tree-native-dragging {
 
 .chat-tool-call-args,
 .chat-tool-call-result {
+  flex-shrink: 0;
+  min-width: 0;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -3418,8 +3427,6 @@ body.file-tree-native-dragging {
   font-size: 11.5px;
   overflow-x: auto;
   white-space: pre;
-  max-height: 200px;
-  overflow-y: auto;
   border: 1px solid var(--border);
   color: var(--text-primary);
 }
@@ -6244,6 +6251,8 @@ body.file-tree-native-dragging {
 
 .quick-chat-tool-call-wrap {
   align-self: stretch;
+  flex-shrink: 0;
+  min-height: min-content;
 }
 
 .quick-chat-glossary {
