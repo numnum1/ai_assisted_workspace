@@ -9,7 +9,7 @@ interface SearchHit {
 }
 
 interface SearchPanelProps {
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: (path: string, line?: number) => void;
   onClose?: () => void;
 }
 
@@ -146,7 +146,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
                 <div
                   key={idx}
                   className="search-result-hit"
-                  onClick={() => onOpenFile?.(hit.path)}
+                  onClick={() => onOpenFile?.(hit.path, hit.line)}
                 >
                   <span className="search-result-line">{hit.line}</span>
                   <span className="search-result-preview">

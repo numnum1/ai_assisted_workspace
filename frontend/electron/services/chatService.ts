@@ -388,12 +388,33 @@ function safeJsonParse<T>(input: string): T | null {
   }
 }
 
+function isEnoent(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "ENOENT"
+  );
+}
+
 async function readProjectFile(
   projectPath: string | null,
   relativePath: string,
 ): Promise<string> {
   const targetPath = resolveProjectPath(projectPath, relativePath);
-  const stat = await fs.stat(targetPath);
+  console.debug(`[chat] read_file: relativePath="${relativePath}" → targetPath="${targetPath}"`);
+  let stat: Awaited<ReturnType<typeof fs.stat>>;
+  try {
+    stat = await fs.stat(targetPath);
+  } catch (e) {
+    if (isEnoent(e)) {
+      console.debug(
+        `[chat] read_file: no file at "${targetPath}", returning empty string`,
+      );
+      return "";
+    }
+    throw e;
+  }
   if (!stat.isFile()) {
     throw new Error(`Not a file: ${relativePath}`);
   }
@@ -406,10 +427,14 @@ async function getWikiRoot(projectPath: string | null): Promise<string> {
   const subDir = path.join(root, "wiki");
   try {
     const stat = await fs.stat(subDir);
-    if (stat.isDirectory()) return subDir;
+    if (stat.isDirectory()) {
+      console.debug(`[chat] getWikiRoot: using wiki subdirectory "${subDir}"`);
+      return subDir;
+    }
   } catch {
     // no wiki subdirectory — use project root directly
   }
+  console.debug(`[chat] getWikiRoot: no wiki/ subdir found, using project root "${root}"`);
   return root;
 }
 
@@ -428,14 +453,40 @@ async function readWikiFile(
     projectRoot,
     ...normalized.split("/").filter(Boolean),
   );
+  console.debug(
+    `[chat] wiki_read: relativePath="${relativePath}" projectRoot="${projectRoot}" wikiRoot="${wikiRoot}" → targetPath="${targetPath}"`,
+  );
   const relativeToWikiRoot = path.relative(wikiRoot, targetPath);
   if (relativeToWikiRoot.startsWith("..") || path.isAbsolute(relativeToWikiRoot)) {
+    // Wrong relative path (outside wiki) but nothing on disk: behave like a missing
+    // wiki page so the stream does not fail; if a file exists here, do not read it.
+    try {
+      await fs.access(targetPath);
+    } catch (e) {
+      if (isEnoent(e)) {
+        console.debug(
+          `[chat] wiki_read: path outside wiki root and not found at "${targetPath}", returning empty string`,
+        );
+        return "";
+      }
+      throw e;
+    }
     throw new Error(`Wiki path escapes wiki root: ${relativePath}`);
   }
   if (!targetPath.toLowerCase().endsWith(".md")) {
     throw new Error("Wiki only supports Markdown files.");
   }
-  return fs.readFile(targetPath, "utf8");
+  try {
+    return await fs.readFile(targetPath, "utf8");
+  } catch (e) {
+    if (isEnoent(e)) {
+      console.debug(
+        `[chat] wiki_read: no file at "${targetPath}", returning empty string`,
+      );
+      return "";
+    }
+    throw e;
+  }
 }
 
 

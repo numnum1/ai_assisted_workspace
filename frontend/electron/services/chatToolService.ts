@@ -100,6 +100,15 @@ function countLines(text: string): number {
   return text.split(/\r\n|\r|\n/).length;
 }
 
+function isEnoent(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "ENOENT"
+  );
+}
+
 function createToolResultMessage(
   toolCallId: string,
   content: string,
@@ -287,13 +296,35 @@ async function wikiRead(
   const relativeToRoot = path.relative(wikiRoot, targetPath);
 
   if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    try {
+      await fs.access(targetPath);
+    } catch (e) {
+      if (isEnoent(e)) {
+        return {
+          path: normalizeRelativePath(relativeWikiPath),
+          content: "",
+        };
+      }
+      throw e;
+    }
     throw new Error(`Wiki path escapes wiki root: ${relativeWikiPath}`);
   }
   if (!targetPath.toLowerCase().endsWith(".md")) {
     throw new Error("Wiki only supports Markdown files.");
   }
 
-  const stat = await fs.stat(targetPath);
+  let stat: Awaited<ReturnType<typeof fs.stat>>;
+  try {
+    stat = await fs.stat(targetPath);
+  } catch (e) {
+    if (isEnoent(e)) {
+      return {
+        path: normalizeRelativePath(relativeWikiPath),
+        content: "",
+      };
+    }
+    throw e;
+  }
   if (!stat.isFile()) {
     throw new Error(`Wiki path is not a file: ${relativeWikiPath}`);
   }
@@ -512,7 +543,19 @@ async function readProjectFile(
   relativePath: string,
 ): Promise<{ path: string; content: string; lines: number }> {
   const filePath = resolveProjectPath(projectRoot, relativePath);
-  const stat = await fs.stat(filePath);
+  let stat: Awaited<ReturnType<typeof fs.stat>>;
+  try {
+    stat = await fs.stat(filePath);
+  } catch (e) {
+    if (isEnoent(e)) {
+      return {
+        path: normalizeRelativePath(relativePath),
+        content: "",
+        lines: 0,
+      };
+    }
+    throw e;
+  }
 
   if (!stat.isFile()) {
     throw new Error(`Not a file: ${relativePath}`);

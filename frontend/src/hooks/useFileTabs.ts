@@ -7,16 +7,23 @@ export interface FileTab {
   dirty: boolean;
 }
 
+export interface PendingEditorScroll {
+  line: number;
+  nonce: number;
+}
+
 export function useFileTabs(projectPath: string | null) {
   const [tabs, setTabs] = useState<FileTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingScroll, setPendingScroll] = useState<PendingEditorScroll | null>(null);
 
   useEffect(() => {
     setTabs([]);
     setActiveTabPath(null);
     setError(null);
+    setPendingScroll(null);
   }, [projectPath]);
 
   const activeTab = tabs.find((t) => t.path === activeTabPath) ?? null;
@@ -25,10 +32,13 @@ export function useFileTabs(projectPath: string | null) {
   const dirty = activeTab?.dirty ?? false;
 
   const openFile = useCallback(
-    async (path: string) => {
+    async (path: string, line?: number) => {
       const existing = tabs.find((t) => t.path === path);
       if (existing) {
         setActiveTabPath(path);
+        if (line != null && Number.isFinite(line)) {
+          setPendingScroll({ line: Math.trunc(line), nonce: Date.now() });
+        }
         return;
       }
       setLoading(true);
@@ -42,6 +52,9 @@ export function useFileTabs(projectPath: string | null) {
           return [...prev, { path, content: res.content, dirty: false }];
         });
         setActiveTabPath(path);
+        if (line != null && Number.isFinite(line)) {
+          setPendingScroll({ line: Math.trunc(line), nonce: Date.now() });
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Datei konnte nicht geladen werden');
       } finally {
@@ -50,6 +63,10 @@ export function useFileTabs(projectPath: string | null) {
     },
     [tabs],
   );
+
+  const clearPendingScroll = useCallback(() => {
+    setPendingScroll(null);
+  }, []);
 
   const closeTab = useCallback(
     (path: string) => {
@@ -167,6 +184,8 @@ export function useFileTabs(projectPath: string | null) {
     loading,
     error,
     openFile,
+    pendingScroll,
+    clearPendingScroll,
     closeFile,
     closeTab,
     closeOtherTabs,
