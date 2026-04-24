@@ -418,14 +418,18 @@ async function readWikiFile(
   projectPath: string | null,
   relativePath: string,
 ): Promise<string> {
+  const projectRoot = ensureProjectPath(projectPath);
   const wikiRoot = await getWikiRoot(projectPath);
   const normalized = normalizeText(relativePath).replace(/\\/g, "/");
+  // Resolve relative to project root so that both project-root-relative paths
+  // (e.g. "wiki/gruppen/file.md" from the file tree) and wiki-root-relative
+  // paths (e.g. "gruppen/file.md" when wikiRoot == projectRoot) work correctly.
   const targetPath = path.resolve(
-    wikiRoot,
+    projectRoot,
     ...normalized.split("/").filter(Boolean),
   );
-  const relativeToRoot = path.relative(wikiRoot, targetPath);
-  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+  const relativeToWikiRoot = path.relative(wikiRoot, targetPath);
+  if (relativeToWikiRoot.startsWith("..") || path.isAbsolute(relativeToWikiRoot)) {
     throw new Error(`Wiki path escapes wiki root: ${relativePath}`);
   }
   if (!targetPath.toLowerCase().endsWith(".md")) {
