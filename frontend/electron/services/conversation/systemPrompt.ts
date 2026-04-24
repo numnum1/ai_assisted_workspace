@@ -32,12 +32,20 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
     {
       type: "function",
       function: {
-        name: "search_project",
-        description: "Search text in project files.",
+        name: "semantic_search",
+        description:
+          "Search project files and wiki by meaning, not just exact keywords. " +
+          "Finds thematically relevant content even if the exact words differ. " +
+          "Use scope='wiki' to limit to wiki files, 'project' for project files only, " +
+          "or 'all' (default) to search everything.",
         parameters: {
           type: "object",
           properties: {
             query: { type: "string" },
+            scope: {
+              type: "string",
+              enum: ["all", "project", "wiki"],
+            },
             limit: { type: "number" },
           },
           required: ["query"],
@@ -70,21 +78,6 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
           type: "object",
           properties: { path: { type: "string" } },
           required: ["path"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "wiki_search",
-        description: "Search inside wiki markdown files.",
-        parameters: {
-          type: "object",
-          properties: {
-            query: { type: "string" },
-            limit: { type: "number" },
-          },
-          required: ["query"],
         },
       },
     },

@@ -24,18 +24,6 @@ function ensureProjectRoot(projectRoot: string | null): string {
   return projectRoot;
 }
 
-function resolveProjectPath(projectRoot: string | null, relativePath: string): string {
-  const root = ensureProjectRoot(projectRoot);
-  const resolved = path.resolve(root, ...splitRelativePath(relativePath));
-  const normalizedRoot = path.resolve(root);
-  const relativeToRoot = path.relative(normalizedRoot, resolved);
-
-  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
-    throw new Error(`Path escapes project root: ${relativePath}`);
-  }
-
-  return resolved;
-}
 
 async function getWikiRoot(projectRoot: string | null): Promise<string> {
   const root = ensureProjectRoot(projectRoot);

@@ -69,6 +69,8 @@ import {
   saveTypedFileContent,
 } from "./services/typedFilesService.js";
 import { searchProjectContent } from "./services/searchService.js";
+import { indexProject, getIndexStatus } from "./services/vectorService.js";
+import { listProviders } from "./services/aiProviderService.js";
 import {
   gitAheadBehind,
   gitCommit,
@@ -203,6 +205,26 @@ function registerIpcHandlers(): void {
   ipcMain.handle("search:project", (_event, query: string, limit?: number) =>
     searchProjectContent(getCurrentProjectPath(), query, limit),
   );
+
+  ipcMain.handle("vector:status", async () => {
+    const projectPath = getCurrentProjectPath();
+    if (!projectPath) return { indexed: false, indexedAt: null, chunkCount: 0, embeddingModel: null };
+    return getIndexStatus(projectPath);
+  });
+
+  ipcMain.handle("vector:index", async () => {
+    const projectPath = getCurrentProjectPath();
+    if (!projectPath) throw new Error("No project is currently open.");
+    const providers = await listProviders();
+    const provider = providers[0];
+    if (!provider?.fastApiUrl || !provider?.fastApiKey) {
+      throw new Error("No AI provider with API key configured.");
+    }
+    return indexProject(projectPath, {
+      apiUrl: provider.fastApiUrl,
+      apiKey: provider.fastApiKey,
+    });
+  });
 
   ipcMain.handle("git:status", () => gitStatus(getCurrentProjectPath()));
   ipcMain.handle("git:commit", (_event, message: string, files?: string[]) =>

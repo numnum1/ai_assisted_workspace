@@ -19,6 +19,10 @@ import {
   getActiveToolDefinitions,
   resolveModeSystemPrompt,
 } from "./conversation/systemPrompt.js";
+import {
+  semanticSearch,
+  type EmbeddingConfig,
+} from "./vectorService.js";
 
 export type { ContextBlock };
 
@@ -396,63 +400,6 @@ async function readProjectFile(
   return fs.readFile(targetPath, "utf8");
 }
 
-async function searchProject(
-  projectPath: string | null,
-  query: string,
-  limit = 20,
-): Promise<Array<{ path: string; snippet: string }>> {
-  const root = ensureProjectPath(projectPath);
-  const trimmedQuery = normalizeText(query).toLowerCase();
-  if (!trimmedQuery) return [];
-
-  const results: Array<{ path: string; snippet: string }> = [];
-
-  async function walk(currentPath: string): Promise<void> {
-    if (results.length >= limit) return;
-
-    const entries = await fs.readdir(currentPath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (results.length >= limit) return;
-      if (entry.name === ".git" || entry.name === "node_modules") continue;
-
-      const absPath = path.join(currentPath, entry.name);
-      if (entry.isDirectory()) {
-        await walk(absPath);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-
-      let content = "";
-      try {
-        content = await fs.readFile(absPath, "utf8");
-      } catch {
-        continue;
-      }
-
-      const haystack = content.toLowerCase();
-      const index = haystack.indexOf(trimmedQuery);
-      if (index < 0) continue;
-
-      const compact = content.replace(/\s+/g, " ").trim();
-      const compactLower = compact.toLowerCase();
-      const compactIndex = compactLower.indexOf(trimmedQuery);
-      const start = Math.max(0, compactIndex - 60);
-      const end = Math.min(
-        compact.length,
-        compactIndex + trimmedQuery.length + 120,
-      );
-      const snippet = `${start > 0 ? "…" : ""}${compact.slice(start, end)}${end < compact.length ? "…" : ""}`;
-
-      results.push({
-        path: path.relative(root, absPath).split(path.sep).join("/"),
-        snippet,
-      });
-    }
-  }
-
-  await walk(root);
-  return results;
-}
 
 async function getWikiRoot(projectPath: string | null): Promise<string> {
   const root = ensureProjectPath(projectPath);
@@ -466,37 +413,6 @@ async function getWikiRoot(projectPath: string | null): Promise<string> {
   return root;
 }
 
-async function listWikiMarkdownFiles(
-  projectPath: string | null,
-): Promise<string[]> {
-  const wikiRoot = await getWikiRoot(projectPath);
-  try {
-    const stat = await fs.stat(wikiRoot);
-    if (!stat.isDirectory()) return [];
-  } catch {
-    return [];
-  }
-
-  const files: string[] = [];
-
-  async function walk(currentPath: string): Promise<void> {
-    const entries = await fs.readdir(currentPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const absPath = path.join(currentPath, entry.name);
-      if (entry.isDirectory()) {
-        await walk(absPath);
-        continue;
-      }
-      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md"))
-        continue;
-      files.push(path.relative(wikiRoot, absPath).split(path.sep).join("/"));
-    }
-  }
-
-  await walk(wikiRoot);
-  files.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  return files;
-}
 
 async function readWikiFile(
   projectPath: string | null,
@@ -518,34 +434,6 @@ async function readWikiFile(
   return fs.readFile(targetPath, "utf8");
 }
 
-async function searchWikiFiles(
-  projectPath: string | null,
-  query: string,
-  limit = 10,
-): Promise<Array<{ path: string; snippet: string }>> {
-  const trimmedQuery = normalizeText(query).toLowerCase();
-  if (!trimmedQuery) return [];
-
-  const files = await listWikiMarkdownFiles(projectPath);
-  const results: Array<{ path: string; snippet: string }> = [];
-
-  for (const relativePath of files) {
-    if (results.length >= limit) break;
-    const content = await readWikiFile(projectPath, relativePath);
-    const compact = content.replace(/\s+/g, " ").trim();
-    const index = compact.toLowerCase().indexOf(trimmedQuery);
-    if (index < 0) continue;
-
-    const start = Math.max(0, index - 60);
-    const end = Math.min(compact.length, index + trimmedQuery.length + 120);
-    results.push({
-      path: relativePath,
-      snippet: `${start > 0 ? "…" : ""}${compact.slice(start, end)}${end < compact.length ? "…" : ""}`,
-    });
-  }
-
-  return results;
-}
 
 async function addGlossaryEntryLocally(
   projectPath: string | null,
@@ -600,9 +488,8 @@ async function writeProjectFile(
 function describeStreamingToolCall(toolCall: ToolCall): string {
   const name = toolCall.function.name;
   if (name === "read_file") return "Lese Datei";
-  if (name === "search_project") return "Suche im Projekt";
+  if (name === "semantic_search") return "Semantische Suche";
   if (name === "wiki_read") return "Lese Wiki-Datei";
-  if (name === "wiki_search") return "Suche im Wiki";
   if (name === "glossary_add") return "Ergänze Glossar";
   if (name === "write_file") return "Schreibe Datei";
   if (name === "ask_clarification") return "Stelle Rückfrage";
@@ -613,6 +500,7 @@ function describeStreamingToolCall(toolCall: ToolCall): string {
 async function executeToolCall(
   projectPath: string | null,
   toolCall: ToolCall,
+  embeddingConfig?: EmbeddingConfig,
 ): Promise<ToolExecutionResult> {
   const name = toolCall.function.name;
   const args =
@@ -622,17 +510,27 @@ async function executeToolCall(
   if (name === "read_file") {
     const filePath = normalizeText(String(args.path ?? ""));
     result = await readProjectFile(projectPath, filePath);
-  } else if (name === "search_project") {
+  } else if (name === "semantic_search") {
     const query = normalizeText(String(args.query ?? ""));
-    const limit = typeof args.limit === "number" ? Math.round(args.limit) : 20;
-    result = JSON.stringify(await searchProject(projectPath, query, limit));
+    const limit = typeof args.limit === "number" ? Math.round(args.limit) : 10;
+    const rawScope = typeof args.scope === "string" ? args.scope : "all";
+    const scope =
+      rawScope === "project" || rawScope === "wiki" ? rawScope : "all";
+    const root = ensureProjectPath(projectPath);
+
+    if (!embeddingConfig?.apiKey || !embeddingConfig?.apiUrl) {
+      result = JSON.stringify({ error: "No AI provider configured for embeddings." });
+    } else {
+      const searchResult = await semanticSearch(root, query, embeddingConfig, { limit, scope });
+      const payload: Record<string, unknown> = { hits: searchResult.hits };
+      if (searchResult.usedFallback) {
+        payload.note = `Semantic index not available (${searchResult.fallbackReason ?? "unknown"}). Keyword search used as fallback.`;
+      }
+      result = JSON.stringify(payload);
+    }
   } else if (name === "wiki_read") {
     const filePath = normalizeText(String(args.path ?? ""));
     result = await readWikiFile(projectPath, filePath);
-  } else if (name === "wiki_search") {
-    const query = normalizeText(String(args.query ?? ""));
-    const limit = typeof args.limit === "number" ? Math.round(args.limit) : 10;
-    result = JSON.stringify(await searchWikiFiles(projectPath, query, limit));
   } else if (name === "glossary_add") {
     const term = normalizeText(String(args.term ?? ""));
     const definition = normalizeText(String(args.definition ?? ""));
@@ -1015,9 +913,14 @@ async function runChatStream(
         });
       }
 
+      const embeddingConfig: EmbeddingConfig = {
+        apiUrl: provider.fastApiUrl,
+        apiKey: provider.fastApiKey,
+      };
+
       const executedResults: ToolExecutionResult[] = [];
       for (const toolCall of toolCalls) {
-        executedResults.push(await executeToolCall(projectPath, toolCall));
+        executedResults.push(await executeToolCall(projectPath, toolCall, embeddingConfig));
       }
 
       for (const r of executedResults) {

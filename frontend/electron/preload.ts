@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld("appBridge", {
     query: (q: string, limit?: number) =>
       ipcRenderer.invoke("search:project", q, limit),
   },
+  vector: {
+    status: () => ipcRenderer.invoke("vector:status"),
+    index: () => ipcRenderer.invoke("vector:index"),
+  },
   git: {
     status: () => ipcRenderer.invoke("git:status"),
     commit: (message: string, files?: string[]) =>
