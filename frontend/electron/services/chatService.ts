@@ -660,40 +660,59 @@ async function executeToolCall(
   };
 }
 
-function extractToolCalls(chunk: OpenAiStreamChunk): ToolCall[] {
+/**
+ * Accumulates streaming tool call fragments into the given map.
+ * In OpenAI's streaming protocol, tool call arguments arrive across many
+ * chunks. Only the first chunk carries the id and name; subsequent chunks
+ * carry argument fragments that must be concatenated. Entries are keyed by
+ * the positional `index` field so they survive across chunks where `id` is
+ * absent.
+ */
+function accumulateToolCallChunks(
+  chunk: OpenAiStreamChunk,
+  accumulator: Map<number, ToolCall>,
+): void {
   const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : undefined;
   const rawToolCalls = (
     choice as
       | { delta?: { tool_calls?: Array<Record<string, unknown>> } }
       | undefined
   )?.delta?.tool_calls;
-  if (!Array.isArray(rawToolCalls)) return [];
+  if (!Array.isArray(rawToolCalls)) return;
 
-  return rawToolCalls
-    .map((entry, index) => {
-      const functionPayload =
-        entry && typeof entry === "object" && typeof entry.function === "object"
-          ? (entry.function as Record<string, unknown>)
-          : {};
+  for (const entry of rawToolCalls) {
+    if (!entry || typeof entry !== "object") continue;
+
+    const chunkIndex =
+      typeof entry.index === "number" ? entry.index : accumulator.size;
+
+    const functionPayload =
+      typeof entry.function === "object" && entry.function !== null
+        ? (entry.function as Record<string, unknown>)
+        : {};
+
+    const argumentFragment =
+      typeof functionPayload.arguments === "string"
+        ? functionPayload.arguments
+        : "";
+
+    const existing = accumulator.get(chunkIndex);
+    if (existing) {
+      existing.function.arguments += argumentFragment;
+    } else {
       const name = normalizeText(String(functionPayload.name ?? ""));
-      const argumentsJson =
-        typeof functionPayload.arguments === "string"
-          ? functionPayload.arguments
-          : "";
-      if (!name) return null;
-      return {
-        id:
-          typeof entry.id === "string" && entry.id.trim()
-            ? entry.id
-            : makeToolCallId(index),
+      const id =
+        typeof entry.id === "string" && entry.id.trim()
+          ? entry.id
+          : makeToolCallId(chunkIndex);
+      if (!name) continue;
+      accumulator.set(chunkIndex, {
+        id,
         type: "function",
-        function: {
-          name,
-          arguments: argumentsJson,
-        },
-      } satisfies ToolCall;
-    })
-    .filter((value): value is ToolCall => value !== null);
+        function: { name, arguments: argumentFragment },
+      } satisfies ToolCall);
+    }
+  }
 }
 
 function createStreamId(): string {
@@ -810,6 +829,11 @@ async function runChatStream(
     while (toolRound < 3) {
       if (!isStreamActive(streamId)) return;
 
+      console.debug(
+        `[chat] toolRound=${toolRound} starting, messages=${conversationMessages.length}, ` +
+          `last role="${conversationMessages.at(-1)?.role}"`,
+      );
+
       const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
         method: "POST",
         headers: {
@@ -848,7 +872,7 @@ async function runChatStream(
       let buffer = "";
       let currentEvent = "";
       let roundAssistantText = "";
-      const collectedToolCalls = new Map<string, ToolCall>();
+      const collectedToolCalls = new Map<number, ToolCall>();
 
       while (true) {
         const { done, value } = await reader.read();
@@ -905,12 +929,14 @@ async function runChatStream(
             });
           }
 
-          const parsedToolCalls = extractToolCalls(parsed);
-          for (const toolCall of parsedToolCalls) {
-            collectedToolCalls.set(toolCall.id, toolCall);
-          }
+          accumulateToolCallChunks(parsed, collectedToolCalls);
 
           const finishReason = extractFinishReason(parsed);
+          if (finishReason) {
+            console.debug(
+              `[chat] toolRound=${toolRound} finish_reason="${finishReason}"`,
+            );
+          }
           if (finishReason === "tool_calls") {
             break;
           }
@@ -921,10 +947,25 @@ async function runChatStream(
 
       const toolCalls = [...collectedToolCalls.values()];
 
+      console.debug(
+        `[chat] toolRound=${toolRound} stream ended: toolCalls=${toolCalls.length}, ` +
+          `tokenCount=${tokenCount}, roundText.length=${roundAssistantText.length}`,
+      );
+      for (const tc of toolCalls) {
+        console.debug(
+          `[chat]   toolCall id="${tc.id}" name="${tc.function.name}" ` +
+            `arguments=${tc.function.arguments}`,
+        );
+      }
+
       if (toolCalls.length === 0) {
         if (!isStreamActive(streamId)) return;
 
         if (tokenCount === 0 && !roundAssistantText.trim()) {
+          console.warn(
+            `[chat] MODEL_EMPTY_RESPONSE: toolRound=${toolRound}, tokenCount=${tokenCount}, ` +
+              `collectedToolCalls.size=${collectedToolCalls.size}`,
+          );
           emit({
             type: "error",
             data: { message: "MODEL_EMPTY_RESPONSE" },
@@ -956,6 +997,13 @@ async function runChatStream(
       const executedResults: ToolExecutionResult[] = [];
       for (const toolCall of toolCalls) {
         executedResults.push(await executeToolCall(projectPath, toolCall));
+      }
+
+      for (const r of executedResults) {
+        console.debug(
+          `[chat] tool "${r.name}" result length=${r.result.length} ` +
+            `(preview: ${r.result.slice(0, 120).replace(/\n/g, "\\n")})`,
+        );
       }
 
       const toolHistoryMessages: ChatMessage[] = [
