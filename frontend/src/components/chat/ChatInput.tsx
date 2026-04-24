@@ -126,11 +126,21 @@ function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem
 
 /** Empty field: one line; padding 8+8 + 13px * 1.4 line-height ≈ 38px — keep in sync with .chat-textarea min-height */
 const CHAT_TEXTAREA_MIN_HEIGHT_PX = 38;
+/** Autosize cap in docked chat — keep in sync with `.chat-textarea` max-height in `index.css` */
+const CHAT_TEXTAREA_MAX_HEIGHT_DOCKED_PX = 160;
+/** Vollbild: etwas mehr Platz, aber kein halber Viewport (keep in sync with expanded rule in `index.css`) */
+const CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX = 280;
+const CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_FRACTION = 0.3;
 
 function chatTextareaMaxHeightPx(fullscreen: boolean): number {
-  if (!fullscreen) return 200;
-  if (typeof window === 'undefined') return 480;
-  return Math.min(Math.round(window.innerHeight * 0.5), 480);
+  if (!fullscreen) return CHAT_TEXTAREA_MAX_HEIGHT_DOCKED_PX;
+  if (typeof window === 'undefined') {
+    return CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX;
+  }
+  return Math.min(
+    Math.round(window.innerHeight * CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_FRACTION),
+    CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX,
+  );
 }
 
 const WIKI_PREFIX = 'wiki/';

@@ -5744,12 +5744,12 @@ body.file-tree-native-dragging {
   outline: none;
   transition: border-color 0.15s;
   min-height: 38px;
-  max-height: 200px;
+  max-height: 160px;
 }
 
-/* Expanded in-app view: same single-line min as normal; allow more vertical growth when typing */
+/* Expanded in-app view: same single-line min as normal; a bit more height than docked, not half the screen */
 .chat-panel.chat-panel--expanded .chat-textarea {
-  max-height: min(50vh, 480px);
+  max-height: min(30vh, 280px);
 }
 
 .chat-textarea:focus {
