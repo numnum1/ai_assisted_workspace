@@ -175,6 +175,8 @@ interface ChatInputProps {
   focusTriggerRef?: React.MutableRefObject<(() => void) | null>;
   /** Wider, taller input area (e.g. chat fullscreen) */
   fullscreen?: boolean;
+  /** Fired when the composer text changes (e.g. to align context preview with the next send). */
+  onDraftChange?: (text: string) => void;
 }
 
 export function ChatInput({
@@ -197,6 +199,7 @@ export function ChatInput({
   onDismissSelection,
   focusTriggerRef,
   fullscreen = false,
+  onDraftChange,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [expandOpen, setExpandOpen] = useState(false);
@@ -212,6 +215,22 @@ export function ChatInput({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const itemsCacheRef = useRef<AutocompleteItem[] | null>(null);
   const loadingRef = useRef(false);
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const trimmed = text.trim();
+    if (!trimmed) {
+      onDraftChange('');
+      return;
+    }
+    if (activeSelection) {
+      onDraftChange(
+        `[REFERENCED SELECTION]\n${activeSelection.text}\n[END SELECTION]\n\n${trimmed}`,
+      );
+    } else {
+      onDraftChange(trimmed);
+    }
+  }, [text, onDraftChange, activeSelection]);
 
   // Register focus trigger so App can focus the textarea on Ctrl+L
   useEffect(() => {

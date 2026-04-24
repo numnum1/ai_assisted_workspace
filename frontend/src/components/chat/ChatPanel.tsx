@@ -166,6 +166,8 @@ interface ChatPanelProps {
   onFileChanged?: (path: string) => void;
   /** Project agent templates for optional selection when starting a guided chat. */
   agentPresets?: AgentPreset[];
+  /** Main composer text — for context preview aligned with the next send. */
+  onComposerDraftChange?: (text: string) => void;
 }
 
 interface MessageEditBoxProps {
@@ -771,6 +773,7 @@ export function ChatPanel({
   fastAvailable = true,
   onRetry,
   onFileChanged,
+  onComposerDraftChange,
   agentPresets = [],
   activeSessionKind = "standard",
   steeringPlan = "",
@@ -1502,6 +1505,7 @@ export function ChatPanel({
                     />
                   ) : null}
                   <ChatInput
+                    key={activeConversationId}
                     onSend={onSend}
                     onStop={onStop}
                     streaming={streaming}
@@ -1521,6 +1525,7 @@ export function ChatPanel({
                     activeSelection={activeSelection}
                     onDismissSelection={onDismissSelection}
                     focusTriggerRef={chatFocusTriggerRef}
+                    onDraftChange={onComposerDraftChange}
                   />
                 </div>
               </div>
@@ -1570,6 +1575,7 @@ export function ChatPanel({
                   />
                 ) : null}
                 <ChatInput
+                  key={activeConversationId}
                   onSend={onSend}
                   onStop={onStop}
                   streaming={streaming}
@@ -1587,6 +1593,7 @@ export function ChatPanel({
                   activeSelection={activeSelection}
                   onDismissSelection={onDismissSelection}
                   focusTriggerRef={chatFocusTriggerRef}
+                  onDraftChange={onComposerDraftChange}
                 />
               </div>
             </div>

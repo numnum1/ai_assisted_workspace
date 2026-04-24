@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { chatApi, type ContextBlock } from '../api.ts';
-import { buildMainChatContextPreviewRequest } from '../components/chat/contextPreviewRequest.ts';
+import { buildNextMainChatRequest } from '../components/chat/contextPreviewRequest.ts';
 import { getEffectiveChatExecution } from '../components/chat/chatAgentUtils.ts';
 import { effectiveChatModeIdForRequest } from '../components/chat/effectiveChatModeForRequest.ts';
-import type { Conversation, Mode, SelectionContext, ChatSessionKind } from '../types.ts';
+import type { ChatMessage, Conversation, Mode, SelectionContext, ChatSessionKind } from '../types.ts';
 import { useChat } from './useChat.ts';
 
 type UseChatInstance = ReturnType<typeof useChat>;
@@ -20,6 +20,10 @@ export interface UseConversationModelParams {
   referencedFiles: string[];
   focusedFieldKey: string | null | undefined;
   activeSelection: SelectionContext | null;
+  /** Same transcript as {@code chat.messages} — used so context preview matches the next {@link ChatRequest}. */
+  messages: ChatMessage[];
+  /** Composer draft for {@code ChatRequest.message} in preview (aligns with next send). */
+  pendingMessage: string;
   chat: UseChatInstance;
   patchConversation: (id: string, patch: Partial<Conversation>) => void;
   onActiveSelectionClear: () => void;
@@ -45,6 +49,8 @@ export function useConversationModel(p: UseConversationModelParams) {
     referencedFiles,
     focusedFieldKey,
     activeSelection,
+    messages,
+    pendingMessage,
     chat,
     patchConversation,
     onActiveSelectionClear,
@@ -150,12 +156,14 @@ export function useConversationModel(p: UseConversationModelParams) {
       disabledToolkits,
     });
     const result = await chatApi.previewContext(
-      buildMainChatContextPreviewRequest({
+      buildNextMainChatRequest({
         previewModeId,
         exec,
         activeFieldKey: focusedFieldKey,
         referencedFiles,
         conv,
+        historyMessages: messages,
+        pendingMessage,
       }),
     );
     return result.contextBlocks ?? [];
@@ -168,6 +176,8 @@ export function useConversationModel(p: UseConversationModelParams) {
     disabledToolkits,
     referencedFiles,
     focusedFieldKey,
+    messages,
+    pendingMessage,
   ]);
 
   useEffect(() => {
@@ -183,12 +193,14 @@ export function useConversationModel(p: UseConversationModelParams) {
         useReasoning,
         disabledToolkits,
       });
-      const req = buildMainChatContextPreviewRequest({
+      const req = buildNextMainChatRequest({
         previewModeId,
         exec,
         activeFieldKey: focusedFieldKey,
         referencedFiles,
         conv,
+        historyMessages: messages,
+        pendingMessage,
       });
       chatApi
         .previewContext(req)
@@ -213,6 +225,8 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     focusedFieldKey,
     disabledToolkits,
+    messages,
+    pendingMessage,
   ]);
 
   return {

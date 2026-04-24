@@ -995,6 +995,8 @@ function App() {
     void refreshWorkspaceModeSchema();
   }, [refreshWorkspaceModeSchema]);
 
+  const [mainChatComposerDraft, setMainChatComposerDraft] = useState('');
+
   const conversation = useConversationModel({
     projectPath: project.projectPath,
     activeConversation: history.activeConversation,
@@ -1007,6 +1009,8 @@ function App() {
     referencedFiles: refs.referencedFiles,
     focusedFieldKey: focusedField?.fieldKey,
     activeSelection,
+    messages: chat.messages,
+    pendingMessage: mainChatComposerDraft,
     chat,
     patchConversation: history.patchConversation,
     onActiveSelectionClear: clearActiveSelectionForChat,
@@ -1660,6 +1664,7 @@ function App() {
               }
               setTreeRefreshKey((k) => k + 1);
             }}
+            onComposerDraftChange={setMainChatComposerDraft}
           />
         </Panel>
       </Group>

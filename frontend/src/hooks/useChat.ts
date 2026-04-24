@@ -6,14 +6,9 @@ import type {
   ContextInfo,
   SelectionContext,
 } from '../types.ts';
+import { buildHistoryPayload } from './chatHistoryPayload.ts';
 import { attachAssistantStream, type StreamCallbacks } from './assistantStream.ts';
 
-/**
- * Transforms the messages array into the history payload sent to the backend.
- * - User messages: uses resolvedContent (with file data) if available, strips UI-only fields
- * - Tool/hidden messages: passes through role, content, toolCalls, toolCallId
- * - Assistant messages: passes through role and content (and selectionContext stripped)
- */
 /** Params for API context when editing the last user message and re-streaming */
 export interface EditMessageSendParams {
   mode: string;
@@ -40,37 +35,6 @@ export interface ChatStreamSessionMeta {
 export interface SendMessageOptions {
   /** When true, the new user message is stored and sent to the API but not shown in the chat UI. */
   userHidden?: boolean;
-}
-
-function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
-  return msgs.map((msg) => {
-    if (msg.role === 'system') {
-      return { role: 'system', content: msg.content };
-    }
-    if (msg.role === 'user') {
-      return {
-        role: 'user',
-        content: msg.resolvedContent ?? msg.content,
-        ...(msg.mode !== undefined && { mode: msg.mode }),
-        ...(msg.modeColor !== undefined && { modeColor: msg.modeColor }),
-      };
-    }
-    if (msg.role === 'tool') {
-      return {
-        role: 'tool',
-        content: msg.content,
-        toolCallId: msg.toolCallId,
-      };
-    }
-    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
-      return {
-        role: 'assistant',
-        content: msg.content,
-        toolCalls: msg.toolCalls,
-      };
-    }
-    return { role: msg.role, content: msg.content };
-  });
 }
 
 export interface UseChatOptions {
