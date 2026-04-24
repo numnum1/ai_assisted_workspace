@@ -739,6 +739,25 @@ export function ProjectSettingsModal({
                 />
 
                 <label className="ps-label" style={{ marginTop: '1.25rem' }}>
+                  Max. Tool-Runden
+                </label>
+                <p className="ps-hint">
+                  Wie viele Tool-Aufruf-Runden (Suche, Datei lesen, …) die KI maximal durchführen darf, bevor sie antwortet. Standard: 6.
+                </p>
+                <input
+                  className="ps-input"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={config.maxToolRounds ?? 6}
+                  onChange={e => {
+                    const v = parseInt(e.target.value, 10);
+                    setConfig(p => ({ ...p, maxToolRounds: isNaN(v) ? undefined : v }));
+                  }}
+                  style={{ width: '80px' }}
+                />
+
+                <label className="ps-label" style={{ marginTop: '1.25rem' }}>
                   Extra-Funktionen
                 </label>
                 <p className="ps-hint">

@@ -27,6 +27,7 @@ export interface ChatContextPreviewResult {
   estimatedTokens: number;
   contextBlocks: ContextBlock[];
   systemPrompt: string;
+  maxToolRounds: number;
 }
 
 export type ChatStreamEvent =
@@ -752,11 +753,18 @@ export async function previewChatContext(
       0,
     );
 
+  const maxToolRounds =
+    typeof previewContext.projectConfig?.maxToolRounds === "number" &&
+    previewContext.projectConfig.maxToolRounds >= 1
+      ? previewContext.projectConfig.maxToolRounds
+      : 30;
+
   return {
     includedFiles: previewContext.includedFiles,
     estimatedTokens,
     contextBlocks: previewContext.blocks,
     systemPrompt,
+    maxToolRounds,
   };
 }
 
@@ -825,8 +833,9 @@ async function runChatStream(
     let toolRound = 0;
     let tokenCount = 0;
     let fullAssistantText = "";
+    const maxToolRounds = preview.maxToolRounds;
 
-    while (toolRound < 3) {
+    while (toolRound < maxToolRounds) {
       if (!isStreamActive(streamId)) return;
 
       console.debug(

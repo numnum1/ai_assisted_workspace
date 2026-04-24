@@ -8,6 +8,8 @@ export interface ProjectConfigData {
   defaultMode?: string;
   workspaceMode?: string;
   quickChatLlmId?: string;
+  /** Max number of tool-call rounds before the loop exits (default: 6). */
+  maxToolRounds?: number;
   extraFeatures?: {
     chatDownload?: boolean;
   };

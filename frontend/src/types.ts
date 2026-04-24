@@ -182,6 +182,8 @@ export interface ProjectConfig {
   workspaceMode?: string;
   /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
   quickChatLlmId?: string;
+  /** Max number of tool-call rounds before the loop exits (default: 6). */
+  maxToolRounds?: number;
   extraFeatures?: ProjectExtraFeatures;
 }
 

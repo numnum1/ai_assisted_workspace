@@ -202,6 +202,10 @@ async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
 }
 
 function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
+  const maxToolRounds =
+    typeof input?.maxToolRounds === "number" && input.maxToolRounds >= 1
+      ? Math.round(input.maxToolRounds)
+      : undefined;
   return {
     name: input?.name ?? "",
     description: input?.description ?? "",
@@ -211,6 +215,7 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     defaultMode: input?.defaultMode ?? "",
     workspaceMode: input?.workspaceMode ?? "default",
     quickChatLlmId: input?.quickChatLlmId ?? "",
+    ...(maxToolRounds !== undefined ? { maxToolRounds } : {}),
     extraFeatures: input?.extraFeatures ?? {},
   };
 }
