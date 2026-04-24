@@ -454,10 +454,22 @@ async function searchProject(
   return results;
 }
 
+async function getWikiRoot(projectPath: string | null): Promise<string> {
+  const root = ensureProjectPath(projectPath);
+  const subDir = path.join(root, "wiki");
+  try {
+    const stat = await fs.stat(subDir);
+    if (stat.isDirectory()) return subDir;
+  } catch {
+    // no wiki subdirectory — use project root directly
+  }
+  return root;
+}
+
 async function listWikiMarkdownFiles(
   projectPath: string | null,
 ): Promise<string[]> {
-  const wikiRoot = resolveProjectPath(projectPath, "wiki");
+  const wikiRoot = await getWikiRoot(projectPath);
   try {
     const stat = await fs.stat(wikiRoot);
     if (!stat.isDirectory()) return [];
@@ -490,7 +502,7 @@ async function readWikiFile(
   projectPath: string | null,
   relativePath: string,
 ): Promise<string> {
-  const wikiRoot = resolveProjectPath(projectPath, "wiki");
+  const wikiRoot = await getWikiRoot(projectPath);
   const normalized = normalizeText(relativePath).replace(/\\/g, "/");
   const targetPath = path.resolve(
     wikiRoot,

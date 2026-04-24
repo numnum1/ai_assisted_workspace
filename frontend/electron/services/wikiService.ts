@@ -37,8 +37,16 @@ function resolveProjectPath(projectRoot: string | null, relativePath: string): s
   return resolved;
 }
 
-function getWikiRoot(projectRoot: string | null): string {
-  return resolveProjectPath(projectRoot, 'wiki');
+async function getWikiRoot(projectRoot: string | null): Promise<string> {
+  const root = ensureProjectRoot(projectRoot);
+  const subDir = path.join(root, 'wiki');
+  try {
+    const stat = await fs.stat(subDir);
+    if (stat.isDirectory()) return subDir;
+  } catch {
+    // no wiki subdirectory — use project root directly
+  }
+  return root;
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -123,7 +131,7 @@ async function collectMarkdownFiles(
 }
 
 export async function listWikiFiles(projectRoot: string | null): Promise<string[]> {
-  const wikiRoot = getWikiRoot(projectRoot);
+  const wikiRoot = await getWikiRoot(projectRoot);
   if (!(await pathExists(wikiRoot))) {
     return [];
   }
@@ -144,7 +152,7 @@ export async function readWikiFile(
   projectRoot: string | null,
   relativeWikiPath: string,
 ): Promise<{ path: string; content: string }> {
-  const wikiRoot = getWikiRoot(projectRoot);
+  const wikiRoot = await getWikiRoot(projectRoot);
   const targetPath = path.resolve(wikiRoot, ...splitRelativePath(relativeWikiPath));
   const relativeToRoot = path.relative(wikiRoot, targetPath);
 
@@ -178,7 +186,7 @@ export async function searchWiki(
   if (!trimmedQuery) return [];
 
   const wikiFiles = await listWikiFiles(projectRoot);
-  const wikiRoot = getWikiRoot(projectRoot);
+  const wikiRoot = await getWikiRoot(projectRoot);
   const normalizedQuery = trimmedQuery.toLowerCase();
   const results: WikiSearchResult[] = [];
 

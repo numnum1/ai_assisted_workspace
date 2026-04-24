@@ -225,8 +225,15 @@ async function searchProject(
   return results;
 }
 
-function getWikiRoot(projectRoot: string): string {
-  return path.join(projectRoot, "wiki");
+async function getWikiRoot(projectRoot: string): Promise<string> {
+  const subDir = path.join(projectRoot, "wiki");
+  try {
+    const stat = await fs.stat(subDir);
+    if (stat.isDirectory()) return subDir;
+  } catch {
+    // no wiki subdirectory — use project root directly
+  }
+  return projectRoot;
 }
 
 async function collectWikiFiles(
@@ -272,7 +279,7 @@ async function wikiRead(
   projectRoot: string,
   relativeWikiPath: string,
 ): Promise<{ path: string; content: string }> {
-  const wikiRoot = getWikiRoot(projectRoot);
+  const wikiRoot = await getWikiRoot(projectRoot);
   const targetPath = path.resolve(
     wikiRoot,
     ...splitRelativePath(relativeWikiPath),
@@ -303,7 +310,7 @@ async function wikiSearch(
   query: string,
   limit = 20,
 ): Promise<WikiSearchHit[]> {
-  const wikiRoot = getWikiRoot(projectRoot);
+  const wikiRoot = await getWikiRoot(projectRoot);
   if (!(await pathExists(wikiRoot))) {
     return [];
   }
