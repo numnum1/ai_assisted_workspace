@@ -22,6 +22,25 @@ ohne dass das Wort "Konflikt" explizit vorkommt.
 
 ---
 
+## API-Zugang für Embeddings (Fast vs. Reasoning)
+
+Für `POST …/v1/embeddings` braucht die App nur **Basis-URL** und **API-Key**
+(dasselbe Konto wie beim Chat, nicht das Chat-Modell).
+
+`resolveEmbeddingCredentials` in `electron/services/aiProviderService.ts`:
+
+- Es wird zuerst der Modus versucht, der zum aktuellen Kontext passt
+  (**Reasoning** zuerst, wenn der Chat Reasoning nutzt; sonst **Fast** zuerst).
+- Schlägt das fehl (z.B. **nur Reasoning** ausgefüllt, Fast leer), wird der
+  **andere** Modus versucht. So funktionieren Index und `semantic_search` auch
+  ohne separate Fast-Konfiguration, solange Reasoning vollständig ist
+  (URL, Key, Modell – wie in den Provider-Einstellungen validiert).
+
+Beim manuellen Index (`vector:index`) wird **Fast zuerst**, dann **Reasoning**
+versucht (kein laufender Chat-Kontext).
+
+---
+
 ## Wann wird indexiert?
 
 ### Automatisch: Nie
@@ -43,8 +62,9 @@ Projekts. Der alte Index wird dabei überschrieben.
 ### Wer führt die Indexierung durch?
 Der IPC-Handler `vector:index` in `main.ts` übernimmt:
 1. Das aktuell geöffnete Projekt ermitteln
-2. Den ersten konfigurierten AI-Provider holen (für den API-Key)
-3. `indexProject()` in `vectorService.ts` aufrufen
+2. Den ersten konfigurierten AI-Provider holen
+3. URL und Key über `resolveEmbeddingCredentials(provider, false)` auflösen
+4. `indexProject()` in `vectorService.ts` aufrufen
 
 ---
 
@@ -186,7 +206,8 @@ Das Modell (KI-Chat) kann `semantic_search` als Tool aufrufen. Die Definition:
 | Datei | Inhalt |
 |---|---|
 | `electron/services/vectorService.ts` | Kern-Logik: Indexierung, Suche, Fallback |
-| `electron/services/chatService.ts` | `semantic_search` Tool-Handler, leitet Provider-Config weiter |
+| `electron/services/aiProviderService.ts` | `resolveEmbeddingCredentials` (Fast/Reasoning) |
+| `electron/services/chatService.ts` | `semantic_search` Tool-Handler, leitet Embedding-URL/Key weiter |
 | `electron/services/conversation/systemPrompt.ts` | Tool-Definition für das Modell |
 | `electron/main.ts` | IPC-Handler `vector:index` und `vector:status` |
 | `electron/preload.ts` | `window.appBridge.vector.index()` und `.status()` |

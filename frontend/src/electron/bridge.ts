@@ -255,6 +255,20 @@ export interface AppBridge {
   search?: {
     query: (q: string, limit?: number) => Promise<SearchResponse>;
   };
+  vector?: {
+    status: () => Promise<{
+      indexed: boolean;
+      indexedAt: string | null;
+      chunkCount: number;
+      embeddingModel: string | null;
+    }>;
+    index: () => Promise<{
+      indexed: boolean;
+      indexedAt: string | null;
+      chunkCount: number;
+      embeddingModel: string | null;
+    }>;
+  };
   git?: {
     status: () => Promise<GitStatus>;
     commit: (

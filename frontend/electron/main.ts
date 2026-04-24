@@ -70,7 +70,7 @@ import {
 } from "./services/typedFilesService.js";
 import { searchProjectContent } from "./services/searchService.js";
 import { indexProject, getIndexStatus } from "./services/vectorService.js";
-import { listProviders } from "./services/aiProviderService.js";
+import { listProviders, resolveEmbeddingCredentials } from "./services/aiProviderService.js";
 import {
   gitAheadBehind,
   gitCommit,
@@ -217,12 +217,18 @@ function registerIpcHandlers(): void {
     if (!projectPath) throw new Error("No project is currently open.");
     const providers = await listProviders();
     const provider = providers[0];
-    if (!provider?.fastApiUrl || !provider?.fastApiKey) {
-      throw new Error("No AI provider with API key configured.");
+    if (!provider) {
+      throw new Error("No AI provider configured.");
+    }
+    const creds = resolveEmbeddingCredentials(provider, false);
+    if (!creds) {
+      throw new Error(
+        "No usable API URL and key for embeddings. Configure Fast or Reasoning on an AI provider.",
+      );
     }
     return indexProject(projectPath, {
-      apiUrl: provider.fastApiUrl,
-      apiKey: provider.fastApiKey,
+      apiUrl: creds.apiUrl,
+      apiKey: creds.apiKey,
     });
   });
 

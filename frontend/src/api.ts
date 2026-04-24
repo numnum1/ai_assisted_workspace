@@ -674,6 +674,26 @@ export const searchApi = {
   },
 };
 
+export type VectorIndexStatus = {
+  indexed: boolean;
+  indexedAt: string | null;
+  chunkCount: number;
+  embeddingModel: string | null;
+};
+
+export const vectorApi = {
+  status: async (): Promise<VectorIndexStatus> => {
+    const api = getElectronApi();
+    if (api?.vector) return api.vector.status();
+    throw new Error("Electron bridge not available");
+  },
+  index: async (): Promise<VectorIndexStatus> => {
+    const api = getElectronApi();
+    if (api?.vector) return api.vector.index();
+    throw new Error("Electron bridge not available");
+  },
+};
+
 export const typedFilesApi = {
   getContent: async (path: string): Promise<TypedFileContentResponse> => {
     const api = getElectronApi();

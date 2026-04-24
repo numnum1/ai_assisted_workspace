@@ -23,6 +23,10 @@ import {
   semanticSearch,
   type EmbeddingConfig,
 } from "./vectorService.js";
+import {
+  resolveEmbeddingCredentials,
+  type AiProvider,
+} from "./aiProviderService.js";
 
 export type { ContextBlock };
 
@@ -53,18 +57,6 @@ export type ChatStreamEvent =
 
 export interface ChatStreamStartResult {
   streamId: string;
-}
-
-interface AiProvider {
-  id: string;
-  name: string;
-  fastApiUrl: string;
-  fastApiKey: string;
-  fastModel: string;
-  reasoningApiUrl?: string;
-  reasoningApiKey?: string;
-  reasoningModel?: string;
-  maxTokens?: number;
 }
 
 interface OpenAiMessage {
@@ -121,17 +113,38 @@ function getAiProvidersPath(): string {
   return path.join(getAppDataDir(), AI_PROVIDERS_FILE);
 }
 
+function normalizeLoadedProvider(raw: unknown): AiProvider | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Partial<AiProvider>;
+  if (typeof p.id !== "string" || typeof p.name !== "string") return null;
+  const maxTokens =
+    typeof p.maxTokens === "number" && Number.isFinite(p.maxTokens)
+      ? Math.round(p.maxTokens)
+      : undefined;
+  return {
+    id: p.id,
+    name: p.name,
+    fastApiUrl: normalizeText(String(p.fastApiUrl ?? "")),
+    fastApiKey: normalizeText(String(p.fastApiKey ?? "")),
+    fastModel: normalizeText(String(p.fastModel ?? "")),
+    reasoningApiUrl: normalizeText(String(p.reasoningApiUrl ?? "")),
+    reasoningApiKey: normalizeText(String(p.reasoningApiKey ?? "")),
+    reasoningModel: normalizeText(String(p.reasoningModel ?? "")),
+    ...(maxTokens !== undefined ? { maxTokens } : {}),
+  };
+}
+
 async function loadAiProviders(): Promise<AiProvider[]> {
-  const providers = await readJsonFile<AiProvider[]>(getAiProvidersPath());
-  if (!Array.isArray(providers)) {
+  const raw = await readJsonFile<unknown[]>(getAiProvidersPath());
+  if (!Array.isArray(raw)) {
     return [];
   }
-  return providers.filter(
-    (provider) =>
-      provider &&
-      typeof provider.id === "string" &&
-      typeof provider.name === "string",
-  );
+  const out: AiProvider[] = [];
+  for (const entry of raw) {
+    const normalized = normalizeLoadedProvider(entry);
+    if (normalized) out.push(normalized);
+  }
+  return out;
 }
 
 async function resolveAiProvider(
@@ -169,7 +182,9 @@ async function resolveAiProvider(
     fastApiUrl: envApiUrl,
     fastApiKey: envApiKey,
     fastModel: envModel,
-    maxTokens: undefined,
+    reasoningApiUrl: "",
+    reasoningApiKey: "",
+    reasoningModel: "",
   };
 }
 
@@ -968,14 +983,19 @@ async function runChatStream(
         });
       }
 
-      const embeddingConfig: EmbeddingConfig = {
-        apiUrl: provider.fastApiUrl,
-        apiKey: provider.fastApiKey,
-      };
+      const embeddingCreds = resolveEmbeddingCredentials(
+        provider,
+        request.useReasoning,
+      );
+      const embeddingConfig: EmbeddingConfig | undefined = embeddingCreds
+        ? { apiUrl: embeddingCreds.apiUrl, apiKey: embeddingCreds.apiKey }
+        : undefined;
 
       const executedResults: ToolExecutionResult[] = [];
       for (const toolCall of toolCalls) {
-        executedResults.push(await executeToolCall(projectPath, toolCall, embeddingConfig));
+        executedResults.push(
+          await executeToolCall(projectPath, toolCall, embeddingConfig),
+        );
       }
 
       for (const r of executedResults) {

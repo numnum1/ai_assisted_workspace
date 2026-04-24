@@ -376,3 +376,25 @@ export function resolveProviderConfig(
     maxTokens: provider.maxTokens,
   };
 }
+
+/**
+ * URL + API key for OpenAI-compatible POST /v1/embeddings.
+ * Tries the chat mode first (fast vs reasoning), then the other mode so
+ * reasoning-only providers work when Fast is empty.
+ */
+export function resolveEmbeddingCredentials(
+  provider: AiProvider,
+  chatUsesReasoning?: boolean,
+): { apiUrl: string; apiKey: string } | null {
+  const prefersReasoning = chatUsesReasoning === true;
+  const order: boolean[] = prefersReasoning ? [true, false] : [false, true];
+  for (const useReasoning of order) {
+    try {
+      const cfg = resolveProviderConfig(provider, { useReasoning });
+      return { apiUrl: cfg.apiUrl, apiKey: cfg.apiKey };
+    } catch {
+      // try alternate mode (e.g. reasoning-only when Fast is unset)
+    }
+  }
+  return null;
+}
