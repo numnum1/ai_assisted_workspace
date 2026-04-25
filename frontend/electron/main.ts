@@ -1,3 +1,4 @@
+import "./installConsoleTimestamps.js";
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
