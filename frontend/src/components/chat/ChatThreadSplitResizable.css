@@ -1,0 +1,25 @@
+/* Horizontal resizable thread split (fullscreen + thread); uses react-resizable-panels Group. */
+
+.chat-thread-split-group {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chat-thread-split-panel-shell {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-thread-split-panel-shell > .chat-thread-split-picker,
+.chat-thread-split-panel-shell > .chat-thread-split-left,
+.chat-thread-split-panel-shell > .chat-thread-split-right {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}

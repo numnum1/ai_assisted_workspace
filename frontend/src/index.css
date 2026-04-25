@@ -1980,8 +1980,6 @@ body.file-tree-native-dragging {
 }
 
 .chat-thread-split-picker {
-  width: 240px;
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
