@@ -1667,6 +1667,7 @@ function App() {
             streaming={conversation.streaming}
             error={conversation.error}
             toolActivity={conversation.toolActivity}
+            theme={preferences.appearance.theme === "light" ? "light" : "dark"}
             modes={modesForChat}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}

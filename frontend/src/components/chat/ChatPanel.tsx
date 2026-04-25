@@ -61,6 +61,10 @@ import {
   buildChatRenderUnits,
 } from "./chatRenderUnits.ts";
 import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
+import {
+  effectiveModeColor,
+  getContrastingTextColor,
+} from "./modeColorTheme.ts";
 import { WriteFileBatchComposerBar } from "./WriteFileBatchComposerBar.tsx";
 import {
   collectAllWriteFileItems,
@@ -168,6 +172,8 @@ interface ChatPanelProps {
   agentPresets?: AgentPreset[];
   /** Main composer text — for context preview aligned with the next send. */
   onComposerDraftChange?: (text: string) => void;
+  /** App appearance theme: mode accent colors are inverted for light UI. */
+  theme?: "light" | "dark";
 }
 
 interface MessageEditBoxProps {
@@ -235,15 +241,6 @@ const MessageEditBox = memo(function MessageEditBox({
   );
 });
 
-function getContrastingTextColor(hexColor?: string): string | undefined {
-  if (!hexColor || !/^#[0-9A-Fa-f]{6}$/.test(hexColor)) return undefined;
-  const r = parseInt(hexColor.slice(1, 3), 16);
-  const g = parseInt(hexColor.slice(3, 5), 16);
-  const b = parseInt(hexColor.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? "#1e1e2e" : "#f5f5ff";
-}
-
 const EMPTY_SNAPSHOT_DISMISS = new Set<string>();
 const EMPTY_COMPOSER_BATCH_FORCED: Record<string, CardState> = {};
 
@@ -277,6 +274,7 @@ interface ChatMessagesPaneProps {
   fieldLabels?: Record<string, string>;
   onRetry?: () => void;
   onOpenPromptPack?: () => void;
+  theme: "light" | "dark";
 }
 
 function ChatMessagesPane({
@@ -309,6 +307,7 @@ function ChatMessagesPane({
   fieldLabels,
   onRetry,
   onOpenPromptPack,
+  theme,
 }: ChatMessagesPaneProps) {
   const visibleEntries = useMemo(
     () =>
@@ -390,17 +389,21 @@ function ChatMessagesPane({
         const isLastUserMsg =
           msg.role === "user" &&
           !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === "user");
+        const displayModeColor =
+          msg.role === "user" && msg.modeColor
+            ? effectiveModeColor(msg.modeColor, theme) ?? msg.modeColor
+            : undefined;
 
         return (
           <div key={originalIdx}>
             <div
               className={`chat-message ${msg.role}`}
               style={
-                msg.role === "user" && msg.modeColor
+                displayModeColor
                   ? {
-                      backgroundColor: msg.modeColor,
-                      borderLeftColor: msg.modeColor,
-                      color: getContrastingTextColor(msg.modeColor),
+                      backgroundColor: displayModeColor,
+                      borderLeftColor: displayModeColor,
+                      color: getContrastingTextColor(displayModeColor),
                     }
                   : undefined
               }
@@ -409,8 +412,8 @@ function ChatMessagesPane({
                 <div
                   className="chat-message-role"
                   style={
-                    msg.role === "user" && msg.modeColor
-                      ? { color: getContrastingTextColor(msg.modeColor) }
+                    displayModeColor
+                      ? { color: getContrastingTextColor(displayModeColor) }
                       : undefined
                   }
                 >
@@ -421,7 +424,7 @@ function ChatMessagesPane({
                         <span
                           className="chat-message-mode"
                           style={{
-                            color: getContrastingTextColor(msg.modeColor),
+                            color: getContrastingTextColor(displayModeColor),
                           }}
                         >
                           {" · "}
@@ -713,6 +716,7 @@ export function ChatPanel({
   steeringPlan = "",
   onMarkSteeringPlanComplete,
   activeIsThread = false,
+  theme = "dark",
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -1205,6 +1209,7 @@ export function ChatPanel({
       fieldLabels={fieldLabels}
       onRetry={onRetry}
       onOpenPromptPack={onOpenPromptPack}
+      theme={theme}
     />
   );
 
@@ -1231,6 +1236,7 @@ export function ChatPanel({
       commitEdit={() => {}}
       cancelEdit={() => {}}
       fieldLabels={fieldLabels}
+      theme={theme}
     />
   ) : null;
 
@@ -1286,6 +1292,7 @@ export function ChatPanel({
             modes={modes}
             selectedMode={selectedMode}
             onModeChange={onModeChange}
+            theme={theme}
           />
         )}
         <div className="chat-header-actions">

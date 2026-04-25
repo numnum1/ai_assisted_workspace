@@ -11,6 +11,8 @@ import type {
   LlmsListResponse,
 } from '../../types.ts';
 import { CHAT_TOOLKIT_IDS } from '../../types.ts';
+import { usePreferences } from '../../hooks/usePreferences.ts';
+import { effectiveModeColor } from '../chat/modeColorTheme.ts';
 
 interface ProjectSettingsModalProps {
   onClose: () => void;
@@ -131,6 +133,9 @@ export function ProjectSettingsModal({
   onGeneralConfigSaved,
   onWorkspacePluginsChanged,
 }: ProjectSettingsModalProps) {
+  const { preferences } = usePreferences();
+  const uiTheme: 'light' | 'dark' =
+    preferences.appearance.theme === 'light' ? 'light' : 'dark';
   const [tab, setTab] = useState<Tab>('general');
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
@@ -971,7 +976,13 @@ export function ProjectSettingsModal({
                         <div key={mode.id} className="ps-list-item" onClick={() => openEditMode(mode)}>
                           <span
                             className="ps-mode-dot"
-                            style={{ background: mode.color || '#89b4fa' }}
+                            style={{
+                              background:
+                                effectiveModeColor(
+                                  mode.color || '#89b4fa',
+                                  uiTheme,
+                                ) ?? (mode.color || '#89b4fa'),
+                            }}
                           />
                           <span className="ps-list-item-name">{mode.name}</span>
                           {mode.agentOnly && (
