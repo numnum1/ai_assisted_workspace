@@ -1,8 +1,12 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, Fragment } from 'react';
 import { X, GripHorizontal, Trash2, Send, Square } from 'lucide-react';
 import type { LlmPublic } from '../../types.ts';
 import { projectConfigApi } from '../../api.ts';
-import { buildChatRenderUnits } from './chatRenderUnits.ts';
+import {
+  buildChatRenderUnits,
+  toolResultShownInAssistantTurns,
+} from './chatRenderUnits.ts';
+import type { SubRenderUnit } from './chatRenderUnits.ts';
 import { ChangeCardGroup } from './ChangeCardGroup.tsx';
 import { ToolCallDisplay } from './ToolCallDisplay.tsx';
 import {
@@ -142,6 +146,69 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
   );
   const renderUnits = useMemo(() => buildChatRenderUnits(visibleEntries), [visibleEntries]);
 
+  const renderQuickSubUnit = (su: SubRenderUnit, mapIdx: number) => {
+    if (su.type === 'writeFileGroup') {
+      return (
+        <ChangeCardGroup
+          key={`wf-${su.items.map((x) => x.originalIdx).join('-')}-${mapIdx}`}
+          items={su.items}
+        />
+      );
+    }
+    if (su.type === 'toolCall') {
+      const isStreamingTool = streaming && su.resultMsg === undefined;
+      return (
+        <div key={`tool-${su.assistantIdx}-${su.toolCallIdx}-${mapIdx}`} className="quick-chat-tool-call-wrap">
+          <ToolCallDisplay
+            toolCall={su.toolCall}
+            result={su.resultMsg?.content}
+            isStreaming={isStreamingTool}
+            isLast={su.toolCallIdx === su.toolCallCount - 1}
+          />
+        </div>
+      );
+    }
+    if (su.type === 'assistantText') {
+      const { msg, originalIdx, visIdx } = su;
+      return (
+        <div
+          key={`at-${originalIdx}-${visIdx}-${mapIdx}`}
+          className="quick-chat-bubble quick-chat-bubble--assistant"
+        >
+          <div className="quick-chat-bubble-label">KI</div>
+          <div className="quick-chat-bubble-text">{msg.content}</div>
+        </div>
+      );
+    }
+    const { msg, originalIdx, visIdx } = su;
+    if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
+      const term = msg.content.slice('glossary_add:success:'.length);
+      return (
+        <div key={`g-${originalIdx}-${mapIdx}`} className="quick-chat-glossary">
+          <span className="quick-chat-glossary-icon" aria-hidden>
+            📖
+          </span>
+          <span>
+            Glossar: <strong>{term}</strong>
+          </span>
+        </div>
+      );
+    }
+    if (msg.role === 'tool' && msg.toolCallId) {
+      const attached = toolResultShownInAssistantTurns(renderUnits, msg.toolCallId);
+      if (attached) return null;
+    }
+    return (
+      <div
+        key={`tm-${originalIdx}-${visIdx}-${mapIdx}`}
+        className={`quick-chat-bubble quick-chat-bubble--${msg.role}`}
+      >
+        <div className="quick-chat-bubble-label">KI</div>
+        <div className="quick-chat-bubble-text">{msg.content}</div>
+      </div>
+    );
+  };
+
   if (!open) {
     return null;
   }
@@ -193,47 +260,18 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
           </p>
         )}
         {renderUnits.map((unit, mapIdx) => {
-          if (unit.type === 'writeFileGroup') {
+          if (unit.type === 'assistantTurn') {
             return (
-              <ChangeCardGroup
-                key={`wf-${unit.items.map((x) => x.originalIdx).join('-')}`}
-                items={unit.items}
-              />
-            );
-          }
-          if (unit.type === 'toolCall') {
-            const isStreamingTool = streaming && unit.resultMsg === undefined;
-            return (
-              <div key={`tool-${unit.assistantIdx}-${unit.toolCallIdx}`} className="quick-chat-tool-call-wrap">
-                <ToolCallDisplay
-                  toolCall={unit.toolCall}
-                  result={unit.resultMsg?.content}
-                  isStreaming={isStreamingTool}
-                  isLast={unit.toolCallIdx === unit.toolCallCount - 1}
-                />
-              </div>
+              <Fragment key={`turn-${unit.originalIndices.join('-')}-${mapIdx}`}>
+                {unit.subUnits.map((su, sIdx) => (
+                  <Fragment key={`${unit.originalIndices.join('-')}-su-${sIdx}`}>
+                    {renderQuickSubUnit(su, mapIdx * 1000 + sIdx)}
+                  </Fragment>
+                ))}
+              </Fragment>
             );
           }
           const { msg, originalIdx, visIdx } = unit;
-          if (msg.role === 'tool' && msg.toolCallId) {
-            const attached = renderUnits.some(
-              (u) => u.type === 'toolCall' && u.resultMsg?.toolCallId === msg.toolCallId,
-            );
-            if (attached) return null;
-          }
-          if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
-            const term = msg.content.slice('glossary_add:success:'.length);
-            return (
-              <div key={`g-${originalIdx}`} className="quick-chat-glossary">
-                <span className="quick-chat-glossary-icon" aria-hidden>
-                  📖
-                </span>
-                <span>
-                  Glossar: <strong>{term}</strong>
-                </span>
-              </div>
-            );
-          }
           const label =
             msg.role === 'user' ? 'Du' : msg.role === 'system' ? 'Kontext' : 'KI';
           return (

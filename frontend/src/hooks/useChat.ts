@@ -299,10 +299,12 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     [],
   );
 
-  const deleteMessage = useCallback((originalIdx: number) => {
+  const deleteMessages = useCallback((indices: number[]) => {
+    if (indices.length === 0) return;
+    const idxSet = new Set(indices);
     syncEnabledRef.current = true;
-    setMessages(prev => {
-      const next = prev.filter((_, i) => i !== originalIdx);
+    setMessages((prev) => {
+      const next = prev.filter((_, i) => !idxSet.has(i));
       currentBaseRef.current = next;
       return next;
     });
@@ -319,7 +321,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     retry,
     forkFromMessage,
     editMessage,
-    deleteMessage,
+    deleteMessages,
     loadMessages,
   };
 }

@@ -10,7 +10,6 @@ import {
   Globe,
   BookOpen,
   Edit3,
-  MessageSquare,
   GitBranch,
 } from 'lucide-react';
 import type { ToolCall } from '../../types.ts';
@@ -20,8 +19,6 @@ interface ToolCallDisplayProps {
   result?: string;
   isStreaming?: boolean;
   isLast?: boolean;
-  /** First tool row of an assistant turn: start a thread from that assistant message index */
-  onStartThread?: () => void;
 }
 
 /**
@@ -33,7 +30,6 @@ export function ToolCallDisplay({
   result,
   isStreaming = false,
   isLast = false,
-  onStartThread,
 }: ToolCallDisplayProps) {
   const [isOpen, setIsOpen] = useState(true);
   const name = toolCall.function.name;
@@ -84,19 +80,6 @@ export function ToolCallDisplay({
           {status.icon}
           <span>{status.text}</span>
         </div>
-        {onStartThread && (
-          <button
-            type="button"
-            className="chat-tool-call-thread-btn"
-            title="Thread starten"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartThread();
-            }}
-          >
-            <MessageSquare size={14} />
-          </button>
-        )}
         <button type="button" className="chat-tool-call-toggle">
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>

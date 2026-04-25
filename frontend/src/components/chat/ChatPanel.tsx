@@ -13,7 +13,6 @@ import {
   Scissors,
   GitFork,
   History,
-  Copy,
   Check,
   Wand2,
   Pencil,
@@ -44,7 +43,6 @@ import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { ChatComposerCard } from "./ChatComposerCard.tsx";
 import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
-import { ToolCallDisplay } from "./ToolCallDisplay.tsx";
 import {
   parseClarificationQuestions,
   hasClarificationFence,
@@ -59,13 +57,14 @@ import {
   type ThreadBranchItem,
 } from "./ThreadBranchPicker.tsx";
 import type { CardState } from "./ChangeCard.tsx";
-import { ChangeCardGroup } from "./ChangeCardGroup.tsx";
-import { buildChatRenderUnits } from "./chatRenderUnits.ts";
+import {
+  buildChatRenderUnits,
+} from "./chatRenderUnits.ts";
+import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
 import { WriteFileBatchComposerBar } from "./WriteFileBatchComposerBar.tsx";
 import {
   collectAllWriteFileItems,
   getTrailingWriteFileBatch,
-  isSameWriteFileBatch,
 } from "./writeFileBatchUtils.ts";
 import {
   parseSteeringPlan,
@@ -77,8 +76,6 @@ import {
   listThreadsForRoot,
   resolveThreadBranchRootId,
 } from "./chatHistoryUtils.ts";
-
-const PROMPT_PACK_DISPLAY_NAME = "Prompt-Paket";
 
 function resolveGuidedExecutionSummary(
   modes: Mode[],
@@ -128,7 +125,7 @@ interface ChatPanelProps {
     payload: GuidedThreadOfferPayload,
   ) => void;
   onEditMessage: (index: number, newContent: string) => void;
-  onDeleteMessage: (index: number) => void;
+  onDeleteMessages: (indices: number[]) => void;
   onNewChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
   onDiscardCurrentChat: (
     kindOrPayload?: ChatSessionKind | NewChatConfirmPayload,
@@ -268,7 +265,7 @@ interface ChatMessagesPaneProps {
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onEditMessage: (index: number, content: string) => void;
-  onDeleteMessage: (index: number) => void;
+  onDeleteMessages: (indices: number[]) => void;
   commitEdit: (index: number, text: string) => void;
   cancelEdit: () => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
@@ -299,7 +296,7 @@ function ChatMessagesPane({
   onStartThreadFromMessage,
   onForkToNewConversation,
   onEditMessage,
-  onDeleteMessage,
+  onDeleteMessages,
   commitEdit,
   cancelEdit,
   onReplaceSelection,
@@ -317,10 +314,6 @@ function ChatMessagesPane({
   );
   const renderUnits = useMemo(
     () => buildChatRenderUnits(visibleEntries),
-    [visibleEntries],
-  );
-  const trailingWriteFileBatch = useMemo(
-    () => getTrailingWriteFileBatch(visibleEntries),
     [visibleEntries],
   );
 
@@ -354,87 +347,42 @@ function ChatMessagesPane({
         </div>
       )}
       {renderUnits.map((unit) => {
-        if (unit.type === "writeFileGroup") {
-          const isComposerBatch =
-            !readOnly &&
-            Boolean(
-              trailingWriteFileBatch &&
-              isSameWriteFileBatch(unit.items, trailingWriteFileBatch),
-            );
-          const visibleWriteItems = unit.items.filter(
-            (i) => !dismissIds.has(i.data.snapshotId),
-          );
-          if (visibleWriteItems.length === 0) return null;
+        if (unit.type === "assistantTurn") {
           return (
-            <ChangeCardGroup
-              key={`wf-${unit.items.map((x) => x.originalIdx).join("-")}`}
-              items={visibleWriteItems}
+            <AssistantTurnCard
+              key={`turn-${unit.originalIndices.join("-")}`}
+              originalIndices={unit.originalIndices}
+              lastOriginalIdx={unit.lastOriginalIdx}
+              firstVisIdx={unit.firstVisIdx}
+              subUnits={unit.subUnits}
+              messages={messages}
+              visibleEntries={visibleEntries}
+              renderUnits={renderUnits}
+              readOnly={readOnly}
+              streaming={streaming}
+              activeIsThread={activeIsThread}
+              bulkDismissIds={dismissIds}
+              composerBatchForced={batchForced}
+              copiedIdx={copiedIdx}
+              setCopiedIdx={setCopiedIdx}
               onFileChanged={fileCb}
-              externalForced={isComposerBatch ? batchForced : undefined}
               onSnapshotSettled={snapshotCb}
-            />
-          );
-        }
-
-        if (unit.type === "toolCall") {
-          const isStreamingTool = streaming && unit.resultMsg === undefined;
-          return (
-            <ToolCallDisplay
-              key={`tool-${unit.assistantIdx}-${unit.toolCallIdx}`}
-              toolCall={unit.toolCall}
-              result={unit.resultMsg?.content}
-              isStreaming={isStreamingTool}
-              isLast={unit.toolCallIdx === unit.toolCallCount - 1}
-              onStartThread={
-                !readOnly &&
-                !activeIsThread &&
-                !streaming &&
-                unit.toolCallIdx === 0
-                  ? () => onStartThreadFromMessage(unit.assistantIdx)
-                  : undefined
-              }
+              onForkFromMessage={onForkFromMessage}
+              onStartThreadFromMessage={onStartThreadFromMessage}
+              onForkToNewConversation={onForkToNewConversation}
+              onDeleteMessages={onDeleteMessages}
+              onReplaceSelection={onReplaceSelection}
+              onApplyFieldUpdate={onApplyFieldUpdate}
+              fieldLabels={fieldLabels}
             />
           );
         }
 
         const { visIdx, msg, originalIdx } = unit;
         const visArr = visibleEntries;
-        const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
         const isLastUserMsg =
           msg.role === "user" &&
           !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === "user");
-        const showCopyForPromptPack =
-          msg.role === "assistant" &&
-          msg.content.trim() &&
-          prevUser?.role === "user" &&
-          prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
-
-        if (
-          msg.role === "tool" &&
-          msg.content?.startsWith("glossary_add:success:")
-        ) {
-          const term = msg.content.slice("glossary_add:success:".length);
-          return (
-            <div key={originalIdx} className="glossary-indicator">
-              <span className="glossary-indicator-icon">📖</span>
-              <span className="glossary-indicator-text">
-                Glossar-Eintrag angelegt: <strong>{term}</strong>
-              </span>
-            </div>
-          );
-        }
-
-        if (msg.role === "tool" && msg.toolCallId) {
-          const isAttachedToToolCall = renderUnits.some(
-            (u) =>
-              u.type === "toolCall" &&
-              (u as { resultMsg?: { toolCallId?: string } }).resultMsg
-                ?.toolCallId === msg.toolCallId,
-          );
-          if (isAttachedToToolCall) {
-            return null;
-          }
-        }
 
         return (
           <div key={originalIdx}>
@@ -525,28 +473,6 @@ function ChatMessagesPane({
                   />
                 )}
               </div>
-              {showCopyForPromptPack && (
-                <button
-                  type="button"
-                  className="copy-msg-btn"
-                  title="In Zwischenablage kopieren"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(msg.content);
-                      setCopiedIdx(originalIdx);
-                      setTimeout(() => setCopiedIdx(null), 2000);
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                >
-                  {copiedIdx === originalIdx ? (
-                    <Check size={14} />
-                  ) : (
-                    <Copy size={14} />
-                  )}
-                </button>
-              )}
               {!readOnly && !streaming && editingIdx !== originalIdx && (
                 <div className="chat-fork-actions">
                   {!activeIsThread && (
@@ -602,7 +528,7 @@ function ChatMessagesPane({
                   <button
                     type="button"
                     className="chat-fork-btn chat-fork-btn--danger"
-                    onClick={() => onDeleteMessage(originalIdx)}
+                    onClick={() => onDeleteMessages([originalIdx])}
                     title="Nachricht löschen"
                   >
                     <Trash2 size={12} />
@@ -748,7 +674,7 @@ export function ChatPanel({
   onStartThreadFromMessage,
   onAcceptGuidedThreadOffer,
   onEditMessage,
-  onDeleteMessage,
+  onDeleteMessages,
   onNewChat,
   onDiscardCurrentChat,
   onSwitchChat,
@@ -1238,7 +1164,7 @@ export function ChatPanel({
       onStartThreadFromMessage={onStartThreadFromMessage}
       onForkToNewConversation={onForkToNewConversation}
       onEditMessage={onEditMessage}
-      onDeleteMessage={onDeleteMessage}
+      onDeleteMessages={onDeleteMessages}
       commitEdit={commitEdit}
       cancelEdit={cancelEdit}
       onReplaceSelection={onReplaceSelection}
@@ -1268,7 +1194,7 @@ export function ChatPanel({
       onStartThreadFromMessage={() => {}}
       onForkToNewConversation={() => {}}
       onEditMessage={() => {}}
-      onDeleteMessage={() => {}}
+      onDeleteMessages={() => {}}
       commitEdit={() => {}}
       cancelEdit={() => {}}
       fieldLabels={fieldLabels}

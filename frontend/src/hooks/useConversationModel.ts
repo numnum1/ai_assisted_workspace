@@ -242,7 +242,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     stopStreaming: chat.stopStreaming,
     retry: chat.retry,
     forkFromMessage: chat.forkFromMessage,
-    deleteMessage: chat.deleteMessage,
+    deleteMessages: chat.deleteMessages,
     loadMessages: chat.loadMessages,
   };
 }

@@ -1657,7 +1657,7 @@ function App() {
             onStartThreadFromMessage={handleStartThreadFromMessage}
             onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
             onEditMessage={conversation.editMessage}
-            onDeleteMessage={conversation.deleteMessage}
+            onDeleteMessages={conversation.deleteMessages}
             onNewChat={handleNewChat}
             onDiscardCurrentChat={handleDiscardCurrentChat}
             agentPresets={agentPresets}
