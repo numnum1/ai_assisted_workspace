@@ -38,13 +38,8 @@ import {
   type GuidedThreadOfferPayload,
 } from "./guidedThreadOfferUtils.ts";
 import { GuidedThreadOfferCard } from "./GuidedThreadOfferCard.tsx";
-import {
-  ThreadBranchPicker,
-  type ThreadBranchItem,
-} from "./ThreadBranchPicker.tsx";
 import type { CardState } from "./ChangeCard.tsx";
 import { ChatMessagesPane } from "./ChatMessagesPane.tsx";
-import { ChatInteractivePane } from "./ChatInteractivePane.tsx";
 import { WriteFileBatchComposerBar } from "./WriteFileBatchComposerBar.tsx";
 import {
   collectAllWriteFileItems,
@@ -56,18 +51,6 @@ import {
 } from "./planFenceUtils.ts";
 import { settleWriteFileMessage } from "./writeFileToolParse.ts";
 import { SteeringPlanViewer } from "./SteeringPlanViewer.tsx";
-import {
-  buildConversationById,
-  listThreadsForRoot,
-  resolveThreadBranchRootId,
-} from "./chatHistoryUtils.ts";
-import { Group, Panel, Separator } from "react-resizable-panels";
-import type { Layout } from "react-resizable-panels";
-import {
-  loadChatThreadSplitLayout,
-  saveChatThreadSplitLayout,
-} from "./chatThreadSplitPanelLayout.ts";
-import "./ChatThreadSplitResizable.css";
 
 function resolveGuidedExecutionSummary(
   modes: Mode[],
@@ -161,16 +144,8 @@ interface ChatPanelProps {
   onComposerDraftChange?: (text: string) => void;
   /** App appearance theme: mode accent colors are inverted for light UI. */
   theme?: "light" | "dark";
-  /** Parent conversation ID — present when activeIsThread is true, enables interactive parent pane. */
-  parentConversationId?: string;
-  /** Messages of the parent conversation for the split view (interactive). */
-  parentMessages?: ChatMessage[];
-  /** Whether the parent pane is currently streaming. */
-  parentStreaming?: boolean;
-  /** Send a message to the parent conversation. */
-  onSendToParent?: (message: string) => void;
-  /** Stop streaming in the parent conversation. */
-  onStopParent?: () => void;
+  /** Open the dedicated Thread-Workspace overlay (only relevant when activeIsThread is true). */
+  onOpenThreadWorkspace?: () => void;
 }
 
 function GuidedSteeringPlanSection({
@@ -302,11 +277,7 @@ export function ChatPanel({
   onMarkSteeringPlanComplete,
   activeIsThread = false,
   theme = "dark",
-  parentConversationId,
-  parentMessages = [],
-  parentStreaming = false,
-  onSendToParent,
-  onStopParent,
+  onOpenThreadWorkspace,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -503,64 +474,6 @@ export function ChatPanel({
 
   const activeTitle =
     conversations.find((c) => c.id === activeConversationId)?.title ?? "";
-
-  const threadRail = useMemo(() => {
-    const byId = buildConversationById(conversations);
-    const activeConv = byId.get(activeConversationId);
-    const rootId = resolveThreadBranchRootId(activeConv);
-    if (!rootId) {
-      return {
-        showRail: false,
-        rootConv: null as Conversation | null,
-        threads: [] as Conversation[],
-      };
-    }
-    const rootConv = byId.get(rootId) ?? null;
-    if (!rootConv || rootConv.isThread) {
-      return { showRail: false, rootConv, threads: [] as Conversation[] };
-    }
-    const threads = listThreadsForRoot(conversations, rootId);
-    return {
-      showRail: threads.length >= 1,
-      rootConv,
-      threads,
-    };
-  }, [conversations, activeConversationId]);
-
-  /** Maps Conversation data to the richer ThreadBranchItem for the git-style picker */
-  const mapToBranchItem = useCallback(
-    (conv: Conversation): ThreadBranchItem => ({
-      id: conv.id,
-      title: conv.title,
-      messageCount: conv.messages.filter((m) => !m.hidden).length,
-      updatedAt: conv.updatedAt,
-      savedToProject: conv.savedToProject,
-    }),
-    [],
-  );
-
-  const mainBranchItem = useMemo(() => {
-    if (!threadRail.rootConv) return null;
-    return mapToBranchItem(threadRail.rootConv);
-  }, [threadRail.rootConv, mapToBranchItem]);
-
-  const threadBranchItems = useMemo(() => {
-    return threadRail.threads.map(mapToBranchItem);
-  }, [threadRail.threads, mapToBranchItem]);
-
-  const showThreadSplit = Boolean(
-    isFullscreen && activeIsThread && threadRail.rootConv,
-  );
-  const splitRoot =
-    showThreadSplit && threadRail.rootConv ? threadRail.rootConv : null;
-
-  const threadSplitDefaultLayout = useMemo(
-    () => loadChatThreadSplitLayout(),
-    [],
-  );
-  const handleThreadSplitLayoutChanged = useCallback((layout: Layout) => {
-    saveChatThreadSplitLayout(layout);
-  }, []);
 
   const cancelEdit = useCallback(() => setEditingIdx(null), []);
 
@@ -820,7 +733,7 @@ export function ChatPanel({
   return (
     <div
       ref={panelRef}
-      className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}${showThreadSplit ? " chat-panel--thread-split" : ""}`}
+      className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}
     >
       <div className="chat-header">
         {guidedExecSummary ? (
@@ -876,11 +789,19 @@ export function ChatPanel({
           <button
             type="button"
             className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
-            onClick={() => toggleChatFullscreen()}
+            onClick={() => {
+              if (activeIsThread && onOpenThreadWorkspace) {
+                onOpenThreadWorkspace();
+              } else {
+                toggleChatFullscreen();
+              }
+            }}
             title={
-              isFullscreen
-                ? "Vergrößerte Ansicht schließen (Esc)"
-                : "Chat vergrößern"
+              activeIsThread
+                ? "Thread-Workspace öffnen"
+                : isFullscreen
+                  ? "Vergrößerte Ansicht schließen (Esc)"
+                  : "Chat vergrößern"
             }
             aria-pressed={isFullscreen}
           >
@@ -948,226 +869,71 @@ export function ChatPanel({
         />
       )}
 
-      <div
-        className={`chat-panel-body${showThreadSplit ? " chat-panel-body--thread-split" : ""}`}
-      >
-        {splitRoot ? (
-          <Group
-            orientation="horizontal"
-            className="chat-thread-split-group"
-            id="chat-thread-split-panels"
-            defaultLayout={threadSplitDefaultLayout}
-            onLayoutChanged={handleThreadSplitLayoutChanged}
-          >
-            <Panel
-              id="chat-thread-split-picker"
-              className="chat-thread-split-panel-shell"
-              defaultSize="15%"
-              minSize="10%"
-              maxSize="48%"
-            >
-              <div className="chat-thread-split-picker">
-                {mainBranchItem && (
-                  <ThreadBranchPicker
-                    main={mainBranchItem}
-                    threads={threadBranchItems}
-                    activeId={activeConversationId}
-                    onSelect={onSwitchChat}
-                    ariaLabel="Thread / Branch wechseln (Git-Style)"
-                    showGraph={true}
-                    panel={true}
-                  />
-                )}
-              </div>
-            </Panel>
-            <Separator className="resize-handle" />
-            <Panel
-              id="chat-thread-split-left"
-              className="chat-thread-split-panel-shell"
-              defaultSize="38%"
-              minSize="15%"
-            >
-              <div className="chat-thread-split-left">
-                <div className="chat-thread-split-pane-header">
-                  <span className="chat-thread-split-pane-label">
-                    Haupt-Chat
-                  </span>
-                  <span
-                    className="chat-thread-split-pane-title"
-                    title={splitRoot.title}
-                  >
-                    {splitRoot.title}
-                  </span>
-                </div>
-                <ChatInteractivePane
-                  key={splitRoot.id}
-                  conversationId={splitRoot.id}
-                  messages={parentMessages}
-                  streaming={parentStreaming}
-                  error={null}
-                  toolActivity={null}
-                  onSend={onSendToParent ?? (() => {})}
-                  onStop={onStopParent ?? (() => {})}
-                  onEditMessage={onEditMessage}
-                  onDeleteMessages={onDeleteMessages}
-                  onForkFromMessage={onForkFromMessage}
-                  onStartThreadFromMessage={onStartThreadFromMessage}
-                  onForkToNewConversation={onForkToNewConversation}
-                  referencedFiles={referencedFiles}
-                  onAddFile={onAddFile}
-                  onRemoveFile={onRemoveFile}
-                  fullscreen={isFullscreen}
-                  structureRoot={structureRoot}
-                  theme={theme}
-                  fieldLabels={fieldLabels}
+      <div className="chat-panel-body">
+        <div className="chat-panel-body-main">
+          {interactiveMessagesEl}
+          {activeSessionKind === "guided" && (
+            <GuidedSteeringPlanSection
+              open={steeringPlanOpen}
+              onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
+              steeringPlan={steeringPlan}
+              parsedSteeringPlan={parsedSteeringPlan}
+              streaming={streaming}
+              onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
+            />
+          )}
+          <div className="chat-composer-stack">
+            {pendingClarification && pendingClarification.length > 0 ? (
+              <ChatComposerCard>
+                <SuggestedActionsCard
+                  questions={pendingClarification}
+                  onSubmit={onSend}
+                  disabled={streaming}
                 />
-              </div>
-            </Panel>
-            <Separator className="resize-handle" />
-            <Panel
-              id="chat-thread-split-right"
-              className="chat-thread-split-panel-shell"
-              defaultSize="47%"
-              minSize="22%"
-            >
-              <div className="chat-thread-split-right">
-                <div className="chat-panel-body-main">
-                  {interactiveMessagesEl}
-                  {activeSessionKind === "guided" && (
-                    <GuidedSteeringPlanSection
-                      open={steeringPlanOpen}
-                      onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
-                      steeringPlan={steeringPlan}
-                      parsedSteeringPlan={parsedSteeringPlan}
-                      streaming={streaming}
-                      onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
-                    />
-                  )}
-                  <div className="chat-composer-stack">
-                    {pendingClarification && pendingClarification.length > 0 ? (
-                      <ChatComposerCard>
-                        <SuggestedActionsCard
-                          questions={pendingClarification}
-                          onSubmit={onSend}
-                          disabled={streaming}
-                        />
-                      </ChatComposerCard>
-                    ) : null}
-                    {pendingGuidedThreadOffer && !pendingClarification ? (
-                      <ChatComposerCard>
-                        <GuidedThreadOfferCard
-                          offer={pendingGuidedThreadOffer.offer}
-                          blocked={activeIsThread}
-                          disabled={streaming}
-                          onAccept={handleAcceptGuidedThreadOfferClick}
-                          onDismiss={handleDismissGuidedThreadOffer}
-                        />
-                      </ChatComposerCard>
-                    ) : null}
-                    {pendingWriteFileItems.length > 0 && !streaming ? (
-                      <WriteFileBatchComposerBar
-                        items={pendingWriteFileItems}
-                        onBulkComplete={handleWriteFileBulkComplete}
-                        onFileChanged={onFileChanged}
-                        disabled={streaming}
-                      />
-                    ) : null}
-                    <ChatInput
-                      key={activeConversationId}
-                      onSend={onSend}
-                      onStop={onStop}
-                      streaming={streaming}
-                      referencedFiles={referencedFiles}
-                      onAddFile={onAddFile}
-                      onRemoveFile={onRemoveFile}
-                      fullscreen={isFullscreen}
-                      structureRoot={structureRoot}
-                      useReasoning={useReasoning && reasoningAvailable}
-                      onToggleReasoning={
-                        agentMode ? undefined : onToggleReasoning
-                      }
-                      disabledToolkits={disabledToolkits}
-                      onToggleToolkit={agentMode ? undefined : onToggleToolkit}
-                      reasoningAvailable={reasoningAvailable}
-                      fastAvailable={fastAvailable}
-                      activeSelection={activeSelection}
-                      onDismissSelection={onDismissSelection}
-                      focusTriggerRef={chatFocusTriggerRef}
-                      onDraftChange={onComposerDraftChange}
-                    />
-                  </div>
-                </div>
-              </div>
-            </Panel>
-          </Group>
-        ) : (
-          <>
-            <div className="chat-panel-body-main">
-              {interactiveMessagesEl}
-              {activeSessionKind === "guided" && (
-                <GuidedSteeringPlanSection
-                  open={steeringPlanOpen}
-                  onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
-                  steeringPlan={steeringPlan}
-                  parsedSteeringPlan={parsedSteeringPlan}
-                  streaming={streaming}
-                  onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
+              </ChatComposerCard>
+            ) : null}
+            {pendingGuidedThreadOffer && !pendingClarification ? (
+              <ChatComposerCard>
+                <GuidedThreadOfferCard
+                  offer={pendingGuidedThreadOffer.offer}
+                  blocked={activeIsThread}
+                  disabled={streaming}
+                  onAccept={handleAcceptGuidedThreadOfferClick}
+                  onDismiss={handleDismissGuidedThreadOffer}
                 />
-              )}
-              <div className="chat-composer-stack">
-                {pendingClarification && pendingClarification.length > 0 ? (
-                  <ChatComposerCard>
-                    <SuggestedActionsCard
-                      questions={pendingClarification}
-                      onSubmit={onSend}
-                      disabled={streaming}
-                    />
-                  </ChatComposerCard>
-                ) : null}
-                {pendingGuidedThreadOffer && !pendingClarification ? (
-                  <ChatComposerCard>
-                    <GuidedThreadOfferCard
-                      offer={pendingGuidedThreadOffer.offer}
-                      blocked={activeIsThread}
-                      disabled={streaming}
-                      onAccept={handleAcceptGuidedThreadOfferClick}
-                      onDismiss={handleDismissGuidedThreadOffer}
-                    />
-                  </ChatComposerCard>
-                ) : null}
-                {pendingWriteFileItems.length > 0 && !streaming ? (
-                  <WriteFileBatchComposerBar
-                    items={pendingWriteFileItems}
-                    onBulkComplete={handleWriteFileBulkComplete}
-                    onFileChanged={onFileChanged}
-                    disabled={streaming}
-                  />
-                ) : null}
-                <ChatInput
-                  key={activeConversationId}
-                  onSend={onSend}
-                  onStop={onStop}
-                  streaming={streaming}
-                  referencedFiles={referencedFiles}
-                  onAddFile={onAddFile}
-                  onRemoveFile={onRemoveFile}
-                  fullscreen={isFullscreen}
-                  structureRoot={structureRoot}
-                  useReasoning={useReasoning && reasoningAvailable}
-                  onToggleReasoning={agentMode ? undefined : onToggleReasoning}
-                  disabledToolkits={disabledToolkits}
-                  onToggleToolkit={agentMode ? undefined : onToggleToolkit}
-                  reasoningAvailable={reasoningAvailable}
-                  fastAvailable={fastAvailable}
-                  activeSelection={activeSelection}
-                  onDismissSelection={onDismissSelection}
-                  focusTriggerRef={chatFocusTriggerRef}
-                  onDraftChange={onComposerDraftChange}
-                />
-              </div>
-            </div>
-          </>
-        )}
+              </ChatComposerCard>
+            ) : null}
+            {pendingWriteFileItems.length > 0 && !streaming ? (
+              <WriteFileBatchComposerBar
+                items={pendingWriteFileItems}
+                onBulkComplete={handleWriteFileBulkComplete}
+                onFileChanged={onFileChanged}
+                disabled={streaming}
+              />
+            ) : null}
+            <ChatInput
+              key={activeConversationId}
+              onSend={onSend}
+              onStop={onStop}
+              streaming={streaming}
+              referencedFiles={referencedFiles}
+              onAddFile={onAddFile}
+              onRemoveFile={onRemoveFile}
+              fullscreen={isFullscreen}
+              structureRoot={structureRoot}
+              useReasoning={useReasoning && reasoningAvailable}
+              onToggleReasoning={agentMode ? undefined : onToggleReasoning}
+              disabledToolkits={disabledToolkits}
+              onToggleToolkit={agentMode ? undefined : onToggleToolkit}
+              reasoningAvailable={reasoningAvailable}
+              fastAvailable={fastAvailable}
+              activeSelection={activeSelection}
+              onDismissSelection={onDismissSelection}
+              focusTriggerRef={chatFocusTriggerRef}
+              onDraftChange={onComposerDraftChange}
+            />
+          </div>
+        </div>
       </div>
 
       {newChatDialogOpen && (

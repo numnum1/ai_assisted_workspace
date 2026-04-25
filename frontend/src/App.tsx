@@ -7,6 +7,7 @@ import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
 import { MetaPanel } from './components/meta/MetaPanel.tsx';
 import { ChatPanel } from './components/chat/ChatPanel.tsx';
+import { ThreadWorkspacePanel } from './components/chat/ThreadWorkspacePanel.tsx';
 import { ChatThreadsRail } from './components/chat/ChatThreadsRail.tsx';
 import { FieldEditorPanel } from './components/editor/FieldEditorPanel.tsx';
 import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
@@ -35,6 +36,12 @@ import { CHAT_TOOLKIT_IDS } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, vectorApi, AuthRequiredError } from './api.ts';
 import { buildThreadHiddenBootstrap } from './components/chat/chatThreadUtils.ts';
 import type { GuidedThreadOfferPayload } from './components/chat/guidedThreadOfferUtils.ts';
+import {
+  buildConversationById,
+  listThreadsForRoot,
+  resolveThreadBranchRootId,
+} from './components/chat/chatHistoryUtils.ts';
+import type { ThreadBranchItem } from './components/chat/ThreadBranchPicker.tsx';
 import { usePreferences } from './hooks/usePreferences.ts';
 import { AppearanceModal } from './components/settings/AppearanceModal.tsx';
 import { useProject } from './hooks/useProject.ts';
@@ -459,6 +466,47 @@ function App() {
   // Derive parent conversation for split-view (when the active chat is a thread)
   const parentConversationId = history.activeConversation?.parentConversationId ?? null;
   const parentConversation = history.conversations.find((c) => c.id === parentConversationId) ?? null;
+
+  // Thread Workspace overlay
+  const [threadWorkspaceOpen, setThreadWorkspaceOpen] = useState(false);
+
+  // Close workspace when switching away from a thread conversation
+  useEffect(() => {
+    if (!history.activeConversation?.isThread) {
+      setThreadWorkspaceOpen(false);
+    }
+  }, [history.activeId, history.activeConversation?.isThread]);
+
+  const handleOpenThreadWorkspace = useCallback(() => {
+    setThreadWorkspaceOpen(true);
+  }, []);
+
+  const handleCloseThreadWorkspace = useCallback(() => {
+    setThreadWorkspaceOpen(false);
+  }, []);
+
+  // Build ThreadBranchPicker data for the workspace
+  const threadWorkspaceRail = useMemo(() => {
+    const byId = buildConversationById(history.conversations);
+    const activeConv = byId.get(history.activeId);
+    const rootId = resolveThreadBranchRootId(activeConv);
+    if (!rootId) return null;
+    const rootConv = byId.get(rootId) ?? null;
+    if (!rootConv || rootConv.isThread) return null;
+    const threads = listThreadsForRoot(history.conversations, rootId);
+    if (threads.length === 0) return null;
+    const toBranchItem = (conv: { id: string; title: string; messages: { hidden?: boolean }[]; updatedAt: number; savedToProject?: boolean }): ThreadBranchItem => ({
+      id: conv.id,
+      title: conv.title,
+      messageCount: conv.messages.filter((m) => !m.hidden).length,
+      updatedAt: conv.updatedAt,
+      savedToProject: conv.savedToProject,
+    });
+    return {
+      mainBranchItem: toBranchItem(rootConv),
+      threadBranchItems: threads.map(toBranchItem),
+    };
+  }, [history.conversations, history.activeId]);
 
   // Load messages when switching conversations
   useEffect(() => {
@@ -1790,12 +1838,64 @@ function App() {
                   history.updateMessageContent(history.activeId, originalIdx, newContent);
                 }}
                 onComposerDraftChange={handleComposerDraftChange}
-                parentConversationId={parentConversationId ?? undefined}
-                parentMessages={parentConversationModel.messages}
-                parentStreaming={parentConversationModel.streaming}
-                onSendToParent={parentConversationModel.send}
-                onStopParent={parentConversationModel.stopStreaming}
+                onOpenThreadWorkspace={handleOpenThreadWorkspace}
               />
+              {threadWorkspaceOpen &&
+                history.activeConversation?.isThread === true &&
+                threadWorkspaceRail && (
+                  <ThreadWorkspacePanel
+                    threadConversationId={history.activeId}
+                    threadTitle={history.activeConversation?.title ?? ''}
+                    messages={conversation.messages}
+                    streaming={conversation.streaming}
+                    error={conversation.error}
+                    toolActivity={conversation.toolActivity}
+                    parentConversation={parentConversation}
+                    parentMessages={parentConversationModel.messages}
+                    parentStreaming={parentConversationModel.streaming}
+                    mainBranchItem={threadWorkspaceRail.mainBranchItem}
+                    threadBranchItems={threadWorkspaceRail.threadBranchItems}
+                    onSwitchBranch={handleSwitchChat}
+                    onClose={handleCloseThreadWorkspace}
+                    onSend={conversation.send}
+                    onStop={conversation.stopStreaming}
+                    onSendToParent={parentConversationModel.send}
+                    onStopParent={parentConversationModel.stopStreaming}
+                    onEditMessage={conversation.editMessage}
+                    onDeleteMessages={conversation.deleteMessages}
+                    onForkFromMessage={conversation.forkFromMessage}
+                    onStartThreadFromMessage={handleStartThreadFromMessage}
+                    onForkToNewConversation={handleForkToNewConversation}
+                    onRetry={conversation.retry}
+                    onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
+                    referencedFiles={refs.referencedFiles}
+                    onAddFile={refs.addFile}
+                    onRemoveFile={refs.removeFile}
+                    structureRoot={chapter.structureRoot}
+                    theme={preferences.appearance.theme === "light" ? "light" : "dark"}
+                    fieldLabels={fieldLabels}
+                    activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
+                    steeringPlan={history.activeConversation?.steeringPlan ?? ''}
+                    onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
+                    onFileChanged={(path) => {
+                      if (fileEditor.selectedPath === path) {
+                        void fileEditor.openFile(path);
+                      }
+                      setTreeRefreshKey((k) => k + 1);
+                    }}
+                    onUpdateMessage={(originalIdx, newContent) => {
+                      history.updateMessageContent(history.activeId, originalIdx, newContent);
+                    }}
+                    useReasoning={useReasoning}
+                    onToggleReasoning={handleToggleReasoning}
+                    disabledToolkits={disabledToolkits}
+                    onToggleToolkit={handleToggleToolkit}
+                    reasoningAvailable={reasoningAvailable}
+                    fastAvailable={fastAvailable}
+                    activeSelection={activeSelection}
+                    onDismissSelection={handleDismissSelection}
+                  />
+                )}
             </div>
           </div>
         </Panel>
