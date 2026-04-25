@@ -7,6 +7,7 @@ import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
 import { MetaPanel } from './components/meta/MetaPanel.tsx';
 import { ChatPanel } from './components/chat/ChatPanel.tsx';
+import { ChatThreadsRail } from './components/chat/ChatThreadsRail.tsx';
 import { FieldEditorPanel } from './components/editor/FieldEditorPanel.tsx';
 import { PromptPackModal } from './components/chat/PromptPackModal.tsx';
 import { ContextBar } from './components/chat/ContextBar.tsx';
@@ -1674,71 +1675,80 @@ function App() {
           collapsible
           collapsedSize={0}
         >
-          <ChatPanel
-            messages={conversation.messages}
-            streaming={conversation.streaming}
-            error={conversation.error}
-            toolActivity={conversation.toolActivity}
-            theme={preferences.appearance.theme === "light" ? "light" : "dark"}
-            modes={modesForChat}
-            selectedMode={selectedMode}
-            referencedFiles={refs.referencedFiles}
-            conversations={history.conversations}
-            activeConversationId={history.activeId}
-            useReasoning={useReasoning}
-            onToggleReasoning={handleToggleReasoning}
-            disabledToolkits={disabledToolkits}
-            onToggleToolkit={handleToggleToolkit}
-            reasoningAvailable={reasoningAvailable}
-            fastAvailable={fastAvailable}
-            onModeChange={handleModeChange}
-            llms={llms}
-            selectedLlmId={modeLlmId}
-            onLlmChange={handleLlmChange}
-            onSend={conversation.send}
-            onStop={conversation.stopStreaming}
-            onRetry={conversation.retry}
-            onAddFile={refs.addFile}
-            onRemoveFile={refs.removeFile}
-            onForkFromMessage={conversation.forkFromMessage}
-            onForkToNewConversation={handleForkToNewConversation}
-            onStartThreadFromMessage={handleStartThreadFromMessage}
-            onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
-            onEditMessage={conversation.editMessage}
-            onDeleteMessages={conversation.deleteMessages}
-            onNewChat={handleNewChat}
-            onDiscardCurrentChat={handleDiscardCurrentChat}
-            agentPresets={agentPresets}
-            activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
-            steeringPlan={history.activeConversation?.steeringPlan ?? ''}
-            activeIsThread={history.activeConversation?.isThread === true}
-            onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
-            onSwitchChat={handleSwitchChat}
-            onDeleteChat={history.deleteConversation}
-            onRenameChat={history.renameConversation}
-            onToggleSavedToProject={history.toggleSavedToProject}
-            onClearAllBrowserChats={history.clearAllBrowserChats}
-            clearAllBrowserChatsDisabled={!project.projectPath || !history.hydrated}
-            chatDownloadEnabled={chatDownloadFeatureEnabled}
-            onOpenPromptPack={() => setPromptPackOpen(true)}
-            structureRoot={chapter.structureRoot}
-            activeSelection={activeSelection}
-            onDismissSelection={handleDismissSelection}
-            onReplaceSelection={handleReplaceSelection}
-            onApplyFieldUpdate={handleApplyFieldUpdate}
-            fieldLabels={fieldLabels}
-            chatFocusTriggerRef={chatFocusTriggerRef}
-            onFileChanged={(path) => {
-              if (fileEditor.selectedPath === path) {
-                void fileEditor.openFile(path);
-              }
-              setTreeRefreshKey((k) => k + 1);
-            }}
-            onUpdateMessage={(originalIdx, newContent) => {
-              history.updateMessageContent(history.activeId, originalIdx, newContent);
-            }}
-            onComposerDraftChange={handleComposerDraftChange}
-          />
+          <div className="chat-column">
+            <ChatThreadsRail
+              conversations={history.conversations}
+              activeConversationId={history.activeId}
+              onSwitchChat={handleSwitchChat}
+            />
+            <div className="chat-column-main">
+              <ChatPanel
+                messages={conversation.messages}
+                streaming={conversation.streaming}
+                error={conversation.error}
+                toolActivity={conversation.toolActivity}
+                theme={preferences.appearance.theme === "light" ? "light" : "dark"}
+                modes={modesForChat}
+                selectedMode={selectedMode}
+                referencedFiles={refs.referencedFiles}
+                conversations={history.conversations}
+                activeConversationId={history.activeId}
+                useReasoning={useReasoning}
+                onToggleReasoning={handleToggleReasoning}
+                disabledToolkits={disabledToolkits}
+                onToggleToolkit={handleToggleToolkit}
+                reasoningAvailable={reasoningAvailable}
+                fastAvailable={fastAvailable}
+                onModeChange={handleModeChange}
+                llms={llms}
+                selectedLlmId={modeLlmId}
+                onLlmChange={handleLlmChange}
+                onSend={conversation.send}
+                onStop={conversation.stopStreaming}
+                onRetry={conversation.retry}
+                onAddFile={refs.addFile}
+                onRemoveFile={refs.removeFile}
+                onForkFromMessage={conversation.forkFromMessage}
+                onForkToNewConversation={handleForkToNewConversation}
+                onStartThreadFromMessage={handleStartThreadFromMessage}
+                onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
+                onEditMessage={conversation.editMessage}
+                onDeleteMessages={conversation.deleteMessages}
+                onNewChat={handleNewChat}
+                onDiscardCurrentChat={handleDiscardCurrentChat}
+                agentPresets={agentPresets}
+                activeSessionKind={history.activeConversation?.sessionKind ?? 'standard'}
+                steeringPlan={history.activeConversation?.steeringPlan ?? ''}
+                activeIsThread={history.activeConversation?.isThread === true}
+                onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
+                onSwitchChat={handleSwitchChat}
+                onDeleteChat={history.deleteConversation}
+                onRenameChat={history.renameConversation}
+                onToggleSavedToProject={history.toggleSavedToProject}
+                onClearAllBrowserChats={history.clearAllBrowserChats}
+                clearAllBrowserChatsDisabled={!project.projectPath || !history.hydrated}
+                chatDownloadEnabled={chatDownloadFeatureEnabled}
+                onOpenPromptPack={() => setPromptPackOpen(true)}
+                structureRoot={chapter.structureRoot}
+                activeSelection={activeSelection}
+                onDismissSelection={handleDismissSelection}
+                onReplaceSelection={handleReplaceSelection}
+                onApplyFieldUpdate={handleApplyFieldUpdate}
+                fieldLabels={fieldLabels}
+                chatFocusTriggerRef={chatFocusTriggerRef}
+                onFileChanged={(path) => {
+                  if (fileEditor.selectedPath === path) {
+                    void fileEditor.openFile(path);
+                  }
+                  setTreeRefreshKey((k) => k + 1);
+                }}
+                onUpdateMessage={(originalIdx, newContent) => {
+                  history.updateMessageContent(history.activeId, originalIdx, newContent);
+                }}
+                onComposerDraftChange={handleComposerDraftChange}
+              />
+            </div>
+          </div>
         </Panel>
       </Group>
 

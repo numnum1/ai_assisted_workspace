@@ -603,7 +603,7 @@ function registerIpcHandlers(): void {
     console.log("[electron] Received shell:openDevTools");
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {
-      // win.webContents.openDevTools();
+      win.webContents.openDevTools();
       console.log("[electron] Finished shell:openDevTools");
     } else {
       console.warn("[electron] shell:openDevTools: no window for sender");

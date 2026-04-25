@@ -964,9 +964,6 @@ export function ChatPanel({
   );
   const splitRoot =
     showThreadSplit && threadRail.rootConv ? threadRail.rootConv : null;
-  const threadsRailRoot =
-    threadRail.showRail && threadRail.rootConv ? threadRail.rootConv : null;
-
   const cancelEdit = useCallback(() => setEditingIdx(null), []);
 
   const commitEdit = useCallback(
@@ -1401,6 +1398,19 @@ export function ChatPanel({
       >
         {splitRoot ? (
           <>
+            <div className="chat-thread-split-picker">
+              {mainBranchItem && (
+                <ThreadBranchPicker
+                  main={mainBranchItem}
+                  threads={threadBranchItems}
+                  activeId={activeConversationId}
+                  onSelect={onSwitchChat}
+                  ariaLabel="Thread / Branch wechseln (Git-Style)"
+                  showGraph={true}
+                  panel={true}
+                />
+              )}
+            </div>
             <div className="chat-thread-split-left">
               <div className="chat-thread-split-pane-header">
                 <span className="chat-thread-split-pane-label">Haupt-Chat</span>
@@ -1416,19 +1426,6 @@ export function ChatPanel({
               </div>
             </div>
             <div className="chat-thread-split-right">
-              <div className="chat-thread-split-switcher">
-                {mainBranchItem && (
-                  <ThreadBranchPicker
-                    main={mainBranchItem}
-                    threads={threadBranchItems}
-                    activeId={activeConversationId}
-                    onSelect={onSwitchChat}
-                    ariaLabel="Thread / Branch wechseln (Git-Style)"
-                    showGraph={true}
-                    className="thread-branch-in-split"
-                  />
-                )}
-              </div>
               <div className="chat-panel-body-main">
                 {interactiveMessagesEl}
                 {activeSessionKind === "guided" && (
@@ -1563,42 +1560,6 @@ export function ChatPanel({
                 />
               </div>
             </div>
-            {threadsRailRoot && (
-              <aside className="chat-threads-rail" aria-label="Threads">
-                <div className="chat-threads-rail-header">Threads</div>
-                <div className="chat-threads-rail-list">
-                  <button
-                    type="button"
-                    className={`chat-threads-rail-item${threadsRailRoot.id === activeConversationId ? " active" : ""}`}
-                    onClick={() => onSwitchChat(threadsRailRoot.id)}
-                    title={threadsRailRoot.title}
-                  >
-                    <span className="chat-threads-rail-item-meta">
-                      Haupt-Chat
-                    </span>
-                    <span className="chat-threads-rail-item-title">
-                      {threadsRailRoot.title}
-                    </span>
-                  </button>
-                  {threadRail.threads.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      className={`chat-threads-rail-item${t.id === activeConversationId ? " active" : ""}`}
-                      onClick={() => onSwitchChat(t.id)}
-                      title={t.title}
-                    >
-                      <span className="chat-threads-rail-item-meta">
-                        Thread
-                      </span>
-                      <span className="chat-threads-rail-item-title">
-                        {t.title}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
-            )}
           </>
         )}
       </div>

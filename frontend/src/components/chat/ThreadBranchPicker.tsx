@@ -20,6 +20,11 @@ interface ThreadBranchPickerProps {
   ariaLabel?: string;
   /** Show git-graph style visualization */
   showGraph?: boolean;
+  /**
+   * Render as an always-visible inline panel instead of a dropdown.
+   * The trigger button is hidden; header, search and list fill the container.
+   */
+  panel?: boolean;
 }
 
 type InternalItem = ThreadBranchItem & { kind: 'main' | 'thread'; isActive: boolean };
@@ -33,6 +38,7 @@ export function ThreadBranchPicker({
   className = '',
   ariaLabel = 'Chat-Zweig wechseln',
   showGraph = true,
+  panel = false,
 }: ThreadBranchPickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -165,8 +171,115 @@ export function ThreadBranchPicker({
   const rootClass = [
     'thread-branch-picker',
     showGraph && 'thread-branch-picker--graph',
+    panel && 'thread-branch-picker--panel',
     className
   ].filter(Boolean).join(' ');
+
+  /** Shared list content used in both dropdown and panel mode. */
+  const listContent = (
+    <>
+      <div className="thread-branch-picker__header">
+        <GitBranch size={18} />
+        <span>Git Branch Graph</span>
+        <div className="thread-branch-picker__header-meta">
+          {threads.length + 1} Zweige
+        </div>
+      </div>
+
+      <div className="thread-branch-picker__search-row">
+        <Search size={14} className="thread-branch-picker__search-icon" aria-hidden />
+        <input
+          ref={searchRef}
+          type="search"
+          className="thread-branch-picker__search-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          placeholder="Branches / Threads durchsuchen…"
+          aria-label="Threads filtern"
+          autoComplete="off"
+        />
+      </div>
+
+      <ul id={listId} className="thread-branch-picker__list" role="listbox" aria-label={ariaLabel}>
+        {filtered.length === 0 ? (
+          <li className="thread-branch-picker__empty" role="presentation">
+            Keine passenden Branches gefunden
+          </li>
+        ) : (
+          filtered.map((item, i) => {
+            const isMain = item.kind === 'main';
+            const meta = formatMeta(item);
+            return (
+              <li
+                key={item.id}
+                role="option"
+                aria-selected={item.isActive}
+                className={`thread-branch-picker__option thread-branch-picker__option--graph
+                  ${i === selectedIndex ? 'thread-branch-picker__option--keyboard' : ''}
+                  ${item.isActive ? 'thread-branch-picker__option--current' : ''}
+                  ${isMain ? 'thread-branch-picker__option--main' : ''}`}
+                onClick={() => pick(item.id)}
+                onMouseEnter={() => setSelectedIndex(i)}
+              >
+                {/* Git graph line */}
+                <div className="thread-branch-picker__graph-line">
+                  <div className={`thread-branch-picker__graph-node ${isMain ? 'main' : 'branch'}`} />
+                  {!isMain && <div className="thread-branch-picker__graph-connector" />}
+                </div>
+
+                <div className="thread-branch-picker__option-content">
+                  <div className="thread-branch-picker__option-icon">
+                    {isMain ? (
+                      <MessageSquare size={16} />
+                    ) : (
+                      <GitBranch size={16} />
+                    )}
+                    {item.savedToProject && (
+                      <FolderCheck size={12} className="thread-branch-picker__saved-icon" />
+                    )}
+                  </div>
+
+                  <div className="thread-branch-picker__option-main">
+                    <div className="thread-branch-picker__option-title" title={item.title}>
+                      {item.title}
+                    </div>
+                    {meta && (
+                      <div className="thread-branch-picker__option-meta">
+                        {meta}
+                      </div>
+                    )}
+                  </div>
+
+                  {item.isActive && (
+                    <Check size={18} className="thread-branch-picker__option-check" aria-hidden />
+                  )}
+                </div>
+              </li>
+            );
+          })
+        )}
+      </ul>
+
+      <div className="thread-branch-picker__footer">
+        <span className="thread-branch-picker__hint">
+          ←↑↓→ zum Navigieren • Enter zum Wechseln • ESC zum Schließen
+        </span>
+      </div>
+    </>
+  );
+
+  if (panel) {
+    return (
+      <div
+        ref={rootRef}
+        className={rootClass}
+        onKeyDown={handleKeyDownOnDropdown}
+      >
+        {listContent}
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className={rootClass}>
@@ -196,94 +309,7 @@ export function ThreadBranchPicker({
           className="thread-branch-picker__dropdown"
           onKeyDown={handleKeyDownOnDropdown}
         >
-          <div className="thread-branch-picker__header">
-            <GitBranch size={18} />
-            <span>Git Branch Graph</span>
-            <div className="thread-branch-picker__header-meta">
-              {threads.length + 1} Zweige
-            </div>
-          </div>
-
-          <div className="thread-branch-picker__search-row">
-            <Search size={14} className="thread-branch-picker__search-icon" aria-hidden />
-            <input
-              ref={searchRef}
-              type="search"
-              className="thread-branch-picker__search-input"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              placeholder="Branches / Threads durchsuchen…"
-              aria-label="Threads filtern"
-              autoComplete="off"
-            />
-          </div>
-
-          <ul id={listId} className="thread-branch-picker__list" role="listbox" aria-label={ariaLabel}>
-            {filtered.length === 0 ? (
-              <li className="thread-branch-picker__empty" role="presentation">
-                Keine passenden Branches gefunden
-              </li>
-            ) : (
-              filtered.map((item, i) => {
-                const isMain = item.kind === 'main';
-                const meta = formatMeta(item);
-                return (
-                  <li
-                    key={item.id}
-                    role="option"
-                    aria-selected={item.isActive}
-                    className={`thread-branch-picker__option thread-branch-picker__option--graph
-                      ${i === selectedIndex ? 'thread-branch-picker__option--keyboard' : ''}
-                      ${item.isActive ? 'thread-branch-picker__option--current' : ''}
-                      ${isMain ? 'thread-branch-picker__option--main' : ''}`}
-                    onClick={() => pick(item.id)}
-                    onMouseEnter={() => setSelectedIndex(i)}
-                  >
-                    {/* Git graph line */}
-                    <div className="thread-branch-picker__graph-line">
-                      <div className={`thread-branch-picker__graph-node ${isMain ? 'main' : 'branch'}`} />
-                      {!isMain && <div className="thread-branch-picker__graph-connector" />}
-                    </div>
-
-                    <div className="thread-branch-picker__option-content">
-                      <div className="thread-branch-picker__option-icon">
-                        {isMain ? (
-                          <MessageSquare size={16} />
-                        ) : (
-                          <GitBranch size={16} />
-                        )}
-                        {item.savedToProject && (
-                          <FolderCheck size={12} className="thread-branch-picker__saved-icon" />
-                        )}
-                      </div>
-
-                      <div className="thread-branch-picker__option-main">
-                        <div className="thread-branch-picker__option-title" title={item.title}>
-                          {item.title}
-                        </div>
-                        {meta && (
-                          <div className="thread-branch-picker__option-meta">
-                            {meta}
-                          </div>
-                        )}
-                      </div>
-
-                      {item.isActive && (
-                        <Check size={18} className="thread-branch-picker__option-check" aria-hidden />
-                      )}
-                    </div>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-
-          <div className="thread-branch-picker__footer">
-            <span className="thread-branch-picker__hint">
-              ←↑↓→ zum Navigieren • Enter zum Wechseln • ESC zum Schließen
-            </span>
-          </div>
+          {listContent}
         </div>
       )}
     </div>

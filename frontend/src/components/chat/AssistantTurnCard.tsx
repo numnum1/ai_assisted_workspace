@@ -241,7 +241,7 @@ export function AssistantTurnCard({
     }
 
     if (su.type !== "toolMessage") return null;
-    const { msg, originalIdx } = su;
+    const { msg } = su;
     if (
       msg.role === "tool" &&
       msg.content?.startsWith("glossary_add:success:")
