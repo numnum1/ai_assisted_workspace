@@ -322,3 +322,15 @@ export interface MetaSelection {
   meta: NodeMeta;
 }
 
+/** Global appearance preferences (stored in ~/.writing-assistant/preferences.json). */
+export interface AppearancePreferences {
+  fontFamily?: string;
+  chatFontSizePx?: number;
+  theme?: 'dark' | 'light';
+}
+
+export interface AppPreferences {
+  version: 1;
+  appearance: AppearancePreferences;
+}
+

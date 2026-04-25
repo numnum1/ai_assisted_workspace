@@ -1,6 +1,7 @@
 import type {
   ActionNode,
   AgentPreset,
+  AppPreferences,
   ChapterNode,
   ChapterSummary,
   ChatMessage,
@@ -386,6 +387,10 @@ export interface AppBridge {
     ) => Promise<{ status: string }>;
     fill: (path: string) => Promise<TypedFileFillResult>;
   };
+  preferences?: {
+    get: () => Promise<AppPreferences>;
+    set: (patch: Partial<AppPreferences>) => Promise<AppPreferences>;
+  };
 }
 
 export function getAppBridge(): AppBridge | null {
@@ -398,3 +403,65 @@ export function getAppBridge(): AppBridge | null {
 export function isRunningInElectron(): boolean {
   return getAppBridge()?.isElectron === true;
 }
+
+const PREFS_STORAGE_KEY = "app-preferences";
+
+const DEFAULT_PREFERENCES: AppPreferences = {
+  version: 1,
+  appearance: {
+    fontFamily: "system-ui",
+    chatFontSizePx: 14,
+    theme: "dark",
+  },
+};
+
+function loadPrefsFromLocalStorage(): AppPreferences {
+  try {
+    const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+    if (!raw) return DEFAULT_PREFERENCES;
+    const parsed = JSON.parse(raw) as Partial<AppPreferences>;
+    return {
+      version: 1,
+      appearance: {
+        ...DEFAULT_PREFERENCES.appearance,
+        ...(parsed.appearance ?? {}),
+      },
+    };
+  } catch {
+    return DEFAULT_PREFERENCES;
+  }
+}
+
+function savePrefsToLocalStorage(prefs: AppPreferences): AppPreferences {
+  try {
+    localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    // localStorage full or unavailable
+  }
+  return prefs;
+}
+
+export const preferencesApi = {
+  get: async (): Promise<AppPreferences> => {
+    const bridge = getAppBridge();
+    if (bridge?.preferences) {
+      return bridge.preferences.get();
+    }
+    return loadPrefsFromLocalStorage();
+  },
+  set: async (patch: Partial<AppPreferences>): Promise<AppPreferences> => {
+    const bridge = getAppBridge();
+    if (bridge?.preferences) {
+      return bridge.preferences.set(patch);
+    }
+    const current = loadPrefsFromLocalStorage();
+    const updated: AppPreferences = {
+      version: 1,
+      appearance: {
+        ...current.appearance,
+        ...(patch.appearance ?? {}),
+      },
+    };
+    return savePrefsToLocalStorage(updated);
+  },
+};

@@ -303,4 +303,8 @@ contextBridge.exposeInMainWorld("appBridge", {
     deleteAgent: (id: string) =>
       ipcRenderer.invoke("projectConfig:deleteAgent", id),
   },
+  preferences: {
+    get: () => ipcRenderer.invoke("preferences:get"),
+    set: (patch: unknown) => ipcRenderer.invoke("preferences:set", patch),
+  },
 });

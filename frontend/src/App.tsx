@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
 import type { Layout } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload, Database } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload, Database, Settings, Palette } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
@@ -34,8 +34,8 @@ import { CHAT_TOOLKIT_IDS } from './types.ts';
 import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, vectorApi, AuthRequiredError } from './api.ts';
 import { buildThreadHiddenBootstrap } from './components/chat/chatThreadUtils.ts';
 import type { GuidedThreadOfferPayload } from './components/chat/guidedThreadOfferUtils.ts';
-import { Settings } from 'lucide-react';
-import { useProject } from './hooks/useProject.ts';
+import { usePreferences } from './hooks/usePreferences.ts';
+import { AppearanceModal } from './components/settings/AppearanceModal.tsx';
 import { useChapter } from './hooks/useChapter.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
@@ -222,6 +222,8 @@ function App() {
   const project = useProject();
   const chapter = useChapter();
   const refs = useReferencedFiles();
+  const { preferences, updatePreferences } = usePreferences();
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [modes, setModes] = useState<Mode[]>([]);
   const [agentPresets, setAgentPresets] = useState<AgentPreset[]>([]);
   const [selectedMode, setSelectedMode] = useState('review');
@@ -234,6 +236,18 @@ function App() {
   llmsRef.current = llms;
   const [disabledToolkits, setDisabledToolkits] = useState(loadInitialDisabledToolkits);
   const [chatDownloadFeatureEnabled, setChatDownloadFeatureEnabled] = useState(false);
+
+  // Apply user appearance preferences as CSS variables on the document root
+  useEffect(() => {
+    const a = preferences.appearance;
+    if (a.fontFamily) {
+      document.documentElement.style.setProperty("--pref-font-family", a.fontFamily);
+    }
+    if (a.chatFontSizePx) {
+      document.documentElement.style.setProperty("--pref-chat-font-size", `${a.chatFontSizePx}px`);
+    }
+    document.body.classList.toggle("theme-light", a.theme === "light");
+  }, [preferences]);
 
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
@@ -954,6 +968,12 @@ function App() {
         label: 'Project Settings',
         icon: <Settings size={16} />,
         handler: () => { setPaletteOpen(false); setSettingsOpen(true); },
+      },
+      {
+        id: 'appearance-settings',
+        label: 'Darstellung / Schrift',
+        icon: <Palette size={16} />,
+        handler: () => { setPaletteOpen(false); setAppearanceOpen(true); },
       },
       {
         id: 'vector-index-update',
@@ -1750,6 +1770,14 @@ function App() {
         <AlternativeVersionPanel
           session={altVersionSession}
           onClose={() => setAltVersionSession(null)}
+        />
+      )}
+
+      {appearanceOpen && (
+        <AppearanceModal
+          preferences={preferences}
+          onUpdate={updatePreferences}
+          onClose={() => setAppearanceOpen(false)}
         />
       )}
 

@@ -87,6 +87,10 @@ import {
   setGitCredentials,
 } from "./services/gitService.js";
 import * as chapterService from "./services/chapterService.js";
+import {
+  getPreferences,
+  patchPreferences,
+} from "./services/preferencesService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -588,6 +592,11 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("projectConfig:deleteAgent", (_event, id: string) =>
     removeAgentPreset(getCurrentProjectPath(), id),
+  );
+
+  ipcMain.handle("preferences:get", () => getPreferences());
+  ipcMain.handle("preferences:set", (_event, patch) =>
+    patchPreferences(patch),
   );
 }
 
