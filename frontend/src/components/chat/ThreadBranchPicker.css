@@ -1,0 +1,554 @@
+/*
+ * ThreadBranchPicker — Git-style branch / thread picker
+ * Modes: "dropdown" (default) and "panel" (always-open, fills container).
+ * BEM block abbreviation: tbp
+ *
+ * Graph column layout (32 px wide):
+ *   x = 10 px  → trunk lane  — main-chat nodes sit here
+ *   x = 24 px  → branch lane — thread nodes sit here
+ *   arm        → horizontal bar trunk→branch at 50 % height (threads only)
+ */
+
+/* ─── Root ──────────────────────────────────────────────────────────────── */
+
+.tbp {
+  position: relative;
+  display: inline-block;
+  font-size: 13px;
+}
+
+/* Panel mode: fills the allocated container */
+.tbp--panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ─── Trigger button (dropdown mode only) ───────────────────────────────── */
+
+.tbp__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  min-width: 140px;
+  max-width: 240px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tbp__trigger:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tbp__trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tbp__trigger-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.tbp__trigger-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.tbp__trigger-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.18s ease;
+}
+
+.tbp__trigger-chevron--open {
+  transform: rotate(180deg);
+}
+
+/* ─── Dropdown wrapper ──────────────────────────────────────────────────── */
+
+.tbp__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  width: 360px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow:
+    0 12px 28px -4px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  animation: tbp-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tbp-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────── */
+
+.tbp__header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.tbp__header-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.tbp__header-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+  flex: 1;
+}
+
+.tbp__header-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.tbp__badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.tbp__badge--main {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.tbp__badge--thread {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+/* ─── Search row ────────────────────────────────────────────────────────── */
+
+.tbp__search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.tbp__search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tbp__search-input {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.tbp__search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.tbp__search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ─── List ──────────────────────────────────────────────────────────────── */
+
+.tbp__list {
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  flex: 1;
+  min-height: 0;
+}
+
+.tbp--panel .tbp__list {
+  max-height: none;
+}
+
+.tbp__empty {
+  padding: 20px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ─── Option (list item) ────────────────────────────────────────────────── */
+
+.tbp__option {
+  display: flex;
+  align-items: stretch; /* lets graph cell span full row height */
+  cursor: pointer;
+  border-radius: 5px;
+  margin: 1px 5px;
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.tbp__option:hover {
+  background: var(--bg-hover);
+}
+
+.tbp__option--keyboard {
+  background: var(--bg-active, var(--bg-hover));
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tbp__option--current:not(.tbp__option--keyboard) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* ─── Graph cell ────────────────────────────────────────────────────────── */
+
+.tbp__graph-cell {
+  position: relative;
+  width: 32px;
+  flex-shrink: 0;
+}
+
+/* Trunk — full-height vertical line at x = 9…11 px */
+.tbp__graph-cell::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  width: 2px;
+  top: 0;
+  bottom: 0;
+  background: var(--accent, #3b82f6);
+  opacity: 0.3;
+}
+
+/* First item: trunk begins at the node centre, not at the very top */
+.tbp__graph-cell--first::before {
+  top: 50%;
+}
+
+/* Last item: trunk ends at the node centre, not at the very bottom */
+.tbp__graph-cell--last::before {
+  bottom: 50%;
+}
+
+/* Single-item list: no trunk needed */
+.tbp__graph-cell--first.tbp__graph-cell--last::before {
+  display: none;
+}
+
+/* ─── Graph node (the dot on each row) ─────────────────────────────────── */
+
+.tbp__graph-node {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 2px solid var(--bg-primary, #1e1e2e);
+  z-index: 2;
+}
+
+/* Main node: sits on the trunk (centre x = 10, so left = 6) */
+.tbp__graph-cell--main .tbp__graph-node {
+  left: 6px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Thread node: sits on branch lane (centre x = 24, so left = 20) */
+.tbp__graph-cell--thread .tbp__graph-node {
+  left: 20px;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+/* Thread arm: horizontal connector trunk → branch node */
+.tbp__graph-cell--thread::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  width: 12px;
+  height: 2px;
+  top: calc(50% - 1px);
+  background: #22c55e;
+  opacity: 0.5;
+  border-radius: 1px;
+}
+
+/* Active item: larger, brighter node */
+.tbp__option--current .tbp__graph-cell--main .tbp__graph-node {
+  width: 10px;
+  height: 10px;
+  left: 5px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+.tbp__option--current .tbp__graph-cell--thread .tbp__graph-node {
+  width: 10px;
+  height: 10px;
+  left: 19px;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.3);
+}
+
+/* ─── Option content area ───────────────────────────────────────────────── */
+
+.tbp__option-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 4px;
+  min-width: 0;
+}
+
+.tbp__option-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.tbp__saved-icon {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  color: #eab308;
+  background: var(--bg-primary);
+  border-radius: 50%;
+}
+
+.tbp__option-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tbp__option-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+/* Small pill showing "main" / "thread" */
+.tbp__kind-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1.5;
+}
+
+.tbp__kind-badge--main {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.tbp__kind-badge--thread {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.tbp__option-title {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.tbp__option--current .tbp__option-title {
+  font-weight: 600;
+}
+
+/* Meta row (message count + timestamp) */
+.tbp__option-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.tbp__meta-sep {
+  opacity: 0.4;
+}
+
+.tbp__meta-chip {
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  padding: 0 4px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.tbp__meta-time {
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.tbp__option-check {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* ─── Commit rows ───────────────────────────────────────────────────────── */
+
+/* Commit rows are more compact than branch-head rows */
+.tbp__option--commit {
+  margin: 0 5px;
+  border-radius: 3px;
+}
+
+/* Highlight all commits of the active branch with a faint tint */
+.tbp__option--active-branch.tbp__option--commit:not(.tbp__option--keyboard) {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+/* Commit graph cell: smaller node, no glow */
+.tbp__graph-cell--commit .tbp__graph-node {
+  width: 6px;
+  height: 6px;
+}
+
+/* Recentre smaller node for main lane */
+.tbp__graph-cell--commit.tbp__graph-cell--main .tbp__graph-node {
+  left: 7px; /* centre x = 7 + 3 = 10 */
+  background: rgba(59, 130, 246, 0.7);
+  box-shadow: none;
+}
+
+/* Recentre smaller node for thread lane */
+.tbp__graph-cell--commit.tbp__graph-cell--thread .tbp__graph-node {
+  left: 21px; /* centre x = 21 + 3 = 24 */
+  background: rgba(34, 197, 94, 0.7);
+  box-shadow: none;
+}
+
+/* Content area inside a commit row */
+.tbp__option-content--commit {
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 4px;
+  min-width: 0;
+}
+
+.tbp__commit-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.tbp__commit-index {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  opacity: 0.65;
+  min-width: 22px;
+  text-align: right;
+}
+
+.tbp__commit-text {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.tbp__option--active-branch .tbp__commit-text {
+  opacity: 1;
+}
+
+/* HEAD badge styling on branch-head rows */
+.tbp__option--head {
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  padding-top: 1px;
+}
+
+/* Remove border on very first head row (no commits above it) */
+.tbp__option--head:first-child {
+  border-top: none;
+  margin-top: 1px;
+}
+
+/* Commits badge in header */
+.tbp__badge--commits {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+}
+
+/* Kind badge compact variant used on commit rows */
+.tbp__kind-badge--sm {
+  font-size: 8px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Footer (keyboard hint) ────────────────────────────────────────────── */
+
+.tbp__footer {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.tbp__hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.65;
+}

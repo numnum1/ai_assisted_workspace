@@ -495,10 +495,19 @@ function App() {
     if (!rootConv || rootConv.isThread) return null;
     const threads = listThreadsForRoot(history.conversations, rootId);
     if (threads.length === 0) return null;
-    const toBranchItem = (conv: { id: string; title: string; messages: { hidden?: boolean }[]; updatedAt: number; savedToProject?: boolean }): ThreadBranchItem => ({
+    const toBranchItem = (conv: {
+      id: string;
+      title: string;
+      messages: { role: 'user' | 'assistant' | 'tool' | 'system'; content: string; hidden?: boolean }[];
+      createdAt: number;
+      updatedAt: number;
+      savedToProject?: boolean;
+    }): ThreadBranchItem => ({
       id: conv.id,
       title: conv.title,
       messageCount: conv.messages.filter((m) => !m.hidden).length,
+      messages: conv.messages,
+      createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
       savedToProject: conv.savedToProject,
     });
