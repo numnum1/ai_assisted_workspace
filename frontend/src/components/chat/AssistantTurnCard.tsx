@@ -1,5 +1,6 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronRight,
   Scissors,
   GitFork,
   MessageSquare,
@@ -25,6 +26,19 @@ import {
 import "./AssistantTurnCard.css";
 
 const PROMPT_PACK_DISPLAY_NAME = "Prompt-Paket";
+
+function subUnitReactKey(su: SubRenderUnit): string {
+  if (su.type === "writeFileGroup") {
+    return `wf-${su.items.map((x) => x.originalIdx).join("-")}`;
+  }
+  if (su.type === "toolCall") {
+    return `tool-${su.assistantIdx}-${su.toolCallIdx}`;
+  }
+  if (su.type === "assistantText") {
+    return `at-${su.originalIdx}`;
+  }
+  return `tm-${su.originalIdx}`;
+}
 
 export interface AssistantTurnCardProps {
   originalIndices: number[];
@@ -83,6 +97,46 @@ export function AssistantTurnCard({
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
 
   const showActions = !readOnly && !streaming;
+
+  const { preUnits, toolUnits, postUnits, hasToolCalls } = useMemo(() => {
+    const firstToolIdx = subUnits.findIndex((s) => s.type === "toolCall");
+    let lastToolIdx = -1;
+    for (let i = subUnits.length - 1; i >= 0; i--) {
+      if (subUnits[i]!.type === "toolCall") {
+        lastToolIdx = i;
+        break;
+      }
+    }
+    const hasTc = firstToolIdx >= 0;
+    const pre = hasTc ? subUnits.slice(0, firstToolIdx) : subUnits;
+    const tools = subUnits.filter((s) => s.type === "toolCall");
+    const post = hasTc ? subUnits.slice(lastToolIdx + 1) : [];
+    return {
+      preUnits: pre,
+      toolUnits: tools,
+      postUnits: post,
+      hasToolCalls: hasTc,
+    };
+  }, [subUnits]);
+
+  const [erkundenOpen, setErkundenOpen] = useState(true);
+  const prevStreamingRef = useRef(streaming);
+
+  const lastVisibleOriginalIdx =
+    visibleEntries.length > 0
+      ? visibleEntries[visibleEntries.length - 1]!.originalIdx
+      : undefined;
+  const isLiveTurn =
+    lastVisibleOriginalIdx !== undefined &&
+    originalIndices.includes(lastVisibleOriginalIdx);
+
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current;
+    if (wasStreaming && !streaming && isLiveTurn) {
+      setErkundenOpen(false);
+    }
+    prevStreamingRef.current = streaming;
+  }, [streaming, isLiveTurn]);
 
   const renderSubUnit = (su: SubRenderUnit, key: string) => {
     if (su.type === "writeFileGroup") {
@@ -258,21 +312,69 @@ export function AssistantTurnCard({
         </div>
       )}
       <div className="assistant-turn-chunks">
-        {subUnits.map((su, idx) => {
-          const subKey =
-            su.type === "writeFileGroup"
-              ? `wf-${su.items.map((x) => x.originalIdx).join("-")}`
-              : su.type === "toolCall"
-                ? `tool-${su.assistantIdx}-${su.toolCallIdx}`
-                : su.type === "assistantText"
-                  ? `at-${su.originalIdx}`
-                  : `tm-${su.originalIdx}`;
-          return (
-            <Fragment key={`${subKey}-${idx}`}>
-              {renderSubUnit(su, subKey)}
-            </Fragment>
-          );
-        })}
+        {hasToolCalls ? (
+          <>
+            {preUnits.map((su, idx) => {
+              const subKey = subUnitReactKey(su);
+              return (
+                <Fragment key={`${subKey}-pre-${idx}`}>
+                  {renderSubUnit(su, subKey)}
+                </Fragment>
+              );
+            })}
+            <div className="erkunden-block">
+              <button
+                type="button"
+                className="erkunden-header"
+                onClick={() => setErkundenOpen((o) => !o)}
+                aria-expanded={erkundenOpen}
+              >
+                <ChevronRight
+                  size={14}
+                  className={`erkunden-chevron${erkundenOpen ? " erkunden-chevron--open" : ""}`}
+                  aria-hidden
+                />
+                <span className="erkunden-title">Erkunden</span>
+                <span className="erkunden-count">
+                  · {toolUnits.length}{" "}
+                  {toolUnits.length === 1 ? "Aufruf" : "Aufrufe"}
+                </span>
+                {streaming && isLiveTurn ? (
+                  <span className="erkunden-spinner" aria-hidden />
+                ) : null}
+              </button>
+              {erkundenOpen ? (
+                <div className="erkunden-body">
+                  {toolUnits.map((su, idx) => {
+                    const subKey = subUnitReactKey(su);
+                    return (
+                      <Fragment key={`${subKey}-erk-${idx}`}>
+                        {renderSubUnit(su, subKey)}
+                      </Fragment>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+            {postUnits.map((su, idx) => {
+              const subKey = subUnitReactKey(su);
+              return (
+                <Fragment key={`${subKey}-post-${idx}`}>
+                  {renderSubUnit(su, subKey)}
+                </Fragment>
+              );
+            })}
+          </>
+        ) : (
+          subUnits.map((su, idx) => {
+            const subKey = subUnitReactKey(su);
+            return (
+              <Fragment key={`${subKey}-${idx}`}>
+                {renderSubUnit(su, subKey)}
+              </Fragment>
+            );
+          })
+        )}
       </div>
     </div>
   );

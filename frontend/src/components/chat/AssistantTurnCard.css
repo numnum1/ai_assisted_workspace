@@ -32,3 +32,75 @@
   flex-direction: column;
   gap: 0.35rem;
 }
+
+/* Erkunden: collapsible tool-call block (Cursor-style "Exploring") */
+.erkunden-block {
+  margin: 0.15rem 0 0.25rem;
+  border-left: 3px solid var(--border-subtle, rgba(120, 120, 160, 0.45));
+  border-radius: 0 6px 6px 0;
+  background: var(--bg-tertiary, rgba(35, 35, 48, 0.55));
+  overflow: hidden;
+}
+
+.erkunden-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.erkunden-header:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+}
+
+.erkunden-chevron {
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: transform 0.15s ease;
+}
+
+.erkunden-chevron--open {
+  transform: rotate(90deg);
+}
+
+.erkunden-title {
+  font-weight: 600;
+}
+
+.erkunden-count {
+  color: var(--text-muted, rgba(200, 200, 220, 0.65));
+  font-weight: 400;
+}
+
+.erkunden-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0 0.5rem 0.5rem 1.65rem;
+}
+
+.erkunden-spinner {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--text-muted, rgba(160, 160, 190, 0.5));
+  border-top-color: var(--accent, #8b8bff);
+  animation: erkunden-spin 0.7s linear infinite;
+}
+
+@keyframes erkunden-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
