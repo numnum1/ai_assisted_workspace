@@ -289,6 +289,22 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     [activeId],
   );
 
+  const updateMessagesForConversation = useCallback(
+    (id: string, messages: ChatMessage[]) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          const title =
+            c.title === 'Neuer Chat' && messages.length > 0
+              ? generateTitle(messages)
+              : c.title;
+          return { ...c, messages, title, updatedAt: Date.now() };
+        }),
+      );
+    },
+    [],
+  );
+
   const createConversation = useCallback(
     (
       mode?: string,
@@ -467,6 +483,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     hydrated,
     updateMessages,
     updateMessageContent,
+    updateMessagesForConversation,
     createConversation,
     patchConversation,
     discardActiveAndCreateConversation,

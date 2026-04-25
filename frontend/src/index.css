@@ -1992,6 +1992,17 @@ body.file-tree-native-dragging {
   border-right: 1px solid var(--border);
 }
 
+.chat-thread-split-left .chat-panel-body-main {
+  flex: 1;
+  min-height: 0;
+}
+
+.chat-thread-split-left .chat-panel-body-main .chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .chat-thread-split-pane-header {
   flex-shrink: 0;
   display: flex;
@@ -2017,19 +2028,6 @@ body.file-tree-native-dragging {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.chat-thread-split-left-scroll {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.chat-thread-split-left-scroll .chat-messages {
-  flex: 1;
-  min-height: 0;
 }
 
 .chat-thread-split-switcher {

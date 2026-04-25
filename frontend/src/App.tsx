@@ -388,6 +388,14 @@ function App() {
     },
   });
 
+  // Parent-Chat-Instanz: immer instanziiert (React-Hooks-Regel), aktiv nur im Split-View
+  const parentChat = useChat((msgs) => {
+    const parentId = history.activeConversation?.parentConversationId;
+    if (parentId) {
+      history.updateMessagesForConversation(parentId, msgs);
+    }
+  });
+
   /** Bumped after modes + LLM list load so chat mode can sync once project defaults are known. */
   const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
 
@@ -448,6 +456,10 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
 
+  // Derive parent conversation for split-view (when the active chat is a thread)
+  const parentConversationId = history.activeConversation?.parentConversationId ?? null;
+  const parentConversation = history.conversations.find((c) => c.id === parentConversationId) ?? null;
+
   // Load messages when switching conversations
   useEffect(() => {
     if (history.activeConversation) {
@@ -455,6 +467,18 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
+
+  // Load parent messages into parentChat when the parent conversation changes
+  useEffect(() => {
+    if (parentConversationId) {
+      const parent = history.conversations.find((c) => c.id === parentConversationId);
+      if (parent) {
+        parentChat.loadMessages(parent.messages);
+        parentChatComposerDraftRef.current = '';
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentConversationId]);
 
   const loadModes = useCallback(async () => {
     try {
@@ -1051,6 +1075,7 @@ function App() {
   }, [refreshWorkspaceModeSchema]);
 
   const mainChatComposerDraftRef = useRef('');
+  const parentChatComposerDraftRef = useRef('');
 
   useEffect(() => {
     mainChatComposerDraftRef.current = '';
@@ -1073,6 +1098,25 @@ function App() {
     chat,
     patchConversation: history.patchConversation,
     onActiveSelectionClear: clearActiveSelectionForChat,
+  });
+
+  const parentConversationModel = useConversationModel({
+    projectPath: project.projectPath,
+    activeConversation: parentConversation ?? undefined,
+    activeConversationId: parentConversationId ?? history.activeId,
+    selectedMode,
+    modes,
+    modeLlmId,
+    useReasoning,
+    disabledToolkits,
+    referencedFiles: refs.referencedFiles,
+    focusedFieldKey: focusedField?.fieldKey,
+    activeSelection: null,
+    messages: parentChat.messages,
+    pendingMessageRef: parentChatComposerDraftRef,
+    chat: parentChat,
+    patchConversation: history.patchConversation,
+    onActiveSelectionClear: () => {},
   });
 
   const handleComposerDraftChange = useCallback(
@@ -1746,6 +1790,11 @@ function App() {
                   history.updateMessageContent(history.activeId, originalIdx, newContent);
                 }}
                 onComposerDraftChange={handleComposerDraftChange}
+                parentConversationId={parentConversationId ?? undefined}
+                parentMessages={parentConversationModel.messages}
+                parentStreaming={parentConversationModel.streaming}
+                onSendToParent={parentConversationModel.send}
+                onStopParent={parentConversationModel.stopStreaming}
               />
             </div>
           </div>
