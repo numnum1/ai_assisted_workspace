@@ -1049,7 +1049,11 @@ function App() {
     void refreshWorkspaceModeSchema();
   }, [refreshWorkspaceModeSchema]);
 
-  const [mainChatComposerDraft, setMainChatComposerDraft] = useState('');
+  const mainChatComposerDraftRef = useRef('');
+
+  useEffect(() => {
+    mainChatComposerDraftRef.current = '';
+  }, [history.activeId]);
 
   const conversation = useConversationModel({
     projectPath: project.projectPath,
@@ -1064,11 +1068,19 @@ function App() {
     focusedFieldKey: focusedField?.fieldKey,
     activeSelection,
     messages: chat.messages,
-    pendingMessage: mainChatComposerDraft,
+    pendingMessageRef: mainChatComposerDraftRef,
     chat,
     patchConversation: history.patchConversation,
     onActiveSelectionClear: clearActiveSelectionForChat,
   });
+
+  const handleComposerDraftChange = useCallback(
+    (text: string) => {
+      mainChatComposerDraftRef.current = text;
+      conversation.schedulePreviewRefresh();
+    },
+    [conversation.schedulePreviewRefresh],
+  );
 
   const performGuidedAgentPresetKickoff = useCallback(
     (conv: Conversation) => {
@@ -1725,7 +1737,7 @@ function App() {
             onUpdateMessage={(originalIdx, newContent) => {
               history.updateMessageContent(history.activeId, originalIdx, newContent);
             }}
-            onComposerDraftChange={setMainChatComposerDraft}
+            onComposerDraftChange={handleComposerDraftChange}
           />
         </Panel>
       </Group>
