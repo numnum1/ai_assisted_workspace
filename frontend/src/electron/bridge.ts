@@ -391,6 +391,9 @@ export interface AppBridge {
     get: () => Promise<AppPreferences>;
     set: (patch: Partial<AppPreferences>) => Promise<AppPreferences>;
   };
+  shell?: {
+    openDevTools: () => Promise<void>;
+  };
 }
 
 export function getAppBridge(): AppBridge | null {

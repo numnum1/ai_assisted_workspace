@@ -307,4 +307,7 @@ contextBridge.exposeInMainWorld("appBridge", {
     get: () => ipcRenderer.invoke("preferences:get"),
     set: (patch: unknown) => ipcRenderer.invoke("preferences:set", patch),
   },
+  shell: {
+    openDevTools: () => ipcRenderer.invoke("shell:openDevTools"),
+  },
 });

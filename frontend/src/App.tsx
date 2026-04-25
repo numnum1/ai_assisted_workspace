@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Panel, Group, Separator, usePanelRef } from 'react-resizable-panels';
 import type { Layout } from 'react-resizable-panels';
-import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload, Database, Settings, Palette } from 'lucide-react';
+import { FolderOpen, ArrowDown, ArrowUp, Check, GitCommitHorizontal, RefreshCw, Maximize2, Minimize2, Upload, Database, Settings, Palette, Bug } from 'lucide-react';
 import { FileTreeOutliner } from './components/outliner/FileTreeOutliner.tsx';
 import { MarkdownFileEditor } from './components/editor/MarkdownFileEditor.tsx';
 import { SubprojectTypeDialog } from './components/settings/SubprojectTypeDialog.tsx';
@@ -47,6 +47,7 @@ import { useOutlinerScope } from './hooks/useOutlinerScope.ts';
 import { useFileTabs } from './hooks/useFileTabs.ts';
 import { EditorTabs } from './components/editor/EditorTabs.tsx';
 import { SearchPanel } from './components/editor/SearchPanel.tsx';
+import { getAppBridge, isRunningInElectron } from './electron/bridge.ts';
 import { getMediaProjectPlugin } from './mediaProjectRegistry.ts';
 import { DefaultMediaProjectEditor } from './media/DefaultMediaProjectEditor.tsx';
 import { AlternativeVersionPanel } from './components/editor/AlternativeVersionPanel.tsx';
@@ -957,6 +958,19 @@ function App() {
 
   const commandActions: CommandAction[] = useMemo(() => {
     const actions: CommandAction[] = [
+      ...(isRunningInElectron()
+        ? [
+            {
+              id: 'open-devtools',
+              label: 'Entwicklertools öffnen',
+              icon: <Bug size={16} />,
+              handler: () => {
+                setPaletteOpen(false);
+                void getAppBridge()?.shell?.openDevTools?.();
+              },
+            } satisfies CommandAction,
+          ]
+        : []),
       {
         id: 'open-folder',
         label: 'Open Folder',

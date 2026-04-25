@@ -598,6 +598,17 @@ function registerIpcHandlers(): void {
   ipcMain.handle("preferences:set", (_event, patch) =>
     patchPreferences(patch),
   );
+
+  ipcMain.handle("shell:openDevTools", (event) => {
+    console.log("[electron] Received shell:openDevTools");
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      // win.webContents.openDevTools();
+      console.log("[electron] Finished shell:openDevTools");
+    } else {
+      console.warn("[electron] shell:openDevTools: no window for sender");
+    }
+  });
 }
 
 function createWindow(): void {
