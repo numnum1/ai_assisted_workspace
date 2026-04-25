@@ -56,7 +56,9 @@ export interface AssistantTurnCardProps {
   copiedIdx: number | null;
   setCopiedIdx: (idx: number | null) => void;
   onFileChanged?: (path: string) => void;
-  onSnapshotSettled?: (snapshotId: string) => void;
+  onSnapshotSettled?: (snapshotId: string, state: 'applied' | 'reverted' | 'dismissed') => void;
+  /** Called when a card is explicitly settled so the tool message content can be updated. */
+  onMessageSettle?: (originalIdx: number, state: 'applied' | 'reverted') => void;
   onForkFromMessage: (index: number) => void;
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
@@ -83,6 +85,7 @@ export function AssistantTurnCard({
   setCopiedIdx,
   onFileChanged,
   onSnapshotSettled,
+  onMessageSettle,
   onForkFromMessage,
   onStartThreadFromMessage,
   onForkToNewConversation,
@@ -95,6 +98,7 @@ export function AssistantTurnCard({
   const dismissIds = bulkDismissIds;
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
+  const messageSettleCb = readOnly ? undefined : onMessageSettle;
 
   const showActions = !readOnly && !streaming;
 
@@ -160,6 +164,7 @@ export function AssistantTurnCard({
           onFileChanged={fileCb}
           externalForced={isComposerBatch ? composerBatchForced : undefined}
           onSnapshotSettled={snapshotCb}
+          onMessageSettle={messageSettleCb}
         />
       );
     }

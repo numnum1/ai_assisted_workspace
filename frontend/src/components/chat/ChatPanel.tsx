@@ -70,6 +70,7 @@ import {
   parseSteeringPlan,
   type ParsedSteeringPlan,
 } from "./planFenceUtils.ts";
+import { settleWriteFileMessage } from "./writeFileToolParse.ts";
 import { SteeringPlanViewer } from "./SteeringPlanViewer.tsx";
 import {
   buildConversationById,
@@ -161,6 +162,8 @@ interface ChatPanelProps {
   fastAvailable?: boolean;
   onRetry?: () => void;
   onFileChanged?: (path: string) => void;
+  /** Called when a write_file tool message should be marked as settled (applied/reverted). */
+  onUpdateMessage?: (originalIdx: number, newContent: string) => void;
   /** Project agent templates for optional selection when starting a guided chat. */
   agentPresets?: AgentPreset[];
   /** Main composer text — for context preview aligned with the next send. */
@@ -261,6 +264,7 @@ interface ChatMessagesPaneProps {
   composerBatchForced: Record<string, CardState>;
   onFileChanged?: (path: string) => void;
   onSnapshotSettled?: (snapshotId: string) => void;
+  onMessageSettle?: (originalIdx: number, state: 'applied' | 'reverted') => void;
   onForkFromMessage: (index: number) => void;
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
@@ -292,6 +296,7 @@ function ChatMessagesPane({
   composerBatchForced,
   onFileChanged,
   onSnapshotSettled,
+  onMessageSettle,
   onForkFromMessage,
   onStartThreadFromMessage,
   onForkToNewConversation,
@@ -323,6 +328,7 @@ function ChatMessagesPane({
     : composerBatchForced;
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
+  const messageSettleCb = readOnly ? undefined : onMessageSettle;
 
   return (
     <div
@@ -367,6 +373,7 @@ function ChatMessagesPane({
               setCopiedIdx={setCopiedIdx}
               onFileChanged={fileCb}
               onSnapshotSettled={snapshotCb}
+              onMessageSettle={messageSettleCb}
               onForkFromMessage={onForkFromMessage}
               onStartThreadFromMessage={onStartThreadFromMessage}
               onForkToNewConversation={onForkToNewConversation}
@@ -699,6 +706,7 @@ export function ChatPanel({
   fastAvailable = true,
   onRetry,
   onFileChanged,
+  onUpdateMessage,
   onComposerDraftChange,
   agentPresets = [],
   activeSessionKind = "standard",
@@ -806,6 +814,18 @@ export function ChatPanel({
     setToolbarSettledIds((prev) => new Set(prev).add(snapshotId));
   }, []);
 
+  const handleMessageSettle = useCallback(
+    (originalIdx: number, state: 'applied' | 'reverted') => {
+      const msg = messages[originalIdx];
+      if (!msg) return;
+      const newContent = settleWriteFileMessage(msg.content, state);
+      if (newContent !== msg.content) {
+        onUpdateMessage?.(originalIdx, newContent);
+      }
+    },
+    [messages, onUpdateMessage],
+  );
+
   const handleWriteFileBulkComplete = useCallback(
     (patch: Record<string, CardState>) => {
       mergeComposerBatchForced(patch);
@@ -821,8 +841,20 @@ export function ChatPanel({
         ids.forEach((id) => n.add(id));
         return n;
       });
+      for (const item of pendingWriteFileItems) {
+        const state = patch[item.data.snapshotId] as CardState | undefined;
+        if (state === 'applied' || state === 'reverted') {
+          const msg = messages[item.originalIdx];
+          if (msg) {
+            const newContent = settleWriteFileMessage(msg.content, state);
+            if (newContent !== msg.content) {
+              onUpdateMessage?.(item.originalIdx, newContent);
+            }
+          }
+        }
+      }
     },
-    [mergeComposerBatchForced],
+    [mergeComposerBatchForced, pendingWriteFileItems, messages, onUpdateMessage],
   );
 
   const pendingClarification = useMemo(() => {
@@ -1160,6 +1192,7 @@ export function ChatPanel({
       composerBatchForced={composerBatchForced}
       onFileChanged={onFileChanged}
       onSnapshotSettled={handleSnapshotSettled}
+      onMessageSettle={handleMessageSettle}
       onForkFromMessage={onForkFromMessage}
       onStartThreadFromMessage={onStartThreadFromMessage}
       onForkToNewConversation={onForkToNewConversation}

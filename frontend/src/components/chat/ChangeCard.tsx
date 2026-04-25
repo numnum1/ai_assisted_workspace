@@ -120,8 +120,12 @@ interface ChangeCardProps {
   onFileChanged?: (path: string) => void;
   /** When set (e.g. batch „Alle anwenden“), overrides local state for display and actions */
   forcedCardState?: CardState;
-  /** Once per card: apply/revert success or card auto-dismissed (load fail, empty diff) — for bulk toolbar */
-  onSnapshotSettled?: (snapshotId: string) => void;
+  /**
+   * Once per card: fires when the card is settled.
+   * state = 'applied' | 'reverted' when the user explicitly accepted/reverted;
+   * state = 'dismissed' when auto-dismissed (no diff found or snapshot no longer exists).
+   */
+  onSnapshotSettled?: (snapshotId: string, state: 'applied' | 'reverted' | 'dismissed') => void;
 }
 
 const DISMISS_DELAY_MS = 1500;
@@ -147,14 +151,17 @@ export function ChangeCard({
   const loadAttemptedRef = useRef(false);
   const settledNotifiedRef = useRef(false);
 
-  const notifySnapshotSettled = useCallback(() => {
-    if (settledNotifiedRef.current) return;
-    settledNotifiedRef.current = true;
-    onSnapshotSettled?.(snapshotId);
-  }, [onSnapshotSettled, snapshotId]);
+  const notifySnapshotSettled = useCallback(
+    (state: 'applied' | 'reverted' | 'dismissed') => {
+      if (settledNotifiedRef.current) return;
+      settledNotifiedRef.current = true;
+      onSnapshotSettled?.(snapshotId, state);
+    },
+    [onSnapshotSettled, snapshotId],
+  );
 
   const dismissAndSettle = useCallback(() => {
-    notifySnapshotSettled();
+    notifySnapshotSettled('dismissed');
     setDismissed(true);
   }, [notifySnapshotSettled]);
 
@@ -168,6 +175,10 @@ export function ChangeCard({
         filesApi.getContent(path),
       ]);
       const fileText: string = fileJson.content ?? "";
+      if (!snapshot) {
+        dismissAndSettle();
+        return;
+      }
       if (isNew) {
         const lines = fileText
           .split("\n")
@@ -212,7 +223,7 @@ export function ChangeCard({
     setBusy(true);
     try {
       await snapshotsApi.apply(snapshotId);
-      notifySnapshotSettled();
+      notifySnapshotSettled('applied');
       setCardState("applied");
       onApply?.(snapshotId);
       onFileChanged?.(path);
@@ -225,7 +236,7 @@ export function ChangeCard({
     setBusy(true);
     try {
       const result = await snapshotsApi.revert(snapshotId);
-      notifySnapshotSettled();
+      notifySnapshotSettled('reverted');
       setCardState("reverted");
       onRevert?.(snapshotId, path, result.wasNew);
       onFileChanged?.(path);

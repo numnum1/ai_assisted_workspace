@@ -1721,6 +1721,9 @@ function App() {
               }
               setTreeRefreshKey((k) => k + 1);
             }}
+            onUpdateMessage={(originalIdx, newContent) => {
+              history.updateMessageContent(history.activeId, originalIdx, newContent);
+            }}
             onComposerDraftChange={setMainChatComposerDraft}
           />
         </Panel>

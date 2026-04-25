@@ -328,6 +328,26 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     );
   }, []);
 
+  /**
+   * Replaces the content of a single message within any conversation.
+   * Used to persist write_file settle state (applied/reverted) into the message so the
+   * "Pending changes" bar does not reappear after an app restart.
+   */
+  const updateMessageContent = useCallback(
+    (conversationId: string, messageIdx: number, newContent: string) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== conversationId) return c;
+          const newMessages = c.messages.map((m, i) =>
+            i === messageIdx ? { ...m, content: newContent } : m,
+          );
+          return { ...c, messages: newMessages, updatedAt: Date.now() };
+        }),
+      );
+    },
+    [],
+  );
+
   /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
   const discardActiveAndCreateConversation = useCallback(
     (mode?: string, sessionKind: ChatSessionKind = 'standard') => {
@@ -446,6 +466,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     activeId,
     hydrated,
     updateMessages,
+    updateMessageContent,
     createConversation,
     patchConversation,
     discardActiveAndCreateConversation,
