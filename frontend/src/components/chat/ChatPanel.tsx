@@ -398,35 +398,35 @@ function ChatMessagesPane({
                   : undefined
               }
             >
-              <div
-                className="chat-message-role"
-                style={
-                  msg.role === "user" && msg.modeColor
-                    ? { color: getContrastingTextColor(msg.modeColor) }
-                    : undefined
-                }
-              >
-                {msg.role === "user" ? (
-                  <span>
-                    You
-                    {msg.mode && (
-                      <span
-                        className="chat-message-mode"
-                        style={{
-                          color: getContrastingTextColor(msg.modeColor),
-                        }}
-                      >
-                        {" · "}
-                        {msg.mode}
-                      </span>
-                    )}
-                  </span>
-                ) : msg.role === "system" ? (
-                  <span>Thread · Kontext</span>
-                ) : (
-                  "Assistant"
-                )}
-              </div>
+              {(msg.role === "user" || msg.role === "system") && (
+                <div
+                  className="chat-message-role"
+                  style={
+                    msg.role === "user" && msg.modeColor
+                      ? { color: getContrastingTextColor(msg.modeColor) }
+                      : undefined
+                  }
+                >
+                  {msg.role === "user" ? (
+                    <span>
+                      You
+                      {msg.mode && (
+                        <span
+                          className="chat-message-mode"
+                          style={{
+                            color: getContrastingTextColor(msg.modeColor),
+                          }}
+                        >
+                          {" · "}
+                          {msg.mode}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span>Thread · Kontext</span>
+                  )}
+                </div>
+              )}
               <div
                 className={
                   msg.role === "assistant"

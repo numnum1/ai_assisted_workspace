@@ -4,18 +4,10 @@
 }
 
 .assistant-turn-actions {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 2px;
   padding: 0.15rem 0.25rem 0;
-}
-
-.assistant-turn-wrap:hover .assistant-turn-actions {
-  display: flex;
-}
-
-.assistant-turn-actions--visible {
-  display: flex;
 }
 
 .assistant-turn-actions .chat-fork-btn {

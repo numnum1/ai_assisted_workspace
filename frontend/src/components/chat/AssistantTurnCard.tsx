@@ -189,7 +189,6 @@ export function AssistantTurnCard({
 
       return (
         <div key={key} className="chat-message assistant">
-          <div className="chat-message-role">Assistant</div>
           <div className="chat-message-content chat-message-md">
             <ChatMessageMarkdown
               content={msg.content}
@@ -261,7 +260,6 @@ export function AssistantTurnCard({
 
     return (
       <div key={key} className={`chat-message ${msg.role}`}>
-        <div className="chat-message-role">Assistant</div>
         <div className="chat-message-content">{msg.content}</div>
       </div>
     );

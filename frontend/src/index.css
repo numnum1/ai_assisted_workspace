@@ -3220,9 +3220,13 @@ body.file-tree-native-dragging {
   border-left: 4px solid var(--text-muted);
 }
 
+/* Assistant: flat, Cursor-style — no bordered card; user keeps bubble/card */
 .chat-message.assistant {
-  background: var(--chat-ai-bg);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding-top: 4px;
+  padding-bottom: 10px;
 }
 
 .chat-message.system {
@@ -4641,13 +4645,9 @@ body.file-tree-native-dragging {
   position: absolute;
   top: 6px;
   right: 6px;
-  display: none;
+  display: flex;
   align-items: center;
   gap: 2px;
-}
-
-.chat-message:hover .chat-fork-actions {
-  display: flex;
 }
 
 .chat-fork-btn {
