@@ -36,6 +36,7 @@ import { buildThreadHiddenBootstrap } from './components/chat/chatThreadUtils.ts
 import type { GuidedThreadOfferPayload } from './components/chat/guidedThreadOfferUtils.ts';
 import { usePreferences } from './hooks/usePreferences.ts';
 import { AppearanceModal } from './components/settings/AppearanceModal.tsx';
+import { useProject } from './hooks/useProject.ts';
 import { useChapter } from './hooks/useChapter.ts';
 import { useChat } from './hooks/useChat.ts';
 import { useReferencedFiles } from './hooks/useContext.ts';
