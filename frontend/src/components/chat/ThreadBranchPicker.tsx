@@ -222,12 +222,6 @@ export function ThreadBranchPicker({
                 onClick={() => pick(item.id)}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                {/* Git graph line */}
-                <div className="thread-branch-picker__graph-line">
-                  <div className={`thread-branch-picker__graph-node ${isMain ? 'main' : 'branch'}`} />
-                  {!isMain && <div className="thread-branch-picker__graph-connector" />}
-                </div>
-
                 <div className="thread-branch-picker__option-content">
                   <div className="thread-branch-picker__option-icon">
                     {isMain ? (
@@ -254,6 +248,12 @@ export function ThreadBranchPicker({
                   {item.isActive && (
                     <Check size={18} className="thread-branch-picker__option-check" aria-hidden />
                   )}
+                </div>
+
+                {/* Git graph column — after content so grid places it in the narrow right column */}
+                <div className="thread-branch-picker__graph-line">
+                  <div className={`thread-branch-picker__graph-node ${isMain ? 'main' : 'branch'}`} />
+                  {!isMain && <div className="thread-branch-picker__graph-connector" />}
                 </div>
               </li>
             );
