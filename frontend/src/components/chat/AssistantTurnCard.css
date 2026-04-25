@@ -3,28 +3,23 @@
   margin-bottom: 0.5rem;
 }
 
-.assistant-turn-wrap:hover .assistant-turn-actions {
-  opacity: 1;
+.assistant-turn-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0.15rem 0.25rem 0;
 }
 
-.assistant-turn-actions {
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
+.assistant-turn-wrap:hover .assistant-turn-actions {
   display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  z-index: 2;
 }
 
 .assistant-turn-actions--visible {
-  opacity: 1;
+  display: flex;
 }
 
 .assistant-turn-actions .chat-fork-btn {
-  background: var(--bg-secondary, rgba(40, 40, 55, 0.92));
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: transparent;
 }
 
 .assistant-turn-chunks {

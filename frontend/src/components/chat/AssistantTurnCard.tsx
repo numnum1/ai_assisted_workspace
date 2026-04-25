@@ -269,48 +269,6 @@ export function AssistantTurnCard({
 
   return (
     <div className="assistant-turn-wrap">
-      {showActions && (
-        <div className="assistant-turn-actions" aria-label="Aktionen für diese KI-Antwort">
-          {firstVisIdx > 0 && !activeIsThread && (
-            <button
-              type="button"
-              className="chat-fork-btn"
-              onClick={() => onStartThreadFromMessage(lastOriginalIdx)}
-              title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-            >
-              <MessageSquare size={12} />
-            </button>
-          )}
-          {firstVisIdx > 0 && (
-            <button
-              type="button"
-              className="chat-fork-btn"
-              onClick={() => onForkFromMessage(lastOriginalIdx)}
-              title="Hier abschneiden (in-place)"
-            >
-              <Scissors size={12} />
-            </button>
-          )}
-          {firstVisIdx > 0 && !activeIsThread && (
-            <button
-              type="button"
-              className="chat-fork-btn"
-              onClick={() => onForkToNewConversation(lastOriginalIdx)}
-              title="Als neuen Chat forken"
-            >
-              <GitFork size={12} />
-            </button>
-          )}
-          <button
-            type="button"
-            className="chat-fork-btn chat-fork-btn--danger"
-            onClick={() => onDeleteMessages(originalIndices)}
-            title="Diese KI-Antwort löschen"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
-      )}
       <div className="assistant-turn-chunks">
         {hasToolCalls ? (
           <>
@@ -376,6 +334,48 @@ export function AssistantTurnCard({
           })
         )}
       </div>
+      {showActions && (
+        <div className="assistant-turn-actions" aria-label="Aktionen für diese KI-Antwort">
+          {firstVisIdx > 0 && !activeIsThread && (
+            <button
+              type="button"
+              className="chat-fork-btn"
+              onClick={() => onStartThreadFromMessage(lastOriginalIdx)}
+              title="Thread starten (neuer Chat mit bisherigem Verlauf)"
+            >
+              <MessageSquare size={12} />
+            </button>
+          )}
+          {firstVisIdx > 0 && (
+            <button
+              type="button"
+              className="chat-fork-btn"
+              onClick={() => onForkFromMessage(lastOriginalIdx)}
+              title="Hier abschneiden (in-place)"
+            >
+              <Scissors size={12} />
+            </button>
+          )}
+          {firstVisIdx > 0 && !activeIsThread && (
+            <button
+              type="button"
+              className="chat-fork-btn"
+              onClick={() => onForkToNewConversation(lastOriginalIdx)}
+              title="Als neuen Chat forken"
+            >
+              <GitFork size={12} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="chat-fork-btn chat-fork-btn--danger"
+            onClick={() => onDeleteMessages(originalIndices)}
+            title="Diese KI-Antwort löschen"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
