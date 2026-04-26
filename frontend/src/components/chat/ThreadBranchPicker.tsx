@@ -166,6 +166,9 @@ function buildGraphRows(allItems: InternalItem[]): {
 
   // ── Phase 1: fork-start + fork-end rows for each thread ──────────────────
   // Only threads (not main) get commit rows. Two rows per thread, always.
+  // Exception: merged threads only get the fork-start row — the merge row
+  // (Phase 1.5) already marks the end of the branch, so a separate tip
+  // commit would be redundant.
   const threadItems = allItems.filter((item) => item.kind === 'thread');
   for (const item of threadItems) {
     const commits = commitCache[item.lane];
@@ -185,19 +188,21 @@ function buildGraphRows(allItems: InternalItem[]): {
       isBranchFirst: true,
     });
 
-    rows.push({
-      rowKind:      'commit',
-      branch:       item,
-      lane:         item.lane,
-      activeLanes:  [],
-      isForkStart:  false,
-      isForkEnd:    true,
-      isListFirst:  false,
-      isListLast:   false,
-      commitText:   commits[commits.length - 1],
-      commitIndex:  commits.length,
-      isBranchFirst: false,
-    });
+    if (!item.mergedToParent) {
+      rows.push({
+        rowKind:      'commit',
+        branch:       item,
+        lane:         item.lane,
+        activeLanes:  [],
+        isForkStart:  false,
+        isForkEnd:    true,
+        isListFirst:  false,
+        isListLast:   false,
+        commitText:   commits[commits.length - 1],
+        commitIndex:  commits.length,
+        isBranchFirst: false,
+      });
+    }
   }
 
   // ── Phase 1.5: merge rows for threads that have been merged to parent ────────
