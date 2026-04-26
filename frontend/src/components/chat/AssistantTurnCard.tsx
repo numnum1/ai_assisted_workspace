@@ -339,7 +339,7 @@ export function AssistantTurnCard({
       </div>
       {showActions && (
         <div className="assistant-turn-actions" aria-label="Aktionen für diese KI-Antwort">
-          {firstVisIdx > 0 && !activeIsThread && (
+          {firstVisIdx > 0 && (
             <button
               type="button"
               className="chat-fork-btn"
@@ -359,7 +359,7 @@ export function AssistantTurnCard({
               <Scissors size={12} />
             </button>
           )}
-          {firstVisIdx > 0 && !activeIsThread && (
+          {firstVisIdx > 0 && (
             <button
               type="button"
               className="chat-fork-btn"

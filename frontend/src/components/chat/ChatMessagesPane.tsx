@@ -324,16 +324,14 @@ export function ChatMessagesPane({
               </div>
               {!readOnly && !streaming && editingIdx !== originalIdx && (
                 <div className="chat-fork-actions">
-                  {!activeIsThread && (
-                    <button
-                      type="button"
-                      className="chat-fork-btn"
-                      onClick={() => onStartThreadFromMessage(originalIdx)}
-                      title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-                    >
-                      <MessageSquare size={12} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="chat-fork-btn"
+                    onClick={() => onStartThreadFromMessage(originalIdx)}
+                    title="Thread starten (neuer Chat mit bisherigem Verlauf)"
+                  >
+                    <MessageSquare size={12} />
+                  </button>
                   {msg.role === "user" && isLastUserMsg && (
                     <button
                       type="button"
@@ -364,7 +362,7 @@ export function ChatMessagesPane({
                       <Scissors size={12} />
                     </button>
                   )}
-                  {visIdx > 0 && !activeIsThread && (
+                  {visIdx > 0 && (
                     <button
                       type="button"
                       className="chat-fork-btn"

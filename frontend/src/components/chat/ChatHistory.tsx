@@ -64,10 +64,8 @@ function groupByDate(convs: Conversation[]): { label: string; items: Conversatio
 
 function partitionConversations(conversations: Conversation[]) {
   const roots = conversations.filter((c) => !c.isThread);
-  const rootIds = new Set(roots.map((r) => r.id));
-  const threadList = conversations.filter((c) => Boolean(c.isThread && c.parentConversationId));
   const threadsByParent = new Map<string, Conversation[]>();
-  for (const t of threadList) {
+  for (const t of conversations.filter((c) => Boolean(c.isThread && c.parentConversationId))) {
     const pid = t.parentConversationId!;
     if (!threadsByParent.has(pid)) threadsByParent.set(pid, []);
     threadsByParent.get(pid)!.push(t);
@@ -75,11 +73,7 @@ function partitionConversations(conversations: Conversation[]) {
   for (const arr of threadsByParent.values()) {
     arr.sort((a, b) => b.updatedAt - a.updatedAt);
   }
-  const orphans = threadList.filter(
-    (t) => !t.parentConversationId || !rootIds.has(t.parentConversationId!),
-  );
-  orphans.sort((a, b) => b.updatedAt - a.updatedAt);
-  return { roots, threadsByParent, orphans };
+  return { roots, threadsByParent };
 }
 
 function titleMatches(conv: Conversation, qLower: string): boolean {
@@ -106,7 +100,7 @@ export function ChatHistory({
   const [userExpandedParentIds, setUserExpandedParentIds] = useState<Set<string>>(() => new Set());
   const editRef = useRef<HTMLInputElement>(null);
 
-  const { roots, threadsByParent, orphans } = useMemo(
+  const { roots, threadsByParent } = useMemo(
     () => partitionConversations(conversations),
     [conversations],
   );
@@ -120,12 +114,6 @@ export function ChatHistory({
       return kids.some((t) => titleMatches(t, q));
     });
   }, [roots, threadsByParent, filterText]);
-
-  const filteredOrphans = useMemo(() => {
-    const q = filterText.trim().toLowerCase();
-    if (!q) return orphans;
-    return orphans.filter((o) => titleMatches(o, q));
-  }, [orphans, filterText]);
 
   const groups = useMemo(() => groupByDate(filteredRoots), [filteredRoots]);
 
@@ -312,8 +300,7 @@ export function ChatHistory({
     );
   };
 
-  const showOrphansSection = filteredOrphans.length > 0;
-  const listEmpty = groups.length === 0 && !showOrphansSection;
+  const listEmpty = groups.length === 0;
 
   return (
     <div className="chat-history-panel">
@@ -392,13 +379,6 @@ export function ChatHistory({
             })}
           </div>
         ))}
-
-        {showOrphansSection && (
-          <div className="chat-history-orphans-section">
-            <div className="chat-history-group-label">Threads ohne zugehörigen Chat</div>
-            {filteredOrphans.map((o) => renderRow(o, { variant: 'orphan' }))}
-          </div>
-        )}
       </div>
     </div>
   );

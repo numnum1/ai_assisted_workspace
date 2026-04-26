@@ -1184,6 +1184,14 @@ function App() {
     [conversation.schedulePreviewRefresh],
   );
 
+  const handleParentComposerDraftChange = useCallback(
+    (text: string) => {
+      parentChatComposerDraftRef.current = text;
+      parentConversationModel.schedulePreviewRefresh();
+    },
+    [parentConversationModel.schedulePreviewRefresh],
+  );
+
   const performGuidedAgentPresetKickoff = useCallback(
     (conv: Conversation) => {
       const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
@@ -1444,7 +1452,7 @@ function App() {
   const handleStartThreadFromMessage = useCallback(
     (messageIndex: number) => {
       const parent = history.activeConversation;
-      if (!parent || parent.isThread) return;
+      if (!parent) return;
       if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
 
       const baseTitle = parent.title?.trim() || 'Chat';
@@ -1493,7 +1501,7 @@ function App() {
   const handleAcceptGuidedThreadFromOffer = useCallback(
     (messageIndex: number, offer: GuidedThreadOfferPayload) => {
       const parent = history.activeConversation;
-      if (!parent || parent.isThread) return;
+      if (!parent) return;
       if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
 
       const baseTitle = parent.title?.trim() || 'Chat';
@@ -1848,6 +1856,11 @@ function App() {
                 }}
                 onComposerDraftChange={handleComposerDraftChange}
                 onOpenThreadWorkspace={handleOpenThreadWorkspace}
+                contextInfo={conversation.contextInfo}
+                activeFile={activeChapterTitle}
+                isDirty={chapter.hasDirtyActions}
+                systemPromptPreview={conversation.systemPrompt}
+                onFetchContextBlocks={conversation.fetchContextBlocks}
               />
               {threadWorkspaceOpen &&
                 history.activeConversation?.isThread === true &&
@@ -1903,6 +1916,16 @@ function App() {
                     fastAvailable={fastAvailable}
                     activeSelection={activeSelection}
                     onDismissSelection={handleDismissSelection}
+                    onThreadDraftChange={handleComposerDraftChange}
+                    onParentDraftChange={handleParentComposerDraftChange}
+                    threadContextInfo={conversation.contextInfo}
+                    threadSystemPrompt={conversation.systemPrompt}
+                    onFetchThreadContextBlocks={conversation.fetchContextBlocks}
+                    parentContextInfo={parentConversationModel.contextInfo}
+                    parentSystemPrompt={parentConversationModel.systemPrompt}
+                    onFetchParentContextBlocks={parentConversationModel.fetchContextBlocks}
+                    activeFile={activeChapterTitle}
+                    isDirty={chapter.hasDirtyActions}
                   />
                 )}
             </div>
@@ -1910,13 +1933,15 @@ function App() {
         </Panel>
       </Group>
 
-      <ContextBar
-        contextInfo={conversation.contextInfo}
-        activeFile={activeChapterTitle}
-        isDirty={chapter.hasDirtyActions}
-        systemPromptPreview={conversation.systemPrompt}
-        onFetchContextBlocks={conversation.fetchContextBlocks}
-      />
+      {!threadWorkspaceOpen && (
+        <ContextBar
+          contextInfo={conversation.contextInfo}
+          activeFile={activeChapterTitle}
+          isDirty={chapter.hasDirtyActions}
+          systemPromptPreview={conversation.systemPrompt}
+          onFetchContextBlocks={conversation.fetchContextBlocks}
+        />
+      )}
 
       {credDialogOpen && (
         <GitCredentialsDialog

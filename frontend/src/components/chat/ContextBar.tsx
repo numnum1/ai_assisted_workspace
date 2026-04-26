@@ -3,7 +3,7 @@ import { FileText, ChevronDown, ChevronRight, Eye, Copy, Check } from 'lucide-re
 import type { ContextInfo } from '../../types.ts';
 import { GlossarContextView } from './GlossarContextView.tsx';
 
-interface ContextBlock {
+export interface ContextBlock {
   type: string;
   label: string;
   content: string;
