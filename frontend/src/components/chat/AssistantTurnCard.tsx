@@ -7,6 +7,7 @@ import {
   Trash2,
   Copy,
   Check,
+  GitMerge,
 } from "lucide-react";
 import type { ChatMessage, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
@@ -191,6 +192,25 @@ export function AssistantTurnCard({
         msg.content.trim() &&
         prevUser?.role === "user" &&
         prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
+
+      if (msg.kind === 'thread-summary') {
+        return (
+          <div key={key} className="chat-message chat-message--thread-summary">
+            <div className="chat-message--thread-summary-header">
+              <GitMerge size={14} aria-hidden className="chat-message--thread-summary-icon" />
+              <span className="chat-message--thread-summary-label">
+                Zusammenfassung
+                {msg.threadSummaryMeta?.fromThreadTitle
+                  ? `: ${msg.threadSummaryMeta.fromThreadTitle}`
+                  : ''}
+              </span>
+            </div>
+            <div className="chat-message--thread-summary-body">
+              <ChatMessageMarkdown content={msg.content} />
+            </div>
+          </div>
+        );
+      }
 
       return (
         <div key={key} className="chat-message assistant">

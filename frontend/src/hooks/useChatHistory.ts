@@ -305,6 +305,18 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     [],
   );
 
+  const appendMessageToConversation = useCallback(
+    (id: string, message: ChatMessage) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          return { ...c, messages: [...c.messages, message], updatedAt: Date.now() };
+        }),
+      );
+    },
+    [],
+  );
+
   const createConversation = useCallback(
     (
       mode?: string,
@@ -484,6 +496,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     updateMessages,
     updateMessageContent,
     updateMessagesForConversation,
+    appendMessageToConversation,
     createConversation,
     patchConversation,
     discardActiveAndCreateConversation,

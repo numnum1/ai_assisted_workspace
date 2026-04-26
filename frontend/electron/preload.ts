@@ -234,6 +234,8 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("chat:startStream", body),
     stopStream: (streamId: string) =>
       ipcRenderer.invoke("chat:stopStream", streamId),
+    summarizeThread: (body: unknown) =>
+      ipcRenderer.invoke("chat:summarizeThread", body),
     onStreamEvent: (streamId: string, listener: (payload: unknown) => void) => {
       const wrapped = (_event: unknown, payload: unknown) => {
         if (

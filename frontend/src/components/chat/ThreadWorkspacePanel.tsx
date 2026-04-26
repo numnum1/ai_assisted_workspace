@@ -3,7 +3,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { Minimize2 } from "lucide-react";
+import { Minimize2, GitMerge } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { Layout } from "react-resizable-panels";
 import type {
@@ -48,6 +48,11 @@ export interface ThreadWorkspacePanelProps {
 
   /** Close the workspace overlay */
   onClose: () => void;
+
+  /** Summarize the thread and inject the result into the parent conversation */
+  onSummarizeToParent?: () => Promise<void>;
+  /** True while the summary LLM call is in progress */
+  isSummarizing?: boolean;
 
   /** Thread message actions (right pane) */
   onSend: (message: string) => void;
@@ -139,6 +144,8 @@ export function ThreadWorkspacePanel({
   threadBranchItems,
   onSwitchBranch,
   onClose,
+  onSummarizeToParent,
+  isSummarizing = false,
   onSend,
   onStop,
   onEditMessage,
@@ -219,6 +226,18 @@ export function ThreadWorkspacePanel({
           {threadTitle}
         </span>
         <div className="chat-header-actions">
+          {onSummarizeToParent && (
+            <button
+              type="button"
+              className="chat-history-btn"
+              onClick={() => { void onSummarizeToParent(); }}
+              disabled={isSummarizing || !parentConversation}
+              title="Zusammenfassung an Parent-Chat senden"
+              aria-label="Zusammenfassung an Parent-Chat senden"
+            >
+              <GitMerge size={14} className={isSummarizing ? 'chat-history-btn--spinning' : undefined} />
+            </button>
+          )}
           <button
             type="button"
             className="chat-history-btn active"

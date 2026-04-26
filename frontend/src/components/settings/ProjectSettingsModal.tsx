@@ -224,7 +224,7 @@ export function ProjectSettingsModal({
   }, [initialized, tab, loadWorkspacePlugins]);
 
   useEffect(() => {
-    if (!loading && (tab === 'aiProviders' || tab === 'modes' || tab === 'quickChat' || tab === 'agents')) {
+    if (!loading && (tab === 'aiProviders' || tab === 'modes' || tab === 'quickChat' || tab === 'agents' || tab === 'general')) {
       void loadLlms();
     }
   }, [loading, tab, loadLlms]);
@@ -761,6 +761,26 @@ export function ProjectSettingsModal({
                   }}
                   style={{ width: '80px' }}
                 />
+
+                <label className="ps-label" style={{ marginTop: '1.25rem' }}>
+                  LLM für Thread-Zusammenfassung
+                </label>
+                <p className="ps-hint">
+                  LLM, das beim Klick auf "Zusammenfassung an Parent senden" im Thread-Workspace genutzt wird. Leer lassen = erstes konfiguriertes LLM.
+                </p>
+                <select
+                  className="ps-input"
+                  value={config.threadSummaryLlmId ?? ''}
+                  onChange={(e) => setConfig((p) => ({ ...p, threadSummaryLlmId: e.target.value }))}
+                  disabled={loadingLlms || !(llmsState?.providers?.length)}
+                >
+                  <option value="">Standard (erstes LLM)</option>
+                  {(llmsState?.providers ?? []).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.fastModel})
+                    </option>
+                  ))}
+                </select>
 
                 <label className="ps-label" style={{ marginTop: '1.25rem' }}>
                   Extra-Funktionen

@@ -47,6 +47,7 @@ import {
   previewChatContext,
   startChatStream,
   stopChatStream,
+  generateThreadSummary,
 } from "./services/chatService.js";
 import {
   addGlossaryEntry,
@@ -185,6 +186,17 @@ function registerIpcHandlers(): void {
   });
   ipcMain.handle("chat:stopStream", (_event, streamId: string) =>
     stopChatStream(streamId),
+  );
+
+  ipcMain.handle(
+    "chat:summarizeThread",
+    async (_event, body: { messages: Parameters<typeof generateThreadSummary>[0]; threadTitle?: string }) => {
+      console.trace(`[main] chat:summarizeThread: messages=${body.messages.length}`);
+      const config = await getProjectConfig(getCurrentProjectPath());
+      const result = await generateThreadSummary(body.messages, config.threadSummaryLlmId ?? null);
+      console.trace(`[main] chat:summarizeThread finished`);
+      return result;
+    },
   );
 
   ipcMain.handle("llms:list", () => listPublicProviders());

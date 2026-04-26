@@ -119,6 +119,7 @@ const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   defaultMode: "",
   workspaceMode: "default",
   quickChatLlmId: "",
+  threadSummaryLlmId: "",
   extraFeatures: {},
 };
 
@@ -215,6 +216,7 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     defaultMode: input?.defaultMode ?? "",
     workspaceMode: input?.workspaceMode ?? "default",
     quickChatLlmId: input?.quickChatLlmId ?? "",
+    threadSummaryLlmId: input?.threadSummaryLlmId ?? "",
     ...(maxToolRounds !== undefined ? { maxToolRounds } : {}),
     extraFeatures: input?.extraFeatures ?? {},
   };

@@ -226,6 +226,7 @@ export interface AppBridge {
     previewContext: (body: ChatRequest) => Promise<ChatContextPreviewResult>;
     startStream: (body: ChatRequest) => Promise<ChatStreamStartResult>;
     stopStream: (streamId: string) => Promise<{ status: string }>;
+    summarizeThread: (body: { messages: import('../types.ts').ChatMessage[] }) => Promise<string>;
     onStreamEvent: (
       streamId: string,
       listener: (event: ChatStreamEvent) => void,

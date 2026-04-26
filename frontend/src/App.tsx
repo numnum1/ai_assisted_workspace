@@ -33,7 +33,7 @@ import type {
 } from './types.ts';
 import type { NewChatConfirmPayload } from './components/chat/NewChatDialog.tsx';
 import { CHAT_TOOLKIT_IDS } from './types.ts';
-import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, vectorApi, AuthRequiredError } from './api.ts';
+import { modesApi, gitApi, projectApi, projectConfigApi, bookApi, llmApi, vectorApi, AuthRequiredError, chatApi } from './api.ts';
 import { buildThreadHiddenBootstrap } from './components/chat/chatThreadUtils.ts';
 import type { GuidedThreadOfferPayload } from './components/chat/guidedThreadOfferUtils.ts';
 import {
@@ -469,6 +469,7 @@ function App() {
 
   // Thread Workspace overlay
   const [threadWorkspaceOpen, setThreadWorkspaceOpen] = useState(false);
+  const [summarizingThread, setSummarizingThread] = useState(false);
 
   // Close workspace when switching away from a thread conversation
   useEffect(() => {
@@ -484,6 +485,30 @@ function App() {
   const handleCloseThreadWorkspace = useCallback(() => {
     setThreadWorkspaceOpen(false);
   }, []);
+
+  const handleSummarizeToParent = useCallback(async () => {
+    const parentId = history.activeConversation?.parentConversationId;
+    if (!parentId) return;
+    const threadTitle = history.activeConversation?.title ?? 'Thread';
+    setSummarizingThread(true);
+    try {
+      const summaryText = await chatApi.summarizeThread(chat.messages);
+      const summaryMessage = {
+        role: 'assistant' as const,
+        content: summaryText,
+        kind: 'thread-summary' as const,
+        threadSummaryMeta: {
+          fromThreadId: history.activeId,
+          fromThreadTitle: threadTitle,
+        },
+      };
+      history.appendMessageToConversation(parentId, summaryMessage);
+    } catch (err) {
+      console.error('[App] handleSummarizeToParent failed:', err);
+    } finally {
+      setSummarizingThread(false);
+    }
+  }, [chat.messages, history]);
 
   // Build ThreadBranchPicker data for the workspace
   const threadWorkspaceRail = useMemo(() => {
@@ -1959,6 +1984,8 @@ function App() {
                     threadBranchItems={threadWorkspaceRail.threadBranchItems}
                     onSwitchBranch={handleSwitchChat}
                     onClose={handleCloseThreadWorkspace}
+                    onSummarizeToParent={handleSummarizeToParent}
+                    isSummarizing={summarizingThread}
                     onSend={conversation.send}
                     onStop={conversation.stopStreaming}
                     onEditMessage={conversation.editMessage}

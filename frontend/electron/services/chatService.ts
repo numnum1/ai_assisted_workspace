@@ -1063,3 +1063,63 @@ async function runChatStream(
     streamSessions.delete(streamId);
   }
 }
+
+/**
+ * Generates a concise summary of a thread's messages using a (potentially different) LLM.
+ * Uses a non-streaming completion request.
+ */
+export async function generateThreadSummary(
+  messages: ChatMessage[],
+  llmId: string | null | undefined,
+): Promise<string> {
+  console.trace(`[chat] generateThreadSummary: llmId=${llmId ?? "(default)"}, messages=${messages.length}`);
+
+  const provider = await resolveAiProvider(llmId);
+  const endpoint = resolveProviderEndpoint(provider, false);
+
+  const visibleMessages = messages.filter((m) => !m.hidden && m.role !== 'system');
+  const transcript = visibleMessages
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n');
+
+  const requestMessages = [
+    {
+      role: 'system' as const,
+      content:
+        'Du bist ein präziser Assistent. Fasse den folgenden Chat-Thread knapp und sachlich zusammen. ' +
+        'Beschreibe, was besprochen wurde und welche Ergebnisse oder Entscheidungen erzielt wurden. ' +
+        'Antworte ausschließlich mit der Zusammenfassung, ohne Einleitung oder Metakommentar.',
+    },
+    {
+      role: 'user' as const,
+      content: `Bitte fasse diesen Thread zusammen:\n\n${transcript}`,
+    },
+  ];
+
+  const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${endpoint.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: endpoint.model,
+      stream: false,
+      messages: requestMessages,
+    }),
+  });
+
+  if (!response.ok) {
+    let detail = `Thread summary error: ${response.status}`;
+    try {
+      const body = await response.text();
+      if (body) detail += ` — ${body}`;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+
+  const json = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const text = json?.choices?.[0]?.message?.content?.trim() ?? '';
+  console.trace(`[chat] generateThreadSummary finished, summary length=${text.length}`);
+  return text;
+}

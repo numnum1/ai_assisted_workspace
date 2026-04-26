@@ -66,6 +66,11 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
+export interface ThreadSummaryMeta {
+  fromThreadId: string;
+  fromThreadTitle: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
@@ -81,6 +86,10 @@ export interface ChatMessage {
   hidden?: boolean;
   /** Present on user messages: the expanded content with file data prepended, used as history content */
   resolvedContent?: string;
+  /** Special message kinds for non-standard rendering */
+  kind?: 'thread-summary';
+  /** Present when kind === 'thread-summary' */
+  threadSummaryMeta?: ThreadSummaryMeta;
 }
 
 export interface ChatRequest {
@@ -182,6 +191,8 @@ export interface ProjectConfig {
   workspaceMode?: string;
   /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
   quickChatLlmId?: string;
+  /** LLM id for generating thread summaries; empty = first configured LLM */
+  threadSummaryLlmId?: string;
   /** Max number of tool-call rounds before the loop exits (default: 6). */
   maxToolRounds?: number;
   extraFeatures?: ProjectExtraFeatures;

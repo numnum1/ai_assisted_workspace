@@ -3,6 +3,7 @@ import type {
   FileNode,
   Mode,
   ChatRequest,
+  ChatMessage,
   GitStatus,
   GitCommit,
   GitSyncStatus,
@@ -754,6 +755,14 @@ export const chatApi = {
   }> => {
     const bridge = getAppBridge();
     if (bridge?.chat) return bridge.chat.previewContext(body);
+    throw new Error(
+      "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten.",
+    );
+  },
+
+  summarizeThread: async (messages: ChatMessage[]): Promise<string> => {
+    const bridge = getAppBridge();
+    if (bridge?.chat) return bridge.chat.summarizeThread({ messages });
     throw new Error(
       "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten.",
     );
