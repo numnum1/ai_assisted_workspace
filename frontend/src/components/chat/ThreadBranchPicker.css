@@ -1,12 +1,10 @@
 /*
- * ThreadBranchPicker — Git-style branch / thread picker
+ * ThreadBranchPicker — Multi-Lane Git-style branch / thread picker
  * Modes: "dropdown" (default) and "panel" (always-open, fills container).
  * BEM block abbreviation: tbp
  *
- * Graph column layout (32 px wide):
- *   x = 10 px  → trunk lane  — main-chat nodes sit here
- *   x = 24 px  → branch lane — thread nodes sit here
- *   arm        → horizontal bar trunk→branch at 50 % height (threads only)
+ * Graph rendering is fully SVG-based (.tbp__graph-svg).
+ * Lane colours and widths are controlled in ThreadBranchPicker.tsx constants.
  */
 
 /* ─── Root ──────────────────────────────────────────────────────────────── */
@@ -89,7 +87,7 @@
   top: calc(100% + 6px);
   left: 0;
   z-index: 1000;
-  width: 360px;
+  width: 380px;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -143,14 +141,9 @@
   white-space: nowrap;
 }
 
-.tbp__badge--main {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-}
-
-.tbp__badge--thread {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+.tbp__badge--commits {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
 }
 
 /* ─── Search row ────────────────────────────────────────────────────────── */
@@ -197,7 +190,7 @@
   list-style: none;
   padding: 4px 0;
   margin: 0;
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
   scrollbar-width: thin;
   flex: 1;
@@ -215,14 +208,14 @@
   text-align: center;
 }
 
-/* ─── Option (list item) ────────────────────────────────────────────────── */
+/* ─── Option (list row) ─────────────────────────────────────────────────── */
 
 .tbp__option {
   display: flex;
-  align-items: stretch; /* lets graph cell span full row height */
+  align-items: stretch; /* lets SVG span full row height */
   cursor: pointer;
   border-radius: 5px;
-  margin: 1px 5px;
+  margin: 0 4px;
   transition: background 0.1s;
   user-select: none;
 }
@@ -241,94 +234,34 @@
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
-/* ─── Graph cell ────────────────────────────────────────────────────────── */
+/* Faint highlight on all commit rows of the active branch */
+.tbp__option--active-branch.tbp__option--commit:not(.tbp__option--keyboard) {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
 
-.tbp__graph-cell {
-  position: relative;
-  width: 32px;
+/* HEAD rows get a subtle separator between commit rows and head rows */
+.tbp__option--head {
+  box-shadow: 0 -1px 0 0 var(--border);
+}
+
+.tbp__option--head:first-child {
+  box-shadow: none;
+}
+
+/* ─── SVG graph column ──────────────────────────────────────────────────── */
+
+/*
+ * The SVG is rendered inline per row.
+ * Width is computed dynamically (numLanes * LANE_W + 8) in JSX.
+ * Height stretches to fill the row via align-items: stretch on the parent.
+ */
+.tbp__graph-svg {
+  display: block;
   flex-shrink: 0;
-}
-
-/* Trunk — full-height vertical line at x = 9…11 px */
-.tbp__graph-cell::before {
-  content: '';
-  position: absolute;
-  left: 9px;
-  width: 2px;
-  top: 0;
-  bottom: 0;
-  background: var(--accent, #3b82f6);
-  opacity: 0.3;
-}
-
-/* First item: trunk begins at the node centre, not at the very top */
-.tbp__graph-cell--first::before {
-  top: 50%;
-}
-
-/* Last item: trunk ends at the node centre, not at the very bottom */
-.tbp__graph-cell--last::before {
-  bottom: 50%;
-}
-
-/* Single-item list: no trunk needed */
-.tbp__graph-cell--first.tbp__graph-cell--last::before {
-  display: none;
-}
-
-/* ─── Graph node (the dot on each row) ─────────────────────────────────── */
-
-.tbp__graph-node {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 2px solid var(--bg-primary, #1e1e2e);
-  z-index: 2;
-}
-
-/* Main node: sits on the trunk (centre x = 10, so left = 6) */
-.tbp__graph-cell--main .tbp__graph-node {
-  left: 6px;
-  background: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-}
-
-/* Thread node: sits on branch lane (centre x = 24, so left = 20) */
-.tbp__graph-cell--thread .tbp__graph-node {
-  left: 20px;
-  background: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
-}
-
-/* Thread arm: horizontal connector trunk → branch node */
-.tbp__graph-cell--thread::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  width: 12px;
-  height: 2px;
-  top: calc(50% - 1px);
-  background: #22c55e;
-  opacity: 0.5;
-  border-radius: 1px;
-}
-
-/* Active item: larger, brighter node */
-.tbp__option--current .tbp__graph-cell--main .tbp__graph-node {
-  width: 10px;
-  height: 10px;
-  left: 5px;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
-}
-
-.tbp__option--current .tbp__graph-cell--thread .tbp__graph-node {
-  width: 10px;
-  height: 10px;
-  left: 19px;
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.3);
+  align-self: stretch;
+  /* min-height prevents the SVG from collapsing on very short rows */
+  min-height: 28px;
+  overflow: visible;
 }
 
 /* ─── Option content area ───────────────────────────────────────────────── */
@@ -338,8 +271,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px 7px 4px;
+  padding: 7px 10px 7px 6px;
   min-width: 0;
+}
+
+/* Compact padding for commit rows */
+.tbp__option-content--commit {
+  padding: 4px 10px 4px 6px;
+  gap: 5px;
 }
 
 .tbp__option-icon {
@@ -374,7 +313,7 @@
   min-width: 0;
 }
 
-/* Small pill showing "main" / "thread" */
+/* Kind pill — colour injected via inline style in JSX */
 .tbp__kind-badge {
   flex-shrink: 0;
   font-size: 9px;
@@ -386,14 +325,9 @@
   line-height: 1.5;
 }
 
-.tbp__kind-badge--main {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-}
-
-.tbp__kind-badge--thread {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+.tbp__kind-badge--sm {
+  font-size: 8px;
+  padding: 0 4px;
 }
 
 .tbp__option-title {
@@ -409,7 +343,6 @@
   font-weight: 600;
 }
 
-/* Meta row (message count + timestamp) */
 .tbp__option-meta {
   display: flex;
   align-items: center;
@@ -441,62 +374,21 @@
   color: var(--accent);
 }
 
-/* ─── Commit rows ───────────────────────────────────────────────────────── */
+/* ─── Commit row labels ──────────────────────────────────────────────────── */
 
-/* Commit rows are more compact than branch-head rows */
-.tbp__option--commit {
-  margin: 0 5px;
-  border-radius: 3px;
-}
-
-/* Highlight all commits of the active branch with a faint tint */
-.tbp__option--active-branch.tbp__option--commit:not(.tbp__option--keyboard) {
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
-}
-
-/* Commit graph cell: smaller node, no glow */
-.tbp__graph-cell--commit .tbp__graph-node {
-  width: 6px;
-  height: 6px;
-}
-
-/* Recentre smaller node for main lane */
-.tbp__graph-cell--commit.tbp__graph-cell--main .tbp__graph-node {
-  left: 7px; /* centre x = 7 + 3 = 10 */
-  background: rgba(59, 130, 246, 0.7);
-  box-shadow: none;
-}
-
-/* Recentre smaller node for thread lane */
-.tbp__graph-cell--commit.tbp__graph-cell--thread .tbp__graph-node {
-  left: 21px; /* centre x = 21 + 3 = 24 */
-  background: rgba(34, 197, 94, 0.7);
-  box-shadow: none;
-}
-
-/* Content area inside a commit row */
-.tbp__option-content--commit {
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px 4px 4px;
-  min-width: 0;
-}
-
-.tbp__commit-icon {
+.tbp__commit-tag {
   flex-shrink: 0;
-  color: var(--text-muted);
-  opacity: 0.6;
-}
-
-.tbp__commit-index {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-family: ui-monospace, monospace;
-  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   opacity: 0.65;
   min-width: 22px;
   text-align: right;
 }
+
+.tbp__commit-tag--start { opacity: 0.55; }
+.tbp__commit-tag--end   { opacity: 0.85; }
 
 .tbp__commit-text {
   flex: 1;
@@ -505,40 +397,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 .tbp__option--active-branch .tbp__commit-text {
   opacity: 1;
 }
 
-/* HEAD badge styling on branch-head rows */
-.tbp__option--head {
-  border-top: 1px solid var(--border);
-  margin-top: 2px;
-  padding-top: 1px;
-}
-
-/* Remove border on very first head row (no commits above it) */
-.tbp__option--head:first-child {
-  border-top: none;
-  margin-top: 1px;
-}
-
-/* Commits badge in header */
-.tbp__badge--commits {
-  background: rgba(168, 85, 247, 0.12);
-  color: #a855f7;
-}
-
-/* Kind badge compact variant used on commit rows */
-.tbp__kind-badge--sm {
-  font-size: 8px;
-  padding: 0 4px;
-  flex-shrink: 0;
-}
-
-/* ─── Footer (keyboard hint) ────────────────────────────────────────────── */
+/* ─── Footer ────────────────────────────────────────────────────────────── */
 
 .tbp__footer {
   flex-shrink: 0;
