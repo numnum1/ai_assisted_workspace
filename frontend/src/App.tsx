@@ -1563,6 +1563,86 @@ function App() {
     [agentPresets, chat.messages, disabledToolkits, history, llms, modeLlmId, modes, selectedMode, useReasoning],
   );
 
+  const handleParentForkToNewConversation = useCallback((index: number) => {
+    const parent = parentConversation;
+    if (!parent) return;
+    const parentMessages = parentConversationModel.messages;
+    const forkedMessages = parentMessages.slice(0, index + 1);
+    const baseTitle = parent.title ?? 'Chat';
+    const base = `${baseTitle}-fork`;
+    const existingTitles = new Set(history.conversations.map((c) => c.title));
+    let n = 1;
+    while (existingTitles.has(`${base} (${n})`)) n++;
+    const sk = parent.sessionKind ?? 'standard';
+    const preset =
+      parent.agentPresetId != null
+        ? agentPresets.find((a) => a.id === parent.agentPresetId)
+        : undefined;
+    const threadModeId = preset?.threadModeId?.trim();
+    const forkMode =
+      threadModeId && modes.some((m) => m.id === threadModeId) ? threadModeId : selectedMode;
+    const newConv = history.createConversation(forkMode, forkedMessages, `${base} (${n})`, sk);
+    if (sk === 'guided' && parent.steeringPlan) {
+      history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
+    }
+    const agentPatch = agentExecutionPartialFromParent(parent);
+    const guidedPresetPatch = sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
+    const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
+    const forkPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
+    if (Object.keys(forkPatches).length > 0) {
+      history.patchConversation(newConv.id, forkPatches);
+    }
+  }, [agentPresets, parentConversation, parentConversationModel.messages, history, llms, modes, selectedMode]);
+
+  const handleParentStartThreadFromMessage = useCallback(
+    (messageIndex: number) => {
+      const parent = parentConversation;
+      if (!parent) return;
+      const parentMessages = parentConversationModel.messages;
+      if (messageIndex < 0 || messageIndex >= parentMessages.length) return;
+
+      const baseTitle = parent.title?.trim() || 'Chat';
+      const base = `${baseTitle}-Thread`;
+      const existingTitles = new Set(history.conversations.map((c) => c.title));
+      let n = 1;
+      while (existingTitles.has(`${base} (${n})`)) n++;
+
+      const initialMessages = buildThreadHiddenBootstrap(baseTitle, parentMessages, messageIndex);
+
+      const sk = parent.sessionKind ?? 'standard';
+      const preset =
+        parent.agentPresetId != null
+          ? agentPresets.find((a) => a.id === parent.agentPresetId)
+          : undefined;
+      const threadModeId = preset?.threadModeId?.trim();
+      const threadMode =
+        threadModeId && modes.some((m) => m.id === threadModeId)
+          ? threadModeId
+          : (parent.mode || selectedMode);
+      const newConv = history.createConversation(
+        threadMode,
+        initialMessages,
+        `${base} (${n})`,
+        sk,
+      );
+      if (sk === 'guided' && parent.steeringPlan) {
+        history.patchConversation(newConv.id, { steeringPlan: parent.steeringPlan });
+      }
+      const agentPatch = agentExecutionPartialFromParent(parent);
+      const guidedPresetPatch = sk === 'guided' ? guidedPresetPartialFromParent(parent) : {};
+      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
+      const threadPatches = { ...agentPatch, ...guidedPresetPatch, ...threadExec };
+      if (Object.keys(threadPatches).length > 0) {
+        history.patchConversation(newConv.id, threadPatches);
+      }
+      history.patchConversation(newConv.id, {
+        isThread: true,
+        parentConversationId: parent.id,
+      });
+    },
+    [agentPresets, parentConversation, parentConversationModel.messages, history, llms, modes, selectedMode],
+  );
+
   const handleSwitchChat = useCallback((id: string) => {
     history.switchConversation(id);
   }, [history]);
@@ -1881,8 +1961,6 @@ function App() {
                     onClose={handleCloseThreadWorkspace}
                     onSend={conversation.send}
                     onStop={conversation.stopStreaming}
-                    onSendToParent={parentConversationModel.send}
-                    onStopParent={parentConversationModel.stopStreaming}
                     onEditMessage={conversation.editMessage}
                     onDeleteMessages={conversation.deleteMessages}
                     onForkFromMessage={conversation.forkFromMessage}
@@ -1890,6 +1968,19 @@ function App() {
                     onForkToNewConversation={handleForkToNewConversation}
                     onRetry={conversation.retry}
                     onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
+                    onSendToParent={parentConversationModel.send}
+                    onStopParent={parentConversationModel.stopStreaming}
+                    onParentEditMessage={parentConversationModel.editMessage}
+                    onParentDeleteMessages={parentConversationModel.deleteMessages}
+                    onParentForkFromMessage={parentConversationModel.forkFromMessage}
+                    onParentStartThreadFromMessage={handleParentStartThreadFromMessage}
+                    onParentForkToNewConversation={handleParentForkToNewConversation}
+                    onParentRetry={parentConversationModel.retry}
+                    onParentUpdateMessage={(originalIdx, newContent) => {
+                      if (parentConversationId) {
+                        history.updateMessageContent(parentConversationId, originalIdx, newContent);
+                      }
+                    }}
                     referencedFiles={refs.referencedFiles}
                     onAddFile={refs.addFile}
                     onRemoveFile={refs.removeFile}

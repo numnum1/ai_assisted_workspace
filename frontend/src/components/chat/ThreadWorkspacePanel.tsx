@@ -49,11 +49,9 @@ export interface ThreadWorkspacePanelProps {
   /** Close the workspace overlay */
   onClose: () => void;
 
-  /** Thread message actions */
+  /** Thread message actions (right pane) */
   onSend: (message: string) => void;
   onStop: () => void;
-  onSendToParent: (message: string) => void;
-  onStopParent: () => void;
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;
   onForkFromMessage: (index: number) => void;
@@ -61,11 +59,22 @@ export interface ThreadWorkspacePanelProps {
   onForkToNewConversation: (index: number) => void;
   onRetry?: () => void;
 
-  /** Guided thread offer */
+  /** Guided thread offer (right pane) */
   onAcceptGuidedThreadOffer?: (
     assistantMessageIndex: number,
     payload: GuidedThreadOfferPayload,
   ) => void;
+
+  /** Parent message actions (left pane) */
+  onSendToParent: (message: string) => void;
+  onStopParent: () => void;
+  onParentEditMessage: (index: number, content: string) => void;
+  onParentDeleteMessages: (indices: number[]) => void;
+  onParentForkFromMessage: (index: number) => void;
+  onParentStartThreadFromMessage: (index: number) => void;
+  onParentForkToNewConversation: (index: number) => void;
+  onParentRetry?: () => void;
+  onParentUpdateMessage?: (originalIdx: number, newContent: string) => void;
 
   /** File references */
   referencedFiles: string[];
@@ -132,8 +141,6 @@ export function ThreadWorkspacePanel({
   onClose,
   onSend,
   onStop,
-  onSendToParent,
-  onStopParent,
   onEditMessage,
   onDeleteMessages,
   onForkFromMessage,
@@ -141,6 +148,15 @@ export function ThreadWorkspacePanel({
   onForkToNewConversation,
   onRetry,
   onAcceptGuidedThreadOffer,
+  onSendToParent,
+  onStopParent,
+  onParentEditMessage,
+  onParentDeleteMessages,
+  onParentForkFromMessage,
+  onParentStartThreadFromMessage,
+  onParentForkToNewConversation,
+  onParentRetry,
+  onParentUpdateMessage,
   referencedFiles,
   onAddFile,
   onRemoveFile,
@@ -273,11 +289,13 @@ export function ThreadWorkspacePanel({
                 toolActivity={null}
                 onSend={onSendToParent}
                 onStop={onStopParent}
-                onEditMessage={onEditMessage}
-                onDeleteMessages={onDeleteMessages}
-                onForkFromMessage={onForkFromMessage}
-                onStartThreadFromMessage={onStartThreadFromMessage}
-                onForkToNewConversation={onForkToNewConversation}
+                onEditMessage={onParentEditMessage}
+                onDeleteMessages={onParentDeleteMessages}
+                onForkFromMessage={onParentForkFromMessage}
+                onStartThreadFromMessage={onParentStartThreadFromMessage}
+                onForkToNewConversation={onParentForkToNewConversation}
+                onRetry={onParentRetry}
+                onUpdateMessage={onParentUpdateMessage}
                 referencedFiles={referencedFiles}
                 onAddFile={onAddFile}
                 onRemoveFile={onRemoveFile}
