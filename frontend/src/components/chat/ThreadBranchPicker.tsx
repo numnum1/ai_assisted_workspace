@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Search,
   GitBranch,
+  GitMerge,
   MessageSquare,
   FolderCheck,
 } from 'lucide-react';
@@ -20,6 +21,8 @@ export interface ThreadBranchItem {
   /** Timestamp when the conversation was created — used as tie-breaker. */
   createdAt?: number;
   savedToProject?: boolean;
+  /** True when this thread has been summarised and merged into the parent chat. */
+  mergedToParent?: boolean;
   /**
    * Full message list — each user message becomes a "commit" node in the graph.
    * Tool, assistant, and system messages are skipped.
@@ -64,10 +67,11 @@ type InternalItem = ThreadBranchItem & {
  * Rows come in three kinds:
  *  - commit/fork-start  — first user message of a thread (fork connector drawn)
  *  - commit/fork-end    — last user message of a thread
+ *  - merge              — thread was merged back into the main branch
  *  - branch-head        — clickable HEAD node for a branch
  */
 interface GraphRow {
-  rowKind: 'commit' | 'branch-head';
+  rowKind: 'commit' | 'branch-head' | 'merge';
   branch: InternalItem;
   /** Lane this row's node belongs to. */
   lane: number;
@@ -87,6 +91,8 @@ interface GraphRow {
   commitIndex?: number;
   /** True on the first commit row of a branch — kind badge rendered here. */
   isBranchFirst?: boolean;
+  /** For 'merge' rows: the lane of the thread being merged. */
+  mergeLane?: number;
 }
 
 // ─── Graph constants ──────────────────────────────────────────────────────────
@@ -194,6 +200,24 @@ function buildGraphRows(allItems: InternalItem[]): {
     });
   }
 
+  // ── Phase 1.5: merge rows for threads that have been merged to parent ────────
+  // One row per merged thread, placed on the main lane (0) with a connector
+  // drawn from the thread lane back to main.
+  for (const item of threadItems) {
+    if (!item.mergedToParent) continue;
+    rows.push({
+      rowKind:      'merge',
+      branch:       item,
+      lane:         0,
+      activeLanes:  [],
+      isForkStart:  false,
+      isForkEnd:    false,
+      isListFirst:  false,
+      isListLast:   false,
+      mergeLane:    item.lane,
+    });
+  }
+
   // ── Phase 2: branch-head rows (one per branch, main first then threads) ───
   for (const item of allItems) {
     rows.push({
@@ -258,8 +282,11 @@ function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvg
   const cx    = laneX(row.lane);
   const cy    = ROW_H / 2;
   const mainX = laneX(0);
-  const nodeR = row.rowKind === 'branch-head' ? 5 : 3;
-  const color = laneColor(row.lane);
+  const nodeR = row.rowKind === 'branch-head' ? 5 : row.rowKind === 'merge' ? 4 : 3;
+  // For merge rows use the thread's colour so the connector visually links to its branch.
+  const color = (row.rowKind === 'merge' && row.mergeLane !== undefined)
+    ? laneColor(row.mergeLane)
+    : laneColor(row.lane);
 
   return (
     <svg
@@ -310,7 +337,22 @@ function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvg
         />
       )}
 
-      {/* 3. Commit / HEAD node */}
+      {/* 2b. Merge connector: curve from the thread lane down to the main lane.
+               Drawn on merge rows. Shape: starts at the thread lane at the top of
+               the row, curves inward and lands on the main lane at mid-height. */}
+      {row.rowKind === 'merge' && row.mergeLane !== undefined && row.mergeLane > 0 && (
+        <path
+          d={`M ${laneX(row.mergeLane)},0 Q ${laneX(row.mergeLane)},${cy} ${mainX},${cy}`}
+          stroke={laneColor(row.mergeLane)}
+          strokeWidth={2}
+          fill="none"
+          opacity={0.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+
+      {/* 3. Commit / HEAD / merge node */}
       <circle
         cx={cx}
         cy={cy}
@@ -506,6 +548,7 @@ export function ThreadBranchPicker({
       'tbp__option',
       row.rowKind === 'commit'       && 'tbp__option--commit',
       row.rowKind === 'branch-head'  && 'tbp__option--head',
+      row.rowKind === 'merge'        && 'tbp__option--merge',
       row.branch.isActive            && 'tbp__option--active-branch',
       row.rowKind === 'branch-head'  && row.branch.isActive && 'tbp__option--current',
       idx === selectedIndex          && 'tbp__option--keyboard',
@@ -583,6 +626,29 @@ export function ThreadBranchPicker({
           const isMain        = row.branch.kind === 'main';
           const color         = laneColor(row.lane);
           const isHeadRow     = row.rowKind === 'branch-head';
+
+          // Merge row: thread was summarised and merged back into the main branch
+          if (row.rowKind === 'merge') {
+            const mergeColor = row.mergeLane !== undefined ? laneColor(row.mergeLane) : color;
+            return (
+              <li
+                key={`${row.branch.id}::merge`}
+                role="option"
+                aria-selected={false}
+                className={optClass(row, i)}
+                onClick={() => pick(row.branch.id)}
+                onMouseEnter={() => setSelectedIndex(i)}
+              >
+                {showGraph && <GraphSvg row={row} rowIndex={i} numLanes={numLanes} firstRowIdx={firstRowIdx} lastRowIdx={lastRowIdx} />}
+                <div className="tbp__option-content tbp__option-content--commit">
+                  <GitMerge size={11} style={{ color: mergeColor, flexShrink: 0 }} />
+                  <span className="tbp__commit-text tbp__merge-text" title={row.branch.title} style={{ color: mergeColor }}>
+                    {row.branch.title}
+                  </span>
+                </div>
+              </li>
+            );
+          }
 
           if (isHeadRow) {
             const msgLabel  = row.branch.messageCount !== undefined

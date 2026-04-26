@@ -404,6 +404,21 @@
   opacity: 1;
 }
 
+/* ─── Merge row ──────────────────────────────────────────────────────────── */
+
+.tbp__option--merge {
+  opacity: 0.85;
+}
+
+.tbp__merge-text {
+  font-size: 11px;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
 /* ─── Footer ────────────────────────────────────────────────────────────── */
 
 .tbp__footer {

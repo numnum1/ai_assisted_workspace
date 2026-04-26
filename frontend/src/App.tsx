@@ -510,14 +510,19 @@ function App() {
           fromThreadTitle: threadTitle,
         },
       };
+      // Build updated parent messages before the async state update lands
+      const currentParent = history.conversations.find((c) => c.id === parentId);
+      const updatedParentMessages = [...(currentParent?.messages ?? []), summaryMessage];
       history.appendMessageToConversation(parentId, summaryMessage);
+      // Sync parentChat immediately so the summary is visible without a restart
+      parentChat.loadMessages(updatedParentMessages);
     } catch (err) {
       console.error('[App] handleSummarizeToParent failed:', err);
       throw err;
     } finally {
       setSummarizingThread(false);
     }
-  }, [chat.messages, history]);
+  }, [chat.messages, history, parentChat]);
 
   // Build ThreadBranchPicker data for the workspace
   const threadWorkspaceRail = useMemo(() => {
@@ -529,6 +534,12 @@ function App() {
     if (!rootConv || rootConv.isThread) return null;
     const threads = listThreadsForRoot(history.conversations, rootId);
     if (threads.length === 0) return null;
+    // Compute which threads have already been merged into the parent chat
+    const mergedThreadIds = new Set(
+      rootConv.messages
+        .filter((m) => m.kind === 'thread-summary' && m.threadSummaryMeta?.fromThreadId)
+        .map((m) => m.threadSummaryMeta!.fromThreadId),
+    );
     const toBranchItem = (conv: {
       id: string;
       title: string;
@@ -536,7 +547,7 @@ function App() {
       createdAt: number;
       updatedAt: number;
       savedToProject?: boolean;
-    }): ThreadBranchItem => ({
+    }, mergedToParent?: boolean): ThreadBranchItem => ({
       id: conv.id,
       title: conv.title,
       messageCount: conv.messages.filter((m) => !m.hidden).length,
@@ -544,10 +555,11 @@ function App() {
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
       savedToProject: conv.savedToProject,
+      mergedToParent,
     });
     return {
       mainBranchItem: toBranchItem(rootConv),
-      threadBranchItems: threads.map(toBranchItem),
+      threadBranchItems: threads.map((t) => toBranchItem(t, mergedThreadIds.has(t.id))),
     };
   }, [history.conversations, history.activeId]);
 
