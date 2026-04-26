@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   ChevronDown,
@@ -99,7 +99,7 @@ interface GraphRow {
 
 /** Horizontal pixels per lane. */
 const LANE_W = 14;
-/** ViewBox height (px). The SVG scales vertically via preserveAspectRatio="none". */
+/** Default / minimum graph cell height (px); actual row height is measured at runtime. */
 const ROW_H = 28;
 /** Horizontal centre of lane `l` in the SVG coordinate system. */
 const laneX = (l: number): number => l * LANE_W + 8;
@@ -285,9 +285,29 @@ interface GraphSvgProps {
 }
 
 function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvgProps) {
+  const cellRef = useRef<HTMLDivElement>(null);
+  const [cellH, setCellH] = useState(ROW_H);
+
+  useLayoutEffect(() => {
+    const el = cellRef.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.getBoundingClientRect().height;
+      setCellH((prev) => {
+        const next = Math.max(ROW_H, Math.round(h * 100) / 100);
+        return Math.abs(prev - next) < 0.25 ? prev : next;
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const svgW  = numLanes * LANE_W + 8;
+  const h     = cellH;
   const cx    = laneX(row.lane);
-  const cy    = ROW_H / 2;
+  const cy    = h / 2;
   const mainX = laneX(0);
   const nodeR = row.rowKind === 'branch-head' ? 5 : row.rowKind === 'merge' ? 4 : 3;
   // For merge rows use the thread's colour so the connector visually links to its branch.
@@ -296,10 +316,9 @@ function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvg
     : laneColor(row.lane);
 
   return (
-    <div className="tbp__graph-cell" style={{ width: svgW }}>
+    <div ref={cellRef} className="tbp__graph-cell" style={{ width: svgW }}>
     <svg
-      viewBox={`0 0 ${svgW} ${ROW_H}`}
-      preserveAspectRatio="none"
+      viewBox={`0 0 ${svgW} ${h}`}
       aria-hidden
       className="tbp__graph-svg"
     >
@@ -312,7 +331,7 @@ function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvg
         // (The fork connector arrives from above; we don't need a line above the node.)
         const y1 = (isFirstForLane && l === row.lane && row.isForkStart) ? cy : 0;
         // All lanes terminate their line at the node on their final (HEAD) row.
-        const y2 = isLastForLane ? cy : ROW_H;
+        const y2 = isLastForLane ? cy : h;
         if (y1 >= y2) return null;
         return (
           <line
