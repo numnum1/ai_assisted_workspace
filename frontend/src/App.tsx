@@ -486,13 +486,21 @@ function App() {
     setThreadWorkspaceOpen(false);
   }, []);
 
-  const handleSummarizeToParent = useCallback(async () => {
+  const handleSummarizeToParent = useCallback(async (focusInstructions?: string) => {
     const parentId = history.activeConversation?.parentConversationId;
     if (!parentId) return;
     const threadTitle = history.activeConversation?.title ?? 'Thread';
     setSummarizingThread(true);
     try {
-      const summaryText = await chatApi.summarizeThread(chat.messages);
+      const focusNorm =
+        typeof focusInstructions === "string" && focusInstructions.trim().length > 0
+          ? focusInstructions.trim()
+          : undefined;
+      console.trace(
+        `[App] summarizeToParent: parentId=${parentId}, focus=${focusNorm ? 'yes' : 'no (default)'}`,
+      );
+      const summaryText = await chatApi.summarizeThread(chat.messages, focusNorm);
+      console.trace(`[App] summarizeToParent: received summary, length=${summaryText.length}`);
       const summaryMessage = {
         role: 'assistant' as const,
         content: summaryText,
@@ -505,6 +513,7 @@ function App() {
       history.appendMessageToConversation(parentId, summaryMessage);
     } catch (err) {
       console.error('[App] handleSummarizeToParent failed:', err);
+      throw err;
     } finally {
       setSummarizingThread(false);
     }

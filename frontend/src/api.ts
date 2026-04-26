@@ -760,9 +760,25 @@ export const chatApi = {
     );
   },
 
-  summarizeThread: async (messages: ChatMessage[]): Promise<string> => {
+  summarizeThread: async (
+    messages: ChatMessage[],
+    focusInstructions?: string | null,
+  ): Promise<string> => {
+    const focusTrimmed =
+      typeof focusInstructions === "string" ? focusInstructions.trim() : "";
+    const focusPayload = focusTrimmed.length > 0 ? focusTrimmed : undefined;
+    console.trace(
+      `[api] summarizeThread: messages=${messages.length}, focus=${focusPayload ? 'yes' : 'no (default)'}`,
+    );
     const bridge = getAppBridge();
-    if (bridge?.chat) return bridge.chat.summarizeThread({ messages });
+    if (bridge?.chat) {
+      const out = await bridge.chat.summarizeThread({
+        messages,
+        focusInstructions: focusPayload,
+      });
+      console.trace(`[api] summarizeThread finished, length=${out.length}`);
+      return out;
+    }
     throw new Error(
       "Chat (Preload) fehlt. Im Ordner frontend: `npm run build:electron`, dann `npm run dev:electron` neu starten.",
     );

@@ -2,6 +2,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useState,
 } from "react";
 import { Minimize2, GitMerge } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
@@ -25,6 +26,7 @@ import {
   saveChatThreadSplitLayout,
 } from "./chatThreadSplitPanelLayout.ts";
 import "./ChatThreadSplitResizable.css";
+import { ThreadSummaryModal } from "./ThreadSummaryModal.tsx";
 
 export interface ThreadWorkspacePanelProps {
   /** Thread conversation */
@@ -50,7 +52,7 @@ export interface ThreadWorkspacePanelProps {
   onClose: () => void;
 
   /** Summarize the thread and inject the result into the parent conversation */
-  onSummarizeToParent?: () => Promise<void>;
+  onSummarizeToParent?: (focusInstructions?: string) => Promise<void>;
   /** True while the summary LLM call is in progress */
   isSummarizing?: boolean;
 
@@ -205,6 +207,7 @@ export function ThreadWorkspacePanel({
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (document.querySelector(".thread-summary-modal-overlay")) return;
       if (document.querySelector(".chat-expand-overlay")) return;
       if (document.querySelector(".new-chat-dialog-overlay")) return;
       if (document.querySelector(".glossary-save-overlay")) return;
@@ -219,6 +222,8 @@ export function ThreadWorkspacePanel({
     saveChatThreadSplitLayout(layout);
   }, []);
 
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+
   return (
     <div className="chat-panel chat-panel--expanded chat-panel--thread-split">
       <div className="chat-header">
@@ -230,10 +235,10 @@ export function ThreadWorkspacePanel({
             <button
               type="button"
               className="chat-history-btn"
-              onClick={() => { void onSummarizeToParent(); }}
+              onClick={() => setSummaryModalOpen(true)}
               disabled={isSummarizing || !parentConversation}
-              title="Zusammenfassung an Parent-Chat senden"
-              aria-label="Zusammenfassung an Parent-Chat senden"
+              title="Zusammenfassung an Parent-Chat (Dialog)"
+              aria-label="Zusammenfassung an Parent-Chat öffnen"
             >
               <GitMerge size={14} className={isSummarizing ? 'chat-history-btn--spinning' : undefined} />
             </button>
@@ -394,6 +399,17 @@ export function ThreadWorkspacePanel({
           </Panel>
         </Group>
       </div>
+
+      {onSummarizeToParent && (
+        <ThreadSummaryModal
+          open={summaryModalOpen}
+          threadTitle={threadTitle}
+          parentTitle={parentConversation?.title ?? null}
+          onClose={() => setSummaryModalOpen(false)}
+          onConfirm={onSummarizeToParent}
+          isSummarizing={isSummarizing}
+        />
+      )}
     </div>
   );
 }

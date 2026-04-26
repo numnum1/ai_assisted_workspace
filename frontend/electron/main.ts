@@ -190,10 +190,27 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "chat:summarizeThread",
-    async (_event, body: { messages: Parameters<typeof generateThreadSummary>[0]; threadTitle?: string }) => {
-      console.trace(`[main] chat:summarizeThread: messages=${body.messages.length}`);
+    async (
+      _event,
+      body: {
+        messages: Parameters<typeof generateThreadSummary>[0];
+        focusInstructions?: string | null;
+      },
+    ) => {
+      const focusNorm =
+        typeof body.focusInstructions === "string" && body.focusInstructions.trim().length > 0
+          ? body.focusInstructions.trim()
+          : undefined;
+      console.trace(
+        `[main] chat:summarizeThread: messages=${body.messages.length}, ` +
+          `focusInstructions=${focusNorm ? "yes" : "no (default)"}`,
+      );
       const config = await getProjectConfig(getCurrentProjectPath());
-      const result = await generateThreadSummary(body.messages, config.threadSummaryLlmId ?? null);
+      const result = await generateThreadSummary(
+        body.messages,
+        config.threadSummaryLlmId ?? null,
+        focusNorm,
+      );
       console.trace(`[main] chat:summarizeThread finished`);
       return result;
     },

@@ -1071,8 +1071,16 @@ async function runChatStream(
 export async function generateThreadSummary(
   messages: ChatMessage[],
   llmId: string | null | undefined,
+  focusInstructions?: string | null,
 ): Promise<string> {
-  console.trace(`[chat] generateThreadSummary: llmId=${llmId ?? "(default)"}, messages=${messages.length}`);
+  const focus =
+    typeof focusInstructions === "string" && focusInstructions.trim().length > 0
+      ? focusInstructions.trim()
+      : "";
+  console.trace(
+    `[chat] generateThreadSummary: llmId=${llmId ?? "(default)"}, messages=${messages.length}, ` +
+      `focusInstructions=${focus ? `"${focus.slice(0, 80)}${focus.length > 80 ? "…" : ""}"` : "(none)"}`,
+  );
 
   const provider = await resolveAiProvider(llmId);
   const endpoint = resolveProviderEndpoint(provider, false);
@@ -1082,17 +1090,28 @@ export async function generateThreadSummary(
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n\n');
 
+  const systemBase =
+    'Du bist ein präziser Assistent. Fasse den folgenden Chat-Thread knapp und sachlich zusammen. ';
+  const systemFocus = focus
+    ? 'Der Nutzer gibt unten explizit an, welche Informationen für den Parent-Chat relevant sind — ' +
+        'berücksichtige nur diese Aspekte aus dem Thread; lasse alles andere weg, sofern es nicht nötig ist, ' +
+        'diese Punkte zu verstehen. '
+    : 'Beschreibe, was besprochen wurde und welche Ergebnisse oder Entscheidungen erzielt wurden. ';
+  const systemTail =
+    'Antworte ausschließlich mit der Zusammenfassung, ohne Einleitung oder Metakommentar.';
+
+  const userLead = focus
+    ? `Bitte fasse den Thread zusammen und halte dich strikt an diese Vorgaben des Nutzers:\n\n${focus}\n\n---\n\nThread:\n\n`
+    : 'Bitte fasse diesen Thread zusammen:\n\n';
+
   const requestMessages = [
     {
       role: 'system' as const,
-      content:
-        'Du bist ein präziser Assistent. Fasse den folgenden Chat-Thread knapp und sachlich zusammen. ' +
-        'Beschreibe, was besprochen wurde und welche Ergebnisse oder Entscheidungen erzielt wurden. ' +
-        'Antworte ausschließlich mit der Zusammenfassung, ohne Einleitung oder Metakommentar.',
+      content: systemBase + systemFocus + systemTail,
     },
     {
       role: 'user' as const,
-      content: `Bitte fasse diesen Thread zusammen:\n\n${transcript}`,
+      content: `${userLead}${transcript}`,
     },
   ];
 
