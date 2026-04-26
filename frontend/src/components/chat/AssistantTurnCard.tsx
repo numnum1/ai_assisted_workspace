@@ -64,6 +64,7 @@ export interface AssistantTurnCardProps {
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onDeleteMessages: (indices: number[]) => void;
+  onUseMessageAsThreadSummary?: (index: number) => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
@@ -91,6 +92,7 @@ export function AssistantTurnCard({
   onStartThreadFromMessage,
   onForkToNewConversation,
   onDeleteMessages,
+  onUseMessageAsThreadSummary,
   onReplaceSelection,
   onApplyFieldUpdate,
   fieldLabels,
@@ -387,6 +389,16 @@ export function AssistantTurnCard({
               title="Als neuen Chat forken"
             >
               <GitFork size={12} />
+            </button>
+          )}
+          {activeIsThread && onUseMessageAsThreadSummary && (
+            <button
+              type="button"
+              className="chat-fork-btn chat-fork-btn--merge"
+              onClick={() => onUseMessageAsThreadSummary(lastOriginalIdx)}
+              title="Verwende diese Nachricht als Zusammenfassung"
+            >
+              <GitMerge size={12} />
             </button>
           )}
           <button

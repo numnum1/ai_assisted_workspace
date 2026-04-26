@@ -126,6 +126,7 @@ export interface ChatPaneProps {
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onStartThreadFromMessage: (messageIndex: number) => void;
+  onUseMessageAsThreadSummary?: (index: number) => void;
   onRetry?: () => void;
 
   onAcceptGuidedThreadOffer?: (
@@ -186,6 +187,7 @@ export function ChatPane({
   onForkFromMessage,
   onForkToNewConversation,
   onStartThreadFromMessage,
+  onUseMessageAsThreadSummary,
   onRetry,
   onAcceptGuidedThreadOffer,
   referencedFiles,
@@ -555,6 +557,7 @@ export function ChatPane({
           onForkToNewConversation={onForkToNewConversation}
           onEditMessage={onEditMessage}
           onDeleteMessages={onDeleteMessages}
+          onUseMessageAsThreadSummary={onUseMessageAsThreadSummary}
           commitEdit={commitEdit}
           cancelEdit={cancelEdit}
           onReplaceSelection={onReplaceSelection}

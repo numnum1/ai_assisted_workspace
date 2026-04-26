@@ -4520,6 +4520,12 @@ body.file-tree-native-dragging {
   border-color: rgba(220, 38, 38, 0.3);
 }
 
+.chat-fork-btn--merge:hover {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
 .copy-msg-btn {
   position: absolute;
   bottom: 6px;

@@ -524,6 +524,29 @@ function App() {
     }
   }, [chat.messages, history, parentChat]);
 
+  const handleUseMessageAsThreadSummary = useCallback((messageIndex: number) => {
+    const parentId = history.activeConversation?.parentConversationId;
+    if (!parentId) return;
+    const threadTitle = history.activeConversation?.title ?? 'Thread';
+    const msg = chat.messages[messageIndex];
+    if (!msg) return;
+    console.trace(`[App] useMessageAsThreadSummary: parentId=${parentId}, messageIndex=${messageIndex}`);
+    const summaryMessage = {
+      role: 'assistant' as const,
+      content: msg.content,
+      kind: 'thread-summary' as const,
+      threadSummaryMeta: {
+        fromThreadId: history.activeId,
+        fromThreadTitle: threadTitle,
+      },
+    };
+    const currentParent = history.conversations.find((c) => c.id === parentId);
+    const updatedParentMessages = [...(currentParent?.messages ?? []), summaryMessage];
+    history.appendMessageToConversation(parentId, summaryMessage);
+    parentChat.loadMessages(updatedParentMessages);
+    console.trace(`[App] useMessageAsThreadSummary: done, content length=${msg.content.length}`);
+  }, [chat.messages, history, parentChat]);
+
   // Build ThreadBranchPicker data for the workspace
   const threadWorkspaceRail = useMemo(() => {
     const byId = buildConversationById(history.conversations);
@@ -2007,6 +2030,7 @@ function App() {
                     onClose={handleCloseThreadWorkspace}
                     onSummarizeToParent={handleSummarizeToParent}
                     isSummarizing={summarizingThread}
+                    onUseMessageAsThreadSummary={handleUseMessageAsThreadSummary}
                     onSend={conversation.send}
                     onStop={conversation.stopStreaming}
                     onEditMessage={conversation.editMessage}

@@ -112,6 +112,7 @@ export interface ChatMessagesPaneProps {
   onForkToNewConversation: (index: number) => void;
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;
+  onUseMessageAsThreadSummary?: (index: number) => void;
   commitEdit: (index: number, text: string) => void;
   cancelEdit: () => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
@@ -145,6 +146,7 @@ export function ChatMessagesPane({
   onForkToNewConversation,
   onEditMessage,
   onDeleteMessages,
+  onUseMessageAsThreadSummary,
   commitEdit,
   cancelEdit,
   onReplaceSelection,
@@ -220,6 +222,7 @@ export function ChatMessagesPane({
               onStartThreadFromMessage={onStartThreadFromMessage}
               onForkToNewConversation={onForkToNewConversation}
               onDeleteMessages={onDeleteMessages}
+              onUseMessageAsThreadSummary={onUseMessageAsThreadSummary}
               onReplaceSelection={onReplaceSelection}
               onApplyFieldUpdate={onApplyFieldUpdate}
               fieldLabels={fieldLabels}

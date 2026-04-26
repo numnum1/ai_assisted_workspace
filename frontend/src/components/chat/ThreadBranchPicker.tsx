@@ -218,8 +218,15 @@ function buildGraphRows(allItems: InternalItem[]): {
     });
   }
 
-  // ── Phase 2: branch-head rows (one per branch, main first then threads) ───
-  for (const item of allItems) {
+  // ── Phase 2: branch-head rows sorted by updatedAt ascending ─────────────
+  // Items with the most recent activity appear at the bottom, matching git
+  // convention where HEAD is "furthest along the timeline".
+  const headOrder = [...allItems].sort((a, b) => {
+    const aTime = a.updatedAt ?? a.createdAt ?? 0;
+    const bTime = b.updatedAt ?? b.createdAt ?? 0;
+    return aTime - bTime;
+  });
+  for (const item of headOrder) {
     rows.push({
       rowKind:      'branch-head',
       branch:       item,
@@ -289,9 +296,8 @@ function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvg
     : laneColor(row.lane);
 
   return (
+    <div className="tbp__graph-cell" style={{ width: svgW }}>
     <svg
-      width={svgW}
-      height="100%"
       viewBox={`0 0 ${svgW} ${ROW_H}`}
       preserveAspectRatio="none"
       aria-hidden
@@ -376,6 +382,7 @@ function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvg
         />
       )}
     </svg>
+    </div>
   );
 }
 
@@ -431,11 +438,20 @@ export function ThreadBranchPicker({
 
   const isFiltering = query.trim().length > 0;
 
-  /** Branch list filtered by title — used in search mode (1 row per branch). */
+  /**
+   * Branch list filtered by title — used in search mode (1 row per branch).
+   * Always sorted by updatedAt ascending so the newest branch is at the bottom.
+   */
   const filtered = useMemo<InternalItem[]>(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allItems;
-    return allItems.filter((i) => i.title.toLowerCase().includes(q));
+    const base = q
+      ? allItems.filter((i) => i.title.toLowerCase().includes(q))
+      : [...allItems];
+    return base.sort((a, b) => {
+      const aTime = a.updatedAt ?? a.createdAt ?? 0;
+      const bTime = b.updatedAt ?? b.createdAt ?? 0;
+      return aTime - bTime;
+    });
   }, [allItems, query]);
 
   /** Full commit graph — rebuilt only when allItems changes. */

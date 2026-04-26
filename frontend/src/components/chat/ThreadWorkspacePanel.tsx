@@ -55,6 +55,8 @@ export interface ThreadWorkspacePanelProps {
   onSummarizeToParent?: (focusInstructions?: string) => Promise<void>;
   /** True while the summary LLM call is in progress */
   isSummarizing?: boolean;
+  /** Use a specific thread message directly as the merge summary (no LLM call) */
+  onUseMessageAsThreadSummary?: (index: number) => void;
 
   /** Thread message actions (right pane) */
   onSend: (message: string) => void;
@@ -148,6 +150,7 @@ export function ThreadWorkspacePanel({
   onClose,
   onSummarizeToParent,
   isSummarizing = false,
+  onUseMessageAsThreadSummary,
   onSend,
   onStop,
   onEditMessage,
@@ -366,6 +369,7 @@ export function ThreadWorkspacePanel({
                 onForkFromMessage={onForkFromMessage}
                 onStartThreadFromMessage={onStartThreadFromMessage}
                 onForkToNewConversation={onForkToNewConversation}
+                onUseMessageAsThreadSummary={onUseMessageAsThreadSummary}
                 onRetry={onRetry}
                 onAcceptGuidedThreadOffer={onAcceptGuidedThreadOffer}
                 referencedFiles={referencedFiles}
