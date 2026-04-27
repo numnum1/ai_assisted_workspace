@@ -1228,6 +1228,32 @@ function App() {
         return;
       }
 
+      // Alt+Num+ / Alt+Num- for font size adjustment
+      if ((e.code === "NumpadAdd" || e.code === "Equal") && !e.shiftKey) {
+        e.preventDefault();
+        updatePreferences({
+          appearance: {
+            chatFontSizePx: Math.min(
+              22,
+              (preferences.appearance.chatFontSizePx ?? 14) + 1,
+            ),
+          },
+        });
+        return;
+      }
+      if ((e.code === "NumpadSubtract" || e.code === "Minus") && !e.shiftKey) {
+        e.preventDefault();
+        updatePreferences({
+          appearance: {
+            chatFontSizePx: Math.max(
+              10,
+              (preferences.appearance.chatFontSizePx ?? 14) - 1,
+            ),
+          },
+        });
+        return;
+      }
+
       if (!e.altKey || e.shiftKey) return;
 
       const code = e.code;
