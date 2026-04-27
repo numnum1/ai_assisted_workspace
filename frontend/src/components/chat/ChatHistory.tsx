@@ -1,5 +1,13 @@
-import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
-import type { MouseEvent, KeyboardEvent } from 'react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+  Fragment,
+  type ReactNode,
+} from "react";
+import type { MouseEvent, KeyboardEvent } from "react";
 import {
   Trash2,
   MessageSquare,
@@ -11,10 +19,13 @@ import {
   ChevronRight,
   ChevronDown,
   Download,
-} from 'lucide-react';
-import type { ChatSessionKind, Conversation } from '../../types.ts';
-import { NewChatButton } from './NewChatButton.tsx';
-import { conversationToMarkdown, downloadMarkdownFile } from './chatMarkdownExport.ts';
+} from "lucide-react";
+import type { ChatSessionKind, Conversation } from "../../types.ts";
+import { NewChatButton } from "./NewChatButton.tsx";
+import {
+  conversationToMarkdown,
+  downloadMarkdownFile,
+} from "./chatMarkdownExport.ts";
 
 interface ChatHistoryProps {
   conversations: Conversation[];
@@ -38,21 +49,36 @@ function formatDate(timestamp: number): string {
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) {
-    return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
-  if (diffDays === 1) return 'Gestern';
+  if (diffDays === 1) return "Gestern";
   if (diffDays < 7) return `Vor ${diffDays} Tagen`;
-  return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  return date.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 }
 
-function groupByDate(convs: Conversation[]): { label: string; items: Conversation[] }[] {
+function groupByDate(
+  convs: Conversation[],
+): { label: string; items: Conversation[] }[] {
   const now = Date.now();
   const day = 86_400_000;
   const groupDefs = [
-    { label: 'Heute', test: (t: number) => now - t < day },
-    { label: 'Gestern', test: (t: number) => now - t >= day && now - t < 2 * day },
-    { label: 'Diese Woche', test: (t: number) => now - t >= 2 * day && now - t < 7 * day },
-    { label: 'Älter', test: (t: number) => now - t >= 7 * day },
+    { label: "Heute", test: (t: number) => now - t < day },
+    {
+      label: "Gestern",
+      test: (t: number) => now - t >= day && now - t < 2 * day,
+    },
+    {
+      label: "Diese Woche",
+      test: (t: number) => now - t >= 2 * day && now - t < 7 * day,
+    },
+    { label: "Älter", test: (t: number) => now - t >= 7 * day },
   ];
   const result: { label: string; items: Conversation[] }[] = [];
   for (const g of groupDefs) {
@@ -65,7 +91,9 @@ function groupByDate(convs: Conversation[]): { label: string; items: Conversatio
 function partitionConversations(conversations: Conversation[]) {
   const roots = conversations.filter((c) => !c.isThread);
   const threadsByParent = new Map<string, Conversation[]>();
-  for (const t of conversations.filter((c) => Boolean(c.isThread && c.parentConversationId))) {
+  for (const t of conversations.filter((c) =>
+    Boolean(c.isThread && c.parentConversationId),
+  )) {
     const pid = t.parentConversationId!;
     if (!threadsByParent.has(pid)) threadsByParent.set(pid, []);
     threadsByParent.get(pid)!.push(t);
@@ -94,10 +122,12 @@ export function ChatHistory({
   onClose,
 }: ChatHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [filterText, setFilterText] = useState('');
+  const [editTitle, setEditTitle] = useState("");
+  const [filterText, setFilterText] = useState("");
   /** User toggled chevrons only; see {@link expandedParentIds} for merged view. */
-  const [userExpandedParentIds, setUserExpandedParentIds] = useState<Set<string>>(() => new Set());
+  const [userExpandedParentIds, setUserExpandedParentIds] = useState<
+    Set<string>
+  >(() => new Set());
   const editRef = useRef<HTMLInputElement>(null);
 
   const { roots, threadsByParent } = useMemo(
@@ -134,7 +164,14 @@ export function ChatHistory({
       }
     }
     return next;
-  }, [userExpandedParentIds, activeId, conversations, filterText, roots, threadsByParent]);
+  }, [
+    userExpandedParentIds,
+    activeId,
+    conversations,
+    filterText,
+    roots,
+    threadsByParent,
+  ]);
 
   useEffect(() => {
     if (editingId && editRef.current) {
@@ -143,11 +180,14 @@ export function ChatHistory({
     }
   }, [editingId]);
 
-  const handleStartRename = useCallback((conv: Conversation, e?: MouseEvent) => {
-    e?.stopPropagation();
-    setEditingId(conv.id);
-    setEditTitle(conv.title);
-  }, []);
+  const handleStartRename = useCallback(
+    (conv: Conversation, e?: MouseEvent) => {
+      e?.stopPropagation();
+      setEditingId(conv.id);
+      setEditTitle(conv.title);
+    },
+    [],
+  );
 
   const commitRename = useCallback(() => {
     if (editingId && editTitle.trim()) {
@@ -158,24 +198,27 @@ export function ChatHistory({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      if (e.key === "Enter") {
         commitRename();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === "Escape") {
         setEditingId(null);
       }
     },
     [commitRename],
   );
 
-  const toggleParentExpanded = useCallback((parentId: string, e: MouseEvent) => {
-    e.stopPropagation();
-    setUserExpandedParentIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(parentId)) next.delete(parentId);
-      else next.add(parentId);
-      return next;
-    });
-  }, []);
+  const toggleParentExpanded = useCallback(
+    (parentId: string, e: MouseEvent) => {
+      e.stopPropagation();
+      setUserExpandedParentIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(parentId)) next.delete(parentId);
+        else next.add(parentId);
+        return next;
+      });
+    },
+    [],
+  );
 
   const childThreadsFor = useCallback(
     (parentId: string) => threadsByParent.get(parentId) ?? [],
@@ -185,20 +228,19 @@ export function ChatHistory({
   const renderRow = (
     conv: Conversation,
     options: {
-      variant: 'root' | 'thread' | 'orphan';
+      variant: "root" | "thread" | "orphan";
       chevron?: ReactNode;
     },
   ) => {
     const { variant, chevron } = options;
-    const isChild = variant === 'thread';
+    const isChild = variant === "thread";
     const itemClass =
-      `chat-history-item ${conv.id === activeId ? 'active' : ''}` +
-      (isChild ? ' chat-history-thread-child' : '') +
-      (variant === 'orphan' ? ' chat-history-thread-orphan' : '');
+      `chat-history-item ${conv.id === activeId ? "active" : ""}` +
+      (isChild ? " chat-history-thread-child" : "") +
+      (variant === "orphan" ? " chat-history-thread-orphan" : "");
 
     return (
       <div
-        key={conv.id}
         className={itemClass}
         onClick={() => {
           if (editingId === conv.id) return;
@@ -207,7 +249,9 @@ export function ChatHistory({
         }}
         onDoubleClick={(e) => handleStartRename(conv, e)}
       >
-        {chevron ?? <span className="chat-history-chevron-spacer" aria-hidden />}
+        {chevron ?? (
+          <span className="chat-history-chevron-spacer" aria-hidden />
+        )}
         <div className="chat-history-item-icon">
           <MessageSquare size={14} />
         </div>
@@ -225,41 +269,53 @@ export function ChatHistory({
           ) : (
             <div className="chat-history-item-title">
               <span>{conv.title}</span>
-              {isChild || variant === 'orphan' ? (
+              {isChild || variant === "orphan" ? (
                 <span className="chat-history-thread-badge" title="Thread">
                   Thread
                 </span>
               ) : null}
-              {conv.sessionKind === 'guided' && (
-                <span className="chat-history-guided-badge" title="Geführte Sitzung">
+              {conv.sessionKind === "guided" && (
+                <span
+                  className="chat-history-guided-badge"
+                  title="Geführte Sitzung"
+                >
                   Geführt
                 </span>
               )}
             </div>
           )}
           <div className="chat-history-item-meta">
-            {conv.messages.filter((m) => !m.hidden).length} Nachrichten · {formatDate(conv.updatedAt)}
+            {conv.messages.filter((m) => !m.hidden).length} Nachrichten ·{" "}
+            {formatDate(conv.updatedAt)}
           </div>
         </div>
         <div className="chat-history-item-actions">
-          {variant === 'root' ? (
+          {variant === "root" ? (
             <button
               type="button"
-              className={`chat-history-action-btn ${conv.savedToProject ? 'chat-history-saved-active' : ''}`}
+              className={`chat-history-action-btn ${conv.savedToProject ? "chat-history-saved-active" : ""}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleSavedToProject(conv.id);
               }}
               title={
                 conv.savedToProject
-                  ? 'Aus Projektdatei entfernen (nicht mehr per Git synchron)'
-                  : 'Im Projekt speichern (.assistant/chat-history.json)'
+                  ? "Aus Projektdatei entfernen (nicht mehr per Git synchron)"
+                  : "Im Projekt speichern (.assistant/chat-history.json)"
               }
             >
-              {conv.savedToProject ? <FolderCheck size={12} /> : <FolderInput size={12} />}
+              {conv.savedToProject ? (
+                <FolderCheck size={12} />
+              ) : (
+                <FolderInput size={12} />
+              )}
             </button>
           ) : (
-            <span className="chat-history-action-btn" style={{ visibility: 'hidden' }} aria-hidden>
+            <span
+              className="chat-history-action-btn"
+              style={{ visibility: "hidden" }}
+              aria-hidden
+            >
               <FolderInput size={12} />
             </span>
           )}
@@ -315,8 +371,8 @@ export function ChatHistory({
               onClick={() => {
                 if (
                   !window.confirm(
-                    'Alle rein lokalen Chats dieses Projekts löschen?\n\n' +
-                      'Chats mit aktivem „Im Projekt speichern“ (Ordner-Häkchen) bleiben erhalten — in der Liste, im Browser und in .assistant/chat-history.json.',
+                    "Alle rein lokalen Chats dieses Projekts löschen?\n\n" +
+                      "Chats mit aktivem „Im Projekt speichern“ (Ordner-Häkchen) bleiben erhalten — in der Liste, im Browser und in .assistant/chat-history.json.",
                   )
                 ) {
                   return;
@@ -328,8 +384,13 @@ export function ChatHistory({
               <Eraser size={14} />
             </button>
           )}
-          <NewChatButton onClick={() => onCreate('standard')} />
-          <button type="button" className="chat-history-close-btn" onClick={onClose} title="Schliessen">
+          <NewChatButton onClick={() => onCreate("standard")} />
+          <button
+            type="button"
+            className="chat-history-close-btn"
+            onClick={onClose}
+            title="Schliessen"
+          >
             <X size={14} />
           </button>
         </div>
@@ -345,7 +406,9 @@ export function ChatHistory({
       </div>
 
       <div className="chat-history-list">
-        {listEmpty && <div className="chat-history-empty">Keine Chats gefunden.</div>}
+        {listEmpty && (
+          <div className="chat-history-empty">Keine Chats gefunden.</div>
+        )}
         {groups.map((group) => (
           <div key={group.label}>
             <div className="chat-history-group-label">{group.label}</div>
@@ -357,10 +420,14 @@ export function ChatHistory({
                 <button
                   type="button"
                   className="chat-history-chevron-btn"
-                  title={expanded ? 'Threads einklappen' : 'Threads aufklappen'}
+                  title={expanded ? "Threads einklappen" : "Threads aufklappen"}
                   onClick={(e) => toggleParentExpanded(conv.id, e)}
                 >
-                  {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {expanded ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )}
                 </button>
               ) : (
                 <span className="chat-history-chevron-spacer" aria-hidden />
@@ -368,10 +435,14 @@ export function ChatHistory({
 
               return (
                 <div key={conv.id} className="chat-history-parent-block">
-                  {renderRow(conv, { variant: 'root', chevron })}
+                  {renderRow(conv, { variant: "root", chevron })}
                   {hasKids && expanded && (
                     <div className="chat-history-thread-children">
-                      {kids.map((t) => renderRow(t, { variant: 'thread' }))}
+                      {kids.map((t) => (
+                        <Fragment key={t.id}>
+                          {renderRow(t, { variant: "thread" })}
+                        </Fragment>
+                      ))}
                     </div>
                   )}
                 </div>

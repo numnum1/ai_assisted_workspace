@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Check,
   ChevronDown,
@@ -7,8 +15,8 @@ import {
   GitMerge,
   MessageSquare,
   FolderCheck,
-} from 'lucide-react';
-import './ThreadBranchPicker.css';
+} from "lucide-react";
+import "./ThreadBranchPicker.css";
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -28,7 +36,7 @@ export interface ThreadBranchItem {
    * Tool, assistant, and system messages are skipped.
    */
   messages?: Array<{
-    role: 'user' | 'assistant' | 'tool' | 'system';
+    role: "user" | "assistant" | "tool" | "system";
     content: string;
     hidden?: boolean;
   }>;
@@ -55,7 +63,7 @@ interface ThreadBranchPickerProps {
 // ─── Internal types ───────────────────────────────────────────────────────────
 
 type InternalItem = ThreadBranchItem & {
-  kind: 'main' | 'thread';
+  kind: "main" | "thread";
   isActive: boolean;
   /** Lane index — main = 0, thread 1 = 1, thread 2 = 2, … */
   lane: number;
@@ -71,7 +79,7 @@ type InternalItem = ThreadBranchItem & {
  *  - branch-head        — clickable HEAD node for a branch
  */
 interface GraphRow {
-  rowKind: 'commit' | 'branch-head' | 'merge';
+  rowKind: "commit" | "branch-head" | "merge";
   branch: InternalItem;
   /** Lane this row's node belongs to. */
   lane: number;
@@ -105,32 +113,43 @@ const ROW_H = 28;
 const laneX = (l: number): number => l * LANE_W + 8;
 
 /** Per-lane colour palette. Lane 0 = main (blue), subsequent = thread colours. */
-const LANE_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
-const laneColor = (l: number): string => LANE_COLORS[l % LANE_COLORS.length] ?? '#3b82f6';
+const LANE_COLORS = [
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#ec4899",
+  "#8b5cf6",
+  "#06b6d4",
+];
+const laneColor = (l: number): string =>
+  LANE_COLORS[l % LANE_COLORS.length] ?? "#3b82f6";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatRelativeTime(ts: number): string {
   const diffMs = Date.now() - ts;
-  const mins  = Math.floor(diffMs / 60_000);
+  const mins = Math.floor(diffMs / 60_000);
   const hours = Math.floor(diffMs / 3_600_000);
-  const days  = Math.floor(diffMs / 86_400_000);
-  if (mins  <  1) return 'gerade eben';
-  if (mins  < 60) return `vor ${mins} Min.`;
+  const days = Math.floor(diffMs / 86_400_000);
+  if (mins < 1) return "gerade eben";
+  if (mins < 60) return `vor ${mins} Min.`;
   if (hours < 24) return `vor ${hours} Std.`;
-  if (days  ===1) return 'gestern';
-  if (days  <  7) return `vor ${days} Tagen`;
-  return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  if (days === 1) return "gestern";
+  if (days < 7) return `vor ${days} Tagen`;
+  return new Date(ts).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 function toCommitText(content: string): string {
-  const first = content.trim().split('\n')[0] ?? '';
-  return first.length > 72 ? first.slice(0, 70) + '…' : first;
+  const first = content.trim().split("\n")[0] ?? "";
+  return first.length > 72 ? first.slice(0, 70) + "…" : first;
 }
 
 function getUserCommits(item: InternalItem): string[] {
   return (item.messages ?? [])
-    .filter((m) => m.role === 'user' && !m.hidden)
+    .filter((m) => m.role === "user" && !m.hidden)
     .slice(0, 50)
     .map((m) => toCommitText(m.content));
 }
@@ -160,7 +179,7 @@ function buildGraphRows(allItems: InternalItem[]): {
   firstRowIdx: number[];
   lastRowIdx: number[];
 } {
-  const numLanes    = allItems.length;
+  const numLanes = allItems.length;
   const commitCache = allItems.map(getUserCommits);
   const rows: GraphRow[] = [];
 
@@ -169,37 +188,37 @@ function buildGraphRows(allItems: InternalItem[]): {
   // Exception: merged threads only get the fork-start row — the merge row
   // (Phase 1.5) already marks the end of the branch, so a separate tip
   // commit would be redundant.
-  const threadItems = allItems.filter((item) => item.kind === 'thread');
+  const threadItems = allItems.filter((item) => item.kind === "thread");
   for (const item of threadItems) {
     const commits = commitCache[item.lane];
     if (commits.length === 0) continue; // no messages → only branch-head row
 
     rows.push({
-      rowKind:      'commit',
-      branch:       item,
-      lane:         item.lane,
-      activeLanes:  [],
-      isForkStart:  true,
-      isForkEnd:    false,
-      isListFirst:  false,
-      isListLast:   false,
-      commitText:   commits[0],
-      commitIndex:  1,
+      rowKind: "commit",
+      branch: item,
+      lane: item.lane,
+      activeLanes: [],
+      isForkStart: true,
+      isForkEnd: false,
+      isListFirst: false,
+      isListLast: false,
+      commitText: commits[0],
+      commitIndex: 1,
       isBranchFirst: true,
     });
 
     if (!item.mergedToParent) {
       rows.push({
-        rowKind:      'commit',
-        branch:       item,
-        lane:         item.lane,
-        activeLanes:  [],
-        isForkStart:  false,
-        isForkEnd:    true,
-        isListFirst:  false,
-        isListLast:   false,
-        commitText:   commits[commits.length - 1],
-        commitIndex:  commits.length,
+        rowKind: "commit",
+        branch: item,
+        lane: item.lane,
+        activeLanes: [],
+        isForkStart: false,
+        isForkEnd: true,
+        isListFirst: false,
+        isListLast: false,
+        commitText: commits[commits.length - 1],
+        commitIndex: commits.length,
         isBranchFirst: false,
       });
     }
@@ -211,15 +230,15 @@ function buildGraphRows(allItems: InternalItem[]): {
   for (const item of threadItems) {
     if (!item.mergedToParent) continue;
     rows.push({
-      rowKind:      'merge',
-      branch:       item,
-      lane:         0,
-      activeLanes:  [],
-      isForkStart:  false,
-      isForkEnd:    false,
-      isListFirst:  false,
-      isListLast:   false,
-      mergeLane:    item.lane,
+      rowKind: "merge",
+      branch: item,
+      lane: 0,
+      activeLanes: [],
+      isForkStart: false,
+      isForkEnd: false,
+      isListFirst: false,
+      isListLast: false,
+      mergeLane: item.lane,
     });
   }
 
@@ -233,15 +252,16 @@ function buildGraphRows(allItems: InternalItem[]): {
   });
   for (const item of headOrder) {
     rows.push({
-      rowKind:      'branch-head',
-      branch:       item,
-      lane:         item.lane,
-      activeLanes:  [],
-      isForkStart:  false,
-      isForkEnd:    false,
-      isListFirst:  false,
-      isListLast:   false,
-      isBranchFirst: item.kind === 'main' || commitCache[item.lane].length === 0,
+      rowKind: "branch-head",
+      branch: item,
+      lane: item.lane,
+      activeLanes: [],
+      isForkStart: false,
+      isForkEnd: false,
+      isListFirst: false,
+      isListLast: false,
+      isBranchFirst:
+        item.kind === "main" || commitCache[item.lane].length === 0,
     });
   }
 
@@ -253,7 +273,7 @@ function buildGraphRows(allItems: InternalItem[]): {
   // Main lane (0) is forced to start at row 0 so its line runs from the top
   // even when the first visible rows belong to thread branches.
   const firstRowIdx: number[] = new Array(numLanes).fill(-1);
-  const lastRowIdx:  number[] = new Array(numLanes).fill(-1);
+  const lastRowIdx: number[] = new Array(numLanes).fill(-1);
   firstRowIdx[0] = 0;
 
   rows.forEach((r, i) => {
@@ -289,7 +309,13 @@ interface GraphSvgProps {
   lastRowIdx: number[];
 }
 
-function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvgProps) {
+function GraphSvg({
+  row,
+  rowIndex,
+  numLanes,
+  firstRowIdx,
+  lastRowIdx,
+}: GraphSvgProps) {
   const cellRef = useRef<HTMLDivElement>(null);
   const [cellH, setCellH] = useState(ROW_H);
 
@@ -309,103 +335,106 @@ function GraphSvg({ row, rowIndex, numLanes, firstRowIdx, lastRowIdx }: GraphSvg
     return () => ro.disconnect();
   }, []);
 
-  const svgW  = numLanes * LANE_W + 8;
-  const h     = cellH;
-  const cx    = laneX(row.lane);
-  const cy    = h / 2;
+  const svgW = numLanes * LANE_W + 8;
+  const h = cellH;
+  const cx = laneX(row.lane);
+  const cy = h / 2;
   const mainX = laneX(0);
-  const nodeR = row.rowKind === 'branch-head' ? 5 : row.rowKind === 'merge' ? 4 : 3;
+  const nodeR =
+    row.rowKind === "branch-head" ? 5 : row.rowKind === "merge" ? 4 : 3;
   // For merge rows use the thread's colour so the connector visually links to its branch.
-  const color = (row.rowKind === 'merge' && row.mergeLane !== undefined)
-    ? laneColor(row.mergeLane)
-    : laneColor(row.lane);
+  const color =
+    row.rowKind === "merge" && row.mergeLane !== undefined
+      ? laneColor(row.mergeLane)
+      : laneColor(row.lane);
 
   return (
     <div ref={cellRef} className="tbp__graph-cell" style={{ width: svgW }}>
-    <svg
-      viewBox={`0 0 ${svgW} ${h}`}
-      aria-hidden
-      className="tbp__graph-svg"
-    >
-      {/* 1. Vertical line segments for every active lane */}
-      {row.activeLanes.map((l) => {
-        const x             = laneX(l);
-        const isFirstForLane = rowIndex === firstRowIdx[l];
-        const isLastForLane  = rowIndex === lastRowIdx[l];
-        // Thread lane on its own fork-start row: line begins AT the node going down.
-        // (The fork connector arrives from above; we don't need a line above the node.)
-        const y1 = (isFirstForLane && l === row.lane && row.isForkStart) ? cy : 0;
-        // All lanes terminate their line at the node on their final (HEAD) row.
-        const y2 = isLastForLane ? cy : h;
-        if (y1 >= y2) return null;
-        return (
-          <line
-            key={l}
-            x1={x} y1={y1}
-            x2={x} y2={y2}
-            stroke={laneColor(l)}
-            strokeWidth={2}
-            opacity={0.35}
-          />
-        );
-      })}
+      <svg viewBox={`0 0 ${svgW} ${h}`} aria-hidden className="tbp__graph-svg">
+        {/* 1. Vertical line segments for every active lane */}
+        {row.activeLanes.map((l) => {
+          const x = laneX(l);
+          const isFirstForLane = rowIndex === firstRowIdx[l];
+          const isLastForLane = rowIndex === lastRowIdx[l];
+          // Thread lane on its own fork-start row: line begins AT the node going down.
+          // (The fork connector arrives from above; we don't need a line above the node.)
+          const y1 =
+            isFirstForLane && l === row.lane && row.isForkStart ? cy : 0;
+          // All lanes terminate their line at the node on their final (HEAD) row.
+          const y2 = isLastForLane ? cy : h;
+          if (y1 >= y2) return null;
+          return (
+            <line
+              key={l}
+              x1={x}
+              y1={y1}
+              x2={x}
+              y2={y2}
+              stroke={laneColor(l)}
+              strokeWidth={2}
+              opacity={0.35}
+            />
+          );
+        })}
 
-      {/* 2. Fork connector: horizontal branch from main lane to thread lane.
+        {/* 2. Fork connector: horizontal branch from main lane to thread lane.
               Drawn on the fork-start row of each thread.
               Shape: from (mainX, cy) going right to just before (cx, cy),
               then a small rounded corner turns downward.
               The thread lane's own vertical line takes over from cy downward. */}
-      {row.isForkStart && cx > mainX && (
-        <path
-          d={`M ${mainX},${cy} L ${cx - 4},${cy} Q ${cx},${cy} ${cx},${cy + 4}`}
-          stroke={color}
-          strokeWidth={2}
-          fill="none"
-          opacity={0.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
+        {row.isForkStart && cx > mainX && (
+          <path
+            d={`M ${mainX},${cy} L ${cx - 4},${cy} Q ${cx},${cy} ${cx},${cy + 4}`}
+            stroke={color}
+            strokeWidth={2}
+            fill="none"
+            opacity={0.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
 
-      {/* 2b. Merge connector: curve from the thread lane down to the main lane.
+        {/* 2b. Merge connector: curve from the thread lane down to the main lane.
                Drawn on merge rows. Shape: starts at the thread lane at the top of
                the row, curves inward and lands on the main lane at mid-height. */}
-      {row.rowKind === 'merge' && row.mergeLane !== undefined && row.mergeLane > 0 && (
-        <path
-          d={`M ${laneX(row.mergeLane)},0 Q ${laneX(row.mergeLane)},${cy} ${mainX},${cy}`}
-          stroke={laneColor(row.mergeLane)}
-          strokeWidth={2}
-          fill="none"
-          opacity={0.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
+        {row.rowKind === "merge" &&
+          row.mergeLane !== undefined &&
+          row.mergeLane > 0 && (
+            <path
+              d={`M ${laneX(row.mergeLane)},0 Q ${laneX(row.mergeLane)},${cy} ${mainX},${cy}`}
+              stroke={laneColor(row.mergeLane)}
+              strokeWidth={2}
+              fill="none"
+              opacity={0.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
 
-      {/* 3. Commit / HEAD / merge node */}
-      <circle
-        cx={cx}
-        cy={cy}
-        r={nodeR}
-        fill={color}
-        stroke="var(--bg-primary, #1e1e2e)"
-        strokeWidth={row.rowKind === 'branch-head' ? 2 : 1.5}
-        opacity={row.rowKind === 'branch-head' ? 1 : 0.85}
-      />
-
-      {/* 4. Extra ring on the active branch's HEAD node */}
-      {row.rowKind === 'branch-head' && row.branch.isActive && (
+        {/* 3. Commit / HEAD / merge node */}
         <circle
           cx={cx}
           cy={cy}
-          r={nodeR + 3}
-          fill="none"
-          stroke={color}
-          strokeWidth={1.5}
-          opacity={0.4}
+          r={nodeR}
+          fill={color}
+          stroke="var(--bg-primary, #1e1e2e)"
+          strokeWidth={row.rowKind === "branch-head" ? 2 : 1.5}
+          opacity={row.rowKind === "branch-head" ? 1 : 0.85}
         />
-      )}
-    </svg>
+
+        {/* 4. Extra ring on the active branch's HEAD node */}
+        {row.rowKind === "branch-head" && row.branch.isActive && (
+          <circle
+            cx={cx}
+            cy={cy}
+            r={nodeR + 3}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.5}
+            opacity={0.4}
+          />
+        )}
+      </svg>
     </div>
   );
 }
@@ -418,17 +447,17 @@ export function ThreadBranchPicker({
   activeId,
   onSelect,
   disabled = false,
-  className = '',
-  ariaLabel = 'Chat-Zweig wechseln',
+  className = "",
+  ariaLabel = "Chat-Zweig wechseln",
   showGraph = true,
   panel = false,
 }: ThreadBranchPickerProps) {
-  const rootRef   = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const listId    = useId();
+  const listId = useId();
 
-  const [open,          setOpen]          = useState(false);
-  const [query,         setQuery]         = useState('');
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   /**
@@ -443,19 +472,20 @@ export function ThreadBranchPicker({
   const allItems = useMemo<InternalItem[]>(() => {
     const mainItem: InternalItem = {
       ...main,
-      kind: 'main',
+      kind: "main",
       isActive: main.id === activeId,
       lane: 0,
     };
     // Sort threads by createdAt ascending to assign stable lane numbers
-    const sortedThreads = [...threads].sort((a, b) =>
-      (a.createdAt ?? a.updatedAt ?? 0) - (b.createdAt ?? b.updatedAt ?? 0),
+    const sortedThreads = [...threads].sort(
+      (a, b) =>
+        (a.createdAt ?? a.updatedAt ?? 0) - (b.createdAt ?? b.updatedAt ?? 0),
     );
     const threadItems: InternalItem[] = sortedThreads.map((t, idx) => ({
       ...t,
-      kind:     'thread' as const,
+      kind: "thread" as const,
       isActive: t.id === activeId,
-      lane:     idx + 1,
+      lane: idx + 1,
     }));
     return [mainItem, ...threadItems];
   }, [main, threads, activeId]);
@@ -479,20 +509,30 @@ export function ThreadBranchPicker({
   }, [allItems, query]);
 
   /** Full commit graph — rebuilt only when allItems changes. */
-  const { rows: graphRows, numLanes, firstRowIdx, lastRowIdx } = useMemo(
-    () => buildGraphRows(allItems),
-    [allItems],
-  );
+  const {
+    rows: graphRows,
+    numLanes,
+    firstRowIdx,
+    lastRowIdx,
+  } = useMemo(() => buildGraphRows(allItems), [allItems]);
 
-  const totalCommits = useMemo(() =>
-    allItems.reduce((n, item) =>
-      n + (item.messages?.filter((m) => m.role === 'user' && !m.hidden).length ?? 0), 0),
+  const totalCommits = useMemo(
+    () =>
+      allItems.reduce(
+        (n, item) =>
+          n +
+          (item.messages?.filter((m) => m.role === "user" && !m.hidden)
+            .length ?? 0),
+        0,
+      ),
     [allItems],
   );
 
   const activeListLen = isFiltering ? filtered.length : graphRows.length;
 
-  useEffect(() => { setSelectedIndex(0); }, [query]);
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [query]);
   useEffect(() => {
     setSelectedIndex((i) => Math.min(i, Math.max(0, activeListLen - 1)));
   }, [activeListLen]);
@@ -504,25 +544,28 @@ export function ThreadBranchPicker({
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  const pick = useCallback((id: string) => {
-    onSelect(id);
-    setOpen(false);
-    setQuery('');
-  }, [onSelect]);
+  const pick = useCallback(
+    (id: string) => {
+      onSelect(id);
+      setOpen(false);
+      setQuery("");
+    },
+    [onSelect],
+  );
 
   const openDropdown = useCallback(() => {
     if (disabled) return;
     setOpen(true);
-    setQuery('');
+    setQuery("");
     const headIdx = graphRows.findIndex(
-      (r) => r.branch.id === activeId && r.rowKind === 'branch-head',
+      (r) => r.branch.id === activeId && r.rowKind === "branch-head",
     );
     setSelectedIndex(headIdx >= 0 ? headIdx : 0);
   }, [disabled, graphRows, activeId]);
 
   const closeDropdown = useCallback(() => {
     setOpen(false);
-    setQuery('');
+    setQuery("");
   }, []);
 
   useEffect(() => {
@@ -536,96 +579,133 @@ export function ThreadBranchPicker({
     const onMouseDown = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) closeDropdown();
     };
-    document.addEventListener('mousedown', onMouseDown);
-    return () => document.removeEventListener('mousedown', onMouseDown);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
   }, [open, closeDropdown]);
 
   // ── Keyboard navigation ────────────────────────────────────────────────────
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const maxIdx = Math.max(activeListLen - 1, 0);
-    switch (e.key) {
-      case 'Escape':
-        e.preventDefault();
-        closeDropdown();
-        break;
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, maxIdx));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex((i) => Math.max(i - 1, 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (isFiltering && filtered.length > 0) {
-          pick(filtered[selectedIndex]!.id);
-        } else if (!isFiltering && graphRows.length > 0) {
-          pick(graphRows[selectedIndex]!.branch.id);
-        }
-        break;
-    }
-  }, [activeListLen, closeDropdown, isFiltering, filtered, graphRows, selectedIndex, pick]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const maxIdx = Math.max(activeListLen - 1, 0);
+      switch (e.key) {
+        case "Escape":
+          e.preventDefault();
+          closeDropdown();
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((i) => Math.min(i + 1, maxIdx));
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex((i) => Math.max(i - 1, 0));
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (isFiltering && filtered.length > 0) {
+            pick(filtered[selectedIndex]!.id);
+          } else if (!isFiltering && graphRows.length > 0) {
+            pick(graphRows[selectedIndex]!.branch.id);
+          }
+          break;
+      }
+    },
+    [
+      activeListLen,
+      closeDropdown,
+      isFiltering,
+      filtered,
+      graphRows,
+      selectedIndex,
+      pick,
+    ],
+  );
 
-  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
-      handleKeyDown(e);
-    }
-  }, [handleKeyDown]);
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) {
+        handleKeyDown(e);
+      }
+    },
+    [handleKeyDown],
+  );
 
   // ── CSS helpers ────────────────────────────────────────────────────────────
 
   const rootClass = [
-    'tbp',
-    showGraph && 'tbp--graph',
-    panel      && 'tbp--panel',
+    "tbp",
+    showGraph && "tbp--graph",
+    panel && "tbp--panel",
     className,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const optClass = (row: GraphRow, idx: number): string =>
     [
-      'tbp__option',
-      row.rowKind === 'commit'       && 'tbp__option--commit',
-      row.rowKind === 'branch-head'  && 'tbp__option--head',
-      row.rowKind === 'merge'        && 'tbp__option--merge',
-      row.branch.isActive            && 'tbp__option--active-branch',
-      row.rowKind === 'branch-head'  && row.branch.isActive && 'tbp__option--current',
-      idx === selectedIndex          && 'tbp__option--keyboard',
-      row.branch.kind === 'main' ? 'tbp__option--main' : 'tbp__option--thread',
-    ].filter(Boolean).join(' ');
+      "tbp__option",
+      row.rowKind === "commit" && "tbp__option--commit",
+      row.rowKind === "branch-head" && "tbp__option--head",
+      row.rowKind === "merge" && "tbp__option--merge",
+      row.branch.isActive && "tbp__option--active-branch",
+      row.rowKind === "branch-head" &&
+        row.branch.isActive &&
+        "tbp__option--current",
+      idx === selectedIndex && "tbp__option--keyboard",
+      row.branch.kind === "main" ? "tbp__option--main" : "tbp__option--thread",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
   // ── Search / filter list (1 row per branch) ────────────────────────────────
 
   const filterList = (
     <ul id={listId} className="tbp__list" role="listbox" aria-label={ariaLabel}>
       {filtered.length === 0 ? (
-        <li className="tbp__empty" role="presentation">Kein passender Branch gefunden</li>
+        <li className="tbp__empty" role="presentation">
+          Kein passender Branch gefunden
+        </li>
       ) : (
         filtered.map((item, i) => {
-          const isMain    = item.kind === 'main';
-          const msgLabel  = item.messageCount !== undefined ? `${item.messageCount} Nachr.` : null;
-          const timeLabel = item.updatedAt ? formatRelativeTime(item.updatedAt) : null;
-          const color     = laneColor(item.lane);
+          const isMain = item.kind === "main";
+          const msgLabel =
+            item.messageCount !== undefined
+              ? `${item.messageCount} Nachr.`
+              : null;
+          const timeLabel = item.updatedAt
+            ? formatRelativeTime(item.updatedAt)
+            : null;
+          const color = laneColor(item.lane);
           return (
             <li
               key={item.id}
               role="option"
               aria-selected={item.isActive}
               className={[
-                'tbp__option tbp__option--head',
-                i === selectedIndex && 'tbp__option--keyboard',
-                item.isActive       && 'tbp__option--current',
-                isMain ? 'tbp__option--main' : 'tbp__option--thread',
-              ].filter(Boolean).join(' ')}
+                "tbp__option tbp__option--head",
+                i === selectedIndex && "tbp__option--keyboard",
+                item.isActive && "tbp__option--current",
+                isMain ? "tbp__option--main" : "tbp__option--thread",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onClick={() => pick(item.id)}
               onMouseEnter={() => setSelectedIndex(i)}
             >
               <div className="tbp__option-content">
                 <div className="tbp__option-icon" style={{ color }}>
-                  {isMain ? <MessageSquare size={14} /> : <GitBranch size={14} />}
+                  {isMain ? (
+                    <MessageSquare size={14} />
+                  ) : (
+                    <GitBranch size={14} />
+                  )}
                   {item.savedToProject && (
-                    <FolderCheck size={11} className="tbp__saved-icon" title="Im Projekt gespeichert" />
+                    <FolderCheck
+                      size={11}
+                      className="tbp__saved-icon"
+                      title="Im Projekt gespeichert"
+                    />
                   )}
                 </div>
                 <div className="tbp__option-body">
@@ -634,19 +714,31 @@ export function ThreadBranchPicker({
                       className="tbp__kind-badge"
                       style={{ background: `${color}22`, color }}
                     >
-                      {isMain ? 'main' : 'thread'}
+                      {isMain ? "main" : "thread"}
                     </span>
-                    <span className="tbp__option-title" title={item.title}>{item.title}</span>
+                    <span className="tbp__option-title" title={item.title}>
+                      {item.title}
+                    </span>
                   </div>
                   {(msgLabel || timeLabel) && (
                     <div className="tbp__option-meta">
-                      {msgLabel  && <span className="tbp__meta-chip">{msgLabel}</span>}
-                      {msgLabel && timeLabel && <span className="tbp__meta-sep" aria-hidden>·</span>}
-                      {timeLabel && <span className="tbp__meta-time">{timeLabel}</span>}
+                      {msgLabel && (
+                        <span className="tbp__meta-chip">{msgLabel}</span>
+                      )}
+                      {msgLabel && timeLabel && (
+                        <span className="tbp__meta-sep" aria-hidden>
+                          ·
+                        </span>
+                      )}
+                      {timeLabel && (
+                        <span className="tbp__meta-time">{timeLabel}</span>
+                      )}
                     </div>
                   )}
                 </div>
-                {item.isActive && <Check size={14} className="tbp__option-check" aria-hidden />}
+                {item.isActive && (
+                  <Check size={14} className="tbp__option-check" aria-hidden />
+                )}
               </div>
             </li>
           );
@@ -660,16 +752,19 @@ export function ThreadBranchPicker({
   const commitList = (
     <ul id={listId} className="tbp__list" role="listbox" aria-label={ariaLabel}>
       {graphRows.length === 0 ? (
-        <li className="tbp__empty" role="presentation">Keine Zweige vorhanden</li>
+        <li className="tbp__empty" role="presentation">
+          Keine Zweige vorhanden
+        </li>
       ) : (
         graphRows.map((row, i) => {
-          const isMain        = row.branch.kind === 'main';
-          const color         = laneColor(row.lane);
-          const isHeadRow     = row.rowKind === 'branch-head';
+          const isMain = row.branch.kind === "main";
+          const color = laneColor(row.lane);
+          const isHeadRow = row.rowKind === "branch-head";
 
           // Merge row: thread was summarised and merged back into the main branch
-          if (row.rowKind === 'merge') {
-            const mergeColor = row.mergeLane !== undefined ? laneColor(row.mergeLane) : color;
+          if (row.rowKind === "merge") {
+            const mergeColor =
+              row.mergeLane !== undefined ? laneColor(row.mergeLane) : color;
             return (
               <li
                 key={`${row.branch.id}::merge`}
@@ -679,10 +774,25 @@ export function ThreadBranchPicker({
                 onClick={() => pick(row.branch.id)}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                {showGraph && <GraphSvg row={row} rowIndex={i} numLanes={numLanes} firstRowIdx={firstRowIdx} lastRowIdx={lastRowIdx} />}
+                {showGraph && (
+                  <GraphSvg
+                    row={row}
+                    rowIndex={i}
+                    numLanes={numLanes}
+                    firstRowIdx={firstRowIdx}
+                    lastRowIdx={lastRowIdx}
+                  />
+                )}
                 <div className="tbp__option-content tbp__option-content--commit">
-                  <GitMerge size={11} style={{ color: mergeColor, flexShrink: 0 }} />
-                  <span className="tbp__commit-text tbp__merge-text" title={row.branch.title} style={{ color: mergeColor }}>
+                  <GitMerge
+                    size={11}
+                    style={{ color: mergeColor, flexShrink: 0 }}
+                  />
+                  <span
+                    className="tbp__commit-text tbp__merge-text"
+                    title={row.branch.title}
+                    style={{ color: mergeColor }}
+                  >
                     {row.branch.title}
                   </span>
                 </div>
@@ -691,9 +801,10 @@ export function ThreadBranchPicker({
           }
 
           if (isHeadRow) {
-            const msgLabel  = row.branch.messageCount !== undefined
-              ? `${row.branch.messageCount} Nachr.`
-              : null;
+            const msgLabel =
+              row.branch.messageCount !== undefined
+                ? `${row.branch.messageCount} Nachr.`
+                : null;
             const timeLabel = row.branch.updatedAt
               ? formatRelativeTime(row.branch.updatedAt)
               : null;
@@ -707,12 +818,28 @@ export function ThreadBranchPicker({
                 onClick={() => pick(row.branch.id)}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                {showGraph && <GraphSvg row={row} rowIndex={i} numLanes={numLanes} firstRowIdx={firstRowIdx} lastRowIdx={lastRowIdx} />}
+                {showGraph && (
+                  <GraphSvg
+                    row={row}
+                    rowIndex={i}
+                    numLanes={numLanes}
+                    firstRowIdx={firstRowIdx}
+                    lastRowIdx={lastRowIdx}
+                  />
+                )}
                 <div className="tbp__option-content">
                   <div className="tbp__option-icon" style={{ color }}>
-                    {isMain ? <MessageSquare size={14} /> : <GitBranch size={14} />}
+                    {isMain ? (
+                      <MessageSquare size={14} />
+                    ) : (
+                      <GitBranch size={14} />
+                    )}
                     {row.branch.savedToProject && (
-                      <FolderCheck size={11} className="tbp__saved-icon" title="Im Projekt gespeichert" />
+                      <FolderCheck
+                        size={11}
+                        className="tbp__saved-icon"
+                        title="Im Projekt gespeichert"
+                      />
                     )}
                   </div>
                   <div className="tbp__option-body">
@@ -721,22 +848,37 @@ export function ThreadBranchPicker({
                         className="tbp__kind-badge"
                         style={{ background: `${color}22`, color }}
                       >
-                        {isMain ? 'main' : 'thread'}
+                        {isMain ? "main" : "thread"}
                       </span>
-                      <span className="tbp__option-title" title={row.branch.title}>
+                      <span
+                        className="tbp__option-title"
+                        title={row.branch.title}
+                      >
                         {row.branch.title}
                       </span>
                     </div>
                     {(msgLabel || timeLabel) && (
                       <div className="tbp__option-meta">
-                        {msgLabel  && <span className="tbp__meta-chip">{msgLabel}</span>}
-                        {msgLabel && timeLabel && <span className="tbp__meta-sep" aria-hidden>·</span>}
-                        {timeLabel && <span className="tbp__meta-time">{timeLabel}</span>}
+                        {msgLabel && (
+                          <span className="tbp__meta-chip">{msgLabel}</span>
+                        )}
+                        {msgLabel && timeLabel && (
+                          <span className="tbp__meta-sep" aria-hidden>
+                            ·
+                          </span>
+                        )}
+                        {timeLabel && (
+                          <span className="tbp__meta-time">{timeLabel}</span>
+                        )}
                       </div>
                     )}
                   </div>
                   {row.branch.isActive && (
-                    <Check size={14} className="tbp__option-check" aria-hidden />
+                    <Check
+                      size={14}
+                      className="tbp__option-check"
+                      aria-hidden
+                    />
                   )}
                 </div>
               </li>
@@ -746,20 +888,28 @@ export function ThreadBranchPicker({
           // Commit row
           return (
             <li
-              key={`${row.branch.id}::commit::${row.commitIndex}`}
+              key={`${row.branch.id}::commit::${row.commitIndex}::${row.isForkStart ? "start" : "end"}`}
               role="option"
               aria-selected={false}
               className={optClass(row, i)}
               onClick={() => pick(row.branch.id)}
               onMouseEnter={() => setSelectedIndex(i)}
             >
-              {showGraph && <GraphSvg row={row} rowIndex={i} numLanes={numLanes} firstRowIdx={firstRowIdx} lastRowIdx={lastRowIdx} />}
+              {showGraph && (
+                <GraphSvg
+                  row={row}
+                  rowIndex={i}
+                  numLanes={numLanes}
+                  firstRowIdx={firstRowIdx}
+                  lastRowIdx={lastRowIdx}
+                />
+              )}
               <div className="tbp__option-content tbp__option-content--commit">
                 <span
-                  className={`tbp__commit-tag ${row.isForkStart ? 'tbp__commit-tag--start' : 'tbp__commit-tag--end'}`}
+                  className={`tbp__commit-tag ${row.isForkStart ? "tbp__commit-tag--start" : "tbp__commit-tag--end"}`}
                   style={{ color }}
                 >
-                  {row.isForkStart ? 'start' : 'tip'}
+                  {row.isForkStart ? "start" : "tip"}
                 </span>
                 <span className="tbp__commit-text" title={row.commitText}>
                   {row.commitText}
@@ -780,12 +930,21 @@ export function ThreadBranchPicker({
         <GitBranch size={14} className="tbp__header-icon" aria-hidden />
         <span className="tbp__header-title">Commit-Graph</span>
         <div className="tbp__header-badges">
-          <span className="tbp__badge" style={{ background: `${LANE_COLORS[0]}22`, color: LANE_COLORS[0] }}>
+          <span
+            className="tbp__badge"
+            style={{ background: `${LANE_COLORS[0]}22`, color: LANE_COLORS[0] }}
+          >
             1 Main
           </span>
           {threads.length > 0 && (
-            <span className="tbp__badge" style={{ background: `${LANE_COLORS[1]}22`, color: LANE_COLORS[1] }}>
-              {threads.length}&thinsp;Thread{threads.length !== 1 ? 's' : ''}
+            <span
+              className="tbp__badge"
+              style={{
+                background: `${LANE_COLORS[1]}22`,
+                color: LANE_COLORS[1],
+              }}
+            >
+              {threads.length}&thinsp;Thread{threads.length !== 1 ? "s" : ""}
             </span>
           )}
           {totalCommits > 0 && (
@@ -814,7 +973,9 @@ export function ThreadBranchPicker({
       {isFiltering ? filterList : commitList}
 
       <div className="tbp__footer">
-        <span className="tbp__hint">↑↓ navigieren · Enter wechseln · Esc schließen</span>
+        <span className="tbp__hint">
+          ↑↓ navigieren · Enter wechseln · Esc schließen
+        </span>
       </div>
     </>
   );
@@ -841,7 +1002,10 @@ export function ThreadBranchPicker({
         aria-haspopup="listbox"
         aria-controls={listId}
         aria-label={ariaLabel}
-        onClick={() => { if (open) closeDropdown(); else openDropdown(); }}
+        onClick={() => {
+          if (open) closeDropdown();
+          else openDropdown();
+        }}
       >
         <GitBranch size={14} className="tbp__trigger-icon" aria-hidden />
         <span className="tbp__trigger-label" title={activeItem.title}>
@@ -849,7 +1013,7 @@ export function ThreadBranchPicker({
         </span>
         <ChevronDown
           size={12}
-          className={`tbp__trigger-chevron${open ? ' tbp__trigger-chevron--open' : ''}`}
+          className={`tbp__trigger-chevron${open ? " tbp__trigger-chevron--open" : ""}`}
           aria-hidden
         />
       </button>
