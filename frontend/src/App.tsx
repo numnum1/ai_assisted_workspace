@@ -2558,16 +2558,6 @@ function App() {
         </Panel>
       </Group>
 
-      {!threadWorkspaceOpen && (
-        <ContextBar
-          contextInfo={conversation.contextInfo}
-          activeFile={activeChapterTitle}
-          isDirty={chapter.hasDirtyActions}
-          systemPromptPreview={conversation.systemPrompt}
-          onFetchContextBlocks={conversation.fetchContextBlocks}
-        />
-      )}
-
       {credDialogOpen && (
         <GitCredentialsDialog
           onSuccess={() => {
