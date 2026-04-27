@@ -11,15 +11,14 @@
     flex-shrink: 0;
 }
 .thread-parent-context-role {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-muted, #888);
+    font-size: 12px;
+    font-weight: 700;
     margin-bottom: 2px;
     display: block;
 }
 .thread-parent-context-text {
-    font-size: 11px;
-    color: var(--text-muted, #999);
+    font-size: 14px;
+    font-weight: 450;
     margin: 0;
     line-height: 1.4;
     white-space: pre-wrap;
