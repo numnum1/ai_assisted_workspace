@@ -1,10 +1,13 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import type { ChatSessionKind, Conversation, ChatMessage } from '../types.ts';
-import { fetchProjectChatHistory, persistProjectChatHistory } from '../api.ts';
-import { buildConversationById, effectiveSavedToProject } from '../components/chat/chatHistoryUtils.ts';
+import { useState, useCallback, useEffect, useRef } from "react";
+import type { ChatSessionKind, Conversation, ChatMessage } from "../types.ts";
+import { fetchProjectChatHistory, persistProjectChatHistory } from "../api.ts";
+import {
+  buildConversationById,
+  effectiveSavedToProject,
+} from "../components/chat/chatHistoryUtils.ts";
 
 /** Pre–per-project keys: one list for all folders (migrated once into first opened project) */
-const LEGACY_STORAGE_KEY = 'chat-history';
+const LEGACY_STORAGE_KEY = "chat-history";
 
 const MAX_CONVERSATIONS = 50;
 const SAVE_DEBOUNCE_MS = 500;
@@ -67,7 +70,10 @@ function loadConversations(storageKey: string | null): Conversation[] {
   }
 }
 
-function saveConversations(conversations: Conversation[], storageKey: string | null) {
+function saveConversations(
+  conversations: Conversation[],
+  storageKey: string | null,
+) {
   if (!storageKey) return;
   try {
     localStorage.setItem(storageKey, JSON.stringify(conversations));
@@ -77,23 +83,26 @@ function saveConversations(conversations: Conversation[], storageKey: string | n
 }
 
 function generateTitle(messages: ChatMessage[]): string {
-  const firstUser = messages.find((m) => m.role === 'user' && !m.hidden);
-  if (!firstUser) return 'Neuer Chat';
-  const text = firstUser.content.trim().replace(/\s+/g, ' ');
-  return text.length > 50 ? text.slice(0, 50) + '…' : text;
+  const firstUser = messages.find((m) => m.role === "user" && !m.hidden);
+  if (!firstUser) return "Neuer Chat";
+  const text = firstUser.content.trim().replace(/\s+/g, " ");
+  return text.length > 50 ? text.slice(0, 50) + "…" : text;
 }
 
-function createEmptyConversation(mode: string, sessionKind: ChatSessionKind = 'standard'): Conversation {
+function createEmptyConversation(
+  mode: string,
+  sessionKind: ChatSessionKind = "standard",
+): Conversation {
   const base: Conversation = {
     id: crypto.randomUUID(),
-    title: 'Neuer Chat',
+    title: "Neuer Chat",
     messages: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
     mode,
   };
-  if (sessionKind === 'guided') {
-    base.sessionKind = 'guided';
+  if (sessionKind === "guided") {
+    base.sessionKind = "guided";
   }
   return base;
 }
@@ -105,7 +114,10 @@ function hasVisibleMessages(c: Conversation): boolean {
   return false;
 }
 
-function resolveActiveId(conversations: Conversation[], lastActiveId: string | null): string {
+function resolveActiveId(
+  conversations: Conversation[],
+  lastActiveId: string | null,
+): string {
   if (lastActiveId && conversations.some((c) => c.id === lastActiveId)) {
     return lastActiveId;
   }
@@ -135,7 +147,9 @@ function mergeWithProject(
     }
   }
 
-  let rest = Array.from(byId.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+  let rest = Array.from(byId.values()).sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  );
   rest = rest.slice(0, MAX_CONVERSATIONS);
 
   if (rest.length === 0) {
@@ -155,11 +169,11 @@ function initialChatState(projectPath: string, currentMode: string) {
 }
 
 export function useChatHistory(currentMode: string, projectPath: string) {
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    initialChatState(projectPath, currentMode).conversations,
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => initialChatState(projectPath, currentMode).conversations,
   );
-  const [activeId, setActiveId] = useState<string>(() =>
-    initialChatState(projectPath, currentMode).activeId,
+  const [activeId, setActiveId] = useState<string>(
+    () => initialChatState(projectPath, currentMode).activeId,
   );
   const [hydrated, setHydrated] = useState(false);
 
@@ -180,7 +194,12 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     }
 
     const lastActive = loadLastActiveChatId(key);
-    const localMerged = mergeWithProject(null, currentModeRef.current, key, lastActive);
+    const localMerged = mergeWithProject(
+      null,
+      currentModeRef.current,
+      key,
+      lastActive,
+    );
     setConversations(localMerged.conversations);
     setActiveId(localMerged.activeId);
     setHydrated(false);
@@ -238,7 +257,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     if (projectTimerRef.current) clearTimeout(projectTimerRef.current);
     projectTimerRef.current = setTimeout(() => {
       persistProjectChatHistory(conversationsRef.current).catch((err) => {
-        console.error('persistProjectChatHistory failed', err);
+        console.error("persistProjectChatHistory failed", err);
       });
     }, PROJECT_SAVE_DEBOUNCE_MS);
 
@@ -257,11 +276,12 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       }
       void persistProjectChatHistory(conversationsRef.current);
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hydrated]);
 
-  const activeConversation = conversations.find((c) => c.id === activeId) ?? conversations[0];
+  const activeConversation =
+    conversations.find((c) => c.id === activeId) ?? conversations[0];
 
   useEffect(() => {
     setConversations((prev) => {
@@ -279,7 +299,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
         return prev.map((c) => {
           if (c.id !== activeId) return c;
           const title =
-            c.title === 'Neuer Chat' && messages.length > 0
+            c.title === "Neuer Chat" && messages.length > 0
               ? generateTitle(messages)
               : c.title;
           return { ...c, messages, title, updatedAt: Date.now() };
@@ -295,7 +315,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
         prev.map((c) => {
           if (c.id !== id) return c;
           const title =
-            c.title === 'Neuer Chat' && messages.length > 0
+            c.title === "Neuer Chat" && messages.length > 0
               ? generateTitle(messages)
               : c.title;
           return { ...c, messages, title, updatedAt: Date.now() };
@@ -310,7 +330,11 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id !== id) return c;
-          return { ...c, messages: [...c.messages, message], updatedAt: Date.now() };
+          return {
+            ...c,
+            messages: [...c.messages, message],
+            updatedAt: Date.now(),
+          };
         }),
       );
     },
@@ -322,7 +346,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       mode?: string,
       initialMessages?: ChatMessage[],
       title?: string,
-      sessionKind: ChatSessionKind = 'standard',
+      sessionKind: ChatSessionKind = "standard",
     ) => {
       const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       if (initialMessages && initialMessages.length > 0) {
@@ -331,6 +355,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       } else if (title) {
         newConv.title = title;
       }
+      setActiveId(newConv.id);
       setConversations((prev) => {
         const active = prev.find((c) => c.id === activeId);
         const dropEmptyActive =
@@ -344,17 +369,21 @@ export function useChatHistory(currentMode: string, projectPath: string) {
         }
         return updated;
       });
-      setActiveId(newConv.id);
       return newConv;
     },
     [activeId, currentMode],
   );
 
-  const patchConversation = useCallback((id: string, patch: Partial<Conversation>) => {
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)),
-    );
-  }, []);
+  const patchConversation = useCallback(
+    (id: string, patch: Partial<Conversation>) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c,
+        ),
+      );
+    },
+    [],
+  );
 
   /**
    * Merges snapshotId -> state pairs into the conversation's writeFileSettled map.
@@ -362,7 +391,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
    * "Pending changes" bar does not reappear after an app restart.
    */
   const settleWriteFileSnapshots = useCallback(
-    (conversationId: string, patch: Record<string, 'applied' | 'reverted'>) => {
+    (conversationId: string, patch: Record<string, "applied" | "reverted">) => {
       if (Object.keys(patch).length === 0) return;
       setConversations((prev) =>
         prev.map((c) => {
@@ -380,7 +409,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
 
   /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
   const discardActiveAndCreateConversation = useCallback(
-    (mode?: string, sessionKind: ChatSessionKind = 'standard') => {
+    (mode?: string, sessionKind: ChatSessionKind = "standard") => {
       const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       setConversations((prev) => {
         const filtered = prev.filter((c) => c.id !== activeId);
@@ -430,7 +459,9 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   const renameConversation = useCallback((id: string, newTitle: string) => {
     setConversations((prev) =>
       prev.map((c) =>
-        c.id === id ? { ...c, title: newTitle.trim() || c.title, updatedAt: Date.now() } : c,
+        c.id === id
+          ? { ...c, title: newTitle.trim() || c.title, updatedAt: Date.now() }
+          : c,
       ),
     );
   }, []);
@@ -440,7 +471,9 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       const target = prev.find((c) => c.id === id);
       if (target?.isThread) return prev;
       return prev.map((c) =>
-        c.id === id ? { ...c, savedToProject: !c.savedToProject, updatedAt: Date.now() } : c,
+        c.id === id
+          ? { ...c, savedToProject: !c.savedToProject, updatedAt: Date.now() }
+          : c,
       );
     });
   }, []);
@@ -474,21 +507,18 @@ export function useChatHistory(currentMode: string, projectPath: string) {
    * Conversations whose IDs already exist are skipped to avoid duplicates.
    * Imported conversations are not auto-pinned to the project file.
    */
-  const importConversations = useCallback(
-    (imported: Conversation[]) => {
-      if (!imported.length) return;
-      setConversations((prev) => {
-        const existingIds = new Set(prev.map((c) => c.id));
-        const incoming = imported
-          .filter((c) => !existingIds.has(c.id))
-          .map((c) => ({ ...c, savedToProject: false as const }));
-        if (!incoming.length) return prev;
-        const merged = [...incoming, ...prev].slice(0, MAX_CONVERSATIONS);
-        return merged;
-      });
-    },
-    [],
-  );
+  const importConversations = useCallback((imported: Conversation[]) => {
+    if (!imported.length) return;
+    setConversations((prev) => {
+      const existingIds = new Set(prev.map((c) => c.id));
+      const incoming = imported
+        .filter((c) => !existingIds.has(c.id))
+        .map((c) => ({ ...c, savedToProject: false as const }));
+      if (!incoming.length) return prev;
+      const merged = [...incoming, ...prev].slice(0, MAX_CONVERSATIONS);
+      return merged;
+    });
+  }, []);
 
   return {
     conversations,
