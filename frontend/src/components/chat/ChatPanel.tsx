@@ -211,12 +211,7 @@ export function ChatPanel({
     conversations.find((c) => c.id === activeConversationId)?.title ?? "";
 
   const handleNewChatClick = () => {
-    const hasMessages = messages.filter((m) => !m.hidden).length > 0;
-    if (hasMessages) {
-      setNewChatDialogOpen(true);
-    } else {
-      onNewChat("standard");
-    }
+    setNewChatDialogOpen(true);
   };
 
   const handleNewChatConfirm = (payload: NewChatConfirmPayload) => {
