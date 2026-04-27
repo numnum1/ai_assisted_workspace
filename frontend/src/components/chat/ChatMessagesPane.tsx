@@ -211,7 +211,7 @@ export function ChatMessagesPane({
           <p>Start a conversation with your AI assistant.</p>
           <p className="chat-empty-hint">
             Drag files from the project tree into the input area to reference
-            them, or use @filename syntax in your message.
+            them, or use @filename syntax in the input area.
             {onOpenPromptPack && !readOnly && (
               <>
                 {" "}
@@ -220,6 +220,16 @@ export function ChatMessagesPane({
               </>
             )}
           </p>
+        </div>
+      )}
+      {activeIsThread && visibleEntries.length > 0 && (
+        <div className="thread-start-indicator">
+          <GitFork
+            className="thread-start-indicator-icon"
+            size={14}
+            aria-hidden
+          />
+          <span className="thread-start-indicator-text">Thread-Startpunkt</span>
         </div>
       )}
       {renderUnits.map((unit) => {
