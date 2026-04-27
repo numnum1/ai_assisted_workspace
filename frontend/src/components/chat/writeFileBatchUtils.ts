@@ -1,6 +1,6 @@
-import type { ChatMessage } from '../../types.ts';
-import type { ChangeCardData } from './ChangeCard.tsx';
-import { parseWriteFileToolMessage } from './writeFileToolParse.ts';
+import type { ChatMessage } from "../../types.ts";
+import type { ChangeCardData } from "./ChangeCard.tsx";
+import { parseWriteFileToolMessage } from "./writeFileToolParse.ts";
 
 export interface WriteFileBatchItem {
   originalIdx: number;
@@ -8,18 +8,22 @@ export interface WriteFileBatchItem {
 }
 
 /**
- * Consecutive {@code write_file:success} tool messages at the **end** of the visible list
- * (e.g. latest multi-file write before the user sends another message).
+ * Consecutive {@code write_file:success} tool messages at the **end** of the visible list.
+ * Items whose snapshotId appears in {@code settled} are excluded (already accepted/rejected).
  */
 export function getTrailingWriteFileBatch(
   visible: { msg: ChatMessage; originalIdx: number }[],
+  settled?: Record<string, "applied" | "reverted">,
 ): WriteFileBatchItem[] | null {
   const items: WriteFileBatchItem[] = [];
   for (let i = visible.length - 1; i >= 0; i--) {
     const { msg, originalIdx } = visible[i]!;
-    const data = msg.role === 'tool' ? parseWriteFileToolMessage(msg.content) : null;
+    const data =
+      msg.role === "tool" ? parseWriteFileToolMessage(msg.content) : null;
     if (!data) break;
-    items.push({ originalIdx, data });
+    if (!settled?.[data.snapshotId]) {
+      items.push({ originalIdx, data });
+    }
   }
   if (items.length < 2) return null;
   items.reverse();
@@ -34,15 +38,16 @@ export function isSameWriteFileBatch(
   return a.every((x, i) => x.data.snapshotId === b[i]!.data.snapshotId);
 }
 
-/** Every {@code write_file:success} tool row in visible order (for composer bulk actions). */
+/** Every {@code write_file:success} tool row — excluding already-settled ones. */
 export function collectAllWriteFileItems(
   visible: { msg: ChatMessage; originalIdx: number }[],
+  settled?: Record<string, "applied" | "reverted">,
 ): WriteFileBatchItem[] {
   const out: WriteFileBatchItem[] = [];
   for (const { msg, originalIdx } of visible) {
-    if (msg.role !== 'tool') continue;
+    if (msg.role !== "tool") continue;
     const data = parseWriteFileToolMessage(msg.content);
-    if (data) out.push({ originalIdx, data });
+    if (data && !settled?.[data.snapshotId]) out.push({ originalIdx, data });
   }
   return out;
 }

@@ -6,7 +6,12 @@ import {
   useRef,
   useMemo,
 } from "react";
-import type { ChatMessage, SelectionContext, ChatSessionKind, ContextInfo } from "../../types.ts";
+import type {
+  ChatMessage,
+  SelectionContext,
+  ChatSessionKind,
+  ContextInfo,
+} from "../../types.ts";
 import { glossaryApi } from "../../api.ts";
 import { ChatInput } from "./ChatInput.tsx";
 import { ChatComposerCard } from "./ChatComposerCard.tsx";
@@ -28,7 +33,6 @@ import {
   parseSteeringPlan,
   type ParsedSteeringPlan,
 } from "./planFenceUtils.ts";
-import { settleWriteFileMessage } from "./writeFileToolParse.ts";
 import { SteeringPlanViewer } from "./SteeringPlanViewer.tsx";
 import { ContextBar, type ContextBlock } from "./ContextBar.tsx";
 import "./ChatPane.css";
@@ -154,7 +158,10 @@ export interface ChatPaneProps {
   onMarkSteeringPlanComplete?: () => void;
 
   onFileChanged?: (path: string) => void;
-  onUpdateMessage?: (originalIdx: number, newContent: string) => void;
+  /** Persisted settled state for write_file snapshots (from Conversation.writeFileSettled). */
+  writeFileSettled?: Record<string, "applied" | "reverted">;
+  /** Called when snapshots are settled so the state can be persisted to the conversation. */
+  onSettleSnapshots?: (patch: Record<string, "applied" | "reverted">) => void;
 
   /** Glossary toolkit support (optional). */
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
@@ -207,7 +214,8 @@ export function ChatPane({
   steeringPlan = "",
   onMarkSteeringPlanComplete,
   onFileChanged,
-  onUpdateMessage,
+  writeFileSettled,
+  onSettleSnapshots,
   onReplaceSelection,
   onApplyFieldUpdate,
   onOpenPromptPack,
@@ -223,7 +231,9 @@ export function ChatPane({
 }: ChatPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const prevLastVisibleRoleRef = useRef<"user" | "assistant" | undefined>(undefined);
+  const prevLastVisibleRoleRef = useRef<"user" | "assistant" | undefined>(
+    undefined,
+  );
   const prevStreamingRef = useRef(false);
   const autoScrollActiveRef = useRef(true);
 
@@ -233,8 +243,12 @@ export function ChatPane({
   const [guidedThreadOfferDismissed, setGuidedThreadOfferDismissed] = useState(
     () => new Set<number>(),
   );
-  const [composerBatchForced, setComposerBatchForced] = useState<Record<string, CardState>>({});
-  const [toolbarSettledIds, setToolbarSettledIds] = useState(() => new Set<string>());
+  const [composerBatchForced, setComposerBatchForced] = useState<
+    Record<string, CardState>
+  >({});
+  const [toolbarSettledIds, setToolbarSettledIds] = useState(
+    () => new Set<string>(),
+  );
   const [bulkDismissIds, setBulkDismissIds] = useState(() => new Set<string>());
   const [glossaryPopup, setGlossaryPopup] = useState<{
     x: number;
@@ -337,7 +351,8 @@ export function ChatPane({
     const el = messagesScrollRef.current;
     if (!el || !streaming) return;
     const onScroll = () => {
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const distanceFromBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight;
       if (distanceFromBottom > 60) {
         autoScrollActiveRef.current = false;
       }
@@ -360,8 +375,8 @@ export function ChatPane({
   );
 
   const trailingWriteFileBatch = useMemo(
-    () => getTrailingWriteFileBatch(visibleEntries),
-    [visibleEntries],
+    () => getTrailingWriteFileBatch(visibleEntries, writeFileSettled),
+    [visibleEntries, writeFileSettled],
   );
   const composerBatchKey =
     trailingWriteFileBatch?.map((i) => i.data.snapshotId).join("\0") ?? "";
@@ -371,11 +386,14 @@ export function ChatPane({
   }, [composerBatchKey]);
 
   const allWriteFileItems = useMemo(
-    () => collectAllWriteFileItems(visibleEntries),
-    [visibleEntries],
+    () => collectAllWriteFileItems(visibleEntries, writeFileSettled),
+    [visibleEntries, writeFileSettled],
   );
   const pendingWriteFileItems = useMemo(
-    () => allWriteFileItems.filter((i) => !toolbarSettledIds.has(i.data.snapshotId)),
+    () =>
+      allWriteFileItems.filter(
+        (i) => !toolbarSettledIds.has(i.data.snapshotId),
+      ),
     [allWriteFileItems, toolbarSettledIds],
   );
 
@@ -386,20 +404,14 @@ export function ChatPane({
     [],
   );
 
-  const handleSnapshotSettled = useCallback((snapshotId: string) => {
-    setToolbarSettledIds((prev) => new Set(prev).add(snapshotId));
-  }, []);
-
-  const handleMessageSettle = useCallback(
-    (originalIdx: number, state: "applied" | "reverted") => {
-      const msg = messages[originalIdx];
-      if (!msg) return;
-      const newContent = settleWriteFileMessage(msg.content, state);
-      if (newContent !== msg.content) {
-        onUpdateMessage?.(originalIdx, newContent);
+  const handleSnapshotSettled = useCallback(
+    (snapshotId: string, state: "applied" | "reverted" | "dismissed") => {
+      setToolbarSettledIds((prev) => new Set(prev).add(snapshotId));
+      if (state === "applied" || state === "reverted") {
+        onSettleSnapshots?.({ [snapshotId]: state });
       }
     },
-    [messages, onUpdateMessage],
+    [onSettleSnapshots],
   );
 
   const handleWriteFileBulkComplete = useCallback(
@@ -417,20 +429,17 @@ export function ChatPane({
         ids.forEach((id) => n.add(id));
         return n;
       });
-      for (const item of pendingWriteFileItems) {
-        const state = patch[item.data.snapshotId] as CardState | undefined;
+      const settlePatch: Record<string, "applied" | "reverted"> = {};
+      for (const [id, state] of Object.entries(patch)) {
         if (state === "applied" || state === "reverted") {
-          const msg = messages[item.originalIdx];
-          if (msg) {
-            const newContent = settleWriteFileMessage(msg.content, state);
-            if (newContent !== msg.content) {
-              onUpdateMessage?.(item.originalIdx, newContent);
-            }
-          }
+          settlePatch[id] = state;
         }
       }
+      if (Object.keys(settlePatch).length > 0) {
+        onSettleSnapshots?.(settlePatch);
+      }
     },
-    [mergeComposerBatchForced, pendingWriteFileItems, messages, onUpdateMessage],
+    [mergeComposerBatchForced, onSettleSnapshots],
   );
 
   const pendingClarification = useMemo(() => {
@@ -551,7 +560,6 @@ export function ChatPane({
           composerBatchForced={composerBatchForced}
           onFileChanged={onFileChanged}
           onSnapshotSettled={handleSnapshotSettled}
-          onMessageSettle={handleMessageSettle}
           onForkFromMessage={onForkFromMessage}
           onStartThreadFromMessage={onStartThreadFromMessage}
           onForkToNewConversation={onForkToNewConversation}

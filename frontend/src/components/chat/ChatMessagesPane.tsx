@@ -17,7 +17,10 @@ import type { ChatMessage, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
 import { buildChatRenderUnits } from "./chatRenderUnits.ts";
-import { effectiveModeColor, getContrastingTextColor } from "./modeColorTheme.ts";
+import {
+  effectiveModeColor,
+  getContrastingTextColor,
+} from "./modeColorTheme.ts";
 import { hasClarificationFence } from "./clarificationUtils.ts";
 import type { CardState } from "./ChangeCard.tsx";
 
@@ -105,8 +108,10 @@ export interface ChatMessagesPaneProps {
   bulkDismissIds: Set<string>;
   composerBatchForced: Record<string, CardState>;
   onFileChanged?: (path: string) => void;
-  onSnapshotSettled?: (snapshotId: string) => void;
-  onMessageSettle?: (originalIdx: number, state: "applied" | "reverted") => void;
+  onSnapshotSettled?: (
+    snapshotId: string,
+    state: "applied" | "reverted" | "dismissed",
+  ) => void;
   onForkFromMessage: (index: number) => void;
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
@@ -140,7 +145,6 @@ export function ChatMessagesPane({
   composerBatchForced,
   onFileChanged,
   onSnapshotSettled,
-  onMessageSettle,
   onForkFromMessage,
   onStartThreadFromMessage,
   onForkToNewConversation,
@@ -169,10 +173,11 @@ export function ChatMessagesPane({
   );
 
   const dismissIds = readOnly ? EMPTY_SNAPSHOT_DISMISS : bulkDismissIds;
-  const batchForced = readOnly ? EMPTY_COMPOSER_BATCH_FORCED : composerBatchForced;
+  const batchForced = readOnly
+    ? EMPTY_COMPOSER_BATCH_FORCED
+    : composerBatchForced;
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
-  const messageSettleCb = readOnly ? undefined : onMessageSettle;
 
   return (
     <div
@@ -217,7 +222,6 @@ export function ChatMessagesPane({
               setCopiedIdx={setCopiedIdx}
               onFileChanged={fileCb}
               onSnapshotSettled={snapshotCb}
-              onMessageSettle={messageSettleCb}
               onForkFromMessage={onForkFromMessage}
               onStartThreadFromMessage={onStartThreadFromMessage}
               onForkToNewConversation={onForkToNewConversation}
@@ -237,7 +241,7 @@ export function ChatMessagesPane({
           !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === "user");
         const displayModeColor =
           msg.role === "user" && msg.modeColor
-            ? effectiveModeColor(msg.modeColor, theme) ?? msg.modeColor
+            ? (effectiveModeColor(msg.modeColor, theme) ?? msg.modeColor)
             : undefined;
 
         return (
@@ -307,9 +311,13 @@ export function ChatMessagesPane({
                             onReplaceSelection(text, msg.selectionContext!)
                         : undefined
                     }
-                    onApplyFieldUpdate={readOnly ? undefined : onApplyFieldUpdate}
+                    onApplyFieldUpdate={
+                      readOnly ? undefined : onApplyFieldUpdate
+                    }
                     fieldLabels={fieldLabels}
-                    suppressClarificationWidget={hasClarificationFence(msg.content)}
+                    suppressClarificationWidget={hasClarificationFence(
+                      msg.content,
+                    )}
                   />
                 ) : msg.role === "system" ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>

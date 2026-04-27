@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useCallback,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { Minimize2, GitMerge } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { Layout } from "react-resizable-panels";
@@ -83,7 +78,10 @@ export interface ThreadWorkspacePanelProps {
   onParentStartThreadFromMessage: (index: number) => void;
   onParentForkToNewConversation: (index: number) => void;
   onParentRetry?: () => void;
-  onParentUpdateMessage?: (originalIdx: number, newContent: string) => void;
+  onParentSettleSnapshots?: (
+    patch: Record<string, "applied" | "reverted">,
+  ) => void;
+  parentWriteFileSettled?: Record<string, "applied" | "reverted">;
 
   /** File references */
   referencedFiles: string[];
@@ -102,7 +100,8 @@ export interface ThreadWorkspacePanelProps {
 
   /** Write-file tool settle */
   onFileChanged?: (path: string) => void;
-  onUpdateMessage?: (originalIdx: number, newContent: string) => void;
+  onSettleSnapshots?: (patch: Record<string, "applied" | "reverted">) => void;
+  writeFileSettled?: Record<string, "applied" | "reverted">;
 
   /** Input extras */
   useReasoning?: boolean;
@@ -168,7 +167,8 @@ export function ThreadWorkspacePanel({
   onParentStartThreadFromMessage,
   onParentForkToNewConversation,
   onParentRetry,
-  onParentUpdateMessage,
+  onParentSettleSnapshots,
+  parentWriteFileSettled,
   referencedFiles,
   onAddFile,
   onRemoveFile,
@@ -179,7 +179,8 @@ export function ThreadWorkspacePanel({
   steeringPlan = "",
   onMarkSteeringPlanComplete,
   onFileChanged,
-  onUpdateMessage,
+  onSettleSnapshots,
+  writeFileSettled,
   useReasoning = false,
   onToggleReasoning,
   disabledToolkits = new Set<string>(),
@@ -220,7 +221,10 @@ export function ThreadWorkspacePanel({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const threadSplitDefaultLayout = useMemo(() => loadChatThreadSplitLayout(), []);
+  const threadSplitDefaultLayout = useMemo(
+    () => loadChatThreadSplitLayout(),
+    [],
+  );
   const handleThreadSplitLayoutChanged = useCallback((layout: Layout) => {
     saveChatThreadSplitLayout(layout);
   }, []);
@@ -243,7 +247,12 @@ export function ThreadWorkspacePanel({
               title="Zusammenfassung an Parent-Chat (Dialog)"
               aria-label="Zusammenfassung an Parent-Chat öffnen"
             >
-              <GitMerge size={14} className={isSummarizing ? 'chat-history-btn--spinning' : undefined} />
+              <GitMerge
+                size={14}
+                className={
+                  isSummarizing ? "chat-history-btn--spinning" : undefined
+                }
+              />
             </button>
           )}
           <button
@@ -297,7 +306,9 @@ export function ThreadWorkspacePanel({
             <div className="chat-thread-split-left">
               {parentConversation && (
                 <div className="chat-thread-split-pane-header">
-                  <span className="chat-thread-split-pane-label">Haupt-Chat</span>
+                  <span className="chat-thread-split-pane-label">
+                    Haupt-Chat
+                  </span>
                   <span
                     className="chat-thread-split-pane-title"
                     title={parentConversation.title}
@@ -322,7 +333,8 @@ export function ThreadWorkspacePanel({
                 onStartThreadFromMessage={onParentStartThreadFromMessage}
                 onForkToNewConversation={onParentForkToNewConversation}
                 onRetry={onParentRetry}
-                onUpdateMessage={onParentUpdateMessage}
+                writeFileSettled={parentWriteFileSettled}
+                onSettleSnapshots={onParentSettleSnapshots}
                 referencedFiles={referencedFiles}
                 onAddFile={onAddFile}
                 onRemoveFile={onRemoveFile}
@@ -388,7 +400,8 @@ export function ThreadWorkspacePanel({
                 steeringPlan={steeringPlan}
                 onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
                 onFileChanged={onFileChanged}
-                onUpdateMessage={onUpdateMessage}
+                writeFileSettled={writeFileSettled}
+                onSettleSnapshots={onSettleSnapshots}
                 structureRoot={structureRoot}
                 theme={theme}
                 fieldLabels={fieldLabels}

@@ -173,6 +173,12 @@ export interface Conversation {
   agentUseReasoning?: boolean;
   /** When set: fixed disabled toolkits for this conversation (same ids as global). */
   agentDisabledToolkits?: ChatToolkitId[];
+  /**
+   * Settled state per snapshotId. Populated when the user accepts or rejects a write_file change.
+   * Persisted so the "Pending changes" bar does not reappear after an app restart.
+   * Key = snapshotId, value = 'applied' | 'reverted'.
+   */
+  writeFileSettled?: Record<string, 'applied' | 'reverted'>;
 }
 
 /** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */

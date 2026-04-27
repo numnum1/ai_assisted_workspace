@@ -357,19 +357,21 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   }, []);
 
   /**
-   * Replaces the content of a single message within any conversation.
-   * Used to persist write_file settle state (applied/reverted) into the message so the
+   * Merges snapshotId -> state pairs into the conversation's writeFileSettled map.
+   * Used to persist accept/reject state for write_file changes so the
    * "Pending changes" bar does not reappear after an app restart.
    */
-  const updateMessageContent = useCallback(
-    (conversationId: string, messageIdx: number, newContent: string) => {
+  const settleWriteFileSnapshots = useCallback(
+    (conversationId: string, patch: Record<string, 'applied' | 'reverted'>) => {
+      if (Object.keys(patch).length === 0) return;
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id !== conversationId) return c;
-          const newMessages = c.messages.map((m, i) =>
-            i === messageIdx ? { ...m, content: newContent } : m,
-          );
-          return { ...c, messages: newMessages, updatedAt: Date.now() };
+          return {
+            ...c,
+            writeFileSettled: { ...(c.writeFileSettled ?? {}), ...patch },
+            updatedAt: Date.now(),
+          };
         }),
       );
     },
@@ -494,7 +496,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     activeId,
     hydrated,
     updateMessages,
-    updateMessageContent,
+    settleWriteFileSnapshots,
     updateMessagesForConversation,
     appendMessageToConversation,
     createConversation,

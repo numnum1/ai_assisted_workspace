@@ -13,9 +13,7 @@ import type { ChatMessage, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { ToolCallDisplay } from "./ToolCallDisplay.tsx";
 import { ChangeCardGroup } from "./ChangeCardGroup.tsx";
-import {
-  hasClarificationFence,
-} from "./clarificationUtils.ts";
+import { hasClarificationFence } from "./clarificationUtils.ts";
 import type { CardState } from "./ChangeCard.tsx";
 import type { SubRenderUnit } from "./chatRenderUnits.ts";
 import { toolResultShownInAssistantTurns } from "./chatRenderUnits.ts";
@@ -57,9 +55,11 @@ export interface AssistantTurnCardProps {
   copiedIdx: number | null;
   setCopiedIdx: (idx: number | null) => void;
   onFileChanged?: (path: string) => void;
-  onSnapshotSettled?: (snapshotId: string, state: 'applied' | 'reverted' | 'dismissed') => void;
-  /** Called when a card is explicitly settled so the tool message content can be updated. */
-  onMessageSettle?: (originalIdx: number, state: 'applied' | 'reverted') => void;
+  onSnapshotSettled?: (
+    snapshotId: string,
+    state: "applied" | "reverted" | "dismissed",
+  ) => void;
+
   onForkFromMessage: (index: number) => void;
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
@@ -87,7 +87,6 @@ export function AssistantTurnCard({
   setCopiedIdx,
   onFileChanged,
   onSnapshotSettled,
-  onMessageSettle,
   onForkFromMessage,
   onStartThreadFromMessage,
   onForkToNewConversation,
@@ -101,7 +100,6 @@ export function AssistantTurnCard({
   const dismissIds = bulkDismissIds;
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
-  const messageSettleCb = readOnly ? undefined : onMessageSettle;
 
   const showActions = !readOnly && !streaming;
 
@@ -151,10 +149,10 @@ export function AssistantTurnCard({
         !readOnly &&
         Boolean(
           trailingWriteFileBatch &&
-            isSameWriteFileBatch(
-              su.items.map((x) => ({ originalIdx: x.originalIdx, data: x.data })),
-              trailingWriteFileBatch,
-            ),
+          isSameWriteFileBatch(
+            su.items.map((x) => ({ originalIdx: x.originalIdx, data: x.data })),
+            trailingWriteFileBatch,
+          ),
         );
       const visibleWriteItems = su.items.filter(
         (i) => !dismissIds.has(i.data.snapshotId),
@@ -167,7 +165,6 @@ export function AssistantTurnCard({
           onFileChanged={fileCb}
           externalForced={isComposerBatch ? composerBatchForced : undefined}
           onSnapshotSettled={snapshotCb}
-          onMessageSettle={messageSettleCb}
         />
       );
     }
@@ -195,16 +192,20 @@ export function AssistantTurnCard({
         prevUser?.role === "user" &&
         prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
 
-      if (msg.kind === 'thread-summary') {
+      if (msg.kind === "thread-summary") {
         return (
           <div key={key} className="chat-message chat-message--thread-summary">
             <div className="chat-message--thread-summary-header">
-              <GitMerge size={14} aria-hidden className="chat-message--thread-summary-icon" />
+              <GitMerge
+                size={14}
+                aria-hidden
+                className="chat-message--thread-summary-icon"
+              />
               <span className="chat-message--thread-summary-label">
                 Zusammenfassung
                 {msg.threadSummaryMeta?.fromThreadTitle
                   ? `: ${msg.threadSummaryMeta.fromThreadTitle}`
-                  : ''}
+                  : ""}
               </span>
             </div>
             <div className="chat-message--thread-summary-body">
@@ -220,15 +221,12 @@ export function AssistantTurnCard({
             <ChatMessageMarkdown
               content={msg.content}
               streamingCursor={
-                !readOnly &&
-                streaming &&
-                originalIdx === messages.length - 1
+                !readOnly && streaming && originalIdx === messages.length - 1
               }
               selectionContext={msg.selectionContext}
               onReplace={
                 !readOnly && msg.selectionContext && onReplaceSelection
-                  ? (text) =>
-                      onReplaceSelection(text, msg.selectionContext!)
+                  ? (text) => onReplaceSelection(text, msg.selectionContext!)
                   : undefined
               }
               onApplyFieldUpdate={readOnly ? undefined : onApplyFieldUpdate}
@@ -360,7 +358,10 @@ export function AssistantTurnCard({
         )}
       </div>
       {showActions && (
-        <div className="assistant-turn-actions" aria-label="Aktionen für diese KI-Antwort">
+        <div
+          className="assistant-turn-actions"
+          aria-label="Aktionen für diese KI-Antwort"
+        >
           {firstVisIdx > 0 && (
             <button
               type="button"

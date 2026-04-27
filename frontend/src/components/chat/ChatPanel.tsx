@@ -1,16 +1,5 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-} from "react";
-import {
-  History,
-  Wand2,
-  Pencil,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { History, Wand2, Pencil, Maximize2, Minimize2 } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -25,7 +14,8 @@ import { ModeSelector } from "./ModeSelector.tsx";
 import { ChatHistory } from "./ChatHistory.tsx";
 import { NewChatButton } from "./NewChatButton.tsx";
 import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
-import type { GuidedThreadOfferPayload } from "./guidedThreadOfferUtils.ts";import { ChatPane } from "./ChatPane.tsx";
+import type { GuidedThreadOfferPayload } from "./guidedThreadOfferUtils.ts";
+import { ChatPane } from "./ChatPane.tsx";
 import type { ContextBlock } from "./ContextBar.tsx";
 
 function resolveGuidedExecutionSummary(
@@ -102,7 +92,8 @@ interface ChatPanelProps {
   fastAvailable?: boolean;
   onRetry?: () => void;
   onFileChanged?: (path: string) => void;
-  onUpdateMessage?: (originalIdx: number, newContent: string) => void;
+  writeFileSettled?: Record<string, "applied" | "reverted">;
+  onSettleSnapshots?: (patch: Record<string, "applied" | "reverted">) => void;
   agentPresets?: AgentPreset[];
   onComposerDraftChange?: (text: string) => void;
   theme?: "light" | "dark";
@@ -164,7 +155,8 @@ export function ChatPanel({
   fastAvailable = true,
   onRetry,
   onFileChanged,
-  onUpdateMessage,
+  writeFileSettled,
+  onSettleSnapshots,
   onComposerDraftChange,
   agentPresets = [],
   activeSessionKind = "standard",
@@ -266,9 +258,7 @@ export function ChatPanel({
   ]);
 
   return (
-    <div
-      className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}
-    >
+    <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
       <div className="chat-header">
         {guidedExecSummary ? (
           <div
@@ -437,7 +427,8 @@ export function ChatPanel({
           steeringPlan={steeringPlan}
           onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
           onFileChanged={onFileChanged}
-          onUpdateMessage={onUpdateMessage}
+          writeFileSettled={writeFileSettled}
+          onSettleSnapshots={onSettleSnapshots}
           onReplaceSelection={onReplaceSelection}
           onApplyFieldUpdate={onApplyFieldUpdate}
           onOpenPromptPack={onOpenPromptPack}

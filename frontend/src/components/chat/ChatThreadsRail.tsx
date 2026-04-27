@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { Conversation } from "../../types.ts";
 import {
   buildConversationById,
-  listThreadsForRoot,
+  listAllDescendants,
   resolveThreadBranchRootId,
 } from "./chatHistoryUtils.ts";
 
@@ -24,7 +24,7 @@ export function ChatThreadsRail({
   const threadRail = useMemo(() => {
     const byId = buildConversationById(conversations);
     const activeConv = byId.get(activeConversationId);
-    const rootId = resolveThreadBranchRootId(activeConv);
+    const rootId = resolveThreadBranchRootId(activeConv, byId);
     if (!rootId) {
       return {
         showRail: false,
@@ -33,10 +33,10 @@ export function ChatThreadsRail({
       };
     }
     const rootConv = byId.get(rootId) ?? null;
-    if (!rootConv || rootConv.isThread) {
-      return { showRail: false, rootConv, threads: [] as Conversation[] };
+    if (!rootConv) {
+      return { showRail: false, rootConv: null, threads: [] as Conversation[] };
     }
-    const threads = listThreadsForRoot(conversations, rootId);
+    const threads = listAllDescendants(conversations, rootId);
     return {
       showRail: threads.length >= 1,
       rootConv,
