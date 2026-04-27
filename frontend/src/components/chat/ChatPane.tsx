@@ -260,6 +260,7 @@ export function ChatPane({
     definition: string;
   } | null>(null);
   const [glossarySaving, setGlosarySaving] = useState(false);
+  const [clarificationOtherOpen, setClarificationOtherOpen] = useState(false);
 
   const agentMode = activeSessionKind === "guided";
 
@@ -270,6 +271,7 @@ export function ChatPane({
     setBulkDismissIds(new Set());
     setEditingIdx(null);
     setGuidedThreadOfferDismissed(new Set());
+    setClarificationOtherOpen(false);
     autoScrollActiveRef.current = true;
     prevLastVisibleRoleRef.current = undefined;
   }, [conversationId]);
@@ -446,16 +448,39 @@ export function ChatPane({
     const vis = messages
       .map((m, originalIdx) => ({ m, originalIdx }))
       .filter(({ m }) => !m.hidden);
-    const last = vis[vis.length - 1];
-    if (!last || last.m.role !== "assistant") return null;
-    const qs = parseClarificationQuestions(last.m.content);
-    if (!qs?.length) return null;
-    const userAfter = messages
-      .slice(last.originalIdx + 1)
-      .some((m) => !m.hidden && m.role === "user");
-    if (userAfter) return null;
-    return qs;
+    if (vis.length === 0) return null;
+
+    // Find the index of the last user message to scope the search to the current turn.
+    let lastUserVisIdx = -1;
+    for (let i = vis.length - 1; i >= 0; i--) {
+      if (vis[i]!.m.role === "user") {
+        lastUserVisIdx = i;
+        break;
+      }
+    }
+
+    // Search backwards through the current assistant turn (after the last user message)
+    // for a clarification fence — either in an assistant message or a tool result message.
+    for (let i = vis.length - 1; i > lastUserVisIdx; i--) {
+      const { m, originalIdx } = vis[i]!;
+      if (m.role !== "assistant" && m.role !== "tool") continue;
+      const qs = parseClarificationQuestions(m.content);
+      if (!qs?.length) continue;
+      // Make sure no user message comes after this message.
+      const userAfter = messages
+        .slice(originalIdx + 1)
+        .some((msg) => !msg.hidden && msg.role === "user");
+      if (userAfter) return null;
+      return qs;
+    }
+    return null;
   }, [messages]);
+
+  useEffect(() => {
+    if (!pendingClarification) {
+      setClarificationOtherOpen(false);
+    }
+  }, [pendingClarification]);
 
   const pendingGuidedThreadOffer = useMemo(() => {
     if (!onAcceptGuidedThreadOffer) return null;
@@ -594,6 +619,7 @@ export function ChatPane({
                 questions={pendingClarification}
                 onSubmit={onSend}
                 disabled={streaming}
+                onOtherOpen={setClarificationOtherOpen}
               />
             </ChatComposerCard>
           ) : null}
@@ -621,6 +647,7 @@ export function ChatPane({
             onSend={onSend}
             onStop={onStop}
             streaming={streaming}
+            disabled={clarificationOtherOpen}
             referencedFiles={referencedFiles}
             onAddFile={onAddFile}
             onRemoveFile={onRemoveFile}

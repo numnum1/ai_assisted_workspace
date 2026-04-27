@@ -1,20 +1,32 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import type { LucideIcon } from 'lucide-react';
-import { Send, Square, BookOpen, Zap, X, Maximize2, Wrench, Globe, FolderOpen, Sparkles, ScrollText } from 'lucide-react';
-import { FileChip } from '../common/FileChip.tsx';
-import { wikiApi } from '../../api.ts';
-import type { SelectionContext } from '../../types.ts';
-import { CHAT_TOOLKIT_IDS } from '../../types.ts';
+import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
+import type { LucideIcon } from "lucide-react";
+import {
+  Send,
+  Square,
+  BookOpen,
+  Zap,
+  X,
+  Maximize2,
+  Wrench,
+  Globe,
+  FolderOpen,
+  Sparkles,
+  ScrollText,
+} from "lucide-react";
+import { FileChip } from "../common/FileChip.tsx";
+import { wikiApi } from "../../api.ts";
+import type { SelectionContext } from "../../types.ts";
+import { CHAT_TOOLKIT_IDS } from "../../types.ts";
 
 const EMPTY_DISABLED_TOOLKITS = new Set<string>();
 
 const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: 'web', label: 'Web-Suche', icon: Globe },
-  { id: 'wiki', label: 'Wiki', icon: BookOpen },
-  { id: 'dateisystem', label: 'Dateisystem', icon: FolderOpen },
-  { id: 'assistant', label: 'Assistent', icon: Sparkles },
-  { id: 'glossary', label: 'Glossar (KI)', icon: ScrollText },
+  { id: "web", label: "Web-Suche", icon: Globe },
+  { id: "wiki", label: "Wiki", icon: BookOpen },
+  { id: "dateisystem", label: "Dateisystem", icon: FolderOpen },
+  { id: "assistant", label: "Assistent", icon: Sparkles },
+  { id: "glossary", label: "Glossar (KI)", icon: ScrollText },
 ];
 
 function ToolkitMenuButton({
@@ -36,33 +48,33 @@ function ToolkitMenuButton({
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === "Escape") setOpen(false);
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [open]);
 
   if (!onToggleToolkit) return null;
 
   const n = disabledToolkits.size;
   const total = CHAT_TOOLKIT_IDS.length;
-  let wrenchClass = 'chat-tools-toggle-btn';
-  if (n === total) wrenchClass += ' chat-tools-toggle-btn--off';
-  else if (n > 0) wrenchClass += ' chat-tools-toggle-btn--partial';
-  else wrenchClass += ' active';
+  let wrenchClass = "chat-tools-toggle-btn";
+  if (n === total) wrenchClass += " chat-tools-toggle-btn--off";
+  else if (n > 0) wrenchClass += " chat-tools-toggle-btn--partial";
+  else wrenchClass += " active";
 
   const title =
     n === 0
-      ? 'Toolkits — alle aktiv (klicken für Einstellungen)'
+      ? "Toolkits — alle aktiv (klicken für Einstellungen)"
       : n === total
-        ? 'Toolkits — alle aus (klicken für Einstellungen)'
+        ? "Toolkits — alle aus (klicken für Einstellungen)"
         : `Toolkits — ${total - n} von ${total} aktiv (klicken für Einstellungen)`;
 
   return (
@@ -93,11 +105,11 @@ function ToolkitMenuButton({
                 <span>{label}</span>
                 <button
                   type="button"
-                  className={`chat-toolkit-row-toggle${enabled ? ' chat-toolkit-row-toggle--on' : ''}`}
+                  className={`chat-toolkit-row-toggle${enabled ? " chat-toolkit-row-toggle--on" : ""}`}
                   role="menuitem"
                   onClick={() => onToggleToolkit(id)}
                 >
-                  {enabled ? 'An' : 'Aus'}
+                  {enabled ? "An" : "Aus"}
                 </button>
               </div>
             );
@@ -109,19 +121,26 @@ function ToolkitMenuButton({
 }
 
 type AutocompleteItem = {
-  type: 'wiki';
+  type: "wiki";
   title: string;
   path: string;
   breadcrumb: string;
 };
 
-function filterItems(items: AutocompleteItem[], query: string): AutocompleteItem[] {
+function filterItems(
+  items: AutocompleteItem[],
+  query: string,
+): AutocompleteItem[] {
   const limit = 20;
   if (!query) return items.slice(0, limit);
   const q = query.toLowerCase();
-  return items.filter(item =>
-    item.title.toLowerCase().includes(q) || item.path.toLowerCase().includes(q)
-  ).slice(0, limit);
+  return items
+    .filter(
+      (item) =>
+        item.title.toLowerCase().includes(q) ||
+        item.path.toLowerCase().includes(q),
+    )
+    .slice(0, limit);
 }
 
 /** Empty field: one line; padding 8+8 + 13px * 1.4 line-height ≈ 38px — keep in sync with .chat-textarea min-height */
@@ -134,32 +153,36 @@ const CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_FRACTION = 0.3;
 
 function chatTextareaMaxHeightPx(fullscreen: boolean): number {
   if (!fullscreen) return CHAT_TEXTAREA_MAX_HEIGHT_DOCKED_PX;
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX;
   }
   return Math.min(
-    Math.round(window.innerHeight * CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_FRACTION),
+    Math.round(
+      window.innerHeight * CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_FRACTION,
+    ),
     CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX,
   );
 }
 
-const WIKI_PREFIX = 'wiki/';
+const WIKI_PREFIX = "wiki/";
 
 function wikiDisplayTitle(relativePath: string): string {
-  const parts = relativePath.split('/');
+  const parts = relativePath.split("/");
   const filename = parts[parts.length - 1] ?? relativePath;
-  return filename.replace(/\.md$/i, '').replace(/[-_]/g, ' ');
+  return filename.replace(/\.md$/i, "").replace(/[-_]/g, " ");
 }
 
 function wikiBreadcrumb(relativePath: string): string {
-  const parts = relativePath.split('/');
-  return parts.length > 1 ? parts[parts.length - 2]! : 'wiki';
+  const parts = relativePath.split("/");
+  return parts.length > 1 ? parts[parts.length - 2]! : "wiki";
 }
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   onStop: () => void;
   streaming: boolean;
+  /** When true, the text input is disabled (e.g. while a multiple-choice "Andere…" field is open). */
+  disabled?: boolean;
   referencedFiles: string[];
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
@@ -193,6 +216,7 @@ export function ChatInput({
   onSend,
   onStop,
   streaming,
+  disabled = false,
   referencedFiles,
   onAddFile,
   onRemoveFile,
@@ -211,7 +235,7 @@ export function ChatInput({
   fullscreen = false,
   onDraftChange,
 }: ChatInputProps) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState("");
   const [expandOpen, setExpandOpen] = useState(false);
   const [ac, setAc] = useState<{
     query: string;
@@ -230,7 +254,7 @@ export function ChatInput({
     if (!onDraftChange) return;
     const trimmed = text.trim();
     if (!trimmed) {
-      onDraftChange('');
+      onDraftChange("");
       return;
     }
     if (activeSelection) {
@@ -246,13 +270,15 @@ export function ChatInput({
   useEffect(() => {
     if (!focusTriggerRef) return;
     focusTriggerRef.current = () => textareaRef.current?.focus();
-    return () => { if (focusTriggerRef) focusTriggerRef.current = null; };
+    return () => {
+      if (focusTriggerRef) focusTriggerRef.current = null;
+    };
   }, [focusTriggerRef]);
 
   const syncTextareaHeight = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    ta.style.height = 'auto';
+    ta.style.height = "auto";
     const maxH = chatTextareaMaxHeightPx(fullscreen);
     ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
   }, [fullscreen]);
@@ -262,7 +288,7 @@ export function ChatInput({
   }, [fullscreen, syncTextareaHeight]);
 
   useEffect(() => {
-    if (text !== '') return;
+    if (text !== "") return;
     syncTextareaHeight();
   }, [text, syncTextareaHeight]);
 
@@ -278,18 +304,18 @@ export function ChatInput({
         setAc(null);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [!!ac]);
 
   // Scroll selected item into view
   useEffect(() => {
     if (!ac || !dropdownRef.current) return;
-    const els = dropdownRef.current.querySelectorAll<HTMLElement>('.ac-item');
+    const els = dropdownRef.current.querySelectorAll<HTMLElement>(".ac-item");
     const filtered = filterItems(ac.items, ac.query);
     const idx = Math.min(ac.selectedIdx, filtered.length - 1);
     if (idx >= 0 && els[idx]) {
-      els[idx].scrollIntoView({ block: 'nearest' });
+      els[idx].scrollIntoView({ block: "nearest" });
     }
   }, [ac?.selectedIdx]);
 
@@ -304,10 +330,10 @@ export function ChatInput({
   useEffect(() => {
     if (!expandOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpandOpen(false);
+      if (e.key === "Escape") setExpandOpen(false);
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [expandOpen]);
 
   // Invalidate cache when structure root changes (different subproject)
@@ -327,7 +353,7 @@ export function ChatInput({
     }
 
     const items: AutocompleteItem[] = relativePaths.map((rel) => ({
-      type: 'wiki',
+      type: "wiki",
       title: wikiDisplayTitle(rel),
       path: `${WIKI_PREFIX}${rel}`,
       breadcrumb: wikiBreadcrumb(rel),
@@ -345,7 +371,7 @@ export function ChatInput({
       finalMessage = `[REFERENCED SELECTION]\n${activeSelection.text}\n[END SELECTION]\n\n${trimmed}`;
     }
     onSend(finalMessage);
-    setText('');
+    setText("");
     setAc(null);
     setExpandOpen(false);
   }, [text, streaming, onSend, activeSelection]);
@@ -357,7 +383,12 @@ export function ChatInput({
       if (!textarea) return;
 
       const queryEnd = ac.atIndex + 1 + ac.query.length;
-      const newText = text.slice(0, ac.atIndex) + '@' + item.path + ' ' + text.slice(queryEnd);
+      const newText =
+        text.slice(0, ac.atIndex) +
+        "@" +
+        item.path +
+        " " +
+        text.slice(queryEnd);
       setText(newText);
       setAc(null);
 
@@ -368,7 +399,7 @@ export function ChatInput({
         syncTextareaHeight();
       });
     },
-    [ac, text, syncTextareaHeight]
+    [ac, text, syncTextareaHeight],
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -378,7 +409,7 @@ export function ChatInput({
 
     // Auto-resize
     const ta = e.target;
-    ta.style.height = 'auto';
+    ta.style.height = "auto";
     const maxH = chatTextareaMaxHeightPx(fullscreen);
     ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
 
@@ -388,7 +419,7 @@ export function ChatInput({
 
     if (atMatch) {
       const query = atMatch[1];
-      if (query.includes('/') || query.startsWith('.')) {
+      if (query.includes("/") || query.startsWith(".")) {
         setAc(null);
         return;
       }
@@ -398,17 +429,17 @@ export function ChatInput({
       if (cached) {
         setAc({ query, atIndex, items: cached, selectedIdx: 0 });
       } else {
-        setAc(prev =>
+        setAc((prev) =>
           prev
             ? { ...prev, query, atIndex, selectedIdx: 0 }
-            : { query, atIndex, items: [], selectedIdx: 0 }
+            : { query, atIndex, items: [], selectedIdx: 0 },
         );
         if (!loadingRef.current) {
           loadingRef.current = true;
           loadItems()
-            .then(items => {
+            .then((items) => {
               loadingRef.current = false;
-              setAc(prev => (prev ? { ...prev, items } : null));
+              setAc((prev) => (prev ? { ...prev, items } : null));
             })
             .catch(() => {
               loadingRef.current = false;
@@ -428,33 +459,43 @@ export function ChatInput({
     if (ac) {
       const filtered = filterItems(ac.items, ac.query);
 
-      if (e.key === 'ArrowDown') {
+      if (e.key === "ArrowDown") {
         e.preventDefault();
-        setAc(prev =>
-          prev ? { ...prev, selectedIdx: Math.min(prev.selectedIdx + 1, filtered.length - 1) } : null
+        setAc((prev) =>
+          prev
+            ? {
+                ...prev,
+                selectedIdx: Math.min(
+                  prev.selectedIdx + 1,
+                  filtered.length - 1,
+                ),
+              }
+            : null,
         );
         return;
       }
-      if (e.key === 'ArrowUp') {
+      if (e.key === "ArrowUp") {
         e.preventDefault();
-        setAc(prev =>
-          prev ? { ...prev, selectedIdx: Math.max(prev.selectedIdx - 1, 0) } : null
+        setAc((prev) =>
+          prev
+            ? { ...prev, selectedIdx: Math.max(prev.selectedIdx - 1, 0) }
+            : null,
         );
         return;
       }
-      if ((e.key === 'Enter' || e.key === 'Tab') && filtered.length > 0) {
+      if ((e.key === "Enter" || e.key === "Tab") && filtered.length > 0) {
         e.preventDefault();
         selectItem(filtered[Math.min(ac.selectedIdx, filtered.length - 1)]);
         return;
       }
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         e.preventDefault();
         setAc(null);
         return;
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -462,31 +503,35 @@ export function ChatInput({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const filePath = e.dataTransfer.getData('text/plain');
+    const filePath = e.dataTransfer.getData("text/plain");
     if (filePath) onAddFile(filePath);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = "copy";
   };
 
   const filteredItems = ac ? filterItems(ac.items, ac.query) : [];
 
   return (
-    <div className="chat-input-container" onDrop={handleDrop} onDragOver={handleDragOver}>
+    <div
+      className="chat-input-container"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+    >
       {ac && filteredItems.length > 0 && (
         <div ref={dropdownRef} className="ac-dropdown">
           {filteredItems.map((item, idx) => (
             <div
               key={item.path}
-              className={`ac-item${idx === ac.selectedIdx ? ' ac-item-active' : ''}`}
-              onMouseDown={e => {
+              className={`ac-item${idx === ac.selectedIdx ? " ac-item-active" : ""}`}
+              onMouseDown={(e) => {
                 e.preventDefault();
                 selectItem(item);
               }}
               onMouseEnter={() =>
-                setAc(prev => (prev ? { ...prev, selectedIdx: idx } : null))
+                setAc((prev) => (prev ? { ...prev, selectedIdx: idx } : null))
               }
             >
               <span className="ac-item-icon">
@@ -504,7 +549,11 @@ export function ChatInput({
       {activeSelection && (
         <div className="chat-selection-chip">
           <span className="chat-selection-chip-text">
-            &ldquo;{activeSelection.text.length > 80 ? activeSelection.text.slice(0, 80) + '…' : activeSelection.text}&rdquo;
+            &ldquo;
+            {activeSelection.text.length > 80
+              ? activeSelection.text.slice(0, 80) + "…"
+              : activeSelection.text}
+            &rdquo;
           </span>
           <button
             type="button"
@@ -519,7 +568,7 @@ export function ChatInput({
 
       {!hideFileChips && referencedFiles.length > 0 && (
         <div className="chat-input-files">
-          {referencedFiles.map(f => (
+          {referencedFiles.map((f) => (
             <FileChip key={f} path={f} onRemove={onRemoveFile} />
           ))}
         </div>
@@ -535,11 +584,13 @@ export function ChatInput({
             onKeyDown={handleKeyDown}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
+            disabled={disabled}
             placeholder={
-              streaming
-                ? 'AI antwortet… (du kannst bereits tippen)'
-                : (placeholderProp ??
-                  'Nachricht...')
+              disabled
+                ? "Eingabe hier deaktiviert – bitte oben tippen"
+                : streaming
+                  ? "AI antwortet… (du kannst bereits tippen)"
+                  : (placeholderProp ?? "Nachricht...")
             }
             rows={1}
           />
@@ -555,9 +606,13 @@ export function ChatInput({
           {onToggleReasoning && reasoningAvailable && fastAvailable && (
             <button
               type="button"
-              className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
+              className={`chat-reasoning-btn${useReasoning ? " active" : ""}`}
               onClick={onToggleReasoning}
-              title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
+              title={
+                useReasoning
+                  ? "Reasoning-Modell aktiv — klicken zum Deaktivieren"
+                  : "Reasoning-Modell aktivieren"
+              }
               disabled={streaming}
             >
               <Zap size={15} />
@@ -569,7 +624,11 @@ export function ChatInput({
             streaming={streaming}
           />
           {streaming ? (
-            <button className="chat-send-btn stop" onClick={onStop} title="Stop">
+            <button
+              className="chat-send-btn stop"
+              onClick={onStop}
+              title="Stop"
+            >
               <Square size={16} />
             </button>
           ) : (
@@ -585,94 +644,114 @@ export function ChatInput({
         </div>
       </div>
 
-      {expandOpen && createPortal(
-        <div className="chat-expand-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setExpandOpen(false); }}>
-          <div className="chat-expand-modal">
-            <div className="chat-expand-modal-header">
-              <span className="chat-expand-modal-title">Prompt bearbeiten</span>
-              <button
-                type="button"
-                className="chat-expand-modal-close"
-                onClick={() => setExpandOpen(false)}
-                title="Schließen (Esc)"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {activeSelection && (
-              <div className="chat-selection-chip chat-expand-selection-chip">
-                <span className="chat-selection-chip-text">
-                  &ldquo;{activeSelection.text.length > 120 ? activeSelection.text.slice(0, 120) + '…' : activeSelection.text}&rdquo;
+      {expandOpen &&
+        createPortal(
+          <div
+            className="chat-expand-overlay"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setExpandOpen(false);
+            }}
+          >
+            <div className="chat-expand-modal">
+              <div className="chat-expand-modal-header">
+                <span className="chat-expand-modal-title">
+                  Prompt bearbeiten
                 </span>
                 <button
                   type="button"
-                  className="chat-selection-chip-dismiss"
-                  onClick={onDismissSelection}
-                  title="Auswahl entfernen"
+                  className="chat-expand-modal-close"
+                  onClick={() => setExpandOpen(false)}
+                  title="Schließen (Esc)"
                 >
-                  <X size={12} />
+                  <X size={16} />
                 </button>
               </div>
-            )}
 
-            {!hideFileChips && referencedFiles.length > 0 && (
-              <div className="chat-input-files chat-expand-files">
-                {referencedFiles.map(f => (
-                  <FileChip key={f} path={f} onRemove={onRemoveFile} />
-                ))}
-              </div>
-            )}
-
-            <textarea
-              ref={expandTextareaRef}
-              className="chat-expand-textarea"
-              value={text}
-              onChange={handleExpandChange}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder={placeholderProp ?? 'Nachricht...'}
-            />
-
-            <div className="chat-expand-modal-footer">
-              <span className="chat-expand-hint">Strg+Enter zum Senden · Esc zum Schließen</span>
-              <div className="chat-input-toolbar-card chat-expand-toolbar-card">
-                <div className="chat-expand-footer-actions">
-                  {onToggleReasoning && reasoningAvailable && fastAvailable && (
-                    <button
-                      type="button"
-                      className={`chat-reasoning-btn${useReasoning ? ' active' : ''}`}
-                      onClick={onToggleReasoning}
-                      title={useReasoning ? 'Reasoning-Modell aktiv — klicken zum Deaktivieren' : 'Reasoning-Modell aktivieren'}
-                    >
-                      <Zap size={15} />
-                    </button>
-                  )}
-                  <ToolkitMenuButton
-                    disabledToolkits={disabledToolkits}
-                    onToggleToolkit={onToggleToolkit}
-                    streaming={streaming}
-                  />
+              {activeSelection && (
+                <div className="chat-selection-chip chat-expand-selection-chip">
+                  <span className="chat-selection-chip-text">
+                    &ldquo;
+                    {activeSelection.text.length > 120
+                      ? activeSelection.text.slice(0, 120) + "…"
+                      : activeSelection.text}
+                    &rdquo;
+                  </span>
                   <button
                     type="button"
-                    className="chat-send-btn"
-                    onClick={handleSend}
-                    disabled={!text.trim()}
-                    title="Senden (Strg+Enter)"
+                    className="chat-selection-chip-dismiss"
+                    onClick={onDismissSelection}
+                    title="Auswahl entfernen"
                   >
-                    <Send size={16} />
+                    <X size={12} />
                   </button>
+                </div>
+              )}
+
+              {!hideFileChips && referencedFiles.length > 0 && (
+                <div className="chat-input-files chat-expand-files">
+                  {referencedFiles.map((f) => (
+                    <FileChip key={f} path={f} onRemove={onRemoveFile} />
+                  ))}
+                </div>
+              )}
+
+              <textarea
+                ref={expandTextareaRef}
+                className="chat-expand-textarea"
+                value={text}
+                onChange={handleExpandChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder={placeholderProp ?? "Nachricht..."}
+              />
+
+              <div className="chat-expand-modal-footer">
+                <span className="chat-expand-hint">
+                  Strg+Enter zum Senden · Esc zum Schließen
+                </span>
+                <div className="chat-input-toolbar-card chat-expand-toolbar-card">
+                  <div className="chat-expand-footer-actions">
+                    {onToggleReasoning &&
+                      reasoningAvailable &&
+                      fastAvailable && (
+                        <button
+                          type="button"
+                          className={`chat-reasoning-btn${useReasoning ? " active" : ""}`}
+                          onClick={onToggleReasoning}
+                          title={
+                            useReasoning
+                              ? "Reasoning-Modell aktiv — klicken zum Deaktivieren"
+                              : "Reasoning-Modell aktivieren"
+                          }
+                        >
+                          <Zap size={15} />
+                        </button>
+                      )}
+                    <ToolkitMenuButton
+                      disabledToolkits={disabledToolkits}
+                      onToggleToolkit={onToggleToolkit}
+                      streaming={streaming}
+                    />
+                    <button
+                      type="button"
+                      className="chat-send-btn"
+                      onClick={handleSend}
+                      disabled={!text.trim()}
+                      title="Senden (Strg+Enter)"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

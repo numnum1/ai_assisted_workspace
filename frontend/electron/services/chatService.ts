@@ -19,10 +19,7 @@ import {
   getActiveToolDefinitions,
   resolveModeSystemPrompt,
 } from "./conversation/systemPrompt.js";
-import {
-  semanticSearch,
-  type EmbeddingConfig,
-} from "./vectorService.js";
+import { semanticSearch, type EmbeddingConfig } from "./vectorService.js";
 import {
   resolveEmbeddingCredentials,
   type AiProvider,
@@ -417,7 +414,9 @@ async function readProjectFile(
   relativePath: string,
 ): Promise<string> {
   const targetPath = resolveProjectPath(projectPath, relativePath);
-  console.debug(`[chat] read_file: relativePath="${relativePath}" → targetPath="${targetPath}"`);
+  console.debug(
+    `[chat] read_file: relativePath="${relativePath}" → targetPath="${targetPath}"`,
+  );
   let stat: Awaited<ReturnType<typeof fs.stat>>;
   try {
     stat = await fs.stat(targetPath);
@@ -436,7 +435,6 @@ async function readProjectFile(
   return fs.readFile(targetPath, "utf8");
 }
 
-
 async function getWikiRoot(projectPath: string | null): Promise<string> {
   const root = ensureProjectPath(projectPath);
   const subDir = path.join(root, "wiki");
@@ -449,10 +447,11 @@ async function getWikiRoot(projectPath: string | null): Promise<string> {
   } catch {
     // no wiki subdirectory — use project root directly
   }
-  console.debug(`[chat] getWikiRoot: no wiki/ subdir found, using project root "${root}"`);
+  console.debug(
+    `[chat] getWikiRoot: no wiki/ subdir found, using project root "${root}"`,
+  );
   return root;
 }
-
 
 async function readWikiFile(
   projectPath: string | null,
@@ -472,7 +471,10 @@ async function readWikiFile(
     `[chat] wiki_read: relativePath="${relativePath}" projectRoot="${projectRoot}" wikiRoot="${wikiRoot}" → targetPath="${targetPath}"`,
   );
   const relativeToWikiRoot = path.relative(wikiRoot, targetPath);
-  if (relativeToWikiRoot.startsWith("..") || path.isAbsolute(relativeToWikiRoot)) {
+  if (
+    relativeToWikiRoot.startsWith("..") ||
+    path.isAbsolute(relativeToWikiRoot)
+  ) {
     // Wrong relative path (outside wiki) but nothing on disk: behave like a missing
     // wiki page so the stream does not fail; if a file exists here, do not read it.
     try {
@@ -503,7 +505,6 @@ async function readWikiFile(
     throw e;
   }
 }
-
 
 async function addGlossaryEntryLocally(
   projectPath: string | null,
@@ -589,9 +590,14 @@ async function executeToolCall(
     const root = ensureProjectPath(projectPath);
 
     if (!embeddingConfig?.apiKey || !embeddingConfig?.apiUrl) {
-      result = JSON.stringify({ error: "No AI provider configured for embeddings." });
+      result = JSON.stringify({
+        error: "No AI provider configured for embeddings.",
+      });
     } else {
-      const searchResult = await semanticSearch(root, query, embeddingConfig, { limit, scope });
+      const searchResult = await semanticSearch(root, query, embeddingConfig, {
+        limit,
+        scope,
+      });
       const payload: Record<string, unknown> = { hits: searchResult.hits };
       if (searchResult.usedFallback) {
         payload.note = `Semantic index not available (${searchResult.fallbackReason ?? "unknown"}). Keyword search used as fallback.`;
@@ -1041,6 +1047,24 @@ async function runChatStream(
         });
       }
 
+      // Some tools require user interaction before the assistant can continue.
+      // Stop the loop immediately so the UI can present the clarification or
+      // guided-thread offer to the user instead of firing another LLM round.
+      const hasUserInteractionTool = toolCalls.some(
+        (tc) =>
+          tc.function.name === "ask_clarification" ||
+          tc.function.name === "propose_guided_thread",
+      );
+
+      if (hasUserInteractionTool) {
+        if (!isStreamActive(streamId)) return;
+        emit({
+          type: "done",
+          data: { fullAssistantText },
+        });
+        return;
+      }
+
       toolRound += 1;
     }
 
@@ -1085,40 +1109,42 @@ export async function generateThreadSummary(
   const provider = await resolveAiProvider(llmId);
   const endpoint = resolveProviderEndpoint(provider, false);
 
-  const visibleMessages = messages.filter((m) => !m.hidden && m.role !== 'system');
+  const visibleMessages = messages.filter(
+    (m) => !m.hidden && m.role !== "system",
+  );
   const transcript = visibleMessages
-    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-    .join('\n\n');
+    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+    .join("\n\n");
 
   const systemBase =
-    'Du bist ein präziser Assistent. Fasse den folgenden Chat-Thread knapp und sachlich zusammen. ';
+    "Du bist ein präziser Assistent. Fasse den folgenden Chat-Thread knapp und sachlich zusammen. ";
   const systemFocus = focus
-    ? 'Der Nutzer gibt unten explizit an, welche Informationen für den Parent-Chat relevant sind — ' +
-        'berücksichtige nur diese Aspekte aus dem Thread; lasse alles andere weg, sofern es nicht nötig ist, ' +
-        'diese Punkte zu verstehen. '
-    : 'Beschreibe, was besprochen wurde und welche Ergebnisse oder Entscheidungen erzielt wurden. ';
+    ? "Der Nutzer gibt unten explizit an, welche Informationen für den Parent-Chat relevant sind — " +
+      "berücksichtige nur diese Aspekte aus dem Thread; lasse alles andere weg, sofern es nicht nötig ist, " +
+      "diese Punkte zu verstehen. "
+    : "Beschreibe, was besprochen wurde und welche Ergebnisse oder Entscheidungen erzielt wurden. ";
   const systemTail =
-    'Antworte ausschließlich mit der Zusammenfassung, ohne Einleitung oder Metakommentar.';
+    "Antworte ausschließlich mit der Zusammenfassung, ohne Einleitung oder Metakommentar.";
 
   const userLead = focus
     ? `Bitte fasse den Thread zusammen und halte dich strikt an diese Vorgaben des Nutzers:\n\n${focus}\n\n---\n\nThread:\n\n`
-    : 'Bitte fasse diesen Thread zusammen:\n\n';
+    : "Bitte fasse diesen Thread zusammen:\n\n";
 
   const requestMessages = [
     {
-      role: 'system' as const,
+      role: "system" as const,
       content: systemBase + systemFocus + systemTail,
     },
     {
-      role: 'user' as const,
+      role: "user" as const,
       content: `${userLead}${transcript}`,
     },
   ];
 
   const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${endpoint.apiKey}`,
     },
     body: JSON.stringify({
@@ -1133,12 +1159,18 @@ export async function generateThreadSummary(
     try {
       const body = await response.text();
       if (body) detail += ` — ${body}`;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     throw new Error(detail);
   }
 
-  const json = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const text = json?.choices?.[0]?.message?.content?.trim() ?? '';
-  console.trace(`[chat] generateThreadSummary finished, summary length=${text.length}`);
+  const json = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const text = json?.choices?.[0]?.message?.content?.trim() ?? "";
+  console.trace(
+    `[chat] generateThreadSummary finished, summary length=${text.length}`,
+  );
   return text;
 }
