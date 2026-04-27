@@ -1,25 +1,86 @@
 /* Horizontal resizable thread split (fullscreen + thread); uses react-resizable-panels Group. */
 
 .chat-thread-split-group {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .chat-thread-split-panel-shell {
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .chat-thread-split-panel-shell > .chat-thread-split-picker,
 .chat-thread-split-panel-shell > .chat-thread-split-left,
 .chat-thread-split-panel-shell > .chat-thread-split-right {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+}
+
+/* Thread delete modal */
+.thread-delete-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.thread-delete-modal-overlay.open {
+    opacity: 1;
+}
+
+.thread-delete-modal-overlay:not(.open) {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.thread-delete-modal {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.thread-delete-modal h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.thread-delete-modal p {
+    margin: 0 0 12px 0;
+    color: var(--text-secondary);
+}
+
+.delete-warning {
+    color: #dc3545;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.thread-delete-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.thread-delete-modal-actions button {
+    min-width: 80px;
 }

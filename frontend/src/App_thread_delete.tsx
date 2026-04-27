@@ -2461,7 +2461,6 @@ function App() {
                     threadBranchItems={threadWorkspaceRail.threadBranchItems}
                     onSwitchBranch={handleSwitchChat}
                     onClose={handleCloseThreadWorkspace}
-                    onDeleteThread={(id) => history.deleteConversation(id)}
                     onSummarizeToParent={handleSummarizeToParent}
                     isSummarizing={summarizingThread}
                     onUseMessageAsThreadSummary={

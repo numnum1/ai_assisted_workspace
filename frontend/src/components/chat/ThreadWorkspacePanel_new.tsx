@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useMemo, useState } from "react";
-import { Minimize2, GitMerge, Trash2 } from "lucide-react";
+import { Minimize2, GitMerge } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { Layout } from "react-resizable-panels";
 import type {
@@ -132,9 +132,6 @@ export interface ThreadWorkspacePanelProps {
   /** Shared file/dirty indicator for both ContextBars. */
   activeFile: string | null;
   isDirty: boolean;
-
-  /** Delete/close the thread conversation */
-  onDeleteThread?: (id: string) => void;
 }
 
 export function ThreadWorkspacePanel({
@@ -205,7 +202,6 @@ export function ThreadWorkspacePanel({
   activeFile,
   isDirty,
   parentLastMessage = null,
-  onDeleteThread,
 }: ThreadWorkspacePanelProps) {
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -237,23 +233,6 @@ export function ThreadWorkspacePanel({
   }, []);
 
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDeleteThread = useCallback(async () => {
-    if (!onDeleteThread) return;
-    setIsDeleting(true);
-    try {
-      await onDeleteThread(threadConversationId);
-      setDeleteModalOpen(false);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [onDeleteThread, threadConversationId]);
-
-  const handleCancelDelete = useCallback(() => {
-    setDeleteModalOpen(false);
-  }, []);
 
   return (
     <div className="chat-panel chat-panel--expanded chat-panel--thread-split">
@@ -277,18 +256,6 @@ export function ThreadWorkspacePanel({
                   isSummarizing ? "chat-history-btn--spinning" : undefined
                 }
               />
-            </button>
-          )}
-          {onDeleteThread && (
-            <button
-              type="button"
-              className="chat-history-btn"
-              onClick={() => setDeleteModalOpen(true)}
-              disabled={isDeleting}
-              title="Thread schließen (löschen)"
-              aria-label="Thread schließen"
-            >
-              <Trash2 size={14} />
             </button>
           )}
           <button
@@ -463,45 +430,6 @@ export function ThreadWorkspacePanel({
           onConfirm={onSummarizeToParent}
           isSummarizing={isSummarizing}
         />
-      )}
-
-      {onDeleteThread && (
-        <div
-          className={`thread-delete-modal-overlay${deleteModalOpen ? " open" : ""}`}
-          onClick={handleCancelDelete}
-        >
-          <div
-            className="thread-delete-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3>Thread schließen</h3>
-            <p>
-              Möchtest du den Thread <strong>"{threadTitle}"</strong> wirklich
-              schließen?
-            </p>
-            <p className="delete-warning">
-              Dies kann nicht rückgängig gemacht werden. Der Thread und alle
-              zugehörigen Nachrichten werden unwiderruflich gelöscht.
-            </p>
-            <div className="thread-delete-modal-actions">
-              <button
-                type="button"
-                className="chat-history-btn"
-                onClick={handleCancelDelete}
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                className="chat-history-btn active"
-                onClick={handleDeleteThread}
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Wird gelöscht..." : "Schließen"}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
