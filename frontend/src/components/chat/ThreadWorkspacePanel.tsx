@@ -117,6 +117,8 @@ export interface ThreadWorkspacePanelProps {
   onThreadDraftChange?: (text: string) => void;
   onParentDraftChange?: (text: string) => void;
 
+  /** Last visible message from the parent conversation (for thread context banner at top). */
+  parentLastMessage?: ChatMessage | null;
   /** ContextBar data for the thread pane. */
   threadContextInfo: ContextInfo | null;
   threadSystemPrompt?: string | null;
@@ -199,6 +201,7 @@ export function ThreadWorkspacePanel({
   onFetchParentContextBlocks,
   activeFile,
   isDirty,
+  parentLastMessage = null,
 }: ThreadWorkspacePanelProps) {
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -411,6 +414,7 @@ export function ThreadWorkspacePanel({
                 isDirty={isDirty}
                 systemPromptPreview={threadSystemPrompt}
                 onFetchContextBlocks={onFetchThreadContextBlocks}
+                parentLastMessage={parentLastMessage}
               />
             </div>
           </Panel>

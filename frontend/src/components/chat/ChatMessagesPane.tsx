@@ -126,6 +126,8 @@ export interface ChatMessagesPaneProps {
   onRetry?: () => void;
   onOpenPromptPack?: () => void;
   theme: "light" | "dark";
+  /** When this is a thread: the last visible message from the parent conversation to show as context banner. */
+  parentLastMessage?: ChatMessage | null;
 }
 
 export function ChatMessagesPane({
@@ -159,6 +161,7 @@ export function ChatMessagesPane({
   onRetry,
   onOpenPromptPack,
   theme,
+  parentLastMessage = null,
 }: ChatMessagesPaneProps) {
   const visibleEntries = useMemo(
     () =>
@@ -185,6 +188,23 @@ export function ChatMessagesPane({
       ref={scrollRef}
       onMouseUp={readOnly ? undefined : onMouseUp}
     >
+      {parentLastMessage && (
+        <div className="thread-parent-context-banner">
+          <div className="thread-parent-context-content">
+            {parentLastMessage.role === "user" ? (
+              <span className="thread-parent-context-role">Du</span>
+            ) : parentLastMessage.role === "assistant" ? (
+              <span className="thread-parent-context-role">Assistent</span>
+            ) : null}
+            <p className="thread-parent-context-text">
+              {parentLastMessage.content.length > 300
+                ? parentLastMessage.content.slice(0, 300) + "…"
+                : parentLastMessage.content}
+            </p>
+          </div>
+          <div className="thread-parent-context-divider" />
+        </div>
+      )}
       {messages.filter((m) => !m.hidden).length === 0 && (
         <div className="chat-empty">
           <p>Start a conversation with your AI assistant.</p>

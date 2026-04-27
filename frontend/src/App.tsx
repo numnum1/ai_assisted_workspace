@@ -566,6 +566,21 @@ function App() {
   const parentConversation =
     history.conversations.find((c) => c.id === parentConversationId) ?? null;
 
+  // Last visible message from parent chat (for thread context banner)
+  const parentLastVisibleMessage = useMemo(() => {
+    if (!history.activeConversation?.isThread) return null;
+    const msgs = parentConversation?.messages ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (
+        !msgs[i].hidden &&
+        (msgs[i].role === "user" || msgs[i].role === "assistant")
+      ) {
+        return msgs[i];
+      }
+    }
+    return null;
+  }, [history.activeConversation?.isThread, parentConversation?.messages]);
+
   // Thread Workspace overlay
   const [threadWorkspaceOpen, setThreadWorkspaceOpen] = useState(false);
   const [summarizingThread, setSummarizingThread] = useState(false);
@@ -2424,6 +2439,7 @@ function App() {
                 isDirty={chapter.hasDirtyActions}
                 systemPromptPreview={conversation.systemPrompt}
                 onFetchContextBlocks={conversation.fetchContextBlocks}
+                parentLastMessage={parentLastVisibleMessage}
               />
               {threadWorkspaceOpen &&
                 history.activeConversation?.isThread === true &&
@@ -2437,6 +2453,7 @@ function App() {
                     toolActivity={conversation.toolActivity}
                     parentConversation={parentConversation}
                     parentMessages={parentConversationModel.messages}
+                    parentLastMessage={parentLastVisibleMessage}
                     parentStreaming={parentConversationModel.streaming}
                     mainBranchItem={threadWorkspaceRail.mainBranchItem}
                     threadBranchItems={threadWorkspaceRail.threadBranchItems}

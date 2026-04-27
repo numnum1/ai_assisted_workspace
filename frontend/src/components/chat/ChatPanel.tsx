@@ -98,6 +98,8 @@ interface ChatPanelProps {
   onComposerDraftChange?: (text: string) => void;
   theme?: "light" | "dark";
   onOpenThreadWorkspace?: () => void;
+  /** Last visible message from the parent conversation (when activeIsThread is true). */
+  parentLastMessage?: ChatMessage | null;
   /** ContextBar data — one per chat instance. */
   contextInfo: ContextInfo | null;
   activeFile: string | null;
@@ -163,6 +165,7 @@ export function ChatPanel({
   steeringPlan = "",
   onMarkSteeringPlanComplete,
   activeIsThread = false,
+  parentLastMessage = null,
   theme = "dark",
   onOpenThreadWorkspace,
   contextInfo,
@@ -436,6 +439,7 @@ export function ChatPanel({
           theme={theme}
           fieldLabels={fieldLabels}
           fullscreen={isFullscreen}
+          parentLastMessage={parentLastMessage}
         />
       </div>
 

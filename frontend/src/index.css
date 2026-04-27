@@ -3,6 +3,38 @@
     color: inherit;
 }
 
+/* Thread parent context banner */
+.thread-parent-context-banner {
+    padding: 8px 12px 0 12px;
+    pointer-events: none;
+    user-select: none;
+    flex-shrink: 0;
+}
+.thread-parent-context-role {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted, #888);
+    margin-bottom: 2px;
+    display: block;
+}
+.thread-parent-context-text {
+    font-size: 11px;
+    color: var(--text-muted, #999);
+    margin: 0;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.thread-parent-context-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.thread-parent-context-divider {
+    margin-top: 10px;
+    border-bottom: 1px solid var(--border, #313244);
+}
+
 :root {
     --bg-primary: #1e1e2e;
     --bg-secondary: #181825;

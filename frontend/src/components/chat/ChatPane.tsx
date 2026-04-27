@@ -178,6 +178,8 @@ export interface ChatPaneProps {
   theme?: "light" | "dark";
   fieldLabels?: Record<string, string>;
   fullscreen?: boolean;
+  /** When this is a thread: the last visible message from the parent conversation to show as context banner. */
+  parentLastMessage?: ChatMessage | null;
 }
 
 export function ChatPane({
@@ -228,6 +230,7 @@ export function ChatPane({
   theme = "dark",
   fieldLabels,
   fullscreen = false,
+  parentLastMessage = null,
 }: ChatPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -627,6 +630,7 @@ export function ChatPane({
           onRetry={onRetry}
           onOpenPromptPack={onOpenPromptPack}
           theme={theme}
+          parentLastMessage={parentLastMessage}
         />
 
         {activeSessionKind === "guided" && (
