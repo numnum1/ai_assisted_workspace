@@ -487,16 +487,44 @@ export function ChatPane({
     const vis = messages
       .map((m, originalIdx) => ({ m, originalIdx }))
       .filter(({ m }) => !m.hidden);
-    const last = vis[vis.length - 1];
-    if (!last || last.m.role !== "assistant") return null;
-    const offer = parseGuidedThreadOffer(last.m.content);
-    if (!offer) return null;
-    const userAfter = messages
-      .slice(last.originalIdx + 1)
-      .some((m) => !m.hidden && m.role === "user");
-    if (userAfter) return null;
-    if (guidedThreadOfferDismissed.has(last.originalIdx)) return null;
-    return { offer, assistantIdx: last.originalIdx };
+    if (vis.length === 0) return null;
+
+    // Find the last user message to scope search to the current assistant turn.
+    let lastUserVisIdx = -1;
+    for (let i = vis.length - 1; i >= 0; i--) {
+      if (vis[i]!.m.role === "user") {
+        lastUserVisIdx = i;
+        break;
+      }
+    }
+
+    // Search backwards through assistant + tool messages in the current turn.
+    // The offer fence lands in a tool-result message (role="tool"), so we must
+    // not restrict to role="assistant" only.
+    for (let i = vis.length - 1; i > lastUserVisIdx; i--) {
+      const { m, originalIdx } = vis[i]!;
+      if (m.role !== "assistant" && m.role !== "tool") continue;
+      const offer = parseGuidedThreadOffer(m.content);
+      if (!offer) continue;
+      // Ensure no user message follows this one.
+      const userAfter = messages
+        .slice(originalIdx + 1)
+        .some((msg) => !msg.hidden && msg.role === "user");
+      if (userAfter) return null;
+      // For tool messages, key the dismiss-set against the owning assistant message.
+      let assistantIdx = originalIdx;
+      if (m.role === "tool") {
+        for (let j = i - 1; j >= 0; j--) {
+          if (vis[j]!.m.role === "assistant") {
+            assistantIdx = vis[j]!.originalIdx;
+            break;
+          }
+        }
+      }
+      if (guidedThreadOfferDismissed.has(assistantIdx)) return null;
+      return { offer, assistantIdx };
+    }
+    return null;
   }, [messages, onAcceptGuidedThreadOffer, guidedThreadOfferDismissed]);
 
   const handleDismissGuidedThreadOffer = useCallback(() => {
