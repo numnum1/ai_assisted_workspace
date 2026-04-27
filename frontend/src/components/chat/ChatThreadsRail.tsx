@@ -14,7 +14,9 @@ export interface ChatThreadsRailProps {
 
 /**
  * Full-height thread list for the chat column (left of {@link ChatPanel}).
- * Shown only when the active branch has at least one thread off the root.
+ * Shown only when the active chat IS itself a thread (activeConv.isThread === true).
+ * When the user is still on the root/main chat the rail stays hidden – even if
+ * child threads already exist – to avoid the misleading "branching" appearance.
  */
 export function ChatThreadsRail({
   conversations,
@@ -24,6 +26,16 @@ export function ChatThreadsRail({
   const threadRail = useMemo(() => {
     const byId = buildConversationById(conversations);
     const activeConv = byId.get(activeConversationId);
+    // Guard: only render the rail when the active conversation is itself a thread.
+    // Without this check the rail pops up in the root/main chat the moment a child
+    // thread is created, making it look as if the main chat is "branching off".
+    if (!activeConv?.isThread) {
+      return {
+        showRail: false,
+        rootConv: null as Conversation | null,
+        threads: [] as Conversation[],
+      };
+    }
     const rootId = resolveThreadBranchRootId(activeConv, byId);
     if (!rootId) {
       return {
