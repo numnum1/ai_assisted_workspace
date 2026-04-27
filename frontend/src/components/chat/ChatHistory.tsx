@@ -4,7 +4,6 @@ import {
   useEffect,
   useMemo,
   useCallback,
-  Fragment,
   type ReactNode,
 } from "react";
 import type { MouseEvent, KeyboardEvent } from "react";
@@ -108,6 +107,22 @@ function titleMatches(conv: Conversation, qLower: string): boolean {
   return conv.title.toLowerCase().includes(qLower);
 }
 
+/**
+ * Recursively collects all descendants of a parentId, including threads of threads.
+ */
+function getAllDescendants(
+  threadsByParent: Map<string, Conversation[]>,
+  parentId: string,
+  result: Conversation[] = [],
+): Conversation[] {
+  const children = threadsByParent.get(parentId) ?? [];
+  for (const child of children) {
+    result.push(child);
+    getAllDescendants(threadsByParent, child.id, result);
+  }
+  return result;
+}
+
 export function ChatHistory({
   conversations,
   activeId,
@@ -140,8 +155,8 @@ export function ChatHistory({
     if (!q) return roots;
     return roots.filter((r) => {
       if (titleMatches(r, q)) return true;
-      const kids = threadsByParent.get(r.id) ?? [];
-      return kids.some((t) => titleMatches(t, q));
+      const allKids = getAllDescendants(threadsByParent, r.id);
+      return allKids.some((t) => titleMatches(t, q));
     });
   }, [roots, threadsByParent, filterText]);
 
@@ -157,8 +172,8 @@ export function ChatHistory({
     const q = filterText.trim().toLowerCase();
     if (q) {
       for (const r of roots) {
-        const kids = threadsByParent.get(r.id) ?? [];
-        const threadHit = kids.some((t) => titleMatches(t, q));
+        const allKids = getAllDescendants(threadsByParent, r.id);
+        const threadHit = allKids.some((t) => titleMatches(t, q));
         const rootHit = titleMatches(r, q);
         if (threadHit && !rootHit) next.add(r.id);
       }
@@ -224,6 +239,130 @@ export function ChatHistory({
     (parentId: string) => threadsByParent.get(parentId) ?? [],
     [threadsByParent],
   );
+
+  /**
+   * Recursive component to render a thread and all its nested descendants.
+   */
+  const renderThreadWithChildren = (
+    thread: Conversation,
+    indentLevel: number,
+  ): ReactNode => {
+    const isChild = indentLevel > 0;
+    const itemClass =
+      `chat-history-item ${thread.id === activeId ? "active" : ""}` +
+      (isChild ? " chat-history-thread-child" : "");
+
+    const grandkids = childThreadsFor(thread.id);
+    const hasKids = grandkids.length > 0;
+
+    return (
+      <div key={thread.id} className="chat-history-thread-node">
+        <div
+          className={itemClass}
+          onClick={() => {
+            if (editingId === thread.id) return;
+            onSelect(thread.id);
+            onClose();
+          }}
+          onDoubleClick={(e) => handleStartRename(thread, e)}
+        >
+          <span
+            className="chat-history-chevron-spacer"
+            style={{ width: `${indentLevel * 16}px` }}
+            aria-hidden
+          />
+          <div className="chat-history-item-icon">
+            <MessageSquare size={14} />
+          </div>
+          <div className="chat-history-item-content">
+            {editingId === thread.id ? (
+              <input
+                ref={editRef}
+                className="chat-history-rename-input"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <div className="chat-history-item-title">
+                <span>{thread.title}</span>
+                {isChild ? (
+                  <span className="chat-history-thread-badge" title="Thread">
+                    Thread
+                  </span>
+                ) : null}
+                {thread.sessionKind === "guided" && (
+                  <span
+                    className="chat-history-guided-badge"
+                    title="Geführte Sitzung"
+                  >
+                    Geführt
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="chat-history-item-meta">
+              {thread.messages.filter((m) => !m.hidden).length} Nachrichten ·{" "}
+              {formatDate(thread.updatedAt)}
+            </div>
+          </div>
+          <div className="chat-history-item-actions">
+            <span
+              className="chat-history-action-btn"
+              style={{ visibility: "hidden" }}
+              aria-hidden
+            >
+              <FolderInput size={12} />
+            </span>
+            {chatDownloadEnabled && (
+              <button
+                type="button"
+                className="chat-history-action-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  downloadMarkdownFile(
+                    thread.title,
+                    conversationToMarkdown(thread),
+                  );
+                }}
+                title="Chat als Markdown herunterladen"
+              >
+                <Download size={12} />
+              </button>
+            )}
+            <button
+              type="button"
+              className="chat-history-action-btn"
+              onClick={(e) => handleStartRename(thread, e)}
+              title="Umbenennen"
+            >
+              <Pencil size={12} />
+            </button>
+            <button
+              type="button"
+              className="chat-history-delete-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(thread.id);
+              }}
+              title="Chat loeschen"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+        {hasKids && (
+          <div className="chat-history-thread-children">
+            {grandkids.map((t: Conversation) =>
+              renderThreadWithChildren(t, indentLevel + 1),
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderRow = (
     conv: Conversation,
@@ -438,11 +577,9 @@ export function ChatHistory({
                   {renderRow(conv, { variant: "root", chevron })}
                   {hasKids && expanded && (
                     <div className="chat-history-thread-children">
-                      {kids.map((t) => (
-                        <Fragment key={t.id}>
-                          {renderRow(t, { variant: "thread" })}
-                        </Fragment>
-                      ))}
+                      {kids.map((t: Conversation) =>
+                        renderThreadWithChildren(t, 1),
+                      )}
                     </div>
                   )}
                 </div>

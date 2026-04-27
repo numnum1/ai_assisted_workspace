@@ -639,7 +639,7 @@ function App() {
           ...(currentParent?.messages ?? []),
           summaryMessage,
         ];
-        history.appendMessageToConversation(parentId, summaryMessage);
+        history.summarizeThread(parentId, history.activeId, summaryMessage);
         // Sync parentChat immediately so the summary is visible without a restart
         parentChat.loadMessages(updatedParentMessages);
       } catch (err) {
@@ -678,7 +678,7 @@ function App() {
         ...(currentParent?.messages ?? []),
         summaryMessage,
       ];
-      history.appendMessageToConversation(parentId, summaryMessage);
+      history.summarizeThread(parentId, history.activeId, summaryMessage);
       parentChat.loadMessages(updatedParentMessages);
       console.trace(
         `[App] useMessageAsThreadSummary: done, content length=${msg.content.length}`,
@@ -726,7 +726,9 @@ function App() {
       messageCount: conv.messages.filter((m) => !m.hidden).length,
       messages: conv.messages,
       createdAt: conv.createdAt,
-      updatedAt: conv.updatedAt,
+      // Update timestamp to now for merged threads, so they appear as
+      // the latest activity in the thread picker graph
+      updatedAt: mergedToParent ? Date.now() : conv.updatedAt,
       savedToProject: conv.savedToProject,
       mergedToParent,
     });

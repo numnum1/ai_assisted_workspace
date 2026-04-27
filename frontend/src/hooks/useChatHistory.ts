@@ -341,6 +341,32 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     [],
   );
 
+  // Special function for thread summaries: updates both parent and thread
+  const summarizeThread = useCallback(
+    (parentId: string, threadId: string, message: ChatMessage) => {
+      setConversations((prev) => {
+        const now = Date.now();
+        return prev.map((c) => {
+          if (c.id === parentId) {
+            return {
+              ...c,
+              messages: [...c.messages, message],
+              updatedAt: now,
+            };
+          }
+          if (c.id === threadId) {
+            return {
+              ...c,
+              updatedAt: now, // Mark thread as merged by updating its timestamp
+            };
+          }
+          return c;
+        });
+      });
+    },
+    [],
+  );
+
   const createConversation = useCallback(
     (
       mode?: string,
@@ -529,6 +555,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     settleWriteFileSnapshots,
     updateMessagesForConversation,
     appendMessageToConversation,
+    summarizeThread,
     createConversation,
     patchConversation,
     discardActiveAndCreateConversation,

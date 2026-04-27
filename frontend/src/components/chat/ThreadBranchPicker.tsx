@@ -31,6 +31,8 @@ export interface ThreadBranchItem {
   savedToProject?: boolean;
   /** True when this thread has been summarised and merged into the parent chat. */
   mergedToParent?: boolean;
+  /** Text to display for the merge event (e.g., "Merged to main"). */
+  mergeText?: string;
   /**
    * Full message list — each user message becomes a "commit" node in the graph.
    * Tool, assistant, and system messages are skipped.
@@ -101,6 +103,8 @@ interface GraphRow {
   isBranchFirst?: boolean;
   /** For 'merge' rows: the lane of the thread being merged. */
   mergeLane?: number;
+  /** True for merge commits that should show the merge icon. */
+  isMerge?: boolean;
 }
 
 // ─── Graph constants ──────────────────────────────────────────────────────────
@@ -227,10 +231,18 @@ function buildGraphRows(allItems: InternalItem[]): {
   // ── Phase 1.5: merge rows for threads that have been merged to parent ────────
   // One row per merged thread, placed on the main lane (0) with a connector
   // drawn from the thread lane back to main.
+  // Merged threads get a new "merge commit" that represents the merge event
+  // and is treated as the latest activity.
   for (const item of threadItems) {
     if (!item.mergedToParent) continue;
+
+    // Create a merge commit entry with current timestamp to represent
+    // the merge event as the latest activity
+    const mergeCommitIndex = (item.messages?.length ?? 0) + 1;
+    const mergeText = item.mergeText || "Merged to main";
+
     rows.push({
-      rowKind: "merge",
+      rowKind: "commit",
       branch: item,
       lane: 0,
       activeLanes: [],
@@ -238,6 +250,10 @@ function buildGraphRows(allItems: InternalItem[]): {
       isForkEnd: false,
       isListFirst: false,
       isListLast: false,
+      commitText: mergeText,
+      commitIndex: mergeCommitIndex,
+      isBranchFirst: false,
+      isMerge: true,
       mergeLane: item.lane,
     });
   }
@@ -251,6 +267,12 @@ function buildGraphRows(allItems: InternalItem[]): {
     return aTime - bTime;
   });
   for (const item of headOrder) {
+    // Gemergte Threads werden nur als Merge-Entry angezeigt, nicht als
+    // eigenständige Branch-Heads (vermeidet doppelte Anzeige)
+    if (item.kind === "thread" && item.mergedToParent) {
+      continue;
+    }
+
     rows.push({
       rowKind: "branch-head",
       branch: item,
@@ -395,9 +417,10 @@ function GraphSvg({
         )}
 
         {/* 2b. Merge connector: curve from the thread lane down to the main lane.
-               Drawn on merge rows. Shape: starts at the thread lane at the top of
+               Drawn on merge rows and merge commits. Shape: starts at the thread lane at the top of
                the row, curves inward and lands on the main lane at mid-height. */}
-        {row.rowKind === "merge" &&
+        {(row.rowKind === "merge" ||
+          (row.isMerge && row.rowKind === "commit")) &&
           row.mergeLane !== undefined &&
           row.mergeLane > 0 && (
             <path
@@ -762,7 +785,11 @@ export function ThreadBranchPicker({
           const isHeadRow = row.rowKind === "branch-head";
 
           // Merge row: thread was summarised and merged back into the main branch
-          if (row.rowKind === "merge") {
+          // Also handles merge commits (rowKind === 'commit' && isMerge)
+          const isMergeRow =
+            row.rowKind === "merge" ||
+            (row.isMerge && row.rowKind === "commit");
+          if (isMergeRow) {
             const mergeColor =
               row.mergeLane !== undefined ? laneColor(row.mergeLane) : color;
             return (
@@ -793,7 +820,7 @@ export function ThreadBranchPicker({
                     title={row.branch.title}
                     style={{ color: mergeColor }}
                   >
-                    {row.branch.title}
+                    {row.commitText || row.branch.title}
                   </span>
                 </div>
               </li>
