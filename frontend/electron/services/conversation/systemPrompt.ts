@@ -147,16 +147,22 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
   ],
 };
 
-export function getActiveToolDefinitions(request: ChatRequest): ToolDefinition[] {
+export function getActiveToolDefinitions(
+  request: ChatRequest,
+): ToolDefinition[] {
   if (request.quickChat) return [];
   const disabled = new Set(
     Array.isArray(request.disabledToolkits)
       ? request.disabledToolkits.map((v) => normalizeText(v)).filter(Boolean)
       : [],
   );
+  const isGuided = request.sessionKind === "guided";
   return Object.entries(TOOLKIT_TOOL_DEFINITIONS)
     .filter(([toolkitId]) => !disabled.has(toolkitId))
-    .flatMap(([, tools]) => tools);
+    .flatMap(([, tools]) => tools)
+    .filter(
+      (tool) => !(isGuided && tool.function.name === "propose_guided_thread"),
+    );
 }
 
 export async function resolveModeSystemPrompt(
@@ -247,6 +253,7 @@ export function buildSystemPrompt(
   if (request.sessionKind === "guided") {
     const guidedLines = [
       "Sitzungstyp: Geführte Sitzung (guided). Führe den Nutzer aktiv durch die Aufgabe und halte dich an den Steuerungsplan.",
+      "Wichtig: Du befindest dich bereits in einer geführten Sitzung. Fange sofort an zu arbeiten – stelle keine Rückfragen und biete keinen neuen Thread an. Handle direkt.",
     ];
     const steeringPlan = normalizeText(request.steeringPlan ?? "");
     if (steeringPlan) {
