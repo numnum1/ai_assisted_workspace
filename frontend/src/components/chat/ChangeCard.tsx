@@ -125,7 +125,10 @@ interface ChangeCardProps {
    * state = 'applied' | 'reverted' when the user explicitly accepted/reverted;
    * state = 'dismissed' when auto-dismissed (no diff found or snapshot no longer exists).
    */
-  onSnapshotSettled?: (snapshotId: string, state: 'applied' | 'reverted' | 'dismissed') => void;
+  onSnapshotSettled?: (
+    snapshotId: string,
+    state: "applied" | "reverted" | "dismissed",
+  ) => void;
 }
 
 const DISMISS_DELAY_MS = 1500;
@@ -152,7 +155,7 @@ export function ChangeCard({
   const settledNotifiedRef = useRef(false);
 
   const notifySnapshotSettled = useCallback(
-    (state: 'applied' | 'reverted' | 'dismissed') => {
+    (state: "applied" | "reverted" | "dismissed") => {
       if (settledNotifiedRef.current) return;
       settledNotifiedRef.current = true;
       onSnapshotSettled?.(snapshotId, state);
@@ -161,7 +164,7 @@ export function ChangeCard({
   );
 
   const dismissAndSettle = useCallback(() => {
-    notifySnapshotSettled('dismissed');
+    notifySnapshotSettled("dismissed");
     setDismissed(true);
   }, [notifySnapshotSettled]);
 
@@ -223,7 +226,7 @@ export function ChangeCard({
     setBusy(true);
     try {
       await snapshotsApi.apply(snapshotId);
-      notifySnapshotSettled('applied');
+      notifySnapshotSettled("applied");
       setCardState("applied");
       onApply?.(snapshotId);
       onFileChanged?.(path);
@@ -236,7 +239,7 @@ export function ChangeCard({
     setBusy(true);
     try {
       const result = await snapshotsApi.revert(snapshotId);
-      notifySnapshotSettled('reverted');
+      notifySnapshotSettled("reverted");
       setCardState("reverted");
       onRevert?.(snapshotId, path, result.wasNew);
       onFileChanged?.(path);
@@ -252,7 +255,10 @@ export function ChangeCard({
   if (dismissed) return null;
 
   return (
-    <div className={`change-card change-card--${displayState}`}>
+    <div
+      className={`change-card change-card--${displayState}`}
+      data-testid="ChangeCard"
+    >
       <div
         className="change-card-header"
         onClick={() => setExpanded((e) => !e)}

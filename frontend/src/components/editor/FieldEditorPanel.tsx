@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Save, X } from 'lucide-react';
-import { WikiTextarea } from '../wiki/WikiTextarea.tsx';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Save, X } from "lucide-react";
+import { WikiTextarea } from "../wiki/WikiTextarea.tsx";
 
 interface FieldEditorPanelProps {
   fieldLabel: string;
@@ -10,7 +10,13 @@ interface FieldEditorPanelProps {
   onClose: () => void;
 }
 
-export function FieldEditorPanel({ fieldLabel, sceneTitle, value: externalValue, onSave, onClose }: FieldEditorPanelProps) {
+export function FieldEditorPanel({
+  fieldLabel,
+  sceneTitle,
+  value: externalValue,
+  onSave,
+  onClose,
+}: FieldEditorPanelProps) {
   const [value, setValue] = useState(externalValue);
   const [dirty, setDirty] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -35,20 +41,24 @@ export function FieldEditorPanel({ fieldLabel, sceneTitle, value: externalValue,
     setDirty(false);
   }, [onSave, value]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      handleSave();
-    }
-  }, [handleSave]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+    },
+    [handleSave],
+  );
 
   const handleClose = useCallback(() => {
-    if (dirty && !window.confirm('Ungespeicherte Änderungen verwerfen?')) return;
+    if (dirty && !window.confirm("Ungespeicherte Änderungen verwerfen?"))
+      return;
     onClose();
   }, [dirty, onClose]);
 
   return (
-    <div className="field-editor-panel">
+    <div className="field-editor-panel" data-testid="FieldEditorPanel">
       <div className="field-editor-header">
         <div className="field-editor-title">
           {sceneTitle && (

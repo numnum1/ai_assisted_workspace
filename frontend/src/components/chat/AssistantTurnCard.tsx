@@ -291,7 +291,7 @@ export function AssistantTurnCard({
   };
 
   return (
-    <div className="assistant-turn-wrap">
+    <div className="assistant-turn-wrap" data-testid="AssistantTurnCard">
       <div className="assistant-turn-chunks">
         {hasToolCalls ? (
           <>

@@ -185,6 +185,7 @@ export function ChatMessagesPane({
   return (
     <div
       className={`chat-messages${readOnly ? " chat-messages--readonly" : ""}`}
+      data-testid="ChatMessagesPane"
       ref={scrollRef}
       onMouseUp={readOnly ? undefined : onMouseUp}
     >

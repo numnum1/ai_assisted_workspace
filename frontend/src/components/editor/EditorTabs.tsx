@@ -1,6 +1,6 @@
-import { useRef, useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import type { FileTab } from '../../hooks/useFileTabs.ts';
+import { useRef, useState, useEffect } from "react";
+import { X } from "lucide-react";
+import type { FileTab } from "../../hooks/useFileTabs.ts";
 
 interface EditorTabsProps {
   tabs: FileTab[];
@@ -12,7 +12,7 @@ interface EditorTabsProps {
 }
 
 function fileName(path: string): string {
-  return path.split('/').pop() ?? path;
+  return path.split("/").pop() ?? path;
 }
 
 export function EditorTabs({
@@ -24,19 +24,23 @@ export function EditorTabs({
   onCloseAllTabs,
 }: EditorTabsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key === "Escape") close();
     };
-    window.addEventListener('click', close);
-    window.addEventListener('keydown', onKey);
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener('click', close);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onKey);
     };
   }, [menu]);
 
@@ -49,11 +53,16 @@ export function EditorTabs({
   };
 
   return (
-    <div className="editor-tabs" ref={scrollRef} onWheel={handleWheel}>
+    <div
+      className="editor-tabs"
+      ref={scrollRef}
+      onWheel={handleWheel}
+      data-testid="EditorTabs"
+    >
       {tabs.map((tab) => (
         <div
           key={tab.path}
-          className={`editor-tab ${tab.path === activeTabPath ? 'editor-tab--active' : ''}`}
+          className={`editor-tab ${tab.path === activeTabPath ? "editor-tab--active" : ""}`}
           title={tab.path}
           onClick={() => onSelectTab(tab.path)}
           onContextMenu={(e) => {
@@ -63,7 +72,11 @@ export function EditorTabs({
         >
           <span className="editor-tab-name">
             {fileName(tab.path)}
-            {tab.dirty && <span className="editor-tab-dirty" title="Ungespeichert">●</span>}
+            {tab.dirty && (
+              <span className="editor-tab-dirty" title="Ungespeichert">
+                ●
+              </span>
+            )}
           </span>
           <button
             className="editor-tab-close"
@@ -96,7 +109,9 @@ export function EditorTabs({
               Andere Tabs schließen
             </button>
           )}
-          {tabs.length > 1 && <div className="file-tree-context-separator" role="separator" />}
+          {tabs.length > 1 && (
+            <div className="file-tree-context-separator" role="separator" />
+          )}
           <button
             type="button"
             className="file-tree-context-item"

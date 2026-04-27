@@ -101,7 +101,7 @@ export function FormRenderer({
   }
 
   return (
-    <div className="editor-container">
+    <div className="editor-container" data-testid="FormRenderer">
       <div className="editor-header">
         <span className="editor-filename">
           {filename}

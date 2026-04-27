@@ -94,7 +94,7 @@ export function OutlinerPanel({
   }
 
   return (
-    <div className="file-tree">
+    <div className="file-tree" data-testid="OutlinerPanel">
       <div className="file-tree-header">
         <LayoutList size={14} />
         <span>Struktur</span>

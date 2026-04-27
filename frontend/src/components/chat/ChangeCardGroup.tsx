@@ -33,7 +33,7 @@ export function ChangeCardGroup({
   if (items.length === 1) {
     const only = items[0]!;
     return (
-      <div className="change-card-wrapper">
+      <div className="change-card-wrapper" data-testid="ChangeCardGroup">
         <ChangeCard
           data={only.data}
           onFileChanged={onFileChanged}
@@ -45,7 +45,7 @@ export function ChangeCardGroup({
   }
 
   return (
-    <div className="change-card-group">
+    <div className="change-card-group" data-testid="ChangeCardGroup">
       {items.map(({ originalIdx, data }) => (
         <div key={originalIdx} className="change-card-wrapper">
           <ChangeCard
