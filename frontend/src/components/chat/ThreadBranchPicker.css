@@ -246,6 +246,21 @@
     background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
+/* Closed threads — visible but inactive */
+.tbp__option--closed {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.tbp__option--closed:hover {
+    background: transparent;
+}
+
+.tbp__option--closed .tbp__option-title {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
 /* Faint highlight on all commit rows of the active branch */
 .tbp__option--active-branch.tbp__option--commit:not(.tbp__option--keyboard) {
     background: color-mix(in srgb, var(--accent) 4%, transparent);

@@ -164,6 +164,8 @@ export interface Conversation {
   isThread?: boolean;
   /** Parent conversation id when {@link isThread} is true */
   parentConversationId?: string;
+  /** True when this thread has been closed (soft-delete). It stays visible in the branch graph but is no longer selectable. */
+  isClosed?: boolean;
   /**
    * When set: this guided (or other) conversation uses this LLM for sends instead of the global selector.
    * Snapshot when starting an „Agent“ session from the new-chat dialog.

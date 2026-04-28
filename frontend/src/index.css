@@ -2303,7 +2303,7 @@ body.file-tree-native-dragging {
     overflow-y: auto;
     padding: 12px;
     /* Extra scroll room below the last bubble so it sits higher and is easier to read */
-    padding-bottom: max(12px, min(22vh, 6.5rem));
+    padding-bottom: max(12px, min(45vh, 16rem));
     display: flex;
     flex-direction: column;
     gap: 12px;

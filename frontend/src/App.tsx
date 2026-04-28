@@ -718,6 +718,7 @@ function App() {
         createdAt: number;
         updatedAt: number;
         savedToProject?: boolean;
+        isClosed?: boolean;
       },
       mergedToParent?: boolean,
     ): ThreadBranchItem => ({
@@ -731,6 +732,7 @@ function App() {
       updatedAt: mergedToParent ? Date.now() : conv.updatedAt,
       savedToProject: conv.savedToProject,
       mergedToParent,
+      isClosed: conv.isClosed,
     });
     return {
       mainBranchItem: toBranchItem(rootConv),

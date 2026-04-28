@@ -454,13 +454,30 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   const deleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => {
-        const deleted = prev.find((c) => c.id === id);
+        const target = prev.find((c) => c.id === id);
+        if (!target) return prev;
+
+        // Soft-delete for threads: mark as closed so they stay visible in the branch graph
+        if (target.isThread) {
+          const next = prev.map((c) =>
+            c.id === id
+              ? { ...c, isClosed: true as const, updatedAt: Date.now() }
+              : c,
+          );
+          if (activeId === id) {
+            const fallback =
+              target.parentConversationId ??
+              prev.find((c) => !c.isThread && !c.isClosed)?.id;
+            if (fallback) setActiveId(fallback);
+          }
+          return next;
+        }
+
+        // Hard-delete for root conversations (also removes their child threads)
         const idsToRemove = new Set<string>([id]);
-        if (deleted && !deleted.isThread) {
-          for (const c of prev) {
-            if (c.isThread && c.parentConversationId === id) {
-              idsToRemove.add(c.id);
-            }
+        for (const c of prev) {
+          if (c.isThread && c.parentConversationId === id) {
+            idsToRemove.add(c.id);
           }
         }
         const filtered = prev.filter((c) => !idsToRemove.has(c.id));

@@ -76,18 +76,20 @@ export function ChatThreadsRail({
             {threadsRailRoot.title}
           </span>
         </button>
-        {threadRail.threads.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`chat-threads-rail-item${t.id === activeConversationId ? " active" : ""}`}
-            onClick={() => onSwitchChat(t.id)}
-            title={t.title}
-          >
-            <span className="chat-threads-rail-item-meta">Thread</span>
-            <span className="chat-threads-rail-item-title">{t.title}</span>
-          </button>
-        ))}
+        {threadRail.threads
+          .filter((t) => !t.isClosed)
+          .map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`chat-threads-rail-item${t.id === activeConversationId ? " active" : ""}`}
+              onClick={() => onSwitchChat(t.id)}
+              title={t.title}
+            >
+              <span className="chat-threads-rail-item-meta">Thread</span>
+              <span className="chat-threads-rail-item-title">{t.title}</span>
+            </button>
+          ))}
       </div>
     </aside>
   );

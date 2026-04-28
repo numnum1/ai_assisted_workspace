@@ -15,6 +15,7 @@ import {
   GitMerge,
   MessageSquare,
   FolderCheck,
+  X,
 } from "lucide-react";
 import "./ThreadBranchPicker.css";
 
@@ -33,6 +34,8 @@ export interface ThreadBranchItem {
   mergedToParent?: boolean;
   /** Text to display for the merge event (e.g., "Merged to main"). */
   mergeText?: string;
+  /** True when this thread has been closed (soft-deleted). It stays in the graph but is no longer selectable. */
+  isClosed?: boolean;
   /**
    * Full message list — each user message becomes a "commit" node in the graph.
    * Tool, assistant, and system messages are skipped.
@@ -692,9 +695,11 @@ export function ThreadBranchPicker({
         case "Enter":
           e.preventDefault();
           if (isFiltering && filtered.length > 0) {
-            pick(filtered[selectedIndex]!.id);
+            const item = filtered[selectedIndex];
+            if (item && !item.isClosed) pick(item.id);
           } else if (!isFiltering && graphRows.length > 0) {
-            pick(graphRows[selectedIndex]!.branch.id);
+            const row = graphRows[selectedIndex];
+            if (row && !row.branch.isClosed) pick(row.branch.id);
           }
           break;
       }
@@ -742,6 +747,7 @@ export function ThreadBranchPicker({
         "tbp__option--current",
       idx === selectedIndex && "tbp__option--keyboard",
       row.branch.kind === "main" ? "tbp__option--main" : "tbp__option--thread",
+      row.branch.isClosed && "tbp__option--closed",
     ]
       .filter(Boolean)
       .join(" ");
@@ -757,6 +763,7 @@ export function ThreadBranchPicker({
       ) : (
         filtered.map((item, i) => {
           const isMain = item.kind === "main";
+          const isClosed = item.isClosed;
           const msgLabel =
             item.messageCount !== undefined
               ? `${item.messageCount} Nachr.`
@@ -768,27 +775,33 @@ export function ThreadBranchPicker({
           return (
             <li
               key={item.id}
-              role="option"
+              role={isClosed ? "presentation" : "option"}
               aria-selected={item.isActive}
+              aria-disabled={isClosed}
               className={[
                 "tbp__option tbp__option--head",
                 i === selectedIndex && "tbp__option--keyboard",
                 item.isActive && "tbp__option--current",
                 isMain ? "tbp__option--main" : "tbp__option--thread",
+                isClosed && "tbp__option--closed",
               ]
                 .filter(Boolean)
                 .join(" ")}
-              onClick={() => pick(item.id)}
-              onMouseEnter={() => setSelectedIndex(i)}
+              onClick={isClosed ? undefined : () => pick(item.id)}
+              onMouseEnter={
+                isClosed ? undefined : () => setSelectedIndex(i)
+              }
             >
               <div className="tbp__option-content">
                 <div className="tbp__option-icon" style={{ color }}>
                   {isMain ? (
                     <MessageSquare size={14} />
+                  ) : isClosed ? (
+                    <X size={14} />
                   ) : (
                     <GitBranch size={14} />
                   )}
-                  {item.savedToProject && (
+                  {item.savedToProject && !isClosed && (
                     <FolderCheck size={11} className="tbp__saved-icon" />
                   )}
                 </div>
@@ -796,9 +809,14 @@ export function ThreadBranchPicker({
                   <div className="tbp__option-label">
                     <span
                       className="tbp__kind-badge"
-                      style={{ background: `${color}22`, color }}
+                      style={{
+                        background: isClosed
+                          ? "rgba(148,163,184,0.12)"
+                          : `${color}22`,
+                        color: isClosed ? "#94a3b8" : color,
+                      }}
                     >
-                      {isMain ? "main" : "thread"}
+                      {isMain ? "main" : isClosed ? "geschlossen" : "thread"}
                     </span>
                     <span className="tbp__option-title" title={item.title}>
                       {item.title}
@@ -898,15 +916,19 @@ export function ThreadBranchPicker({
             const timeLabel = row.branch.updatedAt
               ? formatRelativeTime(row.branch.updatedAt)
               : null;
+            const isClosed = row.branch.isClosed;
 
             return (
               <li
                 key={`${row.branch.id}::head`}
-                role="option"
+                role={isClosed ? "presentation" : "option"}
                 aria-selected={row.branch.isActive}
+                aria-disabled={isClosed}
                 className={optClass(row, i)}
-                onClick={() => pick(row.branch.id)}
-                onMouseEnter={() => setSelectedIndex(i)}
+                onClick={isClosed ? undefined : () => pick(row.branch.id)}
+                onMouseEnter={
+                  isClosed ? undefined : () => setSelectedIndex(i)
+                }
               >
                 {showGraph && (
                   <GraphSvg
@@ -923,10 +945,12 @@ export function ThreadBranchPicker({
                   <div className="tbp__option-icon" style={{ color }}>
                     {isMain ? (
                       <MessageSquare size={14} />
+                    ) : isClosed ? (
+                      <X size={14} />
                     ) : (
                       <GitBranch size={14} />
                     )}
-                    {row.branch.savedToProject && (
+                    {row.branch.savedToProject && !isClosed && (
                       <FolderCheck size={11} className="tbp__saved-icon" />
                     )}
                   </div>
@@ -934,9 +958,14 @@ export function ThreadBranchPicker({
                     <div className="tbp__option-label">
                       <span
                         className="tbp__kind-badge"
-                        style={{ background: `${color}22`, color }}
+                        style={{
+                          background: isClosed
+                            ? "rgba(148,163,184,0.12)"
+                            : `${color}22`,
+                          color: isClosed ? "#94a3b8" : color,
+                        }}
                       >
-                        {isMain ? "main" : "thread"}
+                        {isMain ? "main" : isClosed ? "geschlossen" : "thread"}
                       </span>
                       <span
                         className="tbp__option-title"

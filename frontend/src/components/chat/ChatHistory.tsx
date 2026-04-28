@@ -88,10 +88,10 @@ function groupByDate(
 }
 
 function partitionConversations(conversations: Conversation[]) {
-  const roots = conversations.filter((c) => !c.isThread);
+  const roots = conversations.filter((c) => !c.isThread && !c.isClosed);
   const threadsByParent = new Map<string, Conversation[]>();
   for (const t of conversations.filter((c) =>
-    Boolean(c.isThread && c.parentConversationId),
+    Boolean(c.isThread && c.parentConversationId && !c.isClosed),
   )) {
     const pid = t.parentConversationId!;
     if (!threadsByParent.has(pid)) threadsByParent.set(pid, []);
