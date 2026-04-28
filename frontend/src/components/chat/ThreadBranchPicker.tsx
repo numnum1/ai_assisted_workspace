@@ -182,6 +182,8 @@ function buildGraphRows(allItems: InternalItem[]): {
   numLanes: number;
   firstRowIdx: number[];
   lastRowIdx: number[];
+  threadLaneStartIdx: number[];
+  threadLaneEndIdx: number[];
 } {
   const numLanes = allItems.length;
   const commitCache = allItems.map(getUserCommits);
@@ -195,36 +197,40 @@ function buildGraphRows(allItems: InternalItem[]): {
   const threadItems = allItems.filter((item) => item.kind === "thread");
   for (const item of threadItems) {
     const commits = commitCache[item.lane];
-    if (commits.length === 0) continue; // no messages → only branch-head row
 
-    rows.push({
-      rowKind: "commit",
-      branch: item,
-      lane: item.lane,
-      activeLanes: [],
-      isForkStart: true,
-      isForkEnd: false,
-      isListFirst: false,
-      isListLast: false,
-      commitText: commits[0],
-      commitIndex: 1,
-      isBranchFirst: true,
-    });
-
-    if (!item.mergedToParent) {
+    // Only create fork-start row for threads WITH commits
+    // This ensures fork connectors are only drawn for threads that actually have activity
+    if (commits.length > 0) {
       rows.push({
         rowKind: "commit",
         branch: item,
         lane: item.lane,
         activeLanes: [],
-        isForkStart: false,
-        isForkEnd: true,
+        isForkStart: true,
+        isForkEnd: false,
         isListFirst: false,
         isListLast: false,
-        commitText: commits[commits.length - 1],
-        commitIndex: commits.length,
-        isBranchFirst: false,
+        commitText: commits[0],
+        commitIndex: 1,
+        isBranchFirst: true,
       });
+
+      // Only add fork-end row if thread is not merged
+      if (!item.mergedToParent) {
+        rows.push({
+          rowKind: "commit",
+          branch: item,
+          lane: item.lane,
+          activeLanes: [],
+          isForkStart: false,
+          isForkEnd: true,
+          isListFirst: false,
+          isListLast: false,
+          commitText: commits[commits.length - 1],
+          commitIndex: commits.length,
+          isBranchFirst: false,
+        });
+      }
     }
   }
 
@@ -287,10 +293,6 @@ function buildGraphRows(allItems: InternalItem[]): {
     });
   }
 
-  if (rows.length === 0) {
-    return { rows, numLanes, firstRowIdx: [], lastRowIdx: [] };
-  }
-
   // ── Phase 3: firstRowIdx / lastRowIdx per lane ────────────────────────────
   // Main lane (0) is forced to start at row 0 so its line runs from the top
   // even when the first visible rows belong to thread branches.
@@ -298,17 +300,47 @@ function buildGraphRows(allItems: InternalItem[]): {
   const lastRowIdx: number[] = new Array(numLanes).fill(-1);
   firstRowIdx[0] = 0;
 
+  const threadLaneStartIdx: number[] = new Array(numLanes).fill(-1);
+  const threadLaneEndIdx: number[] = new Array(numLanes).fill(-1);
+
+  if (rows.length === 0) {
+    return {
+      rows,
+      numLanes,
+      firstRowIdx,
+      lastRowIdx,
+      threadLaneStartIdx,
+      threadLaneEndIdx,
+    };
+  }
   rows.forEach((r, i) => {
     const l = r.lane;
     if (firstRowIdx[l] === -1) firstRowIdx[l] = i;
     lastRowIdx[l] = i;
   });
 
+  // Track first and last row index for each thread lane
+  rows.forEach((r, i) => {
+    if (r.rowKind === "commit" && r.isForkStart) {
+      threadLaneStartIdx[r.lane] = i;
+    }
+    if (r.rowKind === "commit" && r.isForkEnd) {
+      threadLaneEndIdx[r.lane] = i;
+    }
+  });
+
   // ── Phase 4: activeLanes for every row ────────────────────────────────────
+  // A lane is "active" from its first appearance until the end of the list.
+  // This ensures vertical lines are drawn for all threads that have commits.
   rows.forEach((r, i) => {
     r.activeLanes = [];
     for (let l = 0; l < numLanes; l++) {
-      if (firstRowIdx[l] !== -1 && firstRowIdx[l] <= i && i <= lastRowIdx[l]) {
+      // Main lane always active
+      if (l === 0) {
+        r.activeLanes.push(l);
+      }
+      // Thread lanes active from their first row to end
+      else if (firstRowIdx[l] !== -1 && i >= firstRowIdx[l]) {
         r.activeLanes.push(l);
       }
     }
@@ -318,7 +350,14 @@ function buildGraphRows(allItems: InternalItem[]): {
   rows[0].isListFirst = true;
   rows[rows.length - 1].isListLast = true;
 
-  return { rows, numLanes, firstRowIdx, lastRowIdx };
+  return {
+    rows,
+    numLanes,
+    firstRowIdx,
+    lastRowIdx,
+    threadLaneStartIdx,
+    threadLaneEndIdx,
+  };
 }
 
 // ─── SVG graph cell ───────────────────────────────────────────────────────────
@@ -329,6 +368,8 @@ interface GraphSvgProps {
   numLanes: number;
   firstRowIdx: number[];
   lastRowIdx: number[];
+  threadLaneStartIdx: number[];
+  threadLaneEndIdx: number[];
 }
 
 function GraphSvg({
@@ -337,6 +378,8 @@ function GraphSvg({
   numLanes,
   firstRowIdx,
   lastRowIdx,
+  threadLaneStartIdx,
+  threadLaneEndIdx,
 }: GraphSvgProps) {
   const cellRef = useRef<HTMLDivElement>(null);
   const [cellH, setCellH] = useState(ROW_H);
@@ -378,12 +421,30 @@ function GraphSvg({
           const x = laneX(l);
           const isFirstForLane = rowIndex === firstRowIdx[l];
           const isLastForLane = rowIndex === lastRowIdx[l];
-          // Thread lane on its own fork-start row: line begins AT the node going down.
-          // (The fork connector arrives from above; we don't need a line above the node.)
-          const y1 =
-            isFirstForLane && l === row.lane && row.isForkStart ? cy : 0;
-          // All lanes terminate their line at the node on their final (HEAD) row.
-          const y2 = isLastForLane ? cy : h;
+          const isMainLane = l === 0;
+          const isThisThreadStart = rowIndex === threadLaneStartIdx[l];
+          const isThisThreadEnd = rowIndex === threadLaneEndIdx[l];
+
+          // Main lane always runs full height
+          if (isMainLane) {
+            return (
+              <line
+                key={l}
+                x1={x}
+                y1={0}
+                x2={x}
+                y2={h}
+                stroke={laneColor(l)}
+                strokeWidth={2}
+                opacity={0.35}
+              />
+            );
+          }
+
+          // Thread lane: draw from fork-start to fork-end (or head)
+          const y1 = isThisThreadStart ? cy : isFirstForLane ? cy : 0;
+          const y2 = isThisThreadEnd || isLastForLane ? cy : h;
+
           if (y1 >= y2) return null;
           return (
             <line
@@ -404,6 +465,8 @@ function GraphSvg({
               Shape: from (mainX, cy) going right to just before (cx, cy),
               then a small rounded corner turns downward.
               The thread lane's own vertical line takes over from cy downward. */}
+        {/* Fork connector: horizontal branch from main lane to thread lane.
+              Only drawn for threads that actually have commits. */}
         {row.isForkStart && cx > mainX && (
           <path
             d={`M ${mainX},${cy} L ${cx - 4},${cy} Q ${cx},${cy} ${cx},${cy + 4}`}
@@ -537,6 +600,8 @@ export function ThreadBranchPicker({
     numLanes,
     firstRowIdx,
     lastRowIdx,
+    threadLaneStartIdx,
+    threadLaneEndIdx,
   } = useMemo(() => buildGraphRows(allItems), [allItems]);
 
   const totalCommits = useMemo(
@@ -724,11 +789,7 @@ export function ThreadBranchPicker({
                     <GitBranch size={14} />
                   )}
                   {item.savedToProject && (
-                    <FolderCheck
-                      size={11}
-                      className="tbp__saved-icon"
-                      title="Im Projekt gespeichert"
-                    />
+                    <FolderCheck size={11} className="tbp__saved-icon" />
                   )}
                 </div>
                 <div className="tbp__option-body">
@@ -808,6 +869,8 @@ export function ThreadBranchPicker({
                     numLanes={numLanes}
                     firstRowIdx={firstRowIdx}
                     lastRowIdx={lastRowIdx}
+                    threadLaneStartIdx={threadLaneStartIdx}
+                    threadLaneEndIdx={threadLaneEndIdx}
                   />
                 )}
                 <div className="tbp__option-content tbp__option-content--commit">
@@ -852,6 +915,8 @@ export function ThreadBranchPicker({
                     numLanes={numLanes}
                     firstRowIdx={firstRowIdx}
                     lastRowIdx={lastRowIdx}
+                    threadLaneStartIdx={threadLaneStartIdx}
+                    threadLaneEndIdx={threadLaneEndIdx}
                   />
                 )}
                 <div className="tbp__option-content">
@@ -862,11 +927,7 @@ export function ThreadBranchPicker({
                       <GitBranch size={14} />
                     )}
                     {row.branch.savedToProject && (
-                      <FolderCheck
-                        size={11}
-                        className="tbp__saved-icon"
-                        title="Im Projekt gespeichert"
-                      />
+                      <FolderCheck size={11} className="tbp__saved-icon" />
                     )}
                   </div>
                   <div className="tbp__option-body">
@@ -929,6 +990,8 @@ export function ThreadBranchPicker({
                   numLanes={numLanes}
                   firstRowIdx={firstRowIdx}
                   lastRowIdx={lastRowIdx}
+                  threadLaneStartIdx={threadLaneStartIdx}
+                  threadLaneEndIdx={threadLaneEndIdx}
                 />
               )}
               <div className="tbp__option-content tbp__option-content--commit">

@@ -315,7 +315,7 @@ export function ThreadWorkspacePanel({
             id="chat-thread-split-picker"
             className="chat-thread-split-panel-shell"
             defaultSize="15%"
-            minSize="10%"
+            minSize="20%"
             maxSize="48%"
           >
             <div className="chat-thread-split-picker">

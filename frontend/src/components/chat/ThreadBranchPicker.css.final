@@ -1,0 +1,444 @@
+/*
+ * ThreadBranchPicker — Multi-Lane Git-style branch / thread picker
+ * Modes: "dropdown" (default) and "panel" (always-open, fills container).
+ * BEM block abbreviation: tbp
+ *
+ * Graph rendering is fully SVG-based (.tbp__graph-svg).
+ * Lane colours and widths are controlled in ThreadBranchPicker.tsx constants.
+ */
+
+/* ─── Root ──────────────────────────────────────────────────────────────── */
+
+.tbp {
+  position: relative;
+  display: inline-block;
+  font-size: 13px;
+}
+
+/* Panel mode: fills the allocated container */
+.tbp--panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ─── Trigger button (dropdown mode only) ───────────────────────────────── */
+
+.tbp__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  min-width: 140px;
+  max-width: 240px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tbp__trigger:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tbp__trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tbp__trigger-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.tbp__trigger-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.tbp__trigger-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.18s ease;
+}
+
+.tbp__trigger-chevron--open {
+  transform: rotate(180deg);
+}
+
+/* ─── Dropdown wrapper ──────────────────────────────────────────────────── */
+
+.tbp__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  width: 380px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow:
+    0 12px 28px -4px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  animation: tbp-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tbp-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────── */
+
+.tbp__header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.tbp__header-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.tbp__header-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+  flex: 1;
+}
+
+.tbp__header-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.tbp__badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.tbp__badge--commits {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+}
+
+/* ─── Search row ────────────────────────────────────────────────────────── */
+
+.tbp__search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.tbp__search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tbp__search-input {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.tbp__search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.tbp__search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ─── List ──────────────────────────────────────────────────────────────── */
+
+.tbp__list {
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  flex: 1;
+  min-height: 0;
+}
+
+.tbp--panel .tbp__list {
+  max-height: none;
+}
+
+.tbp__empty {
+  padding: 20px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ─── Option (list row) ─────────────────────────────────────────────────── */
+
+.tbp__option {
+  display: flex;
+  align-items: stretch; /* lets SVG span full row height */
+  cursor: pointer;
+  border-radius: 5px;
+  margin: 0 4px;
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.tbp__option:hover {
+  background: var(--bg-hover);
+}
+
+.tbp__option--keyboard {
+  background: var(--bg-active, var(--bg-hover));
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tbp__option--current:not(.tbp__option--keyboard) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* Faint highlight on all commit rows of the active branch */
+.tbp__option--active-branch.tbp__option--commit:not(.tbp__option--keyboard) {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+/* HEAD rows get a subtle separator between commit rows and head rows */
+.tbp__option--head {
+  box-shadow: 0 -1px 0 0 var(--border);
+}
+
+.tbp__option--head:first-child {
+  box-shadow: none;
+}
+
+/* ─── SVG graph column ──────────────────────────────────────────────────── */
+
+/*
+ * .tbp__graph-cell is a flex child that stretches to the full row height.
+ * The SVG inside is absolutely positioned to fill it completely, so vertical
+ * lane lines are seamless across rows of any height.
+ */
+.tbp__graph-cell {
+  position: relative;
+  flex-shrink: 0;
+  align-self: stretch;
+  /* min-height prevents the cell from collapsing on very short rows */
+  min-height: 28px;
+}
+
+.tbp__graph-svg {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ─── Option content area ───────────────────────────────────────────────── */
+
+.tbp__option-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 6px;
+  min-width: 0;
+}
+
+/* Compact padding for commit rows */
+.tbp__option-content--commit {
+  padding: 4px 10px 4px 6px;
+  gap: 5px;
+}
+
+.tbp__option-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.tbp__saved-icon {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  color: #eab308;
+  background: var(--bg-primary);
+  border-radius: 50%;
+}
+
+.tbp__option-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tbp__option-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+/* Kind pill — colour injected via inline style in JSX */
+.tbp__kind-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1.5;
+}
+
+.tbp__kind-badge--sm {
+  font-size: 8px;
+  padding: 0 4px;
+}
+
+.tbp__option-title {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.tbp__option--current .tbp__option-title {
+  font-weight: 600;
+}
+
+.tbp__option-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.tbp__meta-sep {
+  opacity: 0.4;
+}
+
+.tbp__meta-chip {
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  padding: 0 4px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.tbp__meta-time {
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.tbp__option-check {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* ─── Commit row labels ──────────────────────────────────────────────────── */
+
+.tbp__commit-tag {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  min-width: 22px;
+  text-align: right;
+}
+
+.tbp__commit-tag--start { opacity: 0.55; }
+.tbp__commit-tag--end   { opacity: 0.85; }
+
+.tbp__commit-text {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.tbp__option--active-branch .tbp__commit-text {
+  opacity: 1;
+}
+
+/* ─── Merge row ──────────────────────────────────────────────────────────── */
+
+.tbp__option--merge {
+  opacity: 0.85;
+}
+
+.tbp__merge-text {
+  font-size: 11px;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+/* ─── Footer ────────────────────────────────────────────────────────────── */
+
+.tbp__footer {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.tbp__hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.65;
+}
