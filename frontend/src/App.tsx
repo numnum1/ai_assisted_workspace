@@ -1180,6 +1180,11 @@ function App() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Allow regular character input (like "ß", "ä", "ö", "ü", etc.)
+      // Only handle shortcuts when no character is being typed
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        return; // Regular character - let it pass through
+      }
       if (e.ctrlKey && e.shiftKey && e.key === "A") {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
@@ -1220,7 +1225,14 @@ function App() {
     };
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) return;
+      // Allow regular character input (like "ß", "ä", "ö", "ü", etc.)
+      // Don't interfere with normal typing
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        return; // Regular character - let it pass through
+      }
+      // Allow AltGr (Alt+Ctrl) for character input like "ß"
+      // Only return early if Ctrl/Meta is pressed WITHOUT Alt (not AltGr)
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) return;
 
       if (e.altKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();

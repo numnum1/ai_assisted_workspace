@@ -1,15 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
-import { KeyRound, X, Loader } from 'lucide-react';
-import { gitApi } from '../../api.ts';
+import { useState, useEffect, useRef } from "react";
+import { KeyRound, X, Loader } from "lucide-react";
+import { gitApi } from "../../api.ts";
 
 interface GitCredentialsDialogProps {
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export function GitCredentialsDialog({ onSuccess, onCancel }: GitCredentialsDialogProps) {
-  const [username, setUsername] = useState('');
-  const [token, setToken] = useState('');
+export function GitCredentialsDialog({
+  onSuccess,
+  onCancel,
+}: GitCredentialsDialogProps) {
+  const [username, setUsername] = useState("");
+  const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const usernameRef = useRef<HTMLInputElement>(null);
@@ -20,10 +23,10 @@ export function GitCredentialsDialog({ onSuccess, onCancel }: GitCredentialsDial
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+      if (e.key === "Escape") onCancel();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [onCancel]);
 
   const handleSubmit = async () => {
@@ -34,32 +37,43 @@ export function GitCredentialsDialog({ onSuccess, onCancel }: GitCredentialsDial
       await gitApi.setCredentials(username.trim(), token.trim());
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save credentials');
+      setError(
+        err instanceof Error ? err.message : "Failed to save credentials",
+      );
       setSaving(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit();
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSubmit();
   };
 
   return (
     <div className="git-creds-overlay" onClick={onCancel}>
-      <div className="git-creds-dialog" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div
+        className="git-creds-dialog"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
         <div className="git-creds-header">
           <KeyRound size={15} className="git-creds-icon" />
           <span className="git-creds-title">Git Authentication Required</span>
-          <button className="git-creds-close" onClick={onCancel} title="Cancel" disabled={saving}>
+          <button
+            className="git-creds-close"
+            onClick={onCancel}
+            title="Cancel"
+            disabled={saving}
+          >
             <X size={15} />
           </button>
         </div>
 
         <div className="git-creds-body">
           <p className="git-creds-hint">
-            Authentication failed. Enter your credentials to continue.
-            For GitHub, use a{' '}
-            <strong>Personal Access Token</strong> (not your password) —
-            GitHub → Settings → Developer Settings → Personal Access Tokens.
+            Authentication failed. Enter your credentials to continue. For
+            GitHub, use a <strong>Personal Access Token</strong> (not your
+            password) — GitHub → Settings → Developer Settings → Personal Access
+            Tokens.
           </p>
 
           <label className="git-creds-label">Username</label>
@@ -69,7 +83,10 @@ export function GitCredentialsDialog({ onSuccess, onCancel }: GitCredentialsDial
             type="text"
             placeholder="your-github-username"
             value={username}
-            onChange={(e) => { setUsername(e.target.value); setError(null); }}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              setError(null);
+            }}
             disabled={saving}
             autoComplete="username"
           />
@@ -80,7 +97,10 @@ export function GitCredentialsDialog({ onSuccess, onCancel }: GitCredentialsDial
             type="password"
             placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
             value={token}
-            onChange={(e) => { setToken(e.target.value); setError(null); }}
+            onChange={(e) => {
+              setToken(e.target.value);
+              setError(null);
+            }}
             disabled={saving}
             autoComplete="current-password"
           />
@@ -89,7 +109,11 @@ export function GitCredentialsDialog({ onSuccess, onCancel }: GitCredentialsDial
         </div>
 
         <div className="git-creds-footer">
-          <button className="git-creds-cancel" onClick={onCancel} disabled={saving}>
+          <button
+            className="git-creds-cancel"
+            onClick={onCancel}
+            disabled={saving}
+          >
             Cancel
           </button>
           <button
@@ -97,7 +121,11 @@ export function GitCredentialsDialog({ onSuccess, onCancel }: GitCredentialsDial
             onClick={handleSubmit}
             disabled={!token.trim() || saving}
           >
-            {saving ? <Loader size={13} className="git-creds-spinner" /> : <KeyRound size={13} />}
+            {saving ? (
+              <Loader size={13} className="git-creds-spinner" />
+            ) : (
+              <KeyRound size={13} />
+            )}
             Save & Retry
           </button>
         </div>

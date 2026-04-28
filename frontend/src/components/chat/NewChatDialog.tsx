@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
-import type { AgentPreset, ChatSessionKind } from '../../types.ts';
+import { useState, useEffect, useRef } from "react";
+import { Plus, Trash2, X } from "lucide-react";
+import type { AgentPreset, ChatSessionKind } from "../../types.ts";
 
 export interface NewChatConfirmPayload {
   title: string;
@@ -27,8 +27,8 @@ export function NewChatDialog({
   onCancel,
 }: NewChatDialogProps) {
   const [title, setTitle] = useState(currentTitle);
-  const [sessionKind, setSessionKind] = useState<ChatSessionKind>('standard');
-  const [agentPresetId, setAgentPresetId] = useState('');
+  const [sessionKind, setSessionKind] = useState<ChatSessionKind>("standard");
+  const [agentPresetId, setAgentPresetId] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export function NewChatDialog({
   const buildPayload = (): NewChatConfirmPayload => ({
     title: title.trim() || currentTitle,
     sessionKind,
-    ...(sessionKind === 'guided' && agentPresetId ? { agentPresetId } : {}),
+    ...(sessionKind === "guided" && agentPresetId ? { agentPresetId } : {}),
   });
 
   const handleConfirm = () => {
@@ -51,8 +51,8 @@ export function NewChatDialog({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleConfirm();
-    if (e.key === 'Escape') onCancel();
+    if (e.key === "Enter") handleConfirm();
+    if (e.key === "Escape") onCancel();
   };
 
   return (
@@ -68,15 +68,20 @@ export function NewChatDialog({
           <span id="new-chat-dialog-title" className="new-chat-dialog-title">
             Neuen Chat starten
           </span>
-          <button type="button" className="new-chat-dialog-close" onClick={onCancel} title="Abbrechen">
+          <button
+            type="button"
+            className="new-chat-dialog-close"
+            onClick={onCancel}
+            title="Abbrechen"
+          >
             <X size={14} />
           </button>
         </div>
 
         <div className="new-chat-dialog-body">
           <p className="new-chat-dialog-hint">
-            Mit „Neuer Chat starten“ bleibt der aktuelle Chat unter dem Namen im Verlauf. Mit
-            „Verwerfen“ wird er gelöscht und erscheint dort nicht.
+            Mit „Neuer Chat starten“ bleibt der aktuelle Chat unter dem Namen im
+            Verlauf. Mit „Verwerfen“ wird er gelöscht und erscheint dort nicht.
           </p>
           <input
             ref={inputRef}
@@ -87,15 +92,17 @@ export function NewChatDialog({
             placeholder="Name des Chats…"
           />
           <fieldset className="new-chat-dialog-session-fieldset">
-            <legend className="new-chat-dialog-session-legend">Sitzungsart</legend>
+            <legend className="new-chat-dialog-session-legend">
+              Sitzungsart
+            </legend>
             <label className="new-chat-dialog-radio-row">
               <input
                 type="radio"
                 name="sessionKind"
-                checked={sessionKind === 'standard'}
+                checked={sessionKind === "standard"}
                 onChange={() => {
-                  setSessionKind('standard');
-                  setAgentPresetId('');
+                  setSessionKind("standard");
+                  setAgentPresetId("");
                 }}
               />
               <span>
@@ -106,20 +113,24 @@ export function NewChatDialog({
               <input
                 type="radio"
                 name="sessionKind"
-                checked={sessionKind === 'guided'}
-                onChange={() => setSessionKind('guided')}
+                checked={sessionKind === "guided"}
+                onChange={() => setSessionKind("guided")}
               />
               <span>
-                <strong>Geführte Sitzung (Agent)</strong> — Arbeitsplan, Modus und Tool-Toggles werden für diese
-                Sitzung gespeichert (LLM aus dem Modus)
+                <strong>Geführte Sitzung (Agent)</strong> — Arbeitsplan, Modus
+                und Tool-Toggles werden für diese Sitzung gespeichert (LLM aus
+                dem Modus)
               </span>
             </label>
           </fieldset>
-          {sessionKind === 'guided' && (
+          {sessionKind === "guided" && (
             <div className="new-chat-dialog-guided-extra">
               {agentPresets.length > 0 && (
                 <>
-                  <label className="new-chat-dialog-plan-label" htmlFor="new-chat-agent-preset">
+                  <label
+                    className="new-chat-dialog-plan-label"
+                    htmlFor="new-chat-agent-preset"
+                  >
                     Vorlage (optional)
                   </label>
                   <select
@@ -136,15 +147,16 @@ export function NewChatDialog({
                     ))}
                   </select>
                   <p className="new-chat-dialog-plan-hint">
-                    Mit Vorlage werden Modus, LLM, Reasoning, deaktivierte Toolkits und der Arbeitsplan aus den
-                    Projekteinstellungen übernommen.
+                    Mit Vorlage werden Modus, LLM, Reasoning, deaktivierte
+                    Toolkits und der Arbeitsplan aus den Projekteinstellungen
+                    übernommen.
                   </p>
                 </>
               )}
               {!agentPresetId && (
                 <p className="new-chat-dialog-plan-hint">
-                  Ohne Vorlage gelten Modus, gewähltes LLM und Tool-Leiste wie in der Chat-Kopfzeile und werden beim
-                  Start übernommen.
+                  Ohne Vorlage gelten Modus, gewähltes LLM und Tool-Leiste wie
+                  in der Chat-Kopfzeile und werden beim Start übernommen.
                 </p>
               )}
             </div>
@@ -152,7 +164,11 @@ export function NewChatDialog({
         </div>
 
         <div className="new-chat-dialog-footer">
-          <button type="button" className="new-chat-dialog-btn-secondary" onClick={onCancel}>
+          <button
+            type="button"
+            className="new-chat-dialog-btn-secondary"
+            onClick={onCancel}
+          >
             Abbrechen
           </button>
           <div className="new-chat-dialog-footer-actions">
@@ -165,7 +181,11 @@ export function NewChatDialog({
               <Trash2 size={13} />
               Verwerfen
             </button>
-            <button type="button" className="new-chat-dialog-btn-primary" onClick={handleConfirm}>
+            <button
+              type="button"
+              className="new-chat-dialog-btn-primary"
+              onClick={handleConfirm}
+            >
               <Plus size={13} />
               Neuer Chat starten
             </button>

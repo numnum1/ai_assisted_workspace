@@ -456,6 +456,8 @@ export function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Allow regular character input (like "ß", "ä", "ö", "ü", etc.)
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) return;
     if (ac) {
       const filtered = filterItems(ac.items, ac.query);
 
