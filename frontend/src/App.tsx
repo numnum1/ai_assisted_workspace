@@ -32,7 +32,6 @@ import { ThreadWorkspacePanel } from "./components/chat/ThreadWorkspacePanel.tsx
 import { ChatThreadsRail } from "./components/chat/ChatThreadsRail.tsx";
 import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
 import { PromptPackModal } from "./components/chat/PromptPackModal.tsx";
-import { ContextBar } from "./components/chat/ContextBar.tsx";
 import { CommandPalette } from "./components/git/CommandPalette.tsx";
 import { GitCredentialsDialog } from "./components/git/GitCredentialsDialog.tsx";
 import { FileHistoryModal } from "./components/git/FileHistoryModal.tsx";
@@ -761,6 +760,7 @@ function App() {
         updatedAt: number;
         savedToProject?: boolean;
         isClosed?: boolean;
+        parentConversationId?: string;
       },
       mergedToParent?: boolean,
     ): ThreadBranchItem => ({
@@ -775,6 +775,7 @@ function App() {
       savedToProject: conv.savedToProject,
       mergedToParent,
       isClosed: conv.isClosed,
+      parentId: conv.parentConversationId,
     });
     return {
       mainBranchItem: toBranchItem(rootConv),

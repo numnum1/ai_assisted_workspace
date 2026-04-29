@@ -16,30 +16,32 @@ import {
   MessageSquare,
   FolderCheck,
   X,
+  GitCommit,
 } from "lucide-react";
 import "./ThreadBranchPicker.css";
 
-// ─── Public types ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Public Types
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export interface ThreadBranchItem {
   id: string;
   title: string;
   messageCount?: number;
-  /** Timestamp of the last activity — used for chronological ordering. */
+  /** Timestamp of the last activity */
   updatedAt?: number;
-  /** Timestamp when the conversation was created — used as tie-breaker. */
+  /** Timestamp when the conversation was created */
   createdAt?: number;
   savedToProject?: boolean;
-  /** True when this thread has been summarised and merged into the parent chat. */
+  /** True when this thread has been summarised and merged into the parent chat */
   mergedToParent?: boolean;
-  /** Text to display for the merge event (e.g., "Merged to main"). */
+  /** Text to display for the merge event */
   mergeText?: string;
-  /** True when this thread has been closed (soft-deleted). It stays in the graph but is no longer selectable. */
+  /** True when this thread has been closed (soft-deleted) */
   isClosed?: boolean;
-  /**
-   * Full message list — each user message becomes a "commit" node in the graph.
-   * Tool, assistant, and system messages are skipped.
-   */
+  /** Parent conversation ID - for fork connector rendering */
+  parentId?: string;
+  /** Full message list - each user message becomes a commit */
   messages?: Array<{
     role: "user" | "assistant" | "tool" | "system";
     content: string;
@@ -54,84 +56,89 @@ interface ThreadBranchPickerProps {
   onSelect: (id: string) => void;
   disabled?: boolean;
   className?: string;
-  /** Accessible label for the trigger / listbox. */
   ariaLabel?: string;
-  /** Show the git-graph visualisation. */
   showGraph?: boolean;
-  /**
-   * Render as an always-visible inline panel instead of a popup dropdown.
-   * The trigger button is hidden; header, search and list fill the container.
-   */
+  /** Render as always-visible inline panel */
   panel?: boolean;
 }
 
-// ─── Internal types ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Internal Types
+// ═══════════════════════════════════════════════════════════════════════════════
 
-type InternalItem = ThreadBranchItem & {
+interface InternalItem extends ThreadBranchItem {
   kind: "main" | "thread";
   isActive: boolean;
-  /** Lane index — main = 0, thread 1 = 1, thread 2 = 2, … */
   lane: number;
-};
-
-/**
- * A single rendered row in the commit graph.
- *
- * Rows come in three kinds:
- *  - commit/fork-start  — first user message of a thread (fork connector drawn)
- *  - commit/fork-end    — last user message of a thread
- *  - merge              — thread was merged back into the main branch
- *  - branch-head        — clickable HEAD node for a branch
- */
-interface GraphRow {
-  rowKind: "commit" | "branch-head" | "merge";
-  branch: InternalItem;
-  /** Lane this row's node belongs to. */
-  lane: number;
-  /**
-   * All lane indices that need a vertical line through this row.
-   * Populated by buildGraphRows phase 4.
-   */
-  activeLanes: number[];
-  /** First user message of a thread — fork connector is drawn here. */
-  isForkStart: boolean;
-  /** Last user message of a thread — marks the branch tip before the HEAD row. */
-  isForkEnd: boolean;
-  isListFirst: boolean;
-  isListLast: boolean;
-  /** Only for 'commit' rows. */
-  commitText?: string;
-  commitIndex?: number;
-  /** True on the first commit row of a branch — kind badge rendered here. */
-  isBranchFirst?: boolean;
-  /** For 'merge' rows: the lane of the thread being merged. */
-  mergeLane?: number;
-  /** True for merge commits that should show the merge icon. */
-  isMerge?: boolean;
+  /** Lane of parent branch (for fork connector) */
+  parentLane: number;
+  /** Tree depth (main=0, direct thread=1, etc.) */
+  depth: number;
 }
 
-// ─── Graph constants ──────────────────────────────────────────────────────────
+type GraphEventType = "fork" | "commit" | "merge" | "head";
 
-/** Horizontal pixels per lane. */
-const LANE_W = 14;
-/** Default / minimum graph cell height (px); actual row height is measured at runtime. */
-const ROW_H = 28;
-/** Horizontal centre of lane `l` in the SVG coordinate system. */
-const laneX = (l: number): number => l * LANE_W + 8;
+interface GraphEvent {
+  type: GraphEventType;
+  timestamp: number;
+  branch: InternalItem;
+  /** For commit: the message text */
+  message?: string;
+  /** For commit: message index */
+  commitIndex?: number;
+  /** For merge: target lane (always 0 for main) */
+  targetLane?: number;
+  /** Visual row kind */
+  rowKind: GraphEventType;
+}
 
-/** Per-lane colour palette. Lane 0 = main (blue), subsequent = thread colours. */
+interface GraphRow {
+  event: GraphEvent;
+  branch: InternalItem;
+  lane: number;
+  /** Lanes that should draw a vertical line through this row */
+  activeLanes: number[];
+  /** For fork: the parent lane to connect from */
+  parentLane?: number;
+  /** Is this the first row for this lane? */
+  isLaneFirst: boolean;
+  /** Is this the last row for this lane? */
+  isLaneLast: boolean;
+  /** Index in the list */
+  index: number;
+  /** Is this a closed thread's final head? */
+  isClosedHead: boolean;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Graph Constants
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Horizontal pixels per lane */
+const LANE_W = 16;
+/** Minimum row height */
+const ROW_H = 32;
+/** Horizontal center of lane l */
+const laneX = (l: number): number => l * LANE_W + 10;
+
+/** Color palette for lanes */
 const LANE_COLORS = [
-  "#3b82f6",
-  "#22c55e",
-  "#f59e0b",
-  "#ec4899",
-  "#8b5cf6",
-  "#06b6d4",
+  "#3b82f6", // blue - main
+  "#22c55e", // green
+  "#f59e0b", // amber
+  "#ec4899", // pink
+  "#8b5cf6", // violet
+  "#06b6d4", // cyan
+  "#f97316", // orange
+  "#84cc16", // lime
 ];
-const laneColor = (l: number): string =>
-  LANE_COLORS[l % LANE_COLORS.length] ?? "#3b82f6";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const laneColor = (l: number): string =>
+  LANE_COLORS[l % LANE_COLORS.length] ?? LANE_COLORS[0];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function formatRelativeTime(ts: number): string {
   const diffMs = Date.now() - ts;
@@ -151,7 +158,7 @@ function formatRelativeTime(ts: number): string {
 
 function toCommitText(content: string): string {
   const first = content.trim().split("\n")[0] ?? "";
-  return first.length > 72 ? first.slice(0, 70) + "…" : first;
+  return first.length > 60 ? first.slice(0, 58) + "…" : first;
 }
 
 function getUserCommits(item: InternalItem): string[] {
@@ -161,229 +168,298 @@ function getUserCommits(item: InternalItem): string[] {
     .map((m) => toCommitText(m.content));
 }
 
-/**
- * Builds the flat list of GraphRows for the sparse multi-lane commit graph.
- *
- * Instead of rendering every user message as a node, only three topologically
- * significant row types are emitted:
- *
- *   fork-start  — first user message of a thread (where the branch diverges)
- *   fork-end    — last user message of a thread (the current branch tip)
- *   branch-head — clickable HEAD node for every branch (main + threads)
- *
- * This keeps the graph readable even for very long conversations.
- *
- * The main lane (0) has no commit rows of its own — it runs as a continuous
- * vertical line through all thread rows and terminates at its HEAD node.
- *
- * Returns `firstRowIdx` and `lastRowIdx` per lane so GraphSvg can clip
- * vertical lines correctly (threads start at their fork node, all lanes
- * end at their HEAD node).
- */
-function buildGraphRows(allItems: InternalItem[]): {
-  rows: GraphRow[];
-  numLanes: number;
-  firstRowIdx: number[];
-  lastRowIdx: number[];
-  threadLaneStartIdx: number[];
-  threadLaneEndIdx: number[];
-} {
-  const numLanes = allItems.length;
-  const commitCache = allItems.map(getUserCommits);
-  const rows: GraphRow[] = [];
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW: Build Internal Items with Tree-based Lane Assignment
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  // ── Phase 1: fork-start + fork-end rows for each thread ──────────────────
-  // Only threads (not main) get commit rows. Two rows per thread, always.
-  // Exception: merged threads only get the fork-start row — the merge row
-  // (Phase 1.5) already marks the end of the branch, so a separate tip
-  // commit would be redundant.
-  const threadItems = allItems.filter((item) => item.kind === "thread");
-  for (const item of threadItems) {
-    const commits = commitCache[item.lane];
+function buildInternalItems(
+  main: ThreadBranchItem,
+  threads: ThreadBranchItem[],
+  activeId: string
+): InternalItem[] {
+  // Separate active and closed threads
+  const activeThreads = threads.filter((t) => !t.isClosed);
+  const closedThreads = threads.filter((t) => t.isClosed);
 
-    // Only create fork-start row for threads WITH commits
-    // This ensures fork connectors are only drawn for threads that actually have activity
-    if (commits.length > 0) {
-      rows.push({
-        rowKind: "commit",
-        branch: item,
-        lane: item.lane,
-        activeLanes: [],
-        isForkStart: true,
-        isForkEnd: false,
-        isListFirst: false,
-        isListLast: false,
-        commitText: commits[0],
-        commitIndex: 1,
-        isBranchFirst: true,
-      });
+  // Build lane assignment via BFS from main
+  const laneMap = new Map<string, number>();
+  laneMap.set(main.id, 0);
 
-      // Only add fork-end row if thread is not merged
-      if (!item.mergedToParent) {
-        rows.push({
-          rowKind: "commit",
-          branch: item,
-          lane: item.lane,
-          activeLanes: [],
-          isForkStart: false,
-          isForkEnd: true,
-          isListFirst: false,
-          isListLast: false,
-          commitText: commits[commits.length - 1],
-          commitIndex: commits.length,
-          isBranchFirst: false,
-        });
-      }
-    }
-  }
-
-  // ── Phase 1.5: merge rows for threads that have been merged to parent ────────
-  // One row per merged thread, placed on the main lane (0) with a connector
-  // drawn from the thread lane back to main.
-  // Merged threads get a new "merge commit" that represents the merge event
-  // and is treated as the latest activity.
-  for (const item of threadItems) {
-    if (!item.mergedToParent) continue;
-
-    // Create a merge commit entry with current timestamp to represent
-    // the merge event as the latest activity
-    const mergeCommitIndex = (item.messages?.length ?? 0) + 1;
-    const mergeText = item.mergeText || "Merged to main";
-
-    rows.push({
-      rowKind: "commit",
-      branch: item,
+  const items: InternalItem[] = [
+    {
+      ...main,
+      kind: "main",
+      isActive: main.id === activeId,
       lane: 0,
-      activeLanes: [],
-      isForkStart: false,
-      isForkEnd: false,
-      isListFirst: false,
-      isListLast: false,
-      commitText: mergeText,
-      commitIndex: mergeCommitIndex,
-      isBranchFirst: false,
-      isMerge: true,
-      mergeLane: item.lane,
+      parentLane: -1,
+      depth: 0,
+    },
+  ];
+
+  // BFS for active threads to assign lanes based on tree structure
+  let nextLane = 1;
+  const queue: ThreadBranchItem[] = [...activeThreads];
+  const processed = new Set<string>([main.id]);
+
+  // First pass: assign lanes to threads whose parent is main
+  for (const thread of queue) {
+    if (processed.has(thread.id)) continue;
+
+    const parentId = thread.parentId ?? main.id;
+    if (parentId === main.id || !laneMap.has(parentId)) {
+      // Direct child of main or orphan -> assign new lane
+      const lane = nextLane++;
+      laneMap.set(thread.id, lane);
+      processed.add(thread.id);
+
+      items.push({
+        ...thread,
+        kind: "thread",
+        isActive: thread.id === activeId,
+        lane,
+        parentLane: 0,
+        depth: 1,
+      });
+    }
+  }
+
+  // Second pass: threads whose parent is another thread (thread-of-thread)
+  // These are rare but supported by the data model
+  for (const thread of queue) {
+    if (processed.has(thread.id)) continue;
+
+    const parentId = thread.parentId ?? main.id;
+    const parentLane = laneMap.get(parentId);
+
+    if (parentLane !== undefined) {
+      const lane = nextLane++;
+      laneMap.set(thread.id, lane);
+      processed.add(thread.id);
+
+      const parentItem = items.find((i) => i.id === parentId);
+      items.push({
+        ...thread,
+        kind: "thread",
+        isActive: thread.id === activeId,
+        lane,
+        parentLane,
+        depth: (parentItem?.depth ?? 0) + 1,
+      });
+    } else {
+      // Fallback: assign to main
+      const lane = nextLane++;
+      laneMap.set(thread.id, lane);
+      processed.add(thread.id);
+
+      items.push({
+        ...thread,
+        kind: "thread",
+        isActive: thread.id === activeId,
+        lane,
+        parentLane: 0,
+        depth: 1,
+      });
+    }
+  }
+
+  // Add closed threads - they don't get their own lane
+  for (const thread of closedThreads) {
+    const parentId = thread.parentId ?? main.id;
+    const parentLane = laneMap.get(parentId) ?? 0;
+
+    items.push({
+      ...thread,
+      kind: "thread",
+      isActive: thread.id === activeId,
+      lane: -1, // No lane
+      parentLane,
+      depth: 1,
     });
   }
 
-  // ── Phase 2: branch-head rows sorted by updatedAt ascending ─────────────
-  // Items with the most recent activity appear at the bottom, matching git
-  // convention where HEAD is "furthest along the timeline".
-  const headOrder = [...allItems].sort((a, b) => {
-    const aTime = a.updatedAt ?? a.createdAt ?? 0;
-    const bTime = b.updatedAt ?? b.createdAt ?? 0;
-    return aTime - bTime;
-  });
-  for (const item of headOrder) {
-    // Gemergte Threads werden nur als Merge-Entry angezeigt, nicht als
-    // eigenständige Branch-Heads (vermeidet doppelte Anzeige)
-    if (item.kind === "thread" && item.mergedToParent) {
-      continue;
-    }
-
-    rows.push({
-      rowKind: "branch-head",
-      branch: item,
-      lane: item.lane,
-      activeLanes: [],
-      isForkStart: false,
-      isForkEnd: false,
-      isListFirst: false,
-      isListLast: false,
-      isBranchFirst:
-        item.kind === "main" || commitCache[item.lane].length === 0,
-    });
-  }
-
-  // ── Phase 3: firstRowIdx / lastRowIdx per lane ────────────────────────────
-  // Main lane (0) is forced to start at row 0 so its line runs from the top
-  // even when the first visible rows belong to thread branches.
-  const firstRowIdx: number[] = new Array(numLanes).fill(-1);
-  const lastRowIdx: number[] = new Array(numLanes).fill(-1);
-  firstRowIdx[0] = 0;
-
-  const threadLaneStartIdx: number[] = new Array(numLanes).fill(-1);
-  const threadLaneEndIdx: number[] = new Array(numLanes).fill(-1);
-
-  if (rows.length === 0) {
-    return {
-      rows,
-      numLanes,
-      firstRowIdx,
-      lastRowIdx,
-      threadLaneStartIdx,
-      threadLaneEndIdx,
-    };
-  }
-  rows.forEach((r, i) => {
-    const l = r.lane;
-    if (firstRowIdx[l] === -1) firstRowIdx[l] = i;
-    lastRowIdx[l] = i;
-  });
-
-  // Track first and last row index for each thread lane
-  rows.forEach((r, i) => {
-    if (r.rowKind === "commit" && r.isForkStart) {
-      threadLaneStartIdx[r.lane] = i;
-    }
-    if (r.rowKind === "commit" && r.isForkEnd) {
-      threadLaneEndIdx[r.lane] = i;
-    }
-  });
-
-  // ── Phase 4: activeLanes for every row ────────────────────────────────────
-  // A lane is "active" from its first appearance until the end of the list.
-  // This ensures vertical lines are drawn for all threads that have commits.
-  rows.forEach((r, i) => {
-    r.activeLanes = [];
-    for (let l = 0; l < numLanes; l++) {
-      // Main lane always active
-      if (l === 0) {
-        r.activeLanes.push(l);
-      }
-      // Thread lanes active from their first row to end
-      else if (firstRowIdx[l] !== -1 && i >= firstRowIdx[l]) {
-        r.activeLanes.push(l);
-      }
-    }
-  });
-
-  // ── Phase 5: list boundary flags ─────────────────────────────────────────
-  rows[0].isListFirst = true;
-  rows[rows.length - 1].isListLast = true;
-
-  return {
-    rows,
-    numLanes,
-    firstRowIdx,
-    lastRowIdx,
-    threadLaneStartIdx,
-    threadLaneEndIdx,
-  };
+  return items;
 }
 
-// ─── SVG graph cell ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW: Build Graph Events (chronological timeline)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
+  const events: GraphEvent[] = [];
+
+  for (const item of items) {
+    const isMain = item.kind === "main";
+
+    // Fork event (creation) — only for threads
+    if (!isMain) {
+      events.push({
+        type: "fork",
+        timestamp: item.createdAt ?? item.updatedAt ?? Date.now(),
+        branch: item,
+        rowKind: "fork",
+      });
+    }
+
+    // Commit events (user messages) — only for threads
+    if (!isMain) {
+      const commits = getUserCommits(item);
+      if (commits.length > 0) {
+        // Always show first commit
+        events.push({
+          type: "commit",
+          timestamp: item.createdAt ?? item.updatedAt ?? Date.now(),
+          branch: item,
+          message: commits[0],
+          commitIndex: 1,
+          rowKind: "commit",
+        });
+
+        // Show last commit (tip) only if not merged
+        if (!item.mergedToParent && commits.length > 1) {
+          events.push({
+            type: "commit",
+            timestamp: item.updatedAt ?? Date.now(),
+            branch: item,
+            message: commits[commits.length - 1],
+            commitIndex: commits.length,
+            rowKind: "commit",
+          });
+        }
+      }
+    }
+
+    // Merge event — thread merges back into main (sits on main lane)
+    if (!isMain && item.mergedToParent) {
+      events.push({
+        type: "merge",
+        timestamp: item.updatedAt ?? Date.now(),
+        branch: item,
+        targetLane: 0,
+        message: item.mergeText || "Merged to main",
+        rowKind: "merge",
+      });
+    }
+
+    // Head event — always for main, for threads only if not merged and not closed
+    if (isMain || (!item.mergedToParent && !item.isClosed)) {
+      events.push({
+        type: "head",
+        timestamp: item.updatedAt ?? Date.now(),
+        branch: item,
+        rowKind: "head",
+      });
+    }
+  }
+
+  // Stable sort: timestamp first, then event type priority
+  // Priority: fork < commit < merge < head
+  const typePriority: Record<GraphEventType, number> = {
+    fork: 0,
+    commit: 1,
+    merge: 2,
+    head: 3,
+  };
+
+  events.sort((a, b) => {
+    const timeDiff = a.timestamp - b.timestamp;
+    if (timeDiff !== 0) return timeDiff;
+    return typePriority[a.type] - typePriority[b.type];
+  });
+
+  return events;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW: Build Graph Rows with proper active lane tracking
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function buildGraphRows(
+  items: InternalItem[],
+  events: GraphEvent[]
+): { rows: GraphRow[]; numLanes: number } {
+  const maxLane = Math.max(0, ...items.map((i) => i.lane), 0);
+
+  // Track first and last occurrence per lane (for vertical lines)
+  const firstRowForLane = new Array(maxLane + 1).fill(-1);
+  const lastRowForLane = new Array(maxLane + 1).fill(-1);
+
+  // Build rows
+  const rows: GraphRow[] = events.map((event, index) => {
+    // Merge events sit visually on main lane (0), but their source lane
+    // (the thread being merged) also ends at this row
+    const isMerge = event.type === "merge";
+    const visualLane = isMerge ? 0 : event.branch.lane;
+
+    // Track visual lane usage
+    if (visualLane >= 0) {
+      if (firstRowForLane[visualLane] === -1) firstRowForLane[visualLane] = index;
+      lastRowForLane[visualLane] = index;
+    }
+
+    // For merge events, also track the source thread lane ending here
+    if (isMerge && event.branch.lane > 0) {
+      if (firstRowForLane[event.branch.lane] === -1) {
+        firstRowForLane[event.branch.lane] = index;
+      }
+      lastRowForLane[event.branch.lane] = index;
+    }
+
+    return {
+      event,
+      branch: event.branch,
+      lane: visualLane,
+      activeLanes: [], // filled in second pass
+      parentLane: event.branch.parentLane >= 0 ? event.branch.parentLane : undefined,
+      isLaneFirst: false,
+      isLaneLast: false,
+      index,
+      isClosedHead: !!(event.branch.isClosed && event.type === "head"),
+    };
+  });
+
+  // Second pass: determine active lanes per row
+  rows.forEach((row, index) => {
+    row.activeLanes = [];
+
+    for (let l = 0; l <= maxLane; l++) {
+      // Main lane (0) is always active
+      if (l === 0) {
+        row.activeLanes.push(l);
+        continue;
+      }
+
+      // For other lanes: check if this row is within the lane's active range
+      const firstIdx = firstRowForLane[l];
+      const lastIdx = lastRowForLane[l];
+
+      if (firstIdx === -1) continue; // Lane never used
+
+      // Lane is active from its first row to its last row
+      if (index >= firstIdx && index <= lastIdx) {
+        row.activeLanes.push(l);
+      }
+    }
+
+    // Mark first/last ONLY for this row's own lane
+    if (row.lane >= 0) {
+      if (index === firstRowForLane[row.lane]) row.isLaneFirst = true;
+      if (index === lastRowForLane[row.lane]) row.isLaneLast = true;
+    }
+  });
+
+  return { rows, numLanes: maxLane + 1 };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW: Git-style Graph SVG Component
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface GraphSvgProps {
   row: GraphRow;
-  rowIndex: number;
   numLanes: number;
-  firstRowIdx: number[];
-  lastRowIdx: number[];
-  threadLaneStartIdx: number[];
-  threadLaneEndIdx: number[];
 }
 
-function GraphSvg({
-  row,
-  rowIndex,
-  numLanes,
-  firstRowIdx,
-  lastRowIdx,
-  threadLaneStartIdx,
-  threadLaneEndIdx,
-}: GraphSvgProps) {
+function GraphSvg({ row, numLanes }: GraphSvgProps) {
   const cellRef = useRef<HTMLDivElement>(null);
   const [cellH, setCellH] = useState(ROW_H);
 
@@ -403,52 +479,65 @@ function GraphSvg({
     return () => ro.disconnect();
   }, []);
 
-  const svgW = numLanes * LANE_W + 8;
+  const svgW = Math.max(numLanes * LANE_W + 12, 40);
   const h = cellH;
-  const cx = laneX(row.lane);
+  const cx = row.lane >= 0 ? laneX(row.lane) : laneX(0);
   const cy = h / 2;
   const mainX = laneX(0);
+
+  // Node radius based on type
   const nodeR =
-    row.rowKind === "branch-head" ? 5 : row.rowKind === "merge" ? 4 : 3;
-  // For merge rows use the thread's colour so the connector visually links to its branch.
+    row.event.type === "head"
+      ? row.branch.isClosed
+        ? 3
+        : 5
+      : row.event.type === "merge"
+      ? 4
+      : 3;
+
+  // Color based on branch lane
   const color =
-    row.rowKind === "merge" && row.mergeLane !== undefined
-      ? laneColor(row.mergeLane)
-      : laneColor(row.lane);
+    row.event.type === "merge"
+      ? laneColor(row.branch.lane)
+      : laneColor(row.lane >= 0 ? row.lane : 0);
+
+  // Node position: merge and closed heads sit on main lane
+  const nodeCx =
+    row.event.type === "merge"
+      ? mainX
+      : row.branch.isClosed && row.event.type === "head"
+      ? mainX
+      : cx;
 
   return (
-    <div ref={cellRef} className="tbp__graph-cell" style={{ width: svgW }}>
+    <div
+      ref={cellRef}
+      className="tbp__graph-cell"
+      style={{ width: svgW, minWidth: svgW }}
+    >
       <svg viewBox={`0 0 ${svgW} ${h}`} aria-hidden className="tbp__graph-svg">
-        {/* 1. Vertical line segments for every active lane */}
+        {/* 1. Vertical lines for active lanes */}
         {row.activeLanes.map((l) => {
           const x = laneX(l);
-          const isFirstForLane = rowIndex === firstRowIdx[l];
-          const isLastForLane = rowIndex === lastRowIdx[l];
-          const isMainLane = l === 0;
-          const isThisThreadStart = rowIndex === threadLaneStartIdx[l];
-          const isThisThreadEnd = rowIndex === threadLaneEndIdx[l];
+          const isMain = l === 0;
+          const isThisLane = l === row.lane;
 
-          // Main lane always runs full height
-          if (isMainLane) {
-            return (
-              <line
-                key={l}
-                x1={x}
-                y1={0}
-                x2={x}
-                y2={h}
-                stroke={laneColor(l)}
-                strokeWidth={2}
-                opacity={0.35}
-              />
-            );
+          // Determine y1 and y2 based on row position in lane lifecycle
+          let y1 = 0;
+          let y2 = h;
+
+          if (isThisLane) {
+            // This row's lane
+            if (row.isLaneFirst) {
+              // First row: start from center (fork point)
+              y1 = cy;
+            }
+            if (row.isLaneLast) {
+              // Last row: end at center
+              y2 = cy;
+            }
           }
 
-          // Thread lane: draw from fork-start to fork-end (or head)
-          const y1 = isThisThreadStart ? cy : isFirstForLane ? cy : 0;
-          const y2 = isThisThreadEnd || isLastForLane ? cy : h;
-
-          if (y1 >= y2) return null;
           return (
             <line
               key={l}
@@ -457,78 +546,110 @@ function GraphSvg({
               x2={x}
               y2={y2}
               stroke={laneColor(l)}
-              strokeWidth={2}
-              opacity={0.35}
+              strokeWidth={isMain ? 2.5 : 2}
+              opacity={isMain ? 0.45 : 0.35}
             />
           );
         })}
 
-        {/* 2. Fork connector: horizontal branch from main lane to thread lane.
-              Drawn on the fork-start row of each thread.
-              Shape: from (mainX, cy) going right to just before (cx, cy),
-              then a small rounded corner turns downward.
-              The thread lane's own vertical line takes over from cy downward. */}
-        {/* Fork connector: horizontal branch from main lane to thread lane.
-              Only drawn for threads that actually have commits. */}
-        {row.isForkStart && cx > mainX && (
-          <path
-            d={`M ${mainX},${cy} L ${cx - 4},${cy} Q ${cx},${cy} ${cx},${cy + 4}`}
-            stroke={color}
-            strokeWidth={2}
-            fill="none"
-            opacity={0.8}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
-
-        {/* 2b. Merge connector: curve from the thread lane down to the main lane.
-               Drawn on merge rows and merge commits. Shape: starts at the thread lane at the top of
-               the row, curves inward and lands on the main lane at mid-height. */}
-        {(row.rowKind === "merge" ||
-          (row.isMerge && row.rowKind === "commit")) &&
-          row.mergeLane !== undefined &&
-          row.mergeLane > 0 && (
+        {/* 2. Fork connector: from parent lane to this lane */}
+        {row.event.type === "fork" &&
+          row.parentLane !== undefined &&
+          row.lane > row.parentLane && (
             <path
-              d={`M ${laneX(row.mergeLane)},0 Q ${laneX(row.mergeLane)},${cy} ${mainX},${cy}`}
-              stroke={laneColor(row.mergeLane)}
+              d={`M ${laneX(row.parentLane)},${cy} 
+                  L ${cx - 6},${cy} 
+                  Q ${cx},${cy} ${cx},${cy + 4}`}
+              stroke={color}
               strokeWidth={2}
               fill="none"
-              opacity={0.8}
+              opacity={0.9}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           )}
 
-        {/* 3. Commit / HEAD / merge node */}
+        {/* 3. Merge connector: from thread lane to main lane
+             The thread's vertical line ends at cy (isLaneLast), and the
+             connector curves smoothly from the thread lane to the merge node
+             on the main lane. */}
+        {row.event.type === "merge" && row.branch.lane > 0 && (
+          <path
+            d={`M ${laneX(row.branch.lane)},${cy} 
+                C ${laneX(row.branch.lane) + 6},${cy} ${mainX - 6},${cy} ${mainX},${cy}`}
+            stroke={laneColor(row.branch.lane)}
+            strokeWidth={2.5}
+            fill="none"
+            opacity={0.9}
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* 4. Node circle */}
         <circle
-          cx={cx}
+          cx={nodeCx}
           cy={cy}
           r={nodeR}
-          fill={color}
+          fill={
+            row.branch.isClosed && row.event.type === "head"
+              ? "#94a3b8" // Gray for closed
+              : color
+          }
           stroke="var(--bg-primary, #1e1e2e)"
-          strokeWidth={row.rowKind === "branch-head" ? 2 : 1.5}
-          opacity={row.rowKind === "branch-head" ? 1 : 0.85}
+          strokeWidth={row.event.type === "head" && !row.branch.isClosed ? 2 : 1.5}
+          opacity={
+            row.event.type === "head" && !row.branch.isClosed
+              ? 1
+              : row.branch.isClosed
+              ? 0.5
+              : 0.85
+          }
         />
 
-        {/* 4. Extra ring on the active branch's HEAD node */}
-        {row.rowKind === "branch-head" && row.branch.isActive && (
-          <circle
-            cx={cx}
-            cy={cy}
-            r={nodeR + 3}
-            fill="none"
-            stroke={color}
-            strokeWidth={1.5}
-            opacity={0.4}
-          />
+        {/* 5. Active branch ring */}
+        {row.event.type === "head" &&
+          row.branch.isActive &&
+          !row.branch.isClosed && (
+            <circle
+              cx={nodeCx}
+              cy={cy}
+              r={nodeR + 3}
+              fill="none"
+              stroke={color}
+              strokeWidth={1.5}
+              opacity={0.5}
+            />
+          )}
+
+        {/* 6. Closed indicator (X) for closed threads */}
+        {row.branch.isClosed && row.event.type === "head" && (
+          <>
+            <line
+              x1={nodeCx - 2}
+              y1={cy - 2}
+              x2={nodeCx + 2}
+              y2={cy + 2}
+              stroke="#94a3b8"
+              strokeWidth={1.5}
+            />
+            <line
+              x1={nodeCx + 2}
+              y1={cy - 2}
+              x2={nodeCx - 2}
+              y2={cy + 2}
+              stroke="#94a3b8"
+              strokeWidth={1.5}
+            />
+          </>
         )}
       </svg>
     </div>
   );
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Main Component
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function ThreadBranchPicker({
   main,
@@ -545,137 +666,95 @@ export function ThreadBranchPicker({
   const searchRef = useRef<HTMLInputElement>(null);
   const listId = useId();
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(panel); // Panel is always open
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  /**
-   * Branches with lane assignments.
-   * Main is always lane 0. Threads get lanes 1, 2, … in the order they were
-   * created (sorted by createdAt / updatedAt ascending).
-   *
-   * The list is sorted by updatedAt ascending so the most recently active
-   * branch appears at the bottom — matching the git convention that HEAD is
-   * "furthest along the timeline".
-   */
-  const allItems = useMemo<InternalItem[]>(() => {
-    const mainItem: InternalItem = {
-      ...main,
-      kind: "main",
-      isActive: main.id === activeId,
-      lane: 0,
-    };
-    // Sort threads by createdAt ascending to assign stable lane numbers
-    const sortedThreads = [...threads].sort(
-      (a, b) =>
-        (a.createdAt ?? a.updatedAt ?? 0) - (b.createdAt ?? b.updatedAt ?? 0),
-    );
-    const threadItems: InternalItem[] = sortedThreads.map((t, idx) => ({
-      ...t,
-      kind: "thread" as const,
-      isActive: t.id === activeId,
-      lane: idx + 1,
-    }));
-    return [mainItem, ...threadItems];
-  }, [main, threads, activeId]);
+  // Build internal items with lane assignment
+  const items = useMemo(
+    () => buildInternalItems(main, threads, activeId),
+    [main, threads, activeId]
+  );
+
+  // Build events and rows
+  const events = useMemo(() => buildGraphEvents(items), [items]);
+  const { rows, numLanes } = useMemo(
+    () => buildGraphRows(items, events),
+    [items, events]
+  );
 
   const isFiltering = query.trim().length > 0;
 
-  /**
-   * Branch list filtered by title — used in search mode (1 row per branch).
-   * Always sorted by updatedAt ascending so the newest branch is at the bottom.
-   */
+  // Filter items for search mode
   const filtered = useMemo<InternalItem[]>(() => {
     const q = query.trim().toLowerCase();
-    const base = q
-      ? allItems.filter((i) => i.title.toLowerCase().includes(q))
-      : [...allItems];
-    return base.sort((a, b) => {
-      const aTime = a.updatedAt ?? a.createdAt ?? 0;
-      const bTime = b.updatedAt ?? b.createdAt ?? 0;
-      return aTime - bTime;
-    });
-  }, [allItems, query]);
+    if (!q) return items;
+    return items
+      .filter((i) => i.title.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aTime = a.updatedAt ?? a.createdAt ?? 0;
+        const bTime = b.updatedAt ?? b.createdAt ?? 0;
+        return aTime - bTime;
+      });
+  }, [items, query]);
 
-  /** Full commit graph — rebuilt only when allItems changes. */
-  const {
-    rows: graphRows,
-    numLanes,
-    firstRowIdx,
-    lastRowIdx,
-    threadLaneStartIdx,
-    threadLaneEndIdx,
-  } = useMemo(() => buildGraphRows(allItems), [allItems]);
+  const activeListLen = isFiltering ? filtered.length : rows.length;
 
-  const totalCommits = useMemo(
-    () =>
-      allItems.reduce(
-        (n, item) =>
-          n +
-          (item.messages?.filter((m) => m.role === "user" && !m.hidden)
-            .length ?? 0),
-        0,
-      ),
-    [allItems],
-  );
-
-  const activeListLen = isFiltering ? filtered.length : graphRows.length;
-
+  // Reset selection when query changes
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
+
   useEffect(() => {
     setSelectedIndex((i) => Math.min(i, Math.max(0, activeListLen - 1)));
   }, [activeListLen]);
 
-  const activeItem = useMemo(
-    () => allItems.find((i) => i.id === activeId) ?? main,
-    [allItems, activeId, main],
-  ) as InternalItem;
-
-  // ── Actions ────────────────────────────────────────────────────────────────
-
+  // Actions
   const pick = useCallback(
     (id: string) => {
       onSelect(id);
-      setOpen(false);
-      setQuery("");
+      if (!panel) {
+        setOpen(false);
+        setQuery("");
+      }
     },
-    [onSelect],
+    [onSelect, panel]
   );
 
   const openDropdown = useCallback(() => {
-    if (disabled) return;
+    if (disabled || panel) return;
     setOpen(true);
     setQuery("");
-    const headIdx = graphRows.findIndex(
-      (r) => r.branch.id === activeId && r.rowKind === "branch-head",
+    const headIdx = rows.findIndex(
+      (r) => r.branch.id === activeId && r.event.type === "head"
     );
     setSelectedIndex(headIdx >= 0 ? headIdx : 0);
-  }, [disabled, graphRows, activeId]);
+  }, [disabled, panel, rows, activeId]);
 
   const closeDropdown = useCallback(() => {
+    if (panel) return;
     setOpen(false);
     setQuery("");
-  }, []);
+  }, [panel]);
 
+  // Focus search when dropdown opens
   useEffect(() => {
-    if (!open) return;
+    if (!open || panel) return;
     const t = window.setTimeout(() => searchRef.current?.focus(), 0);
     return () => window.clearTimeout(t);
-  }, [open]);
+  }, [open, panel]);
 
+  // Click outside to close (dropdown mode only)
   useEffect(() => {
-    if (!open) return;
+    if (!open || panel) return;
     const onMouseDown = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) closeDropdown();
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [open, closeDropdown]);
+  }, [open, panel, closeDropdown]);
 
-  // ── Keyboard navigation ────────────────────────────────────────────────────
-
+  // Keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const maxIdx = Math.max(activeListLen - 1, 0);
@@ -697,8 +776,8 @@ export function ThreadBranchPicker({
           if (isFiltering && filtered.length > 0) {
             const item = filtered[selectedIndex];
             if (item && !item.isClosed) pick(item.id);
-          } else if (!isFiltering && graphRows.length > 0) {
-            const row = graphRows[selectedIndex];
+          } else if (!isFiltering && rows.length > 0) {
+            const row = rows[selectedIndex];
             if (row && !row.branch.isClosed) pick(row.branch.id);
           }
           break;
@@ -709,10 +788,10 @@ export function ThreadBranchPicker({
       closeDropdown,
       isFiltering,
       filtered,
-      graphRows,
+      rows,
       selectedIndex,
       pick,
-    ],
+    ]
   );
 
   const handleSearchKeyDown = useCallback(
@@ -721,11 +800,10 @@ export function ThreadBranchPicker({
         handleKeyDown(e);
       }
     },
-    [handleKeyDown],
+    [handleKeyDown]
   );
 
-  // ── CSS helpers ────────────────────────────────────────────────────────────
-
+  // CSS classes
   const rootClass = [
     "tbp",
     showGraph && "tbp--graph",
@@ -735,25 +813,13 @@ export function ThreadBranchPicker({
     .filter(Boolean)
     .join(" ");
 
-  const optClass = (row: GraphRow, idx: number): string =>
-    [
-      "tbp__option",
-      row.rowKind === "commit" && "tbp__option--commit",
-      row.rowKind === "branch-head" && "tbp__option--head",
-      row.rowKind === "merge" && "tbp__option--merge",
-      row.branch.isActive && "tbp__option--active-branch",
-      row.rowKind === "branch-head" &&
-        row.branch.isActive &&
-        "tbp__option--current",
-      idx === selectedIndex && "tbp__option--keyboard",
-      row.branch.kind === "main" ? "tbp__option--main" : "tbp__option--thread",
-      row.branch.isClosed && "tbp__option--closed",
-    ]
-      .filter(Boolean)
-      .join(" ");
+  // Get active item
+  const activeItem = useMemo(
+    () => items.find((i) => i.id === activeId) ?? items[0],
+    [items, activeId]
+  );
 
-  // ── Search / filter list (1 row per branch) ────────────────────────────────
-
+  // Filter list (search mode)
   const filterList = (
     <ul id={listId} className="tbp__list" role="listbox" aria-label={ariaLabel}>
       {filtered.length === 0 ? (
@@ -771,7 +837,8 @@ export function ThreadBranchPicker({
           const timeLabel = item.updatedAt
             ? formatRelativeTime(item.updatedAt)
             : null;
-          const color = laneColor(item.lane);
+          const color = laneColor(item.lane >= 0 ? item.lane : 0);
+
           return (
             <li
               key={item.id}
@@ -849,190 +916,198 @@ export function ThreadBranchPicker({
     </ul>
   );
 
-  // ── Commit graph list (normal mode) ────────────────────────────────────────
-
+  // Commit graph list (normal mode)
   const commitList = (
     <ul id={listId} className="tbp__list" role="listbox" aria-label={ariaLabel}>
-      {graphRows.length === 0 ? (
+      {rows.length === 0 ? (
         <li className="tbp__empty" role="presentation">
           Keine Zweige vorhanden
         </li>
       ) : (
-        graphRows.map((row, i) => {
+        rows.map((row, i) => {
           const isMain = row.branch.kind === "main";
-          const color = laneColor(row.lane);
-          const isHeadRow = row.rowKind === "branch-head";
+          const color = laneColor(row.lane >= 0 ? row.lane : 0);
+          const isClosed = row.branch.isClosed;
 
-          // Merge row: thread was summarised and merged back into the main branch
-          // Also handles merge commits (rowKind === 'commit' && isMerge)
-          const isMergeRow =
-            row.rowKind === "merge" ||
-            (row.isMerge && row.rowKind === "commit");
-          if (isMergeRow) {
-            const mergeColor =
-              row.mergeLane !== undefined ? laneColor(row.mergeLane) : color;
+          // Merge row
+          if (row.event.type === "merge") {
             return (
               <li
-                key={`${row.branch.id}::merge`}
+                key={`${row.branch.id}::merge-${i}`}
                 role="option"
                 aria-selected={false}
-                className={optClass(row, i)}
+                className={[
+                  "tbp__option tbp__option--merge",
+                  i === selectedIndex && "tbp__option--keyboard",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 onClick={() => pick(row.branch.id)}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                {showGraph && (
-                  <GraphSvg
-                    row={row}
-                    rowIndex={i}
-                    numLanes={numLanes}
-                    firstRowIdx={firstRowIdx}
-                    lastRowIdx={lastRowIdx}
-                    threadLaneStartIdx={threadLaneStartIdx}
-                    threadLaneEndIdx={threadLaneEndIdx}
-                  />
-                )}
+                {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
                 <div className="tbp__option-content tbp__option-content--commit">
                   <GitMerge
-                    size={11}
-                    style={{ color: mergeColor, flexShrink: 0 }}
+                    size={12}
+                    style={{ color, flexShrink: 0 }}
                   />
                   <span
                     className="tbp__commit-text tbp__merge-text"
-                    title={row.branch.title}
-                    style={{ color: mergeColor }}
+                    title={row.event.message}
                   >
-                    {row.commitText || row.branch.title}
+                    {row.event.message}
                   </span>
                 </div>
               </li>
             );
           }
 
-          if (isHeadRow) {
-            const msgLabel =
-              row.branch.messageCount !== undefined
-                ? `${row.branch.messageCount} Nachr.`
-                : null;
-            const timeLabel = row.branch.updatedAt
-              ? formatRelativeTime(row.branch.updatedAt)
-              : null;
-            const isClosed = row.branch.isClosed;
-
+          // Commit row
+          if (row.event.type === "commit") {
             return (
               <li
-                key={`${row.branch.id}::head`}
-                role={isClosed ? "presentation" : "option"}
-                aria-selected={row.branch.isActive}
-                aria-disabled={isClosed}
-                className={optClass(row, i)}
-                onClick={isClosed ? undefined : () => pick(row.branch.id)}
-                onMouseEnter={
-                  isClosed ? undefined : () => setSelectedIndex(i)
-                }
+                key={`${row.branch.id}::commit-${i}`}
+                role="option"
+                aria-selected={false}
+                className={[
+                  "tbp__option tbp__option--commit",
+                  row.branch.isActive && "tbp__option--active-branch",
+                  i === selectedIndex && "tbp__option--keyboard",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={() => pick(row.branch.id)}
+                onMouseEnter={() => setSelectedIndex(i)}
               >
-                {showGraph && (
-                  <GraphSvg
-                    row={row}
-                    rowIndex={i}
-                    numLanes={numLanes}
-                    firstRowIdx={firstRowIdx}
-                    lastRowIdx={lastRowIdx}
-                    threadLaneStartIdx={threadLaneStartIdx}
-                    threadLaneEndIdx={threadLaneEndIdx}
-                  />
-                )}
-                <div className="tbp__option-content">
-                  <div className="tbp__option-icon" style={{ color }}>
-                    {isMain ? (
-                      <MessageSquare size={14} />
-                    ) : isClosed ? (
-                      <X size={14} />
-                    ) : (
-                      <GitBranch size={14} />
-                    )}
-                    {row.branch.savedToProject && !isClosed && (
-                      <FolderCheck size={11} className="tbp__saved-icon" />
-                    )}
-                  </div>
-                  <div className="tbp__option-body">
-                    <div className="tbp__option-label">
-                      <span
-                        className="tbp__kind-badge"
-                        style={{
-                          background: isClosed
-                            ? "rgba(148,163,184,0.12)"
-                            : `${color}22`,
-                          color: isClosed ? "#94a3b8" : color,
-                        }}
-                      >
-                        {isMain ? "main" : isClosed ? "geschlossen" : "thread"}
-                      </span>
-                      <span
-                        className="tbp__option-title"
-                        title={row.branch.title}
-                      >
-                        {row.branch.title}
-                      </span>
-                    </div>
-                    {(msgLabel || timeLabel) && (
-                      <div className="tbp__option-meta">
-                        {msgLabel && (
-                          <span className="tbp__meta-chip">{msgLabel}</span>
-                        )}
-                        {msgLabel && timeLabel && (
-                          <span className="tbp__meta-sep" aria-hidden>
-                            ·
-                          </span>
-                        )}
-                        {timeLabel && (
-                          <span className="tbp__meta-time">{timeLabel}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {row.branch.isActive && (
-                    <Check
-                      size={14}
-                      className="tbp__option-check"
-                      aria-hidden
-                    />
-                  )}
+                {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
+                <div className="tbp__option-content tbp__option-content--commit">
+                  <GitCommit size={10} style={{ color, flexShrink: 0, opacity: 0.7 }} />
+                  <span className="tbp__commit-tag">
+                    {row.event.commitIndex === 1 ? "start" : "tip"}
+                  </span>
+                  <span className="tbp__commit-text" title={row.event.message}>
+                    {row.event.message}
+                  </span>
                 </div>
               </li>
             );
           }
 
-          // Commit row
+          // Fork row - visual indicator only, no separate interaction
+          if (row.event.type === "fork" && !isMain) {
+            return (
+              <li
+                key={`${row.branch.id}::fork-${i}`}
+                role="presentation"
+                className={[
+                  "tbp__option tbp__option--fork",
+                  i === selectedIndex && "tbp__option--keyboard",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={() => !isClosed && pick(row.branch.id)}
+                onMouseEnter={() => setSelectedIndex(i)}
+              >
+                {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
+                <div className="tbp__option-content tbp__option-content--commit">
+                  <GitBranch size={10} style={{ color, flexShrink: 0, opacity: 0.7 }} />
+                  <span className="tbp__commit-text" style={{ opacity: 0.6 }}>
+                    Branch erstellt
+                  </span>
+                </div>
+              </li>
+            );
+          }
+
+          // Head row (branch selector)
+          const msgLabel =
+            row.branch.messageCount !== undefined
+              ? `${row.branch.messageCount} Nachr.`
+              : null;
+          const timeLabel = row.branch.updatedAt
+            ? formatRelativeTime(row.branch.updatedAt)
+            : null;
+
           return (
             <li
-              key={`${row.branch.id}::commit::${row.commitIndex}::${row.isForkStart ? "start" : "end"}`}
-              role="option"
-              aria-selected={false}
-              className={optClass(row, i)}
-              onClick={() => pick(row.branch.id)}
-              onMouseEnter={() => setSelectedIndex(i)}
+              key={`${row.branch.id}::head-${i}`}
+              role={isClosed ? "presentation" : "option"}
+              aria-selected={row.branch.isActive}
+              aria-disabled={isClosed}
+              className={[
+                "tbp__option tbp__option--head",
+                isMain && "tbp__option--main",
+                !isMain && "tbp__option--thread",
+                row.branch.isActive && "tbp__option--current",
+                i === selectedIndex && "tbp__option--keyboard",
+                isClosed && "tbp__option--closed",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={isClosed ? undefined : () => pick(row.branch.id)}
+              onMouseEnter={isClosed ? undefined : () => setSelectedIndex(i)}
             >
-              {showGraph && (
-                <GraphSvg
-                  row={row}
-                  rowIndex={i}
-                  numLanes={numLanes}
-                  firstRowIdx={firstRowIdx}
-                  lastRowIdx={lastRowIdx}
-                  threadLaneStartIdx={threadLaneStartIdx}
-                  threadLaneEndIdx={threadLaneEndIdx}
-                />
-              )}
-              <div className="tbp__option-content tbp__option-content--commit">
-                <span
-                  className={`tbp__commit-tag ${row.isForkStart ? "tbp__commit-tag--start" : "tbp__commit-tag--end"}`}
-                  style={{ color }}
-                >
-                  {row.isForkStart ? "start" : "tip"}
-                </span>
-                <span className="tbp__commit-text" title={row.commitText}>
-                  {row.commitText}
-                </span>
+              {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
+              <div className="tbp__option-content">
+                <div className="tbp__option-icon" style={{ color }}>
+                  {isMain ? (
+                    <MessageSquare size={14} />
+                  ) : isClosed ? (
+                    <X size={14} />
+                  ) : (
+                    <GitBranch size={14} />
+                  )}
+                  {row.branch.savedToProject && !isClosed && (
+                    <FolderCheck size={11} className="tbp__saved-icon" />
+                  )}
+                </div>
+                <div className="tbp__option-body">
+                  <div className="tbp__option-label">
+                    <span
+                      className="tbp__kind-badge"
+                      style={{
+                        background: isClosed
+                          ? "rgba(148,163,184,0.12)"
+                          : `${color}22`,
+                        color: isClosed ? "#94a3b8" : color,
+                      }}
+                    >
+                      {isMain ? "main" : isClosed ? "geschlossen" : "thread"}
+                    </span>
+                    <span
+                      className="tbp__option-title"
+                      title={row.branch.title}
+                      style={{
+                        textDecoration: isClosed ? "line-through" : undefined,
+                        opacity: isClosed ? 0.6 : 1,
+                      }}
+                    >
+                      {row.branch.title}
+                    </span>
+                  </div>
+                  {(msgLabel || timeLabel) && (
+                    <div className="tbp__option-meta">
+                      {msgLabel && (
+                        <span className="tbp__meta-chip">{msgLabel}</span>
+                      )}
+                      {msgLabel && timeLabel && (
+                        <span className="tbp__meta-sep" aria-hidden>
+                          ·
+                        </span>
+                      )}
+                      {timeLabel && (
+                        <span className="tbp__meta-time">{timeLabel}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {row.branch.isActive && !isClosed && (
+                  <Check
+                    size={14}
+                    className="tbp__option-check"
+                    aria-hidden
+                  />
+                )}
               </div>
             </li>
           );
@@ -1041,122 +1116,100 @@ export function ThreadBranchPicker({
     </ul>
   );
 
-  // ── Shared chrome ──────────────────────────────────────────────────────────
-
-  const listContent = (
-    <>
-      <div className="tbp__header">
-        <GitBranch size={14} className="tbp__header-icon" aria-hidden />
-        <span className="tbp__header-title">Commit-Graph</span>
-        <div className="tbp__header-badges">
-          <span
-            className="tbp__badge"
-            style={{ background: `${LANE_COLORS[0]}22`, color: LANE_COLORS[0] }}
-          >
-            1 Main
-          </span>
-          {threads.length > 0 && (
-            <span
-              className="tbp__badge"
-              style={{
-                background: `${LANE_COLORS[1]}22`,
-                color: LANE_COLORS[1],
-              }}
-            >
-              {threads.length}&thinsp;Thread{threads.length !== 1 ? "s" : ""}
-            </span>
-          )}
-          {totalCommits > 0 && (
-            <span className="tbp__badge tbp__badge--commits">
-              {totalCommits}&thinsp;Commits
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="tbp__search-row">
-        <Search size={13} className="tbp__search-icon" aria-hidden />
-        <input
-          ref={searchRef}
-          type="search"
-          className="tbp__search-input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleSearchKeyDown}
-          placeholder="Branch suchen…"
-          aria-label="Branches filtern"
-          autoComplete="off"
-        />
-      </div>
-
-      {isFiltering ? filterList : commitList}
-
-      <div className="tbp__footer">
-        <span className="tbp__hint">
-          ↑↓ navigieren · Enter wechseln · Esc schließen
-        </span>
-      </div>
-    </>
+  // Count for header
+  const activeThreads = threads.filter((t) => !t.isClosed).length;
+  const totalCommits = items.reduce(
+    (n, item) =>
+      n +
+      (item.messages?.filter((m) => m.role === "user" && !m.hidden).length ??
+        0),
+    0
   );
 
-  // ── Panel mode ─────────────────────────────────────────────────────────────
-
-  if (panel) {
-    return (
-      <div ref={rootRef} className={rootClass} onKeyDown={handleKeyDown}>
-        {listContent}
-      </div>
-    );
-  }
-
-  // ── Dropdown mode ──────────────────────────────────────────────────────────
-
+  // Render
   return (
-    <div ref={rootRef} className={rootClass}>
-      <button
-        type="button"
-        className="tbp__trigger"
-        disabled={disabled}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-controls={listId}
-        aria-label={ariaLabel}
-        onClick={() => {
-          if (open) closeDropdown();
-          else openDropdown();
-        }}
-      >
-        <GitBranch size={14} className="tbp__trigger-icon" aria-hidden />
-        <span className="tbp__trigger-label" title={activeItem.title}>
-          {activeItem.title}
-        </span>
-        <ChevronDown
-          size={12}
-          className={`tbp__trigger-chevron${open ? " tbp__trigger-chevron--open" : ""}`}
-          aria-hidden
-        />
-      </button>
+    <div
+      ref={rootRef}
+      className={rootClass}
+      onKeyDown={handleKeyDown}
+      data-testid="chat-thread-split-picker"
+    >
+      {/* Trigger button (dropdown mode only) */}
+      {!panel && (
+        <button
+          type="button"
+          className="tbp__trigger"
+          onClick={openDropdown}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+        >
+          <GitBranch size={14} className="tbp__trigger-icon" />
+          <span className="tbp__trigger-label" title={activeItem?.title}>
+            {activeItem?.title || "Branch wählen…"}
+          </span>
+          <ChevronDown
+            size={14}
+            className={[
+              "tbp__trigger-chevron",
+              open && "tbp__trigger-chevron--open",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          />
+        </button>
+      )}
 
-      {open && (
-        <div className="tbp__dropdown" onKeyDown={handleKeyDown}>
-          {listContent}
+      {/* Dropdown / Panel content */}
+      {(open || panel) && (
+        <div
+          className={panel ? "tbp__panel" : "tbp__dropdown"}
+          role={panel ? undefined : "presentation"}
+        >
+          {/* Header */}
+          <div className="tbp__header">
+            <GitBranch size={14} className="tbp__header-icon" />
+            <span className="tbp__header-title">
+              {panel ? "Threads & Branches" : "Branch wechseln"}
+            </span>
+            <div className="tbp__header-badges">
+              <span className="tbp__badge tbp__badge--commits">
+                {totalCommits} commits
+              </span>
+              {activeThreads > 0 && (
+                <span className="tbp__badge tbp__badge--threads">
+                  {activeThreads} threads
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="tbp__search-row">
+            <Search size={14} className="tbp__search-icon" />
+            <input
+              ref={searchRef}
+              type="text"
+              className="tbp__search-input"
+              placeholder="Branch suchen…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+            />
+          </div>
+
+          {/* List */}
+          {isFiltering ? filterList : commitList}
+
+          {/* Footer hints */}
+          <div className="tbp__footer">
+            <span className="tbp__hint">
+              ↑↓ auswählen · Enter öffnen · Esc schließen
+            </span>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-/**
- * Git-inspired Multi-Lane Thread / Branch Picker
- *
- * Each branch occupies a dedicated vertical lane in the SVG graph:
- * - Lane 0 (blue):  Main chat — always the leftmost lane
- * - Lane 1 (green): First thread
- * - Lane N:         Nth thread (colour-cycled)
- *
- * Commits (user messages) are interleaved by message-index across branches,
- * approximating a parallel timeline without requiring per-message timestamps.
- * Fork connectors mark where each thread diverges from the main lane.
- *
- * In search mode the graph collapses to one row per branch.
- */
