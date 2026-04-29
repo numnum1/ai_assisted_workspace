@@ -310,6 +310,7 @@ export function ChatPanel({
           )}
           <button
             type="button"
+            data-testid="expandButton"
             className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
             onClick={() => {
               if (activeIsThread && onOpenThreadWorkspace) {
