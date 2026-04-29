@@ -432,7 +432,11 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
     return () => ro.disconnect();
   }, []);
 
-  const svgW = Math.max(numLanes * LANE_W + 12, 40);
+  // SVG viewport calculation - ensure we have enough width for all lanes
+  const maxLaneX = Math.max(
+    ...Array.from({ length: numLanes }, (_, i) => laneX(i)),
+  );
+  const svgW = Math.max(maxLaneX + 24, 40); // Add extra padding for connectors
   const h = cellH;
   const cx = row.lane >= 0 ? laneX(row.lane) : laneX(0);
   const cy = h / 2;
@@ -468,7 +472,12 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
       className="tbp__graph-cell"
       style={{ width: svgW, minWidth: svgW }}
     >
-      <svg viewBox={`0 0 ${svgW} ${h}`} aria-hidden className="tbp__graph-svg">
+      <svg
+        viewBox={`0 0 ${svgW} ${h}`}
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden
+        className="tbp__graph-svg"
+      >
         {/* 1. Vertical lines for active lanes */}
         {row.activeLanes.map((l) => {
           const x = laneX(l);
@@ -511,8 +520,9 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
           row.lane > row.parentLane && (
             <path
               d={`M ${laneX(row.parentLane)},${cy}
-                  L ${cx - 6},${cy}
-                  Q ${cx},${cy} ${cx},${cy + 4}`}
+                  Q ${laneX(row.parentLane) + 6},${cy} ${laneX(row.parentLane) + 6},${cy + 4}
+                  Q ${laneX(row.parentLane) + 6},${cy + 8} ${cx - 6},${cy + 8}
+                  Q ${cx},${cy + 8} ${cx},${cy}`}
               stroke={color}
               strokeWidth={2}
               fill="none"
@@ -528,8 +538,8 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
              on the main lane. */}
         {row.event.type === "merge" && row.branch.lane > 0 && (
           <path
-            d={`M ${laneX(row.branch.lane)},${cy}
-                C ${laneX(row.branch.lane) + 6},${cy} ${mainX - 6},${cy} ${mainX},${cy}`}
+            d={`M ${laneX(row.branch.lane) + 6},${cy}
+                C ${laneX(row.branch.lane) + 6},${cy + 8} ${mainX - 6},${cy + 8} ${mainX},${cy}`}
             stroke={laneColor(row.branch.lane)}
             strokeWidth={2.5}
             fill="none"
