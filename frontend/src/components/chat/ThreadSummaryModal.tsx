@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GitMerge, X } from "lucide-react";
+import { GitMerge, X, Check } from "lucide-react";
 import "./ThreadSummaryModal.css";
 
 export interface ThreadSummaryModalProps {
@@ -9,6 +9,9 @@ export interface ThreadSummaryModalProps {
   onClose: () => void;
   onConfirm: (focusInstructions?: string) => Promise<void>;
   isSummarizing: boolean;
+  /** Use the entered text directly as merge message (no LLM call) */
+  onUseAsMergeMessage?: (message: string) => Promise<void>;
+  isMergingDirectly?: boolean;
 }
 
 export function ThreadSummaryModal({
@@ -18,15 +21,19 @@ export function ThreadSummaryModal({
   onClose,
   onConfirm,
   isSummarizing,
+  onUseAsMergeMessage,
+  isMergingDirectly = false,
 }: ThreadSummaryModalProps) {
   const [focusText, setFocusText] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [directMergeError, setDirectMergeError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setFocusText("");
     setSubmitError(null);
+    setDirectMergeError(null);
     const t = window.setTimeout(() => textareaRef.current?.focus(), 0);
     return () => window.clearTimeout(t);
   }, [open]);
@@ -43,6 +50,7 @@ export function ThreadSummaryModal({
   const handleConfirm = useCallback(async () => {
     const trimmed = focusText.trim();
     setSubmitError(null);
+    setDirectMergeError(null);
     try {
       await onConfirm(trimmed.length > 0 ? trimmed : undefined);
       onClose();
@@ -51,6 +59,21 @@ export function ThreadSummaryModal({
       setSubmitError(msg);
     }
   }, [focusText, onConfirm, onClose]);
+
+  const handleUseAsMergeMessage = useCallback(async () => {
+    const trimmed = focusText.trim();
+    if (!trimmed) return;
+    if (!onUseAsMergeMessage) return;
+    setDirectMergeError(null);
+    setSubmitError(null);
+    try {
+      await onUseAsMergeMessage(trimmed);
+      onClose();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Direktes Merge fehlgeschlagen.";
+      setDirectMergeError(msg);
+    }
+  }, [focusText, onUseAsMergeMessage, onClose]);
 
   if (!open) return null;
 
@@ -105,6 +128,11 @@ export function ThreadSummaryModal({
             {submitError}
           </p>
         ) : null}
+        {directMergeError ? (
+          <p className="thread-summary-modal-error" role="alert">
+            {directMergeError}
+          </p>
+        ) : null}
         <div className="thread-summary-modal-body">
           <label htmlFor="thread-summary-modal-focus">Deine Nachricht an die Zusammenfassung</label>
           <textarea
@@ -128,15 +156,27 @@ export function ThreadSummaryModal({
             type="button"
             className="thread-summary-modal-btn"
             onClick={onClose}
-            disabled={isSummarizing}
+            disabled={isSummarizing || isMergingDirectly}
           >
             Abbrechen
           </button>
+          {onUseAsMergeMessage && (
+            <button
+              type="button"
+              className="thread-summary-modal-btn thread-summary-modal-btn--secondary"
+              onClick={() => { void handleUseAsMergeMessage(); }}
+              disabled={isSummarizing || isMergingDirectly || !focusText.trim()}
+              title={!focusText.trim() ? "Zuerst Text eingeben" : "Text direkt als Merge-Nachricht verwenden (ohne KI)"}
+            >
+              <Check size={16} style={{ marginRight: 6, verticalAlign: "middle" }} />
+              {isMergingDirectly ? "Wird übernommen…" : "Als Merge-Nachricht verwenden"}
+            </button>
+          )}
           <button
             type="button"
             className="thread-summary-modal-btn thread-summary-modal-btn--primary"
             onClick={() => { void handleConfirm(); }}
-            disabled={isSummarizing}
+            disabled={isSummarizing || isMergingDirectly}
           >
             {isSummarizing ? "Wird erstellt…" : "Zusammenfassung senden (leer = Standard)"}
           </button>

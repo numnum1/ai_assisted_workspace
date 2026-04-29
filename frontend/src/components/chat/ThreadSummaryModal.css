@@ -185,3 +185,15 @@
 .thread-summary-modal-btn--primary:hover:not(:disabled) {
   filter: brightness(1.08);
 }
+
+.thread-summary-modal-btn--secondary {
+  background: var(--bg-primary);
+  border-color: var(--accent, #8b8bff);
+  color: var(--accent, #8b8bff);
+  font-weight: 500;
+}
+
+.thread-summary-modal-btn--secondary:hover:not(:disabled) {
+  background: var(--accent, #8b8bff);
+  color: #fff;
+}

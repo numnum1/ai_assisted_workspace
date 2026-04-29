@@ -584,6 +584,7 @@ function App() {
   // Thread Workspace overlay
   const [threadWorkspaceOpen, setThreadWorkspaceOpen] = useState(false);
   const [summarizingThread, setSummarizingThread] = useState(false);
+  const [mergingDirectly, setMergingDirectly] = useState(false);
 
   // Close workspace when switching away from a thread conversation
   useEffect(() => {
@@ -685,6 +686,47 @@ function App() {
       );
     },
     [chat.messages, history, parentChat],
+  );
+
+  const handleUseTextAsMergeMessage = useCallback(
+    async (message: string) => {
+      const parentId = history.activeConversation?.parentConversationId;
+      if (!parentId) return;
+      const threadTitle = history.activeConversation?.title ?? "Thread";
+      const trimmed = message.trim();
+      if (!trimmed) return;
+
+      setMergingDirectly(true);
+      try {
+        console.trace(
+          `[App] useTextAsMergeMessage: parentId=${parentId}, content length=${trimmed.length}`,
+        );
+        const summaryMessage = {
+          role: "assistant" as const,
+          content: trimmed,
+          kind: "thread-summary" as const,
+          threadSummaryMeta: {
+            fromThreadId: history.activeId,
+            fromThreadTitle: threadTitle,
+          },
+        };
+        const currentParent = history.conversations.find(
+          (c) => c.id === parentId,
+        );
+        const updatedParentMessages = [
+          ...(currentParent?.messages ?? []),
+          summaryMessage,
+        ];
+        history.summarizeThread(parentId, history.activeId, summaryMessage);
+        parentChat.loadMessages(updatedParentMessages);
+        console.trace(
+          `[App] useTextAsMergeMessage: done`,
+        );
+      } finally {
+        setMergingDirectly(false);
+      }
+    },
+    [history, parentChat],
   );
 
   // Build ThreadBranchPicker data for the workspace
@@ -2507,6 +2549,8 @@ function App() {
                     onUseMessageAsThreadSummary={
                       handleUseMessageAsThreadSummary
                     }
+                    onUseTextAsMergeMessage={handleUseTextAsMergeMessage}
+                    isMergingDirectly={mergingDirectly}
                     onSend={conversation.send}
                     onStop={conversation.stopStreaming}
                     onEditMessage={conversation.editMessage}

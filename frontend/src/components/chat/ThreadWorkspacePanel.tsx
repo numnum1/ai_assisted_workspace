@@ -52,6 +52,10 @@ export interface ThreadWorkspacePanelProps {
   isSummarizing?: boolean;
   /** Use a specific thread message directly as the merge summary (no LLM call) */
   onUseMessageAsThreadSummary?: (index: number) => void;
+  /** Use entered text directly as merge message (no LLM call) */
+  onUseTextAsMergeMessage?: (message: string) => Promise<void>;
+  /** True while direct merge is in progress */
+  isMergingDirectly?: boolean;
 
   /** Thread message actions (right pane) */
   onSend: (message: string) => void;
@@ -155,6 +159,8 @@ export function ThreadWorkspacePanel({
   onSummarizeToParent,
   isSummarizing = false,
   onUseMessageAsThreadSummary,
+  onUseTextAsMergeMessage,
+  isMergingDirectly = false,
   onSend,
   onStop,
   onEditMessage,
@@ -462,6 +468,8 @@ export function ThreadWorkspacePanel({
           onClose={() => setSummaryModalOpen(false)}
           onConfirm={onSummarizeToParent}
           isSummarizing={isSummarizing}
+          onUseAsMergeMessage={onUseTextAsMergeMessage}
+          isMergingDirectly={isMergingDirectly}
         />
       )}
 
