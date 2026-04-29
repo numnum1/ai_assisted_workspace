@@ -59,8 +59,9 @@ export function resolveThreadBranchRootId(
 
 /**
  * Collect every conversation that is a descendant of `rootId` in the thread
- * tree, at any depth.  The result is a flat list sorted by `updatedAt`
- * descending (most recently active first).
+ * tree, at any depth. The result is returned in stable chronological order
+ * (by `createdAt` ascending). This keeps the Git-style branch picker predictable
+ * and prevents rows from jumping when the user clicks different branches.
  *
  * Works for arbitrary depth: thread → sub-thread → sub-sub-thread, etc.
  */
@@ -95,7 +96,15 @@ export function listAllDescendants(
     }
   }
 
-  result.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  // BFS traversal gives us a stable tree order.
+  // We sort by createdAt ascending (oldest branches first) so the Git-style view stays predictable.
+  // This prevents the rows from jumping around when you click different branches.
+  result.sort((a, b) => {
+    const timeA = a.createdAt ?? a.updatedAt ?? 0;
+    const timeB = b.createdAt ?? b.updatedAt ?? 0;
+    return timeA - timeB;
+  });
+
   return result;
 }
 

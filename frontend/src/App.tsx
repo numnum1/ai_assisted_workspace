@@ -718,9 +718,7 @@ function App() {
         ];
         history.summarizeThread(parentId, history.activeId, summaryMessage);
         parentChat.loadMessages(updatedParentMessages);
-        console.trace(
-          `[App] useTextAsMergeMessage: done`,
-        );
+        console.trace(`[App] useTextAsMergeMessage: done`);
       } finally {
         setMergingDirectly(false);
       }
@@ -763,20 +761,27 @@ function App() {
         parentConversationId?: string;
       },
       mergedToParent?: boolean,
-    ): ThreadBranchItem => ({
-      id: conv.id,
-      title: conv.title,
-      messageCount: conv.messages.filter((m) => !m.hidden).length,
-      messages: conv.messages,
-      createdAt: conv.createdAt,
-      // Update timestamp to now for merged threads, so they appear as
-      // the latest activity in the thread picker graph
-      updatedAt: mergedToParent ? Date.now() : conv.updatedAt,
-      savedToProject: conv.savedToProject,
-      mergedToParent,
-      isClosed: conv.isClosed,
-      parentId: conv.parentConversationId,
-    });
+    ): ThreadBranchItem => {
+      // CRITICAL FIX: lastUpdated MUST be stable and NEVER change when thread is opened/selected
+      // The bug was: using conv.updatedAt which gets updated by useChat when you click a thread
+      // Solution: always use conv.createdAt - this never changes and keeps threads in stable order
+      const lastUpdated = conv.createdAt;
+
+      return {
+        id: conv.id,
+        title: conv.title,
+        messageCount: conv.messages.filter((m) => !m.hidden).length,
+        messages: conv.messages,
+        createdAt: conv.createdAt,
+        // lastUpdated is NOW completely stable - equals createdAt and never changes
+        // This fixes the bug where threads jump to bottom when opened
+        lastUpdated: lastUpdated,
+        savedToProject: conv.savedToProject,
+        mergedToParent,
+        isClosed: conv.isClosed,
+        parentId: conv.parentConversationId,
+      };
+    };
     return {
       mainBranchItem: toBranchItem(rootConv),
       threadBranchItems: threads.map((t) =>

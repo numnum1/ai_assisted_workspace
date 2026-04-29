@@ -30,6 +30,8 @@ export interface ThreadBranchItem {
   messageCount?: number;
   /** Timestamp of the last activity */
   updatedAt?: number;
+  /** Timestamp that considers ALL activity (messages, creation, merge events) */
+  lastUpdated?: number;
   /** Timestamp when the conversation was created */
   createdAt?: number;
   savedToProject?: boolean;
@@ -175,13 +177,13 @@ function getUserCommits(item: InternalItem): string[] {
 function buildInternalItems(
   main: ThreadBranchItem,
   threads: ThreadBranchItem[],
-  activeId: string
+  activeId: string,
 ): InternalItem[] {
-  // Separate active and closed threads
-  const activeThreads = threads.filter((t) => !t.isClosed);
-  const closedThreads = threads.filter((t) => t.isClosed);
+  // Sort threads once by creation time for stable ordering
+  const sortedThreads = [...threads].sort(
+    (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0),
+  );
 
-  // Build lane assignment via BFS from main
   const laneMap = new Map<string, number>();
   laneMap.set(main.id, 0);
 
@@ -196,82 +198,24 @@ function buildInternalItems(
     },
   ];
 
-  // BFS for active threads to assign lanes based on tree structure
+  // Add all threads in stable chronological order
   let nextLane = 1;
-  const queue: ThreadBranchItem[] = [...activeThreads];
-  const processed = new Set<string>([main.id]);
 
-  // First pass: assign lanes to threads whose parent is main
-  for (const thread of queue) {
-    if (processed.has(thread.id)) continue;
-
-    const parentId = thread.parentId ?? main.id;
-    if (parentId === main.id || !laneMap.has(parentId)) {
-      // Direct child of main or orphan -> assign new lane
-      const lane = nextLane++;
-      laneMap.set(thread.id, lane);
-      processed.add(thread.id);
-
-      items.push({
-        ...thread,
-        kind: "thread",
-        isActive: thread.id === activeId,
-        lane,
-        parentLane: 0,
-        depth: 1,
-      });
-    }
-  }
-
-  // Second pass: threads whose parent is another thread (thread-of-thread)
-  // These are rare but supported by the data model
-  for (const thread of queue) {
-    if (processed.has(thread.id)) continue;
-
-    const parentId = thread.parentId ?? main.id;
-    const parentLane = laneMap.get(parentId);
-
-    if (parentLane !== undefined) {
-      const lane = nextLane++;
-      laneMap.set(thread.id, lane);
-      processed.add(thread.id);
-
-      const parentItem = items.find((i) => i.id === parentId);
-      items.push({
-        ...thread,
-        kind: "thread",
-        isActive: thread.id === activeId,
-        lane,
-        parentLane,
-        depth: (parentItem?.depth ?? 0) + 1,
-      });
-    } else {
-      // Fallback: assign to main
-      const lane = nextLane++;
-      laneMap.set(thread.id, lane);
-      processed.add(thread.id);
-
-      items.push({
-        ...thread,
-        kind: "thread",
-        isActive: thread.id === activeId,
-        lane,
-        parentLane: 0,
-        depth: 1,
-      });
-    }
-  }
-
-  // Add closed threads - they don't get their own lane
-  for (const thread of closedThreads) {
+  for (const thread of sortedThreads) {
     const parentId = thread.parentId ?? main.id;
     const parentLane = laneMap.get(parentId) ?? 0;
+
+    let lane = -1;
+    if (!thread.isClosed) {
+      lane = nextLane++;
+      laneMap.set(thread.id, lane);
+    }
 
     items.push({
       ...thread,
       kind: "thread",
       isActive: thread.id === activeId,
-      lane: -1, // No lane
+      lane,
       parentLane,
       depth: 1,
     });
@@ -294,7 +238,8 @@ function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
     if (!isMain) {
       events.push({
         type: "fork",
-        timestamp: item.createdAt ?? item.updatedAt ?? Date.now(),
+        timestamp:
+          item.createdAt ?? item.lastUpdated ?? item.updatedAt ?? Date.now(),
         branch: item,
         rowKind: "fork",
       });
@@ -307,7 +252,8 @@ function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
         // Always show first commit
         events.push({
           type: "commit",
-          timestamp: item.createdAt ?? item.updatedAt ?? Date.now(),
+          timestamp:
+            item.lastUpdated ?? item.updatedAt ?? item.createdAt ?? Date.now(),
           branch: item,
           message: commits[0],
           commitIndex: 1,
@@ -318,7 +264,7 @@ function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
         if (!item.mergedToParent && commits.length > 1) {
           events.push({
             type: "commit",
-            timestamp: item.updatedAt ?? Date.now(),
+            timestamp: item.lastUpdated ?? item.updatedAt ?? Date.now(),
             branch: item,
             message: commits[commits.length - 1],
             commitIndex: commits.length,
@@ -332,7 +278,7 @@ function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
     if (!isMain && item.mergedToParent) {
       events.push({
         type: "merge",
-        timestamp: item.updatedAt ?? Date.now(),
+        timestamp: item.lastUpdated ?? item.updatedAt ?? Date.now(),
         branch: item,
         targetLane: 0,
         message: item.mergeText || "Merged to main",
@@ -344,15 +290,15 @@ function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
     if (isMain || (!item.mergedToParent && !item.isClosed)) {
       events.push({
         type: "head",
-        timestamp: item.updatedAt ?? Date.now(),
+        timestamp: item.lastUpdated ?? item.updatedAt ?? Date.now(),
         branch: item,
         rowKind: "head",
       });
     }
   }
 
-  // Stable sort: timestamp first, then event type priority
-  // Priority: fork < commit < merge < head
+  // Completely stable sort: timestamp → type priority → id (as string tiebreaker)
+  // This prevents any reordering when clicking different branches.
   const typePriority: Record<GraphEventType, number> = {
     fork: 0,
     commit: 1,
@@ -363,7 +309,12 @@ function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
   events.sort((a, b) => {
     const timeDiff = a.timestamp - b.timestamp;
     if (timeDiff !== 0) return timeDiff;
-    return typePriority[a.type] - typePriority[b.type];
+
+    const typeDiff = typePriority[a.rowKind] - typePriority[b.rowKind];
+    if (typeDiff !== 0) return typeDiff;
+
+    // Final stable tiebreaker using string id
+    return a.branch.id.localeCompare(b.branch.id);
   });
 
   return events;
@@ -375,7 +326,7 @@ function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
 
 function buildGraphRows(
   items: InternalItem[],
-  events: GraphEvent[]
+  events: GraphEvent[],
 ): { rows: GraphRow[]; numLanes: number } {
   const maxLane = Math.max(0, ...items.map((i) => i.lane), 0);
 
@@ -392,7 +343,8 @@ function buildGraphRows(
 
     // Track visual lane usage
     if (visualLane >= 0) {
-      if (firstRowForLane[visualLane] === -1) firstRowForLane[visualLane] = index;
+      if (firstRowForLane[visualLane] === -1)
+        firstRowForLane[visualLane] = index;
       lastRowForLane[visualLane] = index;
     }
 
@@ -409,7 +361,8 @@ function buildGraphRows(
       branch: event.branch,
       lane: visualLane,
       activeLanes: [], // filled in second pass
-      parentLane: event.branch.parentLane >= 0 ? event.branch.parentLane : undefined,
+      parentLane:
+        event.branch.parentLane >= 0 ? event.branch.parentLane : undefined,
       isLaneFirst: false,
       isLaneLast: false,
       index,
@@ -492,8 +445,8 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
         ? 3
         : 5
       : row.event.type === "merge"
-      ? 4
-      : 3;
+        ? 4
+        : 3;
 
   // Color based on branch lane
   const color =
@@ -506,8 +459,8 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
     row.event.type === "merge"
       ? mainX
       : row.branch.isClosed && row.event.type === "head"
-      ? mainX
-      : cx;
+        ? mainX
+        : cx;
 
   return (
     <div
@@ -557,8 +510,8 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
           row.parentLane !== undefined &&
           row.lane > row.parentLane && (
             <path
-              d={`M ${laneX(row.parentLane)},${cy} 
-                  L ${cx - 6},${cy} 
+              d={`M ${laneX(row.parentLane)},${cy}
+                  L ${cx - 6},${cy}
                   Q ${cx},${cy} ${cx},${cy + 4}`}
               stroke={color}
               strokeWidth={2}
@@ -575,7 +528,7 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
              on the main lane. */}
         {row.event.type === "merge" && row.branch.lane > 0 && (
           <path
-            d={`M ${laneX(row.branch.lane)},${cy} 
+            d={`M ${laneX(row.branch.lane)},${cy}
                 C ${laneX(row.branch.lane) + 6},${cy} ${mainX - 6},${cy} ${mainX},${cy}`}
             stroke={laneColor(row.branch.lane)}
             strokeWidth={2.5}
@@ -596,13 +549,15 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
               : color
           }
           stroke="var(--bg-primary, #1e1e2e)"
-          strokeWidth={row.event.type === "head" && !row.branch.isClosed ? 2 : 1.5}
+          strokeWidth={
+            row.event.type === "head" && !row.branch.isClosed ? 2 : 1.5
+          }
           opacity={
             row.event.type === "head" && !row.branch.isClosed
               ? 1
               : row.branch.isClosed
-              ? 0.5
-              : 0.85
+                ? 0.5
+                : 0.85
           }
         />
 
@@ -673,14 +628,14 @@ export function ThreadBranchPicker({
   // Build internal items with lane assignment
   const items = useMemo(
     () => buildInternalItems(main, threads, activeId),
-    [main, threads, activeId]
+    [main, threads, activeId],
   );
 
   // Build events and rows
   const events = useMemo(() => buildGraphEvents(items), [items]);
   const { rows, numLanes } = useMemo(
     () => buildGraphRows(items, events),
-    [items, events]
+    [items, events],
   );
 
   const isFiltering = query.trim().length > 0;
@@ -692,9 +647,11 @@ export function ThreadBranchPicker({
     return items
       .filter((i) => i.title.toLowerCase().includes(q))
       .sort((a, b) => {
-        const aTime = a.updatedAt ?? a.createdAt ?? 0;
-        const bTime = b.updatedAt ?? b.createdAt ?? 0;
-        return aTime - bTime;
+        // Sort by lastUpdated descending (most recent activity first),
+        // with createdAt and id as stable tiebreakers
+        const aTime = a.lastUpdated ?? a.updatedAt ?? a.createdAt ?? 0;
+        const bTime = b.lastUpdated ?? b.updatedAt ?? b.createdAt ?? 0;
+        return bTime - aTime;
       });
   }, [items, query]);
 
@@ -718,7 +675,7 @@ export function ThreadBranchPicker({
         setQuery("");
       }
     },
-    [onSelect, panel]
+    [onSelect, panel],
   );
 
   const openDropdown = useCallback(() => {
@@ -726,7 +683,7 @@ export function ThreadBranchPicker({
     setOpen(true);
     setQuery("");
     const headIdx = rows.findIndex(
-      (r) => r.branch.id === activeId && r.event.type === "head"
+      (r) => r.branch.id === activeId && r.event.type === "head",
     );
     setSelectedIndex(headIdx >= 0 ? headIdx : 0);
   }, [disabled, panel, rows, activeId]);
@@ -791,7 +748,7 @@ export function ThreadBranchPicker({
       rows,
       selectedIndex,
       pick,
-    ]
+    ],
   );
 
   const handleSearchKeyDown = useCallback(
@@ -800,7 +757,7 @@ export function ThreadBranchPicker({
         handleKeyDown(e);
       }
     },
-    [handleKeyDown]
+    [handleKeyDown],
   );
 
   // CSS classes
@@ -816,7 +773,7 @@ export function ThreadBranchPicker({
   // Get active item
   const activeItem = useMemo(
     () => items.find((i) => i.id === activeId) ?? items[0],
-    [items, activeId]
+    [items, activeId],
   );
 
   // Filter list (search mode)
@@ -855,9 +812,7 @@ export function ThreadBranchPicker({
                 .filter(Boolean)
                 .join(" ")}
               onClick={isClosed ? undefined : () => pick(item.id)}
-              onMouseEnter={
-                isClosed ? undefined : () => setSelectedIndex(i)
-              }
+              onMouseEnter={isClosed ? undefined : () => setSelectedIndex(i)}
             >
               <div className="tbp__option-content">
                 <div className="tbp__option-icon" style={{ color }}>
@@ -933,7 +888,7 @@ export function ThreadBranchPicker({
           if (row.event.type === "merge") {
             return (
               <li
-                key={`${row.branch.id}::merge-${i}`}
+                key={`${row.branch.id}::merge`}
                 role="option"
                 aria-selected={false}
                 className={[
@@ -947,10 +902,7 @@ export function ThreadBranchPicker({
               >
                 {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
                 <div className="tbp__option-content tbp__option-content--commit">
-                  <GitMerge
-                    size={12}
-                    style={{ color, flexShrink: 0 }}
-                  />
+                  <GitMerge size={12} style={{ color, flexShrink: 0 }} />
                   <span
                     className="tbp__commit-text tbp__merge-text"
                     title={row.event.message}
@@ -966,7 +918,7 @@ export function ThreadBranchPicker({
           if (row.event.type === "commit") {
             return (
               <li
-                key={`${row.branch.id}::commit-${i}`}
+                key={`${row.branch.id}::commit-${row.event.commitIndex ?? 0}`}
                 role="option"
                 aria-selected={false}
                 className={[
@@ -981,7 +933,10 @@ export function ThreadBranchPicker({
               >
                 {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
                 <div className="tbp__option-content tbp__option-content--commit">
-                  <GitCommit size={10} style={{ color, flexShrink: 0, opacity: 0.7 }} />
+                  <GitCommit
+                    size={10}
+                    style={{ color, flexShrink: 0, opacity: 0.7 }}
+                  />
                   <span className="tbp__commit-tag">
                     {row.event.commitIndex === 1 ? "start" : "tip"}
                   </span>
@@ -997,7 +952,7 @@ export function ThreadBranchPicker({
           if (row.event.type === "fork" && !isMain) {
             return (
               <li
-                key={`${row.branch.id}::fork-${i}`}
+                key={`${row.branch.id}::fork`}
                 role="presentation"
                 className={[
                   "tbp__option tbp__option--fork",
@@ -1010,7 +965,10 @@ export function ThreadBranchPicker({
               >
                 {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
                 <div className="tbp__option-content tbp__option-content--commit">
-                  <GitBranch size={10} style={{ color, flexShrink: 0, opacity: 0.7 }} />
+                  <GitBranch
+                    size={10}
+                    style={{ color, flexShrink: 0, opacity: 0.7 }}
+                  />
                   <span className="tbp__commit-text" style={{ opacity: 0.6 }}>
                     Branch erstellt
                   </span>
@@ -1024,13 +982,15 @@ export function ThreadBranchPicker({
             row.branch.messageCount !== undefined
               ? `${row.branch.messageCount} Nachr.`
               : null;
-          const timeLabel = row.branch.updatedAt
-            ? formatRelativeTime(row.branch.updatedAt)
-            : null;
+          const timeLabel = row.branch.lastUpdated
+            ? formatRelativeTime(row.branch.lastUpdated)
+            : row.branch.updatedAt
+              ? formatRelativeTime(row.branch.updatedAt)
+              : null;
 
           return (
             <li
-              key={`${row.branch.id}::head-${i}`}
+              key={`${row.branch.id}::head`}
               role={isClosed ? "presentation" : "option"}
               aria-selected={row.branch.isActive}
               aria-disabled={isClosed}
@@ -1102,11 +1062,7 @@ export function ThreadBranchPicker({
                   )}
                 </div>
                 {row.branch.isActive && !isClosed && (
-                  <Check
-                    size={14}
-                    className="tbp__option-check"
-                    aria-hidden
-                  />
+                  <Check size={14} className="tbp__option-check" aria-hidden />
                 )}
               </div>
             </li>
@@ -1123,7 +1079,7 @@ export function ThreadBranchPicker({
       n +
       (item.messages?.filter((m) => m.role === "user" && !m.hidden).length ??
         0),
-    0
+    0,
   );
 
   // Render
