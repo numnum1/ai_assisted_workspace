@@ -168,7 +168,7 @@ function initialChatState(projectPath: string, currentMode: string) {
   return mergeWithProject(null, currentMode, key, loadLastActiveChatId(key));
 }
 
-export function useChatHistory(currentMode: string, projectPath: string) {
+export function useChatHistoryOld(currentMode: string, projectPath: string) {
   const [conversations, setConversations] = useState<Conversation[]>(
     () => initialChatState(projectPath, currentMode).conversations,
   );

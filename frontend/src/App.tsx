@@ -78,7 +78,7 @@ import { useProject } from "./hooks/useProject.ts";
 import { useChapter } from "./hooks/useChapter.ts";
 import { useChat } from "./hooks/useChat.ts";
 import { useReferencedFiles } from "./hooks/useContext.ts";
-import { useChatHistory } from "./hooks/useChatHistory.ts";
+import { useChatHistoryOld } from "./hooks/useChatHistoryOld.ts";
 import { useWorkspaceMode } from "./hooks/useWorkspaceMode.ts";
 import { useWorkspaceLevelConfigMap } from "./hooks/useWorkspaceLevelConfigMap.ts";
 import { useOutlinerScope } from "./hooks/useOutlinerScope.ts";
@@ -119,6 +119,7 @@ import {
   tryMarkGuidedAgentKickoffStarted,
 } from "./components/chat/guidedAgentKickoff.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
+import { useChatHistory } from './features/chatting/chat_history/useChatHistory';
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
 function standardChatModes(mds: Mode[]): Mode[] {
@@ -459,7 +460,7 @@ function App() {
     }
   }, []);
 
-  const history = useChatHistory(selectedMode, project.projectPath);
+  const history = useChatHistoryOld(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages, {
     onAssistantResponseComplete: (fullText, meta) => {
       if (meta.sessionKind !== "guided") return;
