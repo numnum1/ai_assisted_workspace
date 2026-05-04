@@ -13,7 +13,7 @@ export function useConversation () : Conversation {
     }, [turns])
 
     return {
-        turns: [],
+        turns: turns,
         addTurn: addTurn,
         removeTurn: removeTurn,
         isAssistantsTurn: wasLastTurnFromUser
