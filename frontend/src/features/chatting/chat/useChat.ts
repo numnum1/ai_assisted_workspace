@@ -3,6 +3,7 @@ import type { Chat } from "./chat";
 import { useConversation } from "../conversation/useConversation";
 import { useCallback, useMemo, useState } from "react";
 import { StreamingError, StreamingSuccess, type StreamingResult } from '../streaming/streamingResult';
+import { useContext } from "../context/useContext";
 
 export function useChat () : Chat {
     
@@ -11,6 +12,9 @@ export function useChat () : Chat {
     const conversation = useConversation()
     const [userText, setUserText] = useState("")
     const [name, setName] = useState("")
+
+    // context
+    const context = useContext();
     
     // Streaming state
     const [isStreaming, setIsStreaming] = useState(false)
@@ -56,6 +60,7 @@ export function useChat () : Chat {
         send: send,
         canSend: canSend,
         interrupt: interrupt,
-        streamingResult: streamingResult
+        streamingResult: streamingResult,
+        context: context
     }
 }

@@ -2,6 +2,7 @@ import type { SetStateAction } from 'react'
 import type { ChatSettings } from '../chat_settings/chatSettings'
 import type { Conversation } from '../conversation/conversation'
 import type { StreamingResult } from '../streaming/streamingResult'
+import type { Context } from '../context/context'
 
 /**
  * Represents the model for a chat, with the settings
@@ -17,5 +18,6 @@ export type Chat = {
     send: () => void,
     canSend: boolean,
     interrupt: () => void,
-    streamingResult: StreamingResult | null
+    streamingResult: StreamingResult | null,
+    context: Context
 }
