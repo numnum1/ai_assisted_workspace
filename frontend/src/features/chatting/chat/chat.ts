@@ -4,7 +4,7 @@ import type { conversation } from '../conversation/conversation'
 /**
  * Represents the model for a chat, with the settings
  */
-export type chat = {
+export type Chat = {
     settings: chatSettings,
     conversation: conversation
 }

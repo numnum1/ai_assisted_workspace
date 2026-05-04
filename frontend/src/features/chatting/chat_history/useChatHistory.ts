@@ -1,22 +1,9 @@
-import { useCallback, useState } from "react";
 import type { ChatHistory } from "./chatHistory";
-import type { chat } from '../chat/chat';
+import type { Chat } from '../chat/chat';
+import { useArrayState } from "../../../utils/arrayTemplateHooks";
 
 export function useChatHistory () : ChatHistory {
-    
-    const [chats, setChats] = useState<chat[]>([])
-
-    const add = useCallback((chat: chat) => {
-        setChats(chats.concat([chat]))
-        return chat
-    }, [chats])
-    const remove = useCallback((chat: chat) => {
-        setChats(chats.filter((t) => {
-            return t != chat
-        }))
-        return chat
-    }, [chats])
-
+    const [chats, add, remove] = useArrayState<Chat[]>([])
     return {
         chats,
         add,

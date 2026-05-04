@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react"
 import type { ConversationTurn } from "./conversationTurn"
 import type { ChatMessage } from "../message/chatMessage"
-import { makeAdd, makeRemove } from "../../../utils/templateFunctions"
+import { makeAdd, makeRemove } from "../../../utils/arrayTemplateHooks"
 
 export function useConversationTurn () : ConversationTurn {
 
