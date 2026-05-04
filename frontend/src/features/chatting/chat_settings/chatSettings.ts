@@ -1,7 +1,8 @@
 import type { llmInstance } from "./llmInstance";
 import type { toolSettings } from "./toolSettings";
 
-export type chatSettings = {
+export type ChatSettings = {
     llmInstance: llmInstance,
-    toolSettings: toolSettings
+    toolSettings: toolSettings,
+    isValid: boolean
 }

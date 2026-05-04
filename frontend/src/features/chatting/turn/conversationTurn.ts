@@ -9,5 +9,6 @@ export type ConversationTurn = {
     setSenderName: React.Dispatch<React.SetStateAction<string>>,
     messages: ChatMessage[],
     addMessage: (message: ChatMessage) => void,
-    removeMessage: (predicate: ((entry: ChatMessage) => boolean)) => void
+    removeMessage: (predicate: ((entry: ChatMessage) => boolean)) => void,
+    isUser: boolean
 }
