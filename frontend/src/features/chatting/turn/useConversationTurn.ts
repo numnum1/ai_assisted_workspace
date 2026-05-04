@@ -1,22 +1,18 @@
-import { useCallback, useState } from "react"
+import { useState } from "react"
 import type { ConversationTurn } from "./conversationTurn"
 import type { ChatMessage } from "../message/chatMessage"
-import { makeAdd, makeRemove } from "../../../utils/arrayTemplateHooks"
+import { useArrayState } from "../../../utils/arrayTemplateHooks"
 
 export function useConversationTurn () : ConversationTurn {
 
     const [senderName, setSenderName] = useState("")
-    const [messages, setMessages] = useState<ChatMessage[]>([])
-
-
-    const add = makeAdd(messages, setMessages);
-    const remove = makeRemove(messages, setMessages)
+    const [messages, addMessage, removeMessage] = useArrayState<ChatMessage>([])
 
     return {
         senderName,
         setSenderName,
         messages,
-        add,
-        remove
+        addMessage,
+        removeMessage
     }
 }

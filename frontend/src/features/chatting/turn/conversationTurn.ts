@@ -8,6 +8,6 @@ export type ConversationTurn = {
     senderName: string,
     setSenderName: React.Dispatch<React.SetStateAction<string>>,
     messages: ChatMessage[],
-    add: (message: ChatMessage) => ChatMessage,
-    remove: (message: ChatMessage) => void
+    addMessage: (message: ChatMessage) => void,
+    removeMessage: (predicate: ((entry: ChatMessage) => boolean)) => void
 }
