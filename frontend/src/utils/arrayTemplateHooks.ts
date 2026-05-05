@@ -18,6 +18,12 @@ export function useRemove<T>(arraySetter: React.Dispatch<React.SetStateAction<T[
   }, [arraySetter])
 }
 
+export function useUpdate<T>(arraySetter: React.Dispatch<React.SetStateAction<T[]>>): (predicate: (entry: T) => boolean, updater: (entry: T) => T) => void {
+  return useCallback((predicate, updater) => {
+    arraySetter(prev => prev.map(e => predicate(e) ? updater(e) : e))
+  }, [arraySetter])
+}
+
 export function useArrayState<T>(initial: T[]): [T[], (entry: T) => void, (predicate: (entry: T) => boolean) => void] {
   const [state, setState] = useState<T[]>(initial)
   const add = useAdd(setState)
@@ -25,3 +31,10 @@ export function useArrayState<T>(initial: T[]): [T[], (entry: T) => void, (predi
   return [state, add, remove]
 }
 
+export function useArrayStateWithUpdate<T>(initial: T[]): [T[], (entry: T) => void, (predicate: (entry: T) => boolean) => void, (predicate: (entry: T) => boolean, updater: (entry: T) => T) => void] {
+  const [state, setState] = useState<T[]>(initial)
+  const add = useAdd(setState)
+  const remove = useRemove(setState)
+  const update = useUpdate(setState)
+  return [state, add, remove, update]
+}

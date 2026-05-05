@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { StreamingError, StreamingSuccess, type StreamingResult } from '../streaming/streamingResult';
 import { useContext } from "../context/useContext";
 
-export function useChat () : Chat {
+export function useChat (parentChat: Chat|null) : Chat {
     
     // UI Settings
     const settings = useChatSettings()
@@ -50,6 +50,7 @@ export function useChat () : Chat {
     }, [])
 
     return {
+        parentChat: parentChat,
         settings: settings, 
         conversation: conversation,
         userText: userText,
