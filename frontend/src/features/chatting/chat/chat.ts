@@ -8,6 +8,7 @@ import type { Context } from '../context/context'
  * Represents the model for a chat, with the settings
  */
 export type Chat = {
+    parentChat: Chat|null,
     settings: ChatSettings,
     conversation: Conversation,
     userText: string,
@@ -19,5 +20,5 @@ export type Chat = {
     canSend: boolean,
     interrupt: () => void,
     streamingResult: StreamingResult | null,
-    context: Context
+    context: Context,
 }

@@ -1,17 +1,13 @@
-import type { SetStateAction } from "react"
+import type { WorkPlan } from "../plan/workPlan"
+import type { SystemPrompt } from "../systemPrompt/systemPrompt"
 
-type BaseContextBlock = {
+export type BaseContextBlock = {
     name: string,
     icon: string,
     size: number,
 }
 
 // TODO: Set icons
-
-export type SystemPrompt = BaseContextBlock & {
-    text: string,
-    setText: React.Dispatch<SetStateAction<string>>
-}
 
 export type Glossary = BaseContextBlock & {
 }
@@ -23,9 +19,6 @@ export type ProjectFileTree = BaseContextBlock & {
 }
 
 export type ToolList = BaseContextBlock & {
-}
-
-export type WorkPlan = BaseContextBlock & {
 }
 
 export type ContextBlock =

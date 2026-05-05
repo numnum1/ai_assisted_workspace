@@ -8,11 +8,14 @@ export function useConversationTurn () : ConversationTurn {
     const [senderName, setSenderName] = useState("")
     const [messages, addMessage, removeMessage] = useArrayState<ChatMessage>([])
 
+    const isUser = senderName !== "Assistant"
+
     return {
         senderName,
         setSenderName,
         messages,
         addMessage,
-        removeMessage
+        removeMessage,
+        isUser
     }
 }
