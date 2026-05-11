@@ -4,6 +4,7 @@ import type { ChatSettings, Conversation } from "./unsortedChatTypes";
 import { ChatMessagesPane } from "../../../components/chat/ChatMessagesPane";
 import type { ChatMessage } from "../../../types";
 import type { CardState } from "../../../components/chat/ChangeCard";
+import type { AssistantMode } from "../project/useProject";
 
 export type Chat = {
   parentChatId: string;
@@ -14,13 +15,14 @@ export type Chat = {
 };
 
 export function ChatPane({
-  parentChatId: _parentChatId,
-  id: _id,
+  parentChatId,
+  id,
   name,
-  conversation: _conversation,
-  settings: _settings,
-  setChat: _setChat,
-  findChatById: _findChatById,
+  conversation,
+  settings,
+  setChat,
+  findChatById,
+  findModeById
 }: {
   parentChatId: string;
   id: string;
@@ -29,7 +31,9 @@ export function ChatPane({
   settings: ChatSettings;
   setChat: (id: string, patch: Partial<Chat>) => void;
   findChatById: (id: string) => Chat | null;
+  findModeById: (id: string) => AssistantMode | null
 }) {
+  // #region Placeholders
   // UI-States (keine Geschäftslogik)
   const [historyOpen, setHistoryOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -100,7 +104,7 @@ export function ChatPane({
   const commitEdit = (_index: number, _text: string) => {
     setEditingIdx(null);
   };
-
+  // #endregion
   return (
     <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
       {/* ===== HEADER (aus ChatPanel.tsx) ===== */}

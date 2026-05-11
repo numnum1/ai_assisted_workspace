@@ -1,19 +1,20 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import type { Chat } from "../chat/Chat";
+import { useFindById, usePatchEntry } from "../../../utils/generics";
 
-type AssistantMode = {
+export type AssistantMode = {
   id: string;
   name: string;
   systemPrompt: string;
 };
 
-type LLMVersion = {
+export type LLMVersion = {
   host: string;
   apiKey: string;
   model: string;
 };
 
-type LLM = {
+export type LLM = {
   id: string;
   name: string;
   fast: LLMVersion;
@@ -34,30 +35,24 @@ export type ProjectViewModel = {
   setSettings: (newSettings: ProjectSettings) => void;
   setChat: (id: string, patch: Partial<Chat>) => void;
   findChatById: (id: string) => Chat | null
+  findModeById: (id: string) => AssistantMode | null
 } & Project;
 
 export function useProjectNew(init: Project): ProjectViewModel {
-  const [chats, setChats] = useState<Chat[]>(init.chats);
-  const [settings, setSettings] = useState<ProjectSettings>(init.settings);
+  const [chats, setChats] = useState(init.chats);
+  const [settings, setSettings] = useState(init.settings);
 
-  const setChat = useCallback((id: string, patch: Partial<Chat>) => {
-    setChats((prev) =>
-      prev.map((chat) => (chat.id === id ? { ...chat, ...patch } : chat)),
-    );
-  }, []);
+  const setChat = usePatchEntry(setChats)
 
-  const findChatById = useCallback((id: string) => {
-    for (const chat of chats) {
-      if (chat.id === id) return chat
-    }
-    return null
-  }, [chats])
+  const findChatById = useFindById(chats)
+  const findModeById = useFindById(settings.modes)
 
   return {
     chats,
     settings,
     setSettings,
     setChat,
-    findChatById
+    findChatById,
+    findModeById
   };
 }
