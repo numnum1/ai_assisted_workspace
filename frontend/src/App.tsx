@@ -74,7 +74,6 @@ import {
 import type { ThreadBranchItem } from "./components/chat/ThreadBranchPicker.tsx";
 import { usePreferences } from "./hooks/usePreferences.ts";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
-import { useProject } from "./hooks/useProject.ts";
 import { useChapter } from "./hooks/useChapter.ts";
 import { useChat } from "./hooks/useChat.ts";
 import { useReferencedFiles } from "./hooks/useContext.ts";
@@ -119,7 +118,13 @@ import {
   tryMarkGuidedAgentKickoffStarted,
 } from "./components/chat/guidedAgentKickoff.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
-import { useChatHistory } from './features/chatting/chat_history/useChatHistory';
+import { useProject } from "./hooks/useProject.ts";
+import {
+  useProjectNew,
+  type Project,
+  type Chat,
+} from "./features/chatting/project/useProject.ts";
+import ProjectPane from "./features/chatting/project/Project.tsx";
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
 function standardChatModes(mds: Mode[]): Mode[] {
@@ -284,7 +289,133 @@ function agentPersistSignature(conv: Conversation): string {
   ].join("|");
 }
 
+// Testdaten für useProjectNew
+const testChats: Chat[] = [
+  {
+    parentChatId: "root",
+    id: "chat-1",
+    name: "Erster Test-Chat",
+    conversation: {
+      turns: [
+        {
+          type: "SYSTEM",
+          text: "Willkommen zum Test-Chat!",
+          timestamp: Date.now() - 10000,
+        },
+        {
+          type: "USER",
+          text: "Hallo, kannst du mir helfen?",
+          timestamp: Date.now() - 5000,
+        },
+        {
+          type: "ASSISTANT",
+          usedModeName: "review",
+          messages: [
+            { type: "TEXT", text: "Ja, gerne! Womit kann ich dir helfen?" },
+          ],
+          timestamp: Date.now(),
+        },
+      ],
+    },
+    settings: {
+      selectedModeId: "review",
+      availableModeIds: ["review", "edit", "agent"],
+      selectedLLM: { id: "gpt-4", useReasoning: false },
+      availableLLMIds: ["gpt-4", "gpt-3.5"],
+      availableToolsIds: ["web", "wiki"],
+    },
+  },
+  {
+    parentChatId: "root",
+    id: "chat-2",
+    name: "Zweiter Test-Chat",
+    conversation: {
+      turns: [
+        {
+          type: "USER",
+          text: "Erkläre mir TypeScript",
+          timestamp: Date.now() - 20000,
+        },
+        {
+          type: "ASSISTANT",
+          usedModeName: "edit",
+          messages: [
+            {
+              type: "TEXT",
+              text: "TypeScript ist eine typisierte Obermenge von JavaScript.",
+            },
+          ],
+          timestamp: Date.now() - 15000,
+        },
+      ],
+    },
+    settings: {
+      selectedModeId: "edit",
+      availableModeIds: ["review", "edit", "agent"],
+      selectedLLM: { id: "gpt-4", useReasoning: true },
+      availableLLMIds: ["gpt-4", "gpt-3.5"],
+      availableToolsIds: ["web", "filesystem"],
+    },
+  },
+];
+
+const testProjectData: Project = {
+  chats: testChats,
+  settings: {
+    llms: [
+      {
+        id: "gpt-4",
+        name: "GPT-4",
+        fast: {
+          host: "https://api.openai.com",
+          apiKey: "test-key",
+          model: "gpt-4",
+        },
+        reasoning: {
+          host: "https://api.openai.com",
+          apiKey: "test-key",
+          model: "gpt-4-turbo",
+        },
+      },
+      {
+        id: "gpt-3.5",
+        name: "GPT-3.5",
+        fast: {
+          host: "https://api.openai.com",
+          apiKey: "test-key",
+          model: "gpt-3.5-turbo",
+        },
+        reasoning: {
+          host: "https://api.openai.com",
+          apiKey: "test-key",
+          model: "gpt-3.5-turbo",
+        },
+      },
+    ],
+    modes: [
+      {
+        id: "review",
+        name: "Review",
+        systemPrompt: "Du bist ein hilfreicher Reviewer.",
+      },
+      {
+        id: "edit",
+        name: "Edit",
+        systemPrompt: "Du bist ein hilfreicher Editor.",
+      },
+      {
+        id: "agent",
+        name: "Agent",
+        systemPrompt: "Du bist ein hilfreicher Agent.",
+      },
+    ],
+  },
+};
+
 function App() {
+  // Testing
+  const projectNew = useProjectNew(testProjectData);
+
   const project = useProject();
   const chapter = useChapter();
   const refs = useReferencedFiles();
@@ -2732,6 +2863,7 @@ function App() {
         style={{ display: "none" }}
         onChange={handleImportChatFile}
       />
+      <ProjectPane {...projectNew} />
     </div>
   );
 }

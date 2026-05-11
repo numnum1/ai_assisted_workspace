@@ -1,0 +1,48 @@
+{
+    "openFolder": "",
+    "settings": {
+        "llms": [
+            {
+                "id": "grok",
+                "name": "GROK",
+                "fast": {
+                    "_comment": "Or all null",
+                    "host": "",
+                    "apiKey": "",
+                    "model": ""
+                },
+                "reasoning": {
+                    "host": "eecc.de/",
+                    "apiKey": "MY_KEY",
+                    "model": "grok-4.2-reasoning"
+                }
+            }
+        ],
+        "modes": [
+            {
+                "id": "create_writing",
+                "name": "Creative Writing",
+                "systemPrompt": "You are an assistant for creative writing"
+            }
+        ]
+    },
+    "chats": [
+        {
+            "id": "000-1111-2222-3333",
+            "name": "My Book Idea",
+            "conversation": {
+                "_comment": "This is just a combined structure. Not yet filled out"
+            },
+            "settings": {
+                "_comment": "This is just a combined structure",
+                "selectedMode": "???",
+                "availableModes": "???",
+                "selectedLLM": {
+                    "llm": "???",
+                    "usesReasoningVariant": true
+                },
+                "availableLLMs": "???"
+            }
+        }
+    ]
+}
