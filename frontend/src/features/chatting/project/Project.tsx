@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { ChatPane } from "../chat/Chat";
 import type { ProjectViewModel } from "./useProject";
 
@@ -8,8 +9,14 @@ function ProjectPane({
   setChat,
   findChatById,
 }: ProjectViewModel) {
+
+  const printSettings = useCallback(() => {
+    console.log(JSON.stringify({setSettings, settings}))
+  }, [settings, setSettings])
+
   return (
     <div
+      data-component="ProjectPane"
       style={{
         display: "flex",
         flexDirection: "row",
@@ -22,10 +29,7 @@ function ProjectPane({
           <ChatPane {...t} setChat={setChat} findChatById={findChatById} />
         </div>
       ))}
-      <div>
-        {JSON.stringify(settings)}
-        {JSON.stringify(setSettings)}
-      </div>
+    <button onClick={printSettings}>Print Settings</button>
     </div>
   );
 }

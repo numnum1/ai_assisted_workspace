@@ -33,7 +33,7 @@ export function ChatPane({
     [id, setChat],
   );
 
-  return <div>
+  return <div data-component="ChatPane">
     {JSON.stringify({parentChatId, id, name, conversation, settings, setChat, findChatById, rename})}
   </div>;
 }
