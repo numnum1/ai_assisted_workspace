@@ -324,39 +324,7 @@ const testChats: Chat[] = [
       availableLLMIds: ["gpt-4", "gpt-3.5"],
       availableToolsIds: ["web", "wiki"],
     },
-  },
-  {
-    parentChatId: "root",
-    id: "chat-2",
-    name: "Zweiter Test-Chat",
-    conversation: {
-      turns: [
-        {
-          type: "USER",
-          text: "Erkläre mir TypeScript",
-          timestamp: Date.now() - 20000,
-        },
-        {
-          type: "ASSISTANT",
-          usedModeName: "edit",
-          messages: [
-            {
-              type: "TEXT",
-              text: "TypeScript ist eine typisierte Obermenge von JavaScript.",
-            },
-          ],
-          timestamp: Date.now() - 15000,
-        },
-      ],
-    },
-    settings: {
-      selectedModeId: "edit",
-      availableModeIds: ["review", "edit", "agent"],
-      selectedLLM: { id: "gpt-4", useReasoning: true },
-      availableLLMIds: ["gpt-4", "gpt-3.5"],
-      availableToolsIds: ["web", "filesystem"],
-    },
-  },
+  }
 ];
 
 const testProjectData: Project = {
