@@ -20,7 +20,7 @@ export type SystemTurn = {
 
 export type AssistantTurn = {
     type: "ASSISTANT"
-    usedModeName: '' // Used name at the time of sending. May not exist anymore and is also not repeated with this mode
+    usedModeName: string // Used name at the time of sending. May not exist anymore and is also not repeated with this mode
     messages: Message[]
 } & ConversationTurnBase
 

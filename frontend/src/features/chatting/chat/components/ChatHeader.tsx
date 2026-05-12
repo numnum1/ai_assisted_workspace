@@ -1,14 +1,7 @@
 import { History, Wand2, Pencil, Maximize2, Minimize2 } from "lucide-react";
-import type { AssistantMode } from "../../project/useProject";
-
-export interface ChatHeaderProps {
-  name: string
-  rename: (newName: string) => void
-  onHistoryButtonClicked: () => void
-  onNewChatButtonClicked: () => void
-  selectedMode: AssistantMode | null
-  availableModes: AssistantMode[]
-}
+import type { AssistantMode, LLM } from "../../project/useProject";
+import { useMemo } from "react";
+import { ModeSelector } from "./ModeSelector";
 
 const noop = () => {};
 
@@ -18,8 +11,52 @@ export function ChatHeader({
   onHistoryButtonClicked,
   onNewChatButtonClicked,
   selectedMode,
-  availableModes
-}: ChatHeaderProps) {
+  availableModes,
+  selectMode,
+  selectedLLM,
+  availableLLMs
+}: {
+  name: string;
+  rename: (newName: string) => void;
+  onHistoryButtonClicked: () => void;
+  onNewChatButtonClicked: () => void;
+  selectedMode: AssistantMode | null;
+  availableModes: AssistantMode[];
+  selectMode: (newSelectedModeId: string) => void;
+  selectedLLM: LLM | null;
+  availableLLMs : LLM[]
+}) {
+
+  const modeSelector = useMemo(() => {
+    return {
+      modes: availableModes,
+      selectedMode: selectedMode?.name ?? 'No Mode Selected',
+      selectMode: selectMode
+    };
+  }, [selectedMode, availableModes, selectMode]);
+
+  // #region placeholder
+  console.log(JSON.stringify({name, rename, onHistoryButtonClicked, onNewChatButtonClicked}))
+
+  const isFullscreen = false
+  const toggleFullscreen = () => {}
+  const onOpenPromptPack = false
+  const activeIsThread = false
+  const renamingTitle = false
+  const toggleHistoryOpen = () => {}
+  const historyOpen = false
+  const setNewChatDialogOpen = (newOpen: boolean) => {console.log(newOpen)}
+  const titleDraft = 'TitleDraft'
+  const setTitleDraft = (newTitleDraft: string) => {console.log(newTitleDraft)}
+  const setRenamingTitle = (newRenamingTitle: boolean) => {console.log(newRenamingTitle)}
+  const activeTitle = 'Active Title'
+
+  const guidedExecSummary = null as {
+    modeLabel: string;
+    llmLabel: string;
+  } | null;
+  // #endregion
+
   return (
     <div className="chat-header">
       {guidedExecSummary ? (
@@ -41,19 +78,19 @@ export function ChatHeader({
       ) : (
         <div className="mode-selector-placeholder" data-testid="modeSelector">
           {/* ModeSelector Platzhalter */}
-          <span>Mode: {selectedMode || "Standard"}</span>
+          <ModeSelector {...modeSelector} />
         </div>
       )}
       <div className="chat-header-actions">
-        {!guidedExecSummary && llms.length > 0 && (
+        {!guidedExecSummary && availableLLMs.length > 0 && (
           <select
             className="chat-llm-select"
-            value={selectedLlmId ?? ""}
+            value={selectedLLM?.name ?? ""}
             onChange={noop}
             title="LLM auswählen"
           >
             <option value="">— Standard —</option>
-            {llms.map((llm) => (
+            {availableLLMs.map((llm) => (
               <option key={llm.id} value={llm.id}>
                 {llm.name}
               </option>
@@ -74,7 +111,7 @@ export function ChatHeader({
           type="button"
           data-testid="expandButton"
           className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
-          onClick={() => setIsFullscreen((v) => !v)}
+          onClick={toggleFullscreen}
           title={
             activeIsThread
               ? "Thread-Workspace öffnen"
@@ -88,7 +125,7 @@ export function ChatHeader({
         </button>
         <button
           className={`chat-history-btn ${historyOpen ? "active" : ""}`}
-          onClick={() => setHistoryOpen((prev) => !prev)}
+          onClick={toggleHistoryOpen}
           title="Chat-Historie"
         >
           <History size={14} />

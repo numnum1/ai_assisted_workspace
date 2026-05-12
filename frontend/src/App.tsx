@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { ThemeContext, type ThemeName } from "./ThemeContext";
 import { Panel, Group, Separator, usePanelRef } from "react-resizable-panels";
 import type { Layout } from "react-resizable-panels";
 import {
@@ -122,9 +123,10 @@ import { useProject } from "./hooks/useProject.ts";
 import {
   useProjectNew,
   type Project,
-  type Chat,
 } from "./features/chatting/project/useProject.ts";
 import ProjectPane from "./features/chatting/project/Project.tsx";
+import type { Chat } from "./features/chatting/chat/Chat.tsx";
+import { createContext } from "vm";
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
 function standardChatModes(mds: Mode[]): Mode[] {
@@ -324,7 +326,7 @@ const testChats: Chat[] = [
       availableLLMIds: ["gpt-4", "gpt-3.5"],
       availableToolsIds: ["web", "wiki"],
     },
-  }
+  },
 ];
 
 const testProjectData: Project = {
@@ -365,22 +367,27 @@ const testProjectData: Project = {
         id: "review",
         name: "Review",
         systemPrompt: "Du bist ein hilfreicher Reviewer.",
+        color: "blue",
       },
       {
         id: "edit",
         name: "Edit",
         systemPrompt: "Du bist ein hilfreicher Editor.",
+        color: "red",
       },
       {
         id: "agent",
         name: "Agent",
         systemPrompt: "Du bist ein hilfreicher Agent.",
+        color: "yellow",
       },
     ],
   },
 };
 
 function App() {
+  const [theme, setTheme] = useState<ThemeName>("light");
+
   // Testing
   const projectNew = useProjectNew(testProjectData);
 
@@ -2304,547 +2311,565 @@ function App() {
 
   return (
     <div className="app">
-      <div className="app-viewport-section">
-        <CommandPalette
-          open={paletteOpen}
-          onClose={() => setPaletteOpen(false)}
-          actions={commandActions}
-          onOpenFolder={handleOpenProject}
-          onGitRefresh={fetchGitState}
-          gitStatus={gitStatus ?? undefined}
-          onAuthRequired={showCredentialsDialog}
-        />
+      <ThemeContext.Provider value={{ theme, setTheme }}>
+        <div className="app-viewport-section">
+          <CommandPalette
+            open={paletteOpen}
+            onClose={() => setPaletteOpen(false)}
+            actions={commandActions}
+            onOpenFolder={handleOpenProject}
+            onGitRefresh={fetchGitState}
+            gitStatus={gitStatus ?? undefined}
+            onAuthRequired={showCredentialsDialog}
+          />
 
-        <Group
-          orientation="horizontal"
-          className="app-panels"
-          id="main-app-panels"
-          defaultLayout={mainPanelDefaultLayout}
-          onLayoutChanged={handleMainPanelLayoutChanged}
-        >
-          <Panel
-            id="outliner"
-            panelRef={leftPanelRef}
-            defaultSize="18%"
-            minSize="10%"
-            maxSize="50%"
-            collapsible
-            collapsedSize={0}
+          <Group
+            orientation="horizontal"
+            className="app-panels"
+            id="main-app-panels"
+            defaultLayout={mainPanelDefaultLayout}
+            onLayoutChanged={handleMainPanelLayoutChanged}
           >
-            <div className="left-column">
-              <div className={`outliner-slot${showMetaChrome ? " split" : ""}`}>
-                <FileTreeOutliner
-                  projectPath={project.projectPath ?? null}
-                  selectedPath={fileEditor.selectedPath}
-                  onSelectFile={(path) => {
-                    chapter.closeChapter();
-                    setSelectedMeta(null);
-                    setMetaExpanded(false);
-                    setFocusedField(null);
-                    void fileEditor.openFile(path);
-                  }}
-                  onRevealInExplorer={() =>
-                    projectApi.reveal().catch(console.error)
-                  }
-                  refreshNonce={treeRefreshKey}
-                  onTreeMutated={() => setTreeRefreshKey((k) => k + 1)}
-                  onFsChange={fileEditor.syncWithFilesystem}
-                  inlineChaptersRefreshNonce={inlineChaptersNonce}
-                  activeChapterId={chapter.activeChapter?.id ?? null}
-                  activeStructureRoot={chapter.structureRoot}
-                  editorPosition={chapter.editorPosition}
-                  levelConfigByModeId={levelConfigByModeId}
-                  onActivateSubprojectStructure={async (
-                    subPath,
-                    subType,
-                    chapterId,
-                    scroll,
-                    selection,
-                  ) => {
-                    chapter.setStructureRoot(subPath, subType);
-                    setMetaExpanded(false);
-                    setFocusedField(null);
-                    await chapter.openChapter(chapterId, scroll ?? null);
-                    setSelectedMeta(selection);
-                  }}
-                  runSubprojectMutation={async (subPath, subType, fn) => {
-                    chapter.setStructureRoot(subPath, subType);
-                    await fn();
-                  }}
-                  onSubprojectStructureChanged={() =>
-                    setInlineChaptersNonce((n) => n + 1)
-                  }
-                  onOpenBookMeta={async (subPath, subType) => {
-                    chapter.setStructureRoot(subPath, subType);
-                    const meta = await bookApi.getMeta(subPath);
-                    setSelectedMeta({ type: "book", chapterId: "", meta });
-                    setMetaExpanded(false);
-                  }}
-                  onCreateChapterInSubproject={async (
-                    subPath,
-                    subType,
-                    title,
-                  ) => {
-                    chapter.setStructureRoot(subPath, subType);
-                    await chapter.createChapter(title);
-                    setInlineChaptersNonce((n) => n + 1);
-                  }}
-                  onConfigureSubproject={(path, existingType) => {
-                    setSubprojectDialog({
-                      path,
-                      initialType: existingType ?? undefined,
-                    });
-                  }}
-                  scopeToPath={outlinerScope.scopePath}
-                  onClearOutlinerScope={outlinerScope.clearScopePath}
-                  onSetOutlinerScope={outlinerScope.setScopePath}
-                  onScopeInvalidated={outlinerScope.clearScopePath}
-                  gitStatus={gitStatus ?? undefined}
-                  onGitRevert={handleGitRevert}
-                  onShowFileHistory={setFileHistoryPath}
-                />
-              </div>
-
-              {showMetaChrome && selectedMeta && (
-                <div className="meta-panel-slot">
-                  <MetaPanel
-                    selection={selectedMeta}
-                    metaSchemas={workspaceMetaSchemas}
-                    onSave={handleSaveMeta}
-                    onClose={() => {
+            <Panel
+              id="outliner"
+              panelRef={leftPanelRef}
+              defaultSize="18%"
+              minSize="10%"
+              maxSize="50%"
+              collapsible
+              collapsedSize={0}
+            >
+              <div className="left-column">
+                <div
+                  className={`outliner-slot${showMetaChrome ? " split" : ""}`}
+                >
+                  <FileTreeOutliner
+                    projectPath={project.projectPath ?? null}
+                    selectedPath={fileEditor.selectedPath}
+                    onSelectFile={(path) => {
+                      chapter.closeChapter();
                       setSelectedMeta(null);
                       setMetaExpanded(false);
                       setFocusedField(null);
+                      void fileEditor.openFile(path);
                     }}
-                    onExpand={() => setMetaExpanded(true)}
-                    onFocusField={handleOpenFieldEditor}
+                    onRevealInExplorer={() =>
+                      projectApi.reveal().catch(console.error)
+                    }
+                    refreshNonce={treeRefreshKey}
+                    onTreeMutated={() => setTreeRefreshKey((k) => k + 1)}
+                    onFsChange={fileEditor.syncWithFilesystem}
+                    inlineChaptersRefreshNonce={inlineChaptersNonce}
+                    activeChapterId={chapter.activeChapter?.id ?? null}
+                    activeStructureRoot={chapter.structureRoot}
+                    editorPosition={chapter.editorPosition}
+                    levelConfigByModeId={levelConfigByModeId}
+                    onActivateSubprojectStructure={async (
+                      subPath,
+                      subType,
+                      chapterId,
+                      scroll,
+                      selection,
+                    ) => {
+                      chapter.setStructureRoot(subPath, subType);
+                      setMetaExpanded(false);
+                      setFocusedField(null);
+                      await chapter.openChapter(chapterId, scroll ?? null);
+                      setSelectedMeta(selection);
+                    }}
+                    runSubprojectMutation={async (subPath, subType, fn) => {
+                      chapter.setStructureRoot(subPath, subType);
+                      await fn();
+                    }}
+                    onSubprojectStructureChanged={() =>
+                      setInlineChaptersNonce((n) => n + 1)
+                    }
+                    onOpenBookMeta={async (subPath, subType) => {
+                      chapter.setStructureRoot(subPath, subType);
+                      const meta = await bookApi.getMeta(subPath);
+                      setSelectedMeta({ type: "book", chapterId: "", meta });
+                      setMetaExpanded(false);
+                    }}
+                    onCreateChapterInSubproject={async (
+                      subPath,
+                      subType,
+                      title,
+                    ) => {
+                      chapter.setStructureRoot(subPath, subType);
+                      await chapter.createChapter(title);
+                      setInlineChaptersNonce((n) => n + 1);
+                    }}
+                    onConfigureSubproject={(path, existingType) => {
+                      setSubprojectDialog({
+                        path,
+                        initialType: existingType ?? undefined,
+                      });
+                    }}
+                    scopeToPath={outlinerScope.scopePath}
+                    onClearOutlinerScope={outlinerScope.clearScopePath}
+                    onSetOutlinerScope={outlinerScope.setScopePath}
+                    onScopeInvalidated={outlinerScope.clearScopePath}
+                    gitStatus={gitStatus ?? undefined}
+                    onGitRevert={handleGitRevert}
+                    onShowFileHistory={setFileHistoryPath}
                   />
                 </div>
-              )}
-            </div>
-          </Panel>
 
-          <Separator className="resize-handle" />
-
-          <Panel
-            id="editor"
-            panelRef={centerPanelRef}
-            defaultSize="45%"
-            minSize="15%"
-            collapsible
-            collapsedSize={0}
-          >
-            <div className="center-editor-pane">
-              <EditorTabs
-                tabs={fileEditor.tabs}
-                activeTabPath={fileEditor.activeTabPath}
-                onSelectTab={(path) => void fileEditor.openFile(path)}
-                onCloseTab={fileEditor.closeTab}
-                onCloseOtherTabs={fileEditor.closeOtherTabs}
-                onCloseAllTabs={fileEditor.closeAllTabs}
-              />
-              {searchOpen && (
-                <SearchPanel
-                  onOpenFile={(path, line) => {
-                    void fileEditor.openFile(path, line);
-                    setSearchOpen(false);
-                  }}
-                  onClose={() => setSearchOpen(false)}
-                />
-              )}
-              <button
-                type="button"
-                className="center-pane-wide-toggle"
-                onClick={handleToggleCenterPanels}
-                title={
-                  centerPaneWide
-                    ? "Seitenleisten wieder anzeigen"
-                    : "Seitenleisten ausblenden (breiter Editor)"
-                }
-                aria-pressed={centerPaneWide}
-              >
-                {centerPaneWide ? (
-                  <Minimize2 size={17} strokeWidth={2} />
-                ) : (
-                  <Maximize2 size={17} strokeWidth={2} />
+                {showMetaChrome && selectedMeta && (
+                  <div className="meta-panel-slot">
+                    <MetaPanel
+                      selection={selectedMeta}
+                      metaSchemas={workspaceMetaSchemas}
+                      onSave={handleSaveMeta}
+                      onClose={() => {
+                        setSelectedMeta(null);
+                        setMetaExpanded(false);
+                        setFocusedField(null);
+                      }}
+                      onExpand={() => setMetaExpanded(true)}
+                      onFocusField={handleOpenFieldEditor}
+                    />
+                  </div>
                 )}
-              </button>
-              {focusedField && showMetaChrome ? (
-                <div className="field-editor-center">
-                  <FieldEditorPanel
-                    fieldLabel={focusedField.fieldLabel}
-                    sceneTitle={selectedMeta?.meta.title || undefined}
-                    value={focusedField.value}
-                    onSave={handleFieldEditorSave}
-                    onClose={() => setFocusedField(null)}
-                  />
-                </div>
-              ) : metaExpanded && showMetaChrome ? (
-                <div className="meta-panel-center">
-                  <MetaPanel
-                    selection={selectedMeta!}
-                    metaSchemas={workspaceMetaSchemas}
-                    onSave={handleSaveMeta}
-                    onClose={() => setMetaExpanded(false)}
-                    expanded={true}
-                    onFocusField={handleOpenFieldEditor}
-                  />
-                </div>
-              ) : !chapter.activeChapter ? (
-                <MarkdownFileEditor
-                  path={fileEditor.selectedPath}
-                  content={fileEditor.content}
-                  dirty={fileEditor.dirty}
-                  loading={fileEditor.loading}
-                  error={fileEditor.error}
-                  onChange={fileEditor.setContent}
-                  onSave={() => {
-                    void fileEditor.save();
-                    fetchGitState();
-                  }}
-                  onClearError={fileEditor.clearError}
-                  onCloseFile={fileEditor.closeFile}
-                  onCtrlL={handleCtrlL}
-                  onAltVersion={handleAltVersion}
-                  scrollToLine={fileEditor.pendingScroll?.line}
-                  scrollNonce={fileEditor.pendingScroll?.nonce}
-                  onScrollHandled={fileEditor.clearPendingScroll}
-                />
-              ) : (
-                <MediaProjectEditor
-                  editorMode={proseEditorMode}
-                  proseLeafAtScene={
-                    workspaceModeSchema?.proseLeafLevel === "scene"
-                  }
-                  chapter={chapter.activeChapter}
-                  actionContents={chapter.actionContents}
-                  scrollTarget={chapter.scrollTarget}
-                  hasDirtyActions={chapter.hasDirtyActions}
-                  onActionChange={chapter.updateActionContent}
-                  onActionSave={chapter.saveAction}
-                  onSaveAll={() => {
-                    chapter.saveAllDirty();
-                    fetchGitState();
-                  }}
-                  onClose={chapter.closeChapter}
-                  onScrollTargetConsumed={chapter.clearScrollTarget}
-                  onEditorFocus={chapter.updateEditorPosition}
-                  onCtrlL={handleCtrlL}
-                  onAltVersion={handleAltVersion}
-                />
-              )}
-            </div>
-          </Panel>
+              </div>
+            </Panel>
 
-          <Separator className="resize-handle" />
+            <Separator className="resize-handle" />
 
-          <Panel
-            id="chat"
-            panelRef={rightPanelRef}
-            defaultSize="37%"
-            minSize="15%"
-            collapsible
-            collapsedSize={0}
-          >
-            <div className="chat-column">
-              <ChatThreadsRail
-                conversations={history.conversations}
-                activeConversationId={history.activeId}
-                onSwitchChat={handleSwitchChat}
-              />
-              <div className="chat-column-main">
-                <ChatPanel
-                  messages={conversation.messages}
-                  streaming={conversation.streaming}
-                  error={conversation.error}
-                  toolActivity={conversation.toolActivity}
-                  theme={
-                    preferences.appearance.theme === "light" ? "light" : "dark"
+            <Panel
+              id="editor"
+              panelRef={centerPanelRef}
+              defaultSize="45%"
+              minSize="15%"
+              collapsible
+              collapsedSize={0}
+            >
+              <div className="center-editor-pane">
+                <EditorTabs
+                  tabs={fileEditor.tabs}
+                  activeTabPath={fileEditor.activeTabPath}
+                  onSelectTab={(path) => void fileEditor.openFile(path)}
+                  onCloseTab={fileEditor.closeTab}
+                  onCloseOtherTabs={fileEditor.closeOtherTabs}
+                  onCloseAllTabs={fileEditor.closeAllTabs}
+                />
+                {searchOpen && (
+                  <SearchPanel
+                    onOpenFile={(path, line) => {
+                      void fileEditor.openFile(path, line);
+                      setSearchOpen(false);
+                    }}
+                    onClose={() => setSearchOpen(false)}
+                  />
+                )}
+                <button
+                  type="button"
+                  className="center-pane-wide-toggle"
+                  onClick={handleToggleCenterPanels}
+                  title={
+                    centerPaneWide
+                      ? "Seitenleisten wieder anzeigen"
+                      : "Seitenleisten ausblenden (breiter Editor)"
                   }
-                  modes={modesForChat}
-                  selectedMode={selectedMode}
-                  referencedFiles={refs.referencedFiles}
+                  aria-pressed={centerPaneWide}
+                >
+                  {centerPaneWide ? (
+                    <Minimize2 size={17} strokeWidth={2} />
+                  ) : (
+                    <Maximize2 size={17} strokeWidth={2} />
+                  )}
+                </button>
+                {focusedField && showMetaChrome ? (
+                  <div className="field-editor-center">
+                    <FieldEditorPanel
+                      fieldLabel={focusedField.fieldLabel}
+                      sceneTitle={selectedMeta?.meta.title || undefined}
+                      value={focusedField.value}
+                      onSave={handleFieldEditorSave}
+                      onClose={() => setFocusedField(null)}
+                    />
+                  </div>
+                ) : metaExpanded && showMetaChrome ? (
+                  <div className="meta-panel-center">
+                    <MetaPanel
+                      selection={selectedMeta!}
+                      metaSchemas={workspaceMetaSchemas}
+                      onSave={handleSaveMeta}
+                      onClose={() => setMetaExpanded(false)}
+                      expanded={true}
+                      onFocusField={handleOpenFieldEditor}
+                    />
+                  </div>
+                ) : !chapter.activeChapter ? (
+                  <MarkdownFileEditor
+                    path={fileEditor.selectedPath}
+                    content={fileEditor.content}
+                    dirty={fileEditor.dirty}
+                    loading={fileEditor.loading}
+                    error={fileEditor.error}
+                    onChange={fileEditor.setContent}
+                    onSave={() => {
+                      void fileEditor.save();
+                      fetchGitState();
+                    }}
+                    onClearError={fileEditor.clearError}
+                    onCloseFile={fileEditor.closeFile}
+                    onCtrlL={handleCtrlL}
+                    onAltVersion={handleAltVersion}
+                    scrollToLine={fileEditor.pendingScroll?.line}
+                    scrollNonce={fileEditor.pendingScroll?.nonce}
+                    onScrollHandled={fileEditor.clearPendingScroll}
+                  />
+                ) : (
+                  <MediaProjectEditor
+                    editorMode={proseEditorMode}
+                    proseLeafAtScene={
+                      workspaceModeSchema?.proseLeafLevel === "scene"
+                    }
+                    chapter={chapter.activeChapter}
+                    actionContents={chapter.actionContents}
+                    scrollTarget={chapter.scrollTarget}
+                    hasDirtyActions={chapter.hasDirtyActions}
+                    onActionChange={chapter.updateActionContent}
+                    onActionSave={chapter.saveAction}
+                    onSaveAll={() => {
+                      chapter.saveAllDirty();
+                      fetchGitState();
+                    }}
+                    onClose={chapter.closeChapter}
+                    onScrollTargetConsumed={chapter.clearScrollTarget}
+                    onEditorFocus={chapter.updateEditorPosition}
+                    onCtrlL={handleCtrlL}
+                    onAltVersion={handleAltVersion}
+                  />
+                )}
+              </div>
+            </Panel>
+
+            <Separator className="resize-handle" />
+
+            <Panel
+              id="chat"
+              panelRef={rightPanelRef}
+              defaultSize="37%"
+              minSize="15%"
+              collapsible
+              collapsedSize={0}
+            >
+              <div className="chat-column">
+                <ChatThreadsRail
                   conversations={history.conversations}
                   activeConversationId={history.activeId}
-                  useReasoning={useReasoning}
-                  onToggleReasoning={handleToggleReasoning}
-                  disabledToolkits={disabledToolkits}
-                  onToggleToolkit={handleToggleToolkit}
-                  reasoningAvailable={reasoningAvailable}
-                  fastAvailable={fastAvailable}
-                  onModeChange={handleModeChange}
-                  llms={llms}
-                  selectedLlmId={modeLlmId}
-                  onLlmChange={handleLlmChange}
-                  onSend={conversation.send}
-                  onStop={conversation.stopStreaming}
-                  onRetry={conversation.retry}
-                  onAddFile={refs.addFile}
-                  onRemoveFile={refs.removeFile}
-                  onForkFromMessage={conversation.forkFromMessage}
-                  onForkToNewConversation={handleForkToNewConversation}
-                  onStartThreadFromMessage={handleStartThreadFromMessage}
-                  onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
-                  onEditMessage={conversation.editMessage}
-                  onDeleteMessages={conversation.deleteMessages}
-                  onNewChat={handleNewChat}
-                  onDiscardCurrentChat={handleDiscardCurrentChat}
-                  agentPresets={agentPresets}
-                  activeSessionKind={
-                    history.activeConversation?.sessionKind ?? "standard"
-                  }
-                  steeringPlan={history.activeConversation?.steeringPlan ?? ""}
-                  activeIsThread={history.activeConversation?.isThread === true}
-                  onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
                   onSwitchChat={handleSwitchChat}
-                  onDeleteChat={history.deleteConversation}
-                  onRenameChat={history.renameConversation}
-                  onToggleSavedToProject={history.toggleSavedToProject}
-                  onClearAllBrowserChats={history.clearAllBrowserChats}
-                  clearAllBrowserChatsDisabled={
-                    !project.projectPath || !history.hydrated
-                  }
-                  chatDownloadEnabled={chatDownloadFeatureEnabled}
-                  onOpenPromptPack={() => setPromptPackOpen(true)}
-                  structureRoot={chapter.structureRoot}
-                  activeSelection={activeSelection}
-                  onDismissSelection={handleDismissSelection}
-                  onReplaceSelection={handleReplaceSelection}
-                  onApplyFieldUpdate={handleApplyFieldUpdate}
-                  fieldLabels={fieldLabels}
-                  chatFocusTriggerRef={chatFocusTriggerRef}
-                  onFileChanged={(path) => {
-                    if (fileEditor.selectedPath === path) {
-                      void fileEditor.openFile(path);
-                    }
-                    setTreeRefreshKey((k) => k + 1);
-                  }}
-                  writeFileSettled={
-                    history.activeConversation?.writeFileSettled
-                  }
-                  onSettleSnapshots={(patch) => {
-                    history.settleWriteFileSnapshots(history.activeId, patch);
-                  }}
-                  onComposerDraftChange={handleComposerDraftChange}
-                  onOpenThreadWorkspace={handleOpenThreadWorkspace}
-                  contextInfo={conversation.contextInfo}
-                  activeFile={activeChapterTitle}
-                  isDirty={chapter.hasDirtyActions}
-                  systemPromptPreview={conversation.systemPrompt}
-                  onFetchContextBlocks={conversation.fetchContextBlocks}
-                  parentLastMessage={parentLastVisibleMessage}
                 />
-                {threadWorkspaceOpen &&
-                  history.activeConversation?.isThread === true &&
-                  threadWorkspaceRail && (
-                    <ThreadWorkspacePanel
-                      threadConversationId={history.activeId}
-                      threadTitle={history.activeConversation?.title ?? ""}
-                      messages={conversation.messages}
-                      streaming={conversation.streaming}
-                      error={conversation.error}
-                      toolActivity={conversation.toolActivity}
-                      parentConversation={parentConversation}
-                      parentMessages={parentConversationModel.messages}
-                      parentLastMessage={parentLastVisibleMessage}
-                      parentStreaming={parentConversationModel.streaming}
-                      mainBranchItem={threadWorkspaceRail.mainBranchItem}
-                      threadBranchItems={threadWorkspaceRail.threadBranchItems}
-                      onSwitchBranch={handleSwitchChat}
-                      onClose={handleCloseThreadWorkspace}
-                      onDeleteThread={(id) => history.deleteConversation(id)}
-                      onSummarizeToParent={handleSummarizeToParent}
-                      isSummarizing={summarizingThread}
-                      onUseMessageAsThreadSummary={
-                        handleUseMessageAsThreadSummary
+                <div className="chat-column-main">
+                  <ChatPanel
+                    messages={conversation.messages}
+                    streaming={conversation.streaming}
+                    error={conversation.error}
+                    toolActivity={conversation.toolActivity}
+                    theme={
+                      preferences.appearance.theme === "light"
+                        ? "light"
+                        : "dark"
+                    }
+                    modes={modesForChat}
+                    selectedMode={selectedMode}
+                    referencedFiles={refs.referencedFiles}
+                    conversations={history.conversations}
+                    activeConversationId={history.activeId}
+                    useReasoning={useReasoning}
+                    onToggleReasoning={handleToggleReasoning}
+                    disabledToolkits={disabledToolkits}
+                    onToggleToolkit={handleToggleToolkit}
+                    reasoningAvailable={reasoningAvailable}
+                    fastAvailable={fastAvailable}
+                    onModeChange={handleModeChange}
+                    llms={llms}
+                    selectedLlmId={modeLlmId}
+                    onLlmChange={handleLlmChange}
+                    onSend={conversation.send}
+                    onStop={conversation.stopStreaming}
+                    onRetry={conversation.retry}
+                    onAddFile={refs.addFile}
+                    onRemoveFile={refs.removeFile}
+                    onForkFromMessage={conversation.forkFromMessage}
+                    onForkToNewConversation={handleForkToNewConversation}
+                    onStartThreadFromMessage={handleStartThreadFromMessage}
+                    onAcceptGuidedThreadOffer={
+                      handleAcceptGuidedThreadFromOffer
+                    }
+                    onEditMessage={conversation.editMessage}
+                    onDeleteMessages={conversation.deleteMessages}
+                    onNewChat={handleNewChat}
+                    onDiscardCurrentChat={handleDiscardCurrentChat}
+                    agentPresets={agentPresets}
+                    activeSessionKind={
+                      history.activeConversation?.sessionKind ?? "standard"
+                    }
+                    steeringPlan={
+                      history.activeConversation?.steeringPlan ?? ""
+                    }
+                    activeIsThread={
+                      history.activeConversation?.isThread === true
+                    }
+                    onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
+                    onSwitchChat={handleSwitchChat}
+                    onDeleteChat={history.deleteConversation}
+                    onRenameChat={history.renameConversation}
+                    onToggleSavedToProject={history.toggleSavedToProject}
+                    onClearAllBrowserChats={history.clearAllBrowserChats}
+                    clearAllBrowserChatsDisabled={
+                      !project.projectPath || !history.hydrated
+                    }
+                    chatDownloadEnabled={chatDownloadFeatureEnabled}
+                    onOpenPromptPack={() => setPromptPackOpen(true)}
+                    structureRoot={chapter.structureRoot}
+                    activeSelection={activeSelection}
+                    onDismissSelection={handleDismissSelection}
+                    onReplaceSelection={handleReplaceSelection}
+                    onApplyFieldUpdate={handleApplyFieldUpdate}
+                    fieldLabels={fieldLabels}
+                    chatFocusTriggerRef={chatFocusTriggerRef}
+                    onFileChanged={(path) => {
+                      if (fileEditor.selectedPath === path) {
+                        void fileEditor.openFile(path);
                       }
-                      onUseTextAsMergeMessage={handleUseTextAsMergeMessage}
-                      isMergingDirectly={mergingDirectly}
-                      onSend={conversation.send}
-                      onStop={conversation.stopStreaming}
-                      onEditMessage={conversation.editMessage}
-                      onDeleteMessages={conversation.deleteMessages}
-                      onForkFromMessage={conversation.forkFromMessage}
-                      onStartThreadFromMessage={handleStartThreadFromMessage}
-                      onForkToNewConversation={handleForkToNewConversation}
-                      onRetry={conversation.retry}
-                      onAcceptGuidedThreadOffer={
-                        handleAcceptGuidedThreadFromOffer
-                      }
-                      onSendToParent={parentConversationModel.send}
-                      onStopParent={parentConversationModel.stopStreaming}
-                      onParentEditMessage={parentConversationModel.editMessage}
-                      onParentDeleteMessages={
-                        parentConversationModel.deleteMessages
-                      }
-                      onParentForkFromMessage={
-                        parentConversationModel.forkFromMessage
-                      }
-                      onParentStartThreadFromMessage={
-                        handleParentStartThreadFromMessage
-                      }
-                      onParentForkToNewConversation={
-                        handleParentForkToNewConversation
-                      }
-                      onParentRetry={parentConversationModel.retry}
-                      parentWriteFileSettled={
-                        parentConversation?.writeFileSettled
-                      }
-                      onParentSettleSnapshots={(patch) => {
-                        if (parentConversationId) {
+                      setTreeRefreshKey((k) => k + 1);
+                    }}
+                    writeFileSettled={
+                      history.activeConversation?.writeFileSettled
+                    }
+                    onSettleSnapshots={(patch) => {
+                      history.settleWriteFileSnapshots(history.activeId, patch);
+                    }}
+                    onComposerDraftChange={handleComposerDraftChange}
+                    onOpenThreadWorkspace={handleOpenThreadWorkspace}
+                    contextInfo={conversation.contextInfo}
+                    activeFile={activeChapterTitle}
+                    isDirty={chapter.hasDirtyActions}
+                    systemPromptPreview={conversation.systemPrompt}
+                    onFetchContextBlocks={conversation.fetchContextBlocks}
+                    parentLastMessage={parentLastVisibleMessage}
+                  />
+                  {threadWorkspaceOpen &&
+                    history.activeConversation?.isThread === true &&
+                    threadWorkspaceRail && (
+                      <ThreadWorkspacePanel
+                        threadConversationId={history.activeId}
+                        threadTitle={history.activeConversation?.title ?? ""}
+                        messages={conversation.messages}
+                        streaming={conversation.streaming}
+                        error={conversation.error}
+                        toolActivity={conversation.toolActivity}
+                        parentConversation={parentConversation}
+                        parentMessages={parentConversationModel.messages}
+                        parentLastMessage={parentLastVisibleMessage}
+                        parentStreaming={parentConversationModel.streaming}
+                        mainBranchItem={threadWorkspaceRail.mainBranchItem}
+                        threadBranchItems={
+                          threadWorkspaceRail.threadBranchItems
+                        }
+                        onSwitchBranch={handleSwitchChat}
+                        onClose={handleCloseThreadWorkspace}
+                        onDeleteThread={(id) => history.deleteConversation(id)}
+                        onSummarizeToParent={handleSummarizeToParent}
+                        isSummarizing={summarizingThread}
+                        onUseMessageAsThreadSummary={
+                          handleUseMessageAsThreadSummary
+                        }
+                        onUseTextAsMergeMessage={handleUseTextAsMergeMessage}
+                        isMergingDirectly={mergingDirectly}
+                        onSend={conversation.send}
+                        onStop={conversation.stopStreaming}
+                        onEditMessage={conversation.editMessage}
+                        onDeleteMessages={conversation.deleteMessages}
+                        onForkFromMessage={conversation.forkFromMessage}
+                        onStartThreadFromMessage={handleStartThreadFromMessage}
+                        onForkToNewConversation={handleForkToNewConversation}
+                        onRetry={conversation.retry}
+                        onAcceptGuidedThreadOffer={
+                          handleAcceptGuidedThreadFromOffer
+                        }
+                        onSendToParent={parentConversationModel.send}
+                        onStopParent={parentConversationModel.stopStreaming}
+                        onParentEditMessage={
+                          parentConversationModel.editMessage
+                        }
+                        onParentDeleteMessages={
+                          parentConversationModel.deleteMessages
+                        }
+                        onParentForkFromMessage={
+                          parentConversationModel.forkFromMessage
+                        }
+                        onParentStartThreadFromMessage={
+                          handleParentStartThreadFromMessage
+                        }
+                        onParentForkToNewConversation={
+                          handleParentForkToNewConversation
+                        }
+                        onParentRetry={parentConversationModel.retry}
+                        parentWriteFileSettled={
+                          parentConversation?.writeFileSettled
+                        }
+                        onParentSettleSnapshots={(patch) => {
+                          if (parentConversationId) {
+                            history.settleWriteFileSnapshots(
+                              parentConversationId,
+                              patch,
+                            );
+                          }
+                        }}
+                        referencedFiles={refs.referencedFiles}
+                        onAddFile={refs.addFile}
+                        onRemoveFile={refs.removeFile}
+                        structureRoot={chapter.structureRoot}
+                        theme={
+                          preferences.appearance.theme === "light"
+                            ? "light"
+                            : "dark"
+                        }
+                        fieldLabels={fieldLabels}
+                        activeSessionKind={
+                          history.activeConversation?.sessionKind ?? "standard"
+                        }
+                        steeringPlan={
+                          history.activeConversation?.steeringPlan ?? ""
+                        }
+                        onMarkSteeringPlanComplete={
+                          handleMarkSteeringPlanComplete
+                        }
+                        onFileChanged={(path) => {
+                          if (fileEditor.selectedPath === path) {
+                            void fileEditor.openFile(path);
+                          }
+                          setTreeRefreshKey((k) => k + 1);
+                        }}
+                        writeFileSettled={
+                          history.activeConversation?.writeFileSettled
+                        }
+                        onSettleSnapshots={(patch) => {
                           history.settleWriteFileSnapshots(
-                            parentConversationId,
+                            history.activeId,
                             patch,
                           );
+                        }}
+                        useReasoning={useReasoning}
+                        onToggleReasoning={handleToggleReasoning}
+                        disabledToolkits={disabledToolkits}
+                        onToggleToolkit={handleToggleToolkit}
+                        reasoningAvailable={reasoningAvailable}
+                        fastAvailable={fastAvailable}
+                        activeSelection={activeSelection}
+                        onDismissSelection={handleDismissSelection}
+                        onThreadDraftChange={handleComposerDraftChange}
+                        onParentDraftChange={handleParentComposerDraftChange}
+                        threadContextInfo={conversation.contextInfo}
+                        threadSystemPrompt={conversation.systemPrompt}
+                        onFetchThreadContextBlocks={
+                          conversation.fetchContextBlocks
                         }
-                      }}
-                      referencedFiles={refs.referencedFiles}
-                      onAddFile={refs.addFile}
-                      onRemoveFile={refs.removeFile}
-                      structureRoot={chapter.structureRoot}
-                      theme={
-                        preferences.appearance.theme === "light"
-                          ? "light"
-                          : "dark"
-                      }
-                      fieldLabels={fieldLabels}
-                      activeSessionKind={
-                        history.activeConversation?.sessionKind ?? "standard"
-                      }
-                      steeringPlan={
-                        history.activeConversation?.steeringPlan ?? ""
-                      }
-                      onMarkSteeringPlanComplete={
-                        handleMarkSteeringPlanComplete
-                      }
-                      onFileChanged={(path) => {
-                        if (fileEditor.selectedPath === path) {
-                          void fileEditor.openFile(path);
+                        parentContextInfo={parentConversationModel.contextInfo}
+                        parentSystemPrompt={
+                          parentConversationModel.systemPrompt
                         }
-                        setTreeRefreshKey((k) => k + 1);
-                      }}
-                      writeFileSettled={
-                        history.activeConversation?.writeFileSettled
-                      }
-                      onSettleSnapshots={(patch) => {
-                        history.settleWriteFileSnapshots(
-                          history.activeId,
-                          patch,
-                        );
-                      }}
-                      useReasoning={useReasoning}
-                      onToggleReasoning={handleToggleReasoning}
-                      disabledToolkits={disabledToolkits}
-                      onToggleToolkit={handleToggleToolkit}
-                      reasoningAvailable={reasoningAvailable}
-                      fastAvailable={fastAvailable}
-                      activeSelection={activeSelection}
-                      onDismissSelection={handleDismissSelection}
-                      onThreadDraftChange={handleComposerDraftChange}
-                      onParentDraftChange={handleParentComposerDraftChange}
-                      threadContextInfo={conversation.contextInfo}
-                      threadSystemPrompt={conversation.systemPrompt}
-                      onFetchThreadContextBlocks={
-                        conversation.fetchContextBlocks
-                      }
-                      parentContextInfo={parentConversationModel.contextInfo}
-                      parentSystemPrompt={parentConversationModel.systemPrompt}
-                      onFetchParentContextBlocks={
-                        parentConversationModel.fetchContextBlocks
-                      }
-                      activeFile={activeChapterTitle}
-                      isDirty={chapter.hasDirtyActions}
-                    />
-                  )}
+                        onFetchParentContextBlocks={
+                          parentConversationModel.fetchContextBlocks
+                        }
+                        activeFile={activeChapterTitle}
+                        isDirty={chapter.hasDirtyActions}
+                      />
+                    )}
+                </div>
               </div>
-            </div>
-          </Panel>
-        </Group>
+            </Panel>
+          </Group>
 
-        {credDialogOpen && (
-          <GitCredentialsDialog
-            onSuccess={() => {
-              setCredDialogOpen(false);
-              pendingRetry?.();
-              setPendingRetry(null);
-            }}
-            onCancel={() => {
-              setCredDialogOpen(false);
-              setPendingRetry(null);
-            }}
+          {credDialogOpen && (
+            <GitCredentialsDialog
+              onSuccess={() => {
+                setCredDialogOpen(false);
+                pendingRetry?.();
+                setPendingRetry(null);
+              }}
+              onCancel={() => {
+                setCredDialogOpen(false);
+                setPendingRetry(null);
+              }}
+            />
+          )}
+
+          {settingsOpen && (
+            <ProjectSettingsModal
+              onClose={() => setSettingsOpen(false)}
+              onModesChanged={loadModes}
+              onGeneralConfigSaved={onProjectGeneralSaved}
+              onWorkspacePluginsChanged={onWorkspacePluginsChanged}
+            />
+          )}
+
+          <PromptPackModal
+            open={promptPackOpen}
+            onClose={() => setPromptPackOpen(false)}
+            onGenerate={handlePromptPackGenerate}
+            streaming={conversation.streaming}
+            hasPromptPackMode={modes.some((m) => m.id === "prompt-pack")}
           />
-        )}
 
-        {settingsOpen && (
-          <ProjectSettingsModal
-            onClose={() => setSettingsOpen(false)}
-            onModesChanged={loadModes}
-            onGeneralConfigSaved={onProjectGeneralSaved}
-            onWorkspacePluginsChanged={onWorkspacePluginsChanged}
+          {subprojectDialog && (
+            <SubprojectTypeDialog
+              folderPath={subprojectDialog.path}
+              initialTypeId={subprojectDialog.initialType}
+              onClose={() => setSubprojectDialog(null)}
+              onSaved={() => {
+                setTreeRefreshKey((k) => k + 1);
+                setInlineChaptersNonce((n) => n + 1);
+              }}
+            />
+          )}
+
+          {fileHistoryPath && (
+            <FileHistoryModal
+              filePath={fileHistoryPath}
+              onClose={() => setFileHistoryPath(null)}
+            />
+          )}
+
+          {altVersionSession && (
+            <AlternativeVersionPanel
+              session={altVersionSession}
+              onClose={() => setAltVersionSession(null)}
+            />
+          )}
+
+          {appearanceOpen && (
+            <AppearanceModal
+              preferences={preferences}
+              onUpdate={updatePreferences}
+              onClose={() => setAppearanceOpen(false)}
+            />
+          )}
+
+          <QuickChatWindow
+            open={quickChatOpen}
+            onClose={() => setQuickChatOpen(false)}
+            llms={llms}
+            webSearchAvailable={webSearchAvailable}
+            disabledToolkits={disabledToolkits}
           />
-        )}
 
-        <PromptPackModal
-          open={promptPackOpen}
-          onClose={() => setPromptPackOpen(false)}
-          onGenerate={handlePromptPackGenerate}
-          streaming={conversation.streaming}
-          hasPromptPackMode={modes.some((m) => m.id === "prompt-pack")}
-        />
-
-        {subprojectDialog && (
-          <SubprojectTypeDialog
-            folderPath={subprojectDialog.path}
-            initialTypeId={subprojectDialog.initialType}
-            onClose={() => setSubprojectDialog(null)}
-            onSaved={() => {
-              setTreeRefreshKey((k) => k + 1);
-              setInlineChaptersNonce((n) => n + 1);
-            }}
+          <input
+            ref={importFileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={handleImportChatFile}
           />
-        )}
-
-        {fileHistoryPath && (
-          <FileHistoryModal
-            filePath={fileHistoryPath}
-            onClose={() => setFileHistoryPath(null)}
-          />
-        )}
-
-        {altVersionSession && (
-          <AlternativeVersionPanel
-            session={altVersionSession}
-            onClose={() => setAltVersionSession(null)}
-          />
-        )}
-
-        {appearanceOpen && (
-          <AppearanceModal
-            preferences={preferences}
-            onUpdate={updatePreferences}
-            onClose={() => setAppearanceOpen(false)}
-          />
-        )}
-
-        <QuickChatWindow
-          open={quickChatOpen}
-          onClose={() => setQuickChatOpen(false)}
-          llms={llms}
-          webSearchAvailable={webSearchAvailable}
-          disabledToolkits={disabledToolkits}
-        />
-
-        <input
-          ref={importFileInputRef}
-          type="file"
-          accept=".json,application/json"
-          style={{ display: "none" }}
-          onChange={handleImportChatFile}
-        />
-      </div>
-      <div className="app-viewport-section">
-        <ProjectPane {...projectNew} />
-      </div>
+        </div>
+        <div className="app-viewport-section">
+          <ProjectPane {...projectNew} />
+        </div>
+      </ThemeContext.Provider>
     </div>
   );
 }

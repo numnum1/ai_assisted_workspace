@@ -6,6 +6,7 @@ export type AssistantMode = {
   id: string;
   name: string;
   systemPrompt: string;
+  color: string;
 };
 
 export type LLMVersion = {

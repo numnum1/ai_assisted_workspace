@@ -35,8 +35,25 @@ export function patchEntry<T extends IdType, K = string>(
   );
 }
 
-export function usePatchEntry<T extends IdType, K = string>(setter: React.Dispatch<SetStateAction<T[]>>) {
-    return useCallback((id: K, patch: Partial<T>) => {
-        patchEntry(id, patch, setter)
-  }, [setter]);
+export function usePatchEntry<T extends IdType, K = string>(
+  setter: React.Dispatch<SetStateAction<T[]>>,
+) {
+  return useCallback(
+    (id: K, patch: Partial<T>) => {
+      patchEntry(id, patch, setter);
+    },
+    [setter],
+  );
+}
+
+export function collectById<T extends IdType, K = string>(
+  array: K[],
+  findFunction: (id: K) => T | null,
+) {
+  const res: T[] = [];
+  for (const modeId of array) {
+    const found = findFunction(modeId);
+    if (found != null) res.push(found);
+  }
+  return res;
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ChatSettings, Conversation } from "./unsortedChatTypes";
 import { ChatMessagesPane } from "../../../components/chat/ChatMessagesPane";
 import type { ChatMessage } from "../../../types";
@@ -12,6 +12,7 @@ import { ContextBar } from "./components/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
 import { NewChatDialog } from "./components/NewChatDialog";
+import { collectById } from "../../../utils/generics";
 
 export type Chat = {
   parentChatId: string;
@@ -29,7 +30,7 @@ export function ChatPane({
   settings,
   setChat,
   findChatById,
-  findModeById,
+  findModeById
 }: {
   parentChatId: string;
   id: string;
@@ -40,13 +41,26 @@ export function ChatPane({
   findChatById: (id: string) => Chat | null;
   findModeById: (id: string) => AssistantMode | null;
 }) {
+  const chatHeader = useMemo(() => {
+    settings.availableModeIds.map((t) => findModeById(t))
+    return {
+      name: name,
+      rename: (newName: string) => { setChat(id, {name: newName}) },
+      onHistoryButtonClicked: () => {},
+      onNewChatButtonClicked: () => {},
+      selectedMode: findModeById(settings.selectedModeId),
+      availableModes: collectById(settings.availableModeIds, findModeById),
+      selectMode: (newSelectedModeId: string) => { setChat(id, {settings: {...settings, selectedModeId: newSelectedModeId }}) }
+    };
+  }, [settings, findModeById, id, setChat, name]);
+
   // #region Placeholders
-  // UI-States (keine Geschäftslogik)
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
-  const [renamingTitle, setRenamingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
+  console.log('Project: ' + JSON.stringify(parentChatId + conversation + findChatById))
+
+
+  const [historyOpen] = useState(false);
+  const [isFullscreen] = useState(false);
+  const [newChatDialogOpen] = useState(false);
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
   const [glossaryPopup, setGlossaryPopup] = useState<{
     x: number;
@@ -59,33 +73,18 @@ export function ChatPane({
   } | null>(null);
   const [glossarySaving, setGlossarySaving] = useState(false);
 
-  // Platzhalter-Daten
-  const activeTitle = name;
-  const guidedExecSummary = null as {
-    modeLabel: string;
-    llmLabel: string;
-  } | null;
-  const selectedMode = "";
-  const selectedLlmId = undefined as string | undefined;
-  const llms = [] as { id: string; name: string }[];
   const activeIsThread = false;
-  const onOpenPromptPack = undefined as (() => void) | undefined;
   const activeSessionKind = "standard" as "standard" | "guided";
   const streaming = false;
   const error = null as string | null;
   const toolActivity = null as string | null;
   const useReasoning = false;
-  const reasoningAvailable = true;
-  const fastAvailable = true;
-  const fullscreen = false;
   const steeringPlan = "";
-  const contextInfo = null;
   const activeFile = null as string | null;
   const isDirty = false;
   const systemPromptPreview = null as string | null;
   const activeSelection = null;
   const referencedFiles = [] as string[];
-  const structureRoot = null as string | null;
   const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -108,31 +107,14 @@ export function ChatPane({
 
   const noop = () => {};
   const cancelEdit = () => setEditingIdx(null);
-  const commitEdit = (_index: number, _text: string) => {
+  const commitEdit = () => {
     setEditingIdx(null);
   };
   // #endregion
 
   return (
     <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
-      <ChatHeader
-        activeTitle={activeTitle}
-        guidedExecSummary={guidedExecSummary}
-        selectedMode={selectedMode}
-        selectedLlmId={selectedLlmId}
-        llms={llms}
-        activeIsThread={activeIsThread}
-        onOpenPromptPack={onOpenPromptPack}
-        isFullscreen={isFullscreen}
-        setIsFullscreen={setIsFullscreen}
-        historyOpen={historyOpen}
-        setHistoryOpen={setHistoryOpen}
-        setNewChatDialogOpen={setNewChatDialogOpen}
-        renamingTitle={renamingTitle}
-        setRenamingTitle={setRenamingTitle}
-        titleDraft={titleDraft}
-        setTitleDraft={setTitleDraft}
-      />
+      <ChatHeader {...chatHeader} />
 
       {historyOpen && <ChatHistoryPanel />}
 

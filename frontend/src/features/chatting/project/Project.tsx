@@ -8,6 +8,7 @@ function ProjectPane({
   setSettings,
   setChat,
   findChatById,
+  findModeById
 }: ProjectViewModel) {
 
   const printSettings = useCallback(() => {
@@ -26,7 +27,7 @@ function ProjectPane({
     >
       {chats.map((t) => (
         <div key={t.id} style={{ minWidth: "300px", flex: "1 1 0" }}>
-          <ChatPane {...t} setChat={setChat} findChatById={findChatById} />
+          <ChatPane {...t} setChat={setChat} findChatById={findChatById} findModeById={findModeById} />
         </div>
       ))}
     <button onClick={printSettings}>Print Settings</button>
