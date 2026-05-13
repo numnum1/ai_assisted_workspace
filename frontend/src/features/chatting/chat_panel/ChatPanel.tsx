@@ -23,7 +23,12 @@ export function ChatPanel({
   setOpenChatId: (newOpenChatId: string) => void;
   setChats: React.Dispatch<SetStateAction<Chat[]>>;
 }) {
-  const { chats, setChat, findChatById, settings: {modes} } = useContext(ProjectContext);
+  const {
+    chats,
+    setChat,
+    findChatById,
+    settings: { modes },
+  } = useContext(ProjectContext);
 
   const openChat: Chat | null = useMemo(() => {
     return openChatId ? findChatById(openChatId) : null;
@@ -44,7 +49,6 @@ export function ChatPanel({
       const firstMode: string | null = modes.length > 0 ? modes[0].id : null;
       const newChat = NewChat(null, newChatName, firstMode);
       setChats((prev) => {
-
         let newArray;
         if (keepOld) {
           newArray = [...prev, newChat];
@@ -79,15 +83,21 @@ export function ChatPanel({
         />
       )}
       <div className="chat-panel">
-        <ChatPanelHeader
-          onHistoryButtonClicked={() => console.log("History button clicked")}
-          onNewChatButtonClicked={handleCreateNewChatClicked}
-        />
-
         {historyOpen && <ChatHistoryPanel />}
 
         <div className="chat-panel-body">
-          {openChat && <ChatPane {...openChat!} />}
+          <div className="chat-panel-body-main">
+            {openChat && <ChatPane {...openChat!} />}
+          </div>
+
+          <div className="chat-panel-body-right">
+            <ChatPanelHeader
+              onHistoryButtonClicked={() =>
+                console.log("History button clicked")
+              }
+              onNewChatButtonClicked={handleCreateNewChatClicked}
+            />
+          </div>
         </div>
       </div>
     </div>

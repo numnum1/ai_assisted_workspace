@@ -15,7 +15,7 @@ export function ChatPanelHeader({
   // #endregion
 
   return (
-    <div className="chat-header">
+    <div className="chat-header chat-header--sidebar">
       <div className="chat-header-actions">
         {onOpenPromptPack && (
           <button

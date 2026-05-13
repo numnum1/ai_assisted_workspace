@@ -1,5 +1,3 @@
-import { Maximize2 } from "lucide-react";
-
 export interface ChatComposerProps {
   activeSelection: unknown;
   referencedFiles: string[];
@@ -77,14 +75,6 @@ export function ChatComposer({
               onChange={noop}
               onKeyDown={noop}
             />
-            <button
-              type="button"
-              className="chat-expand-btn"
-              onClick={noop}
-              title="Prompt-Fenster öffnen"
-            >
-              <Maximize2 size={14} />
-            </button>
             <button
               type="button"
               className={`chat-reasoning-btn${useReasoning ? " active" : ""}`}
