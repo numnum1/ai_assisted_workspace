@@ -1,4 +1,5 @@
 import { History, Wand2, Maximize2, Minimize2 } from "lucide-react";
+import { NewChatButton } from "./NewChatButton";
 
 export function ChatPanelHeader({
   onHistoryButtonClicked,
@@ -9,15 +10,12 @@ export function ChatPanelHeader({
 }) {
 
   // #region placeholder
-  console.log(JSON.stringify({onHistoryButtonClicked, onNewChatButtonClicked}))
 
   const isFullscreen = false
   const toggleFullscreen = () => {}
   const onOpenPromptPack = false
   const activeIsThread = false
-  const toggleHistoryOpen = () => {}
   const historyOpen = false
-  const setNewChatDialogOpen = (newOpen: boolean) => {console.log(newOpen)}
 
   // #endregion
 
@@ -52,19 +50,12 @@ export function ChatPanelHeader({
         </button>
         <button
           className={`chat-history-btn ${historyOpen ? "active" : ""}`}
-          onClick={toggleHistoryOpen}
+          onClick={onHistoryButtonClicked}
           title="Chat-Historie"
         >
           <History size={14} />
         </button>
-        <button
-          type="button"
-          className="new-chat-button"
-          onClick={() => setNewChatDialogOpen(true)}
-          title="Neuer Chat"
-        >
-          +
-        </button>
+        <NewChatButton onClick={onNewChatButtonClicked} />
       </div>
     </div>
   );

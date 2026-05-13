@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { type Chat } from "../chat/Chat";
 import ProjectContext from "./project-context";
 import {
@@ -10,6 +10,7 @@ import {
 import { testProjectData } from "./test-project-data";
 import type { AssistantMode, LLM } from "./project-types";
 import { ChatPanel } from "../chat_panel/ChatPanel";
+import { NewChatDialog } from "../chat/components/NewChatDialog";
 
 export function ProjectPane() {
   const [chats, setChats] = useState(testProjectData.chats);
@@ -28,8 +29,14 @@ export function ProjectPane() {
 
   console.log(JSON.stringify({ openFolderPath, setOpenFolderPath }));
 
-  // TODO: Replace
+  // TODO: Move somewhere else
   const [openChatId, setOpenChatId] = useState('')
+  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false)
+  const handleCreateNewChatClicked = useCallback(() => {
+    setNewChatDialogOpen((prev) => {
+      return !prev
+    })
+  }, [setNewChatDialogOpen])
 
   return (
     <ProjectContext
@@ -43,6 +50,8 @@ export function ProjectPane() {
         findLLMById,
       }}
     >
+    {newChatDialogOpen && <NewChatDialog />}
+
       <div
         data-component="ProjectPane"
         style={{
@@ -52,7 +61,7 @@ export function ProjectPane() {
           overflowX: "auto",
         }}
       >
-        <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} />
+        <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} onCreateNewChatClicked={handleCreateNewChatClicked} />
       </div>
     </ProjectContext>
   );
