@@ -36,7 +36,7 @@ export type Conversation = {
 }
 
 export type SelectedLLM = {
-    id: string
+    id: string | null
     useReasoning: boolean
 }
 

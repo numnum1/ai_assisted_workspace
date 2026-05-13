@@ -6,7 +6,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { ThemeContext, type ThemeName } from "./ThemeContext";
+import { ThemeContext, type ThemeName } from './ThemeContext';
 import { Panel, Group, Separator, usePanelRef } from "react-resizable-panels";
 import type { Layout } from "react-resizable-panels";
 import {
@@ -120,13 +120,7 @@ import {
 } from "./components/chat/guidedAgentKickoff.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
 import { useProject } from "./hooks/useProject.ts";
-import {
-  useProjectNew,
-  type Project,
-} from "./features/chatting/project/useProject.ts";
-import ProjectPane from "./features/chatting/project/Project.tsx";
-import type { Chat } from "./features/chatting/chat/Chat.tsx";
-import { createContext } from "vm";
+import { ProjectPane } from "./features/chatting/project/Project.tsx";
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
 function standardChatModes(mds: Mode[]): Mode[] {
@@ -292,104 +286,11 @@ function agentPersistSignature(conv: Conversation): string {
 }
 
 // Testdaten für useProjectNew
-const testChats: Chat[] = [
-  {
-    parentChatId: "root",
-    id: "chat-1",
-    name: "Erster Test-Chat",
-    conversation: {
-      turns: [
-        {
-          type: "SYSTEM",
-          text: "Willkommen zum Test-Chat!",
-          timestamp: Date.now() - 10000,
-        },
-        {
-          type: "USER",
-          text: "Hallo, kannst du mir helfen?",
-          timestamp: Date.now() - 5000,
-        },
-        {
-          type: "ASSISTANT",
-          usedModeName: "review",
-          messages: [
-            { type: "TEXT", text: "Ja, gerne! Womit kann ich dir helfen?" },
-          ],
-          timestamp: Date.now(),
-        },
-      ],
-    },
-    settings: {
-      selectedModeId: "review",
-      availableModeIds: ["review", "edit", "agent"],
-      selectedLLM: { id: "gpt-4", useReasoning: false },
-      availableLLMIds: ["gpt-4", "gpt-3.5"],
-      availableToolsIds: ["web", "wiki"],
-    },
-  },
-];
-
-const testProjectData: Project = {
-  chats: testChats,
-  settings: {
-    llms: [
-      {
-        id: "gpt-4",
-        name: "GPT-4",
-        fast: {
-          host: "https://api.openai.com",
-          apiKey: "test-key",
-          model: "gpt-4",
-        },
-        reasoning: {
-          host: "https://api.openai.com",
-          apiKey: "test-key",
-          model: "gpt-4-turbo",
-        },
-      },
-      {
-        id: "gpt-3.5",
-        name: "GPT-3.5",
-        fast: {
-          host: "https://api.openai.com",
-          apiKey: "test-key",
-          model: "gpt-3.5-turbo",
-        },
-        reasoning: {
-          host: "https://api.openai.com",
-          apiKey: "test-key",
-          model: "gpt-3.5-turbo",
-        },
-      },
-    ],
-    modes: [
-      {
-        id: "review",
-        name: "Review",
-        systemPrompt: "Du bist ein hilfreicher Reviewer.",
-        color: "blue",
-      },
-      {
-        id: "edit",
-        name: "Edit",
-        systemPrompt: "Du bist ein hilfreicher Editor.",
-        color: "red",
-      },
-      {
-        id: "agent",
-        name: "Agent",
-        systemPrompt: "Du bist ein hilfreicher Agent.",
-        color: "yellow",
-      },
-    ],
-  },
-};
 
 function App() {
   const [theme, setTheme] = useState<ThemeName>("light");
 
   // Testing
-  const projectNew = useProjectNew(testProjectData);
 
   const project = useProject();
   const chapter = useChapter();
@@ -2311,7 +2212,7 @@ function App() {
 
   return (
     <div className="app">
-      <ThemeContext.Provider value={{ theme, setTheme }}>
+      <ThemeContext.Provider value={{ name: theme, setName: setTheme }}>
         <div className="app-viewport-section">
           <CommandPalette
             open={paletteOpen}
@@ -2867,9 +2768,9 @@ function App() {
           />
         </div>
         <div className="app-viewport-section">
-          <ProjectPane {...projectNew} />
+          <ProjectPane></ProjectPane>
         </div>
-      </ThemeContext.Provider>
+        </ThemeContext.Provider>
     </div>
   );
 }

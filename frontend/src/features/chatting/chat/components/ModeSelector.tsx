@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import { effectiveModeColor, getContrastingTextColor } from '../../../../components/chat/modeColorTheme.ts';
-import type { AssistantMode } from '../../project/useProject.ts';
 import { ThemeContext } from '../../../../ThemeContext.tsx';
+import type { AssistantMode } from '../../project/project-types.ts';
 
 export function ModeSelector({
   modes,

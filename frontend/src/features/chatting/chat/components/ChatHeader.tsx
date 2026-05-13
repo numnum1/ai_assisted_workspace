@@ -1,7 +1,7 @@
 import { History, Wand2, Pencil, Maximize2, Minimize2 } from "lucide-react";
-import type { AssistantMode, LLM } from "../../project/useProject";
 import { useMemo } from "react";
 import { ModeSelector } from "./ModeSelector";
+import type { AssistantMode, LLM } from "../../project/project-types";
 
 const noop = () => {};
 

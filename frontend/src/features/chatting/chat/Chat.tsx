@@ -1,9 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ChatSettings, Conversation } from "./unsortedChatTypes";
 import { ChatMessagesPane } from "../../../components/chat/ChatMessagesPane";
 import type { ChatMessage } from "../../../types";
 import type { CardState } from "../../../components/chat/ChangeCard";
-import type { AssistantMode } from "../project/useProject";
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatHistoryPanel } from "./components/ChatHistoryPanel";
 import { SteeringPlanPanel } from "./components/SteeringPlanPanel";
@@ -12,7 +11,9 @@ import { ContextBar } from "./components/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
 import { NewChatDialog } from "./components/NewChatDialog";
-import { collectById } from "../../../utils/generics";
+import { collectById } from '../../../utils/generics';
+import ProjectContext from "../project/project-context";
+import type { ProjectViewModel } from "../project/project-types";
 
 export type Chat = {
   parentChatId: string;
@@ -27,35 +28,31 @@ export function ChatPane({
   id,
   name,
   conversation,
-  settings,
-  setChat,
-  findChatById,
-  findModeById
-}: {
-  parentChatId: string;
-  id: string;
-  name: string;
-  conversation: Conversation;
-  settings: ChatSettings;
-  setChat: (id: string, patch: Partial<Chat>) => void;
-  findChatById: (id: string) => Chat | null;
-  findModeById: (id: string) => AssistantMode | null;
-}) {
+  settings
+}: Chat) {
+
+  const {setChat, findModeById, findLLMById}: ProjectViewModel = useContext<ProjectViewModel>(ProjectContext)
+
+  const rename = useCallback((newName: string) => {
+    setChat(id, {name: newName})
+  }, [setChat, id])
+
   const chatHeader = useMemo(() => {
-    settings.availableModeIds.map((t) => findModeById(t))
     return {
       name: name,
-      rename: (newName: string) => { setChat(id, {name: newName}) },
+      rename: rename,
       onHistoryButtonClicked: () => {},
       onNewChatButtonClicked: () => {},
       selectedMode: findModeById(settings.selectedModeId),
       availableModes: collectById(settings.availableModeIds, findModeById),
-      selectMode: (newSelectedModeId: string) => { setChat(id, {settings: {...settings, selectedModeId: newSelectedModeId }}) }
+      selectMode: (newSelectedModeId: string) => { setChat(id, {settings: {...settings, selectedModeId: newSelectedModeId }}) },
+      selectedLLM: settings.selectedLLM.id ? findLLMById(settings.selectedLLM.id) : null,
+      availableLLMs: []
     };
-  }, [settings, findModeById, id, setChat, name]);
+  }, [settings, findModeById, id, setChat, name, rename, findLLMById]);
 
   // #region Placeholders
-  console.log('Project: ' + JSON.stringify(parentChatId + conversation + findChatById))
+  console.log('Project: ' + JSON.stringify(parentChatId + conversation))
 
 
   const [historyOpen] = useState(false);
