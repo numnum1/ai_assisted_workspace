@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChatPane, type Chat } from "../chat/Chat";
+import { type Chat } from "../chat/Chat";
 import ProjectContext from "./project-context";
 import {
   useFindById,
@@ -9,6 +9,7 @@ import {
 } from "../../../utils/generics";
 import { testProjectData } from "./test-project-data";
 import type { AssistantMode, LLM } from "./project-types";
+import { ChatPanel } from "../chat_panel/ChatPanel";
 
 export function ProjectPane() {
   const [chats, setChats] = useState(testProjectData.chats);
@@ -26,6 +27,9 @@ export function ProjectPane() {
   );
 
   console.log(JSON.stringify({ openFolderPath, setOpenFolderPath }));
+
+  // TODO: Replace
+  const [openChatId, setOpenChatId] = useState('')
 
   return (
     <ProjectContext
@@ -48,11 +52,7 @@ export function ProjectPane() {
           overflowX: "auto",
         }}
       >
-        {chats.map((t) => (
-          <div key={t.id} style={{ minWidth: "300px", flex: "1 1 0" }}>
-            <ChatPane {...t} />
-          </div>
-        ))}
+        <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} />
       </div>
     </ProjectContext>
   );
