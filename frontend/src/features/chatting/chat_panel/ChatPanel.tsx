@@ -41,8 +41,8 @@ export function ChatPanel({
   // New Event Chat
   const handleConfirmedClickedInNewEventChat = useCallback(
     (newChatName: string, keepOld: boolean) => {
+      const newChat = NewChat(null, newChatName, "", []);
       setChats((prev) => {
-        const newChat = NewChat(null, newChatName, "", []);
 
         let newArray;
         if (keepOld) {
@@ -52,11 +52,10 @@ export function ChatPanel({
             (chat) => chat.id !== openChatId,
           );
         }
-        setOpenChatId(newChat.id);
 
         return newArray;
       });
-
+      setOpenChatId(newChat.id);
       setNewChatDialogOpen(false);
     },
     [setChats, setNewChatDialogOpen, openChatId, setOpenChatId],
