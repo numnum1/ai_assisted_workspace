@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useRef, useState } from "react";
 import type { ChatSettings, Conversation } from "./unsortedChatTypes";
 import { ChatMessagesPane } from "../../../components/chat/ChatMessagesPane";
 import type { ChatMessage } from "../../../types";
@@ -10,7 +10,6 @@ import { ChatComposer } from "./components/ChatComposer";
 import { ContextBar } from "./components/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
-import { collectById } from "../../../utils/generics";
 import ProjectContext from "../project/project-context";
 import type { ProjectViewModel } from "../project/project-types";
 import { v4 as uuidv4 } from "uuid";
@@ -26,8 +25,7 @@ export type Chat = {
 export function NewChat(
   parentChatId: string | null = null,
   name: string,
-  selectedModeId: string,
-  availableModeIds: string[],
+  selectedModeId: string | null,
 ): Chat {
   return {
     parentChatId: parentChatId,
@@ -38,13 +36,10 @@ export function NewChat(
     },
     settings: {
       selectedModeId: selectedModeId,
-      availableModeIds: availableModeIds,
       selectedLLM: {
         id: null,
         useReasoning: false,
       },
-      availableLLMIds: [],
-      availableToolsIds: [],
     },
   };
 }
@@ -56,7 +51,7 @@ export function ChatPane({
   conversation,
   settings,
 }: Chat) {
-  const { setChat, findModeById, findLLMById }: ProjectViewModel =
+  const { setChat }: ProjectViewModel =
     useContext<ProjectViewModel>(ProjectContext);
 
   const rename = useCallback(
@@ -65,20 +60,6 @@ export function ChatPane({
     },
     [setChat, id],
   );
-
-  const selectedMode = useMemo(() => {
-    return findModeById(settings.selectedModeId);
-  }, [findModeById, settings.selectedModeId]);
-
-  const availableModes = useMemo(() => {
-    return collectById(settings.availableModeIds, findModeById);
-  }, [settings.availableModeIds, findModeById]);
-
-  const selectedLLM = useMemo(() => {
-    return settings.selectedLLM.id
-      ? findLLMById(settings.selectedLLM.id)
-      : null;
-  }, [settings.selectedLLM.id, findLLMById]);
 
   const selectMode = useCallback(
     (newSelectedModeId: string) => {
@@ -152,11 +133,9 @@ export function ChatPane({
         rename={rename}
         onHistoryButtonClicked={() => console.log("History button clicked")}
         onNewChatButtonClicked={() => console.log("History button clicked")}
-        selectedMode={selectedMode}
-        availableModes={availableModes}
+        selectedModeId={settings.selectedModeId}
         selectMode={selectMode}
-        selectedLLM={selectedLLM}
-        availableLLMs={[]}
+        selectedLLM={settings.selectedLLM}
       />
 
       {historyOpen && <ChatHistoryPanel />}

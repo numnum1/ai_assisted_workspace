@@ -23,7 +23,7 @@ export function ChatPanel({
   setOpenChatId: (newOpenChatId: string) => void;
   setChats: React.Dispatch<SetStateAction<Chat[]>>;
 }) {
-  const { chats, setChat, findChatById } = useContext(ProjectContext);
+  const { chats, setChat, findChatById, settings: {modes} } = useContext(ProjectContext);
 
   const openChat: Chat | null = useMemo(() => {
     return openChatId ? findChatById(openChatId) : null;
@@ -41,7 +41,8 @@ export function ChatPanel({
   // New Event Chat
   const handleConfirmedClickedInNewEventChat = useCallback(
     (newChatName: string, keepOld: boolean) => {
-      const newChat = NewChat(null, newChatName, "", []);
+      const firstMode: string | null = modes.length > 0 ? modes[0].id : null;
+      const newChat = NewChat(null, newChatName, firstMode);
       setChats((prev) => {
 
         let newArray;
@@ -58,7 +59,7 @@ export function ChatPanel({
       setOpenChatId(newChat.id);
       setNewChatDialogOpen(false);
     },
-    [setChats, setNewChatDialogOpen, openChatId, setOpenChatId],
+    [setChats, setNewChatDialogOpen, openChatId, setOpenChatId, modes],
   );
 
   const handleCancelClickedInNewEventChat = useCallback(() => {

@@ -41,9 +41,6 @@ export type SelectedLLM = {
 }
 
 export type ChatSettings = {
-    selectedModeId: string
-    availableModeIds: string[]
+    selectedModeId: string | null
     selectedLLM: SelectedLLM
-    availableLLMIds: string[],
-    availableToolsIds: string[]
 }

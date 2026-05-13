@@ -1,6 +1,9 @@
 import { History, Wand2, Pencil, Maximize2, Minimize2 } from "lucide-react";
 import { ModeSelector } from "./ModeSelector";
-import type { AssistantMode, LLM } from "../../project/project-types";
+import type { ProjectViewModel } from "../../project/project-types";
+import { useContext, useMemo } from "react";
+import ProjectContext from "../../project/project-context";
+import type { SelectedLLM } from "../unsortedChatTypes";
 
 const noop = () => {};
 
@@ -9,38 +12,60 @@ export function ChatHeader({
   rename,
   onHistoryButtonClicked,
   onNewChatButtonClicked,
-  selectedMode,
-  availableModes,
+  selectedModeId,
   selectMode,
   selectedLLM,
-  availableLLMs
 }: {
   name: string;
   rename: (newName: string) => void;
   onHistoryButtonClicked: () => void;
   onNewChatButtonClicked: () => void;
-  selectedMode: AssistantMode | null;
-  availableModes: AssistantMode[];
+  selectedModeId: string | null;
   selectMode: (newSelectedMode: string) => void;
-  selectedLLM: LLM | null;
-  availableLLMs : LLM[]
+  selectedLLM: SelectedLLM;
 }) {
+  const {
+    settings: { modes, llms },
+    findModeById,
+    findLLMById,
+  }: ProjectViewModel = useContext<ProjectViewModel>(ProjectContext);
+
+  const selectedMode = useMemo(() => {
+    return selectedModeId ? findModeById(selectedModeId) : null;
+  }, [findModeById, selectedModeId]);
+
+  const selectedLLMData = useMemo(() => {
+    return selectedLLM.id ? findLLMById(selectedLLM.id) : null;
+  }, [selectedLLM.id, findLLMById]);
 
   // #region placeholder
-  console.log(JSON.stringify({name, rename, onHistoryButtonClicked, onNewChatButtonClicked}))
+  console.log(
+    JSON.stringify({
+      name,
+      rename,
+      onHistoryButtonClicked,
+      onNewChatButtonClicked,
+    }),
+  );
 
-  const isFullscreen = false
-  const toggleFullscreen = () => {}
-  const onOpenPromptPack = false
-  const activeIsThread = false
-  const renamingTitle = false
-  const toggleHistoryOpen = () => {}
-  const historyOpen = false
-  const setNewChatDialogOpen = (newOpen: boolean) => {console.log(newOpen)}
-  const titleDraft = 'TitleDraft'
-  const setTitleDraft = (newTitleDraft: string) => {console.log(newTitleDraft)}
-  const setRenamingTitle = (newRenamingTitle: boolean) => {console.log(newRenamingTitle)}
-  const activeTitle = 'Active Title'
+  const isFullscreen = false;
+  const toggleFullscreen = () => {};
+  const onOpenPromptPack = false;
+  const activeIsThread = false;
+  const renamingTitle = false;
+  const toggleHistoryOpen = () => {};
+  const historyOpen = false;
+  const setNewChatDialogOpen = (newOpen: boolean) => {
+    console.log(newOpen);
+  };
+  const titleDraft = "TitleDraft";
+  const setTitleDraft = (newTitleDraft: string) => {
+    console.log(newTitleDraft);
+  };
+  const setRenamingTitle = (newRenamingTitle: boolean) => {
+    console.log(newRenamingTitle);
+  };
+  const activeTitle = "Active Title";
 
   const guidedExecSummary = null as {
     modeLabel: string;
@@ -69,19 +94,23 @@ export function ChatHeader({
       ) : (
         <div className="mode-selector-placeholder" data-testid="modeSelector">
           {/* ModeSelector Platzhalter */}
-          <ModeSelector modes={availableModes} selectedMode={selectedMode} selectMode={selectMode} />
+          <ModeSelector
+            modes={modes}
+            selectedMode={selectedMode}
+            selectMode={selectMode}
+          />
         </div>
       )}
       <div className="chat-header-actions">
-        {!guidedExecSummary && availableLLMs.length > 0 && (
+        {!guidedExecSummary && llms.length > 0 && (
           <select
             className="chat-llm-select"
-            value={selectedLLM?.name ?? ""}
+            value={selectedLLMData?.name ?? ""}
             onChange={noop}
             title="LLM auswählen"
           >
             <option value="">— Standard —</option>
-            {availableLLMs.map((llm) => (
+            {llms.map((llm) => (
               <option key={llm.id} value={llm.id}>
                 {llm.name}
               </option>
