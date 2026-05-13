@@ -10,56 +10,90 @@ import { ChatComposer } from "./components/ChatComposer";
 import { ContextBar } from "./components/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
-import { NewChatDialog } from "./components/NewChatDialog";
-import { collectById } from '../../../utils/generics';
+import { collectById } from "../../../utils/generics";
 import ProjectContext from "../project/project-context";
 import type { ProjectViewModel } from "../project/project-types";
+import { v4 as uuidv4 } from "uuid";
 
 export type Chat = {
-  parentChatId: string;
+  parentChatId: string | null;
   id: string;
   name: string;
   conversation: Conversation;
   settings: ChatSettings;
 };
 
+export function NewChat(
+  parentChatId: string | null = null,
+  name: string,
+  selectedModeId: string,
+  availableModeIds: string[],
+): Chat {
+  return {
+    parentChatId: parentChatId,
+    id: uuidv4(),
+    name: name,
+    conversation: {
+      turns: [],
+    },
+    settings: {
+      selectedModeId: selectedModeId,
+      availableModeIds: availableModeIds,
+      selectedLLM: {
+        id: null,
+        useReasoning: false,
+      },
+      availableLLMIds: [],
+      availableToolsIds: [],
+    },
+  };
+}
+
 export function ChatPane({
   parentChatId,
   id,
   name,
   conversation,
-  settings
+  settings,
 }: Chat) {
+  const { setChat, findModeById, findLLMById }: ProjectViewModel =
+    useContext<ProjectViewModel>(ProjectContext);
 
-  const {setChat, findModeById, findLLMById}: ProjectViewModel = useContext<ProjectViewModel>(ProjectContext)
-
-  const rename = useCallback((newName: string) => {
-    setChat(id, {name: newName})
-  }, [setChat, id])
+  const rename = useCallback(
+    (newName: string) => {
+      setChat(id, { name: newName });
+    },
+    [setChat, id],
+  );
 
   const selectedMode = useMemo(() => {
-    return findModeById(settings.selectedModeId)
-  }, [findModeById, settings.selectedModeId])
+    return findModeById(settings.selectedModeId);
+  }, [findModeById, settings.selectedModeId]);
 
   const availableModes = useMemo(() => {
-    return collectById(settings.availableModeIds, findModeById)
-  }, [settings.availableModeIds, findModeById])
+    return collectById(settings.availableModeIds, findModeById);
+  }, [settings.availableModeIds, findModeById]);
 
   const selectedLLM = useMemo(() => {
-    return settings.selectedLLM.id ? findLLMById(settings.selectedLLM.id) : null
-}, [settings.selectedLLM.id, findLLMById])
+    return settings.selectedLLM.id
+      ? findLLMById(settings.selectedLLM.id)
+      : null;
+  }, [settings.selectedLLM.id, findLLMById]);
 
-  const selectMode = useCallback((newSelectedModeId: string) => { 
-    setChat(id, {settings: {...settings, selectedModeId: newSelectedModeId }}) 
-  }, [setChat, id, settings])
+  const selectMode = useCallback(
+    (newSelectedModeId: string) => {
+      setChat(id, {
+        settings: { ...settings, selectedModeId: newSelectedModeId },
+      });
+    },
+    [setChat, id, settings],
+  );
 
   // #region Placeholders
-  console.log('Project: ' + JSON.stringify(parentChatId + conversation))
-
+  console.log("Project: " + JSON.stringify({ parentChatId, conversation }));
 
   const [historyOpen] = useState(false);
   const [isFullscreen] = useState(false);
-  const [newChatDialogOpen] = useState(false);
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
   const [glossaryPopup, setGlossaryPopup] = useState<{
     x: number;
@@ -113,15 +147,17 @@ export function ChatPane({
 
   return (
     <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
-      <ChatHeader name={name}
-      rename={rename}
-      onHistoryButtonClicked={() => console.log('History button clicked')}
-      onNewChatButtonClicked={() => console.log('History button clicked')}
-      selectedMode={selectedMode}
-      availableModes={availableModes}
-      selectMode={selectMode}
-      selectedLLM={selectedLLM}
-      availableLLMs={[]} />
+      <ChatHeader
+        name={name}
+        rename={rename}
+        onHistoryButtonClicked={() => console.log("History button clicked")}
+        onNewChatButtonClicked={() => console.log("History button clicked")}
+        selectedMode={selectedMode}
+        availableModes={availableModes}
+        selectMode={selectMode}
+        selectedLLM={selectedLLM}
+        availableLLMs={[]}
+      />
 
       {historyOpen && <ChatHistoryPanel />}
 
@@ -192,8 +228,6 @@ export function ChatPane({
           />
         </div>
       </div>
-
-      {newChatDialogOpen && <NewChatDialog />}
     </div>
   );
 }

@@ -1,36 +1,94 @@
-import { useContext, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type SetStateAction,
+} from "react";
 import { ChatHistoryPanel } from "../chat/components/ChatHistoryPanel";
 import ProjectContext from "../project/project-context";
 import { ChatPanelHeader } from "./ChatPanelHeader";
-import { ChatPane, type Chat } from "../chat/Chat";
+import { ChatPane, NewChat, type Chat } from "../chat/Chat";
+import { NewChatDialog } from "./NewChatDialog";
 
 /**
  * This is NOT an open chat but a panel in which a chat can be opened!
  */
-export function ChatPanel({ openChatId, setOpenChatId, onCreateNewChatClicked }: { openChatId: string, setOpenChatId: (newOpenChatId: string) => void, onCreateNewChatClicked: () => void }) {
+export function ChatPanel({
+  openChatId,
+  setOpenChatId,
+  setChats,
+}: {
+  openChatId: string;
+  setOpenChatId: (newOpenChatId: string) => void;
+  setChats: React.Dispatch<SetStateAction<Chat[]>>;
+}) {
   const { chats, setChat, findChatById } = useContext(ProjectContext);
 
   const openChat: Chat | null = useMemo(() => {
-    return openChatId ? findChatById(openChatId) : null
-  }, [findChatById, openChatId])
+    return openChatId ? findChatById(openChatId) : null;
+  }, [findChatById, openChatId]);
 
-  console.log(JSON.stringify({openChatId, setOpenChatId, chats, setChat}))
+  console.log(JSON.stringify({ openChatId, setOpenChatId, chats, setChat }));
+
+  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
+  const handleCreateNewChatClicked = useCallback(() => {
+    setNewChatDialogOpen((prev) => {
+      return !prev;
+    });
+  }, [setNewChatDialogOpen]);
+
+  // New Event Chat
+  const handleConfirmedClickedInNewEventChat = useCallback(
+    (newChatName: string, keepOld: boolean) => {
+      setChats((prev) => {
+        const newChat = NewChat(null, newChatName, "", []);
+
+        let newArray;
+        if (keepOld) {
+          newArray = [...prev, newChat];
+        } else {
+          newArray = [...prev, newChat].filter(
+            (chat) => chat.id !== openChatId,
+          );
+        }
+        setOpenChatId(newChat.id);
+
+        return newArray;
+      });
+
+      setNewChatDialogOpen(false);
+    },
+    [setChats, setNewChatDialogOpen, openChatId, setOpenChatId],
+  );
+
+  const handleCancelClickedInNewEventChat = useCallback(() => {
+    setNewChatDialogOpen(false);
+  }, [setNewChatDialogOpen]);
 
   // #region Placeholders
   const [historyOpen] = useState(false);
   // #endregion
 
   return (
-    <div className="chat-panel">
-      <ChatPanelHeader
-        onHistoryButtonClicked={() => console.log("History button clicked")}
-        onNewChatButtonClicked={onCreateNewChatClicked}
-      />
+    <div>
+      {newChatDialogOpen && (
+        <NewChatDialog
+          onConfirmClicked={handleConfirmedClickedInNewEventChat}
+          onCancelClicked={handleCancelClickedInNewEventChat}
+        />
+      )}
+      <div className="chat-panel">
+        <ChatPanelHeader
+          onHistoryButtonClicked={() => console.log("History button clicked")}
+          onNewChatButtonClicked={handleCreateNewChatClicked}
+        />
 
-      {historyOpen && <ChatHistoryPanel />}
+        {historyOpen && <ChatHistoryPanel />}
 
-      <div className="chat-panel-body">
-        { openChat && <ChatPane {...openChat!} /> }
+        <div className="chat-panel-body">
+          {openChat && <ChatPane {...openChat!} />}
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-import { useCallback, useState } from "react";
 import { type Chat } from "../chat/Chat";
 import ProjectContext from "./project-context";
 import {
@@ -10,7 +9,7 @@ import {
 import { testProjectData } from "./test-project-data";
 import type { AssistantMode, LLM } from "./project-types";
 import { ChatPanel } from "../chat_panel/ChatPanel";
-import { NewChatDialog } from "../chat/components/NewChatDialog";
+import { useState } from "react";
 
 export function ProjectPane() {
   const [chats, setChats] = useState(testProjectData.chats);
@@ -19,7 +18,9 @@ export function ProjectPane() {
   const setChat = usePatchEntry(setChats);
 
   const findChatById: Finder<Chat, string> = useFindById(chats);
-  const findModeById: Finder<AssistantMode, string> = useFindById(settings.modes);
+  const findModeById: Finder<AssistantMode, string> = useFindById(
+    settings.modes,
+  );
   const findLLMById: Finder<LLM, string> = useFindById(settings.llms);
 
   const [openFolderPath, setOpenFolderPath] = useLocalStorageState(
@@ -30,13 +31,7 @@ export function ProjectPane() {
   console.log(JSON.stringify({ openFolderPath, setOpenFolderPath }));
 
   // TODO: Move somewhere else
-  const [openChatId, setOpenChatId] = useState('')
-  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false)
-  const handleCreateNewChatClicked = useCallback(() => {
-    setNewChatDialogOpen((prev) => {
-      return !prev
-    })
-  }, [setNewChatDialogOpen])
+  const [openChatId, setOpenChatId] = useState("");
 
   return (
     <ProjectContext
@@ -50,8 +45,6 @@ export function ProjectPane() {
         findLLMById,
       }}
     >
-    {newChatDialogOpen && <NewChatDialog />}
-
       <div
         data-component="ProjectPane"
         style={{
@@ -61,7 +54,11 @@ export function ProjectPane() {
           overflowX: "auto",
         }}
       >
-        <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} onCreateNewChatClicked={handleCreateNewChatClicked} />
+        <ChatPanel
+          openChatId={openChatId}
+          setOpenChatId={setOpenChatId}
+          setChats={setChats}
+        />
       </div>
     </ProjectContext>
   );
