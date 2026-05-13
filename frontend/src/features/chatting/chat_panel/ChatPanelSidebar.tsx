@@ -1,37 +1,26 @@
-import { History, Plus, Wand2 } from "lucide-react";
+import { History, Plus } from "lucide-react";
+import { useCallback, useState } from "react";
+import { ChatHistoryPanel } from "../chat/components/ChatHistoryPanel";
 
-export function ChatPanelHeader({
-  onHistoryButtonClicked,
+export function ChatPanelSidebar({
   onNewChatButtonClicked,
 }: {
-  onHistoryButtonClicked: () => void;
   onNewChatButtonClicked: () => void;
 }) {
-  // #region placeholder
 
-  const onOpenPromptPack = false;
-  const historyOpen = false;
-
-  // #endregion
+  const [openChatHistory, setOpenChatHistory] = useState(false)
+  const toggleHistoryButton = useCallback(() => {
+    setOpenChatHistory((prev) => {
+      return !prev
+    })
+  }, [setOpenChatHistory])
 
   return (
     <div className="chat-header chat-header--sidebar">
       <div className="chat-header-actions">
-        {onOpenPromptPack && (
-          <button
-            type="button"
-            className="chat-prompt-pack-btn"
-            onClick={() => {
-              console.log("OpenPromptPack Clicked");
-            }}
-            title="Prompt-Paket (Export für ChatGPT / Grok)"
-          >
-            <Wand2 size={14} />
-          </button>
-        )}
         <button
-          className={`chat-history-btn ${historyOpen ? "active" : ""}`}
-          onClick={onHistoryButtonClicked}
+          className={`chat-history-btn ${openChatHistory ? "active" : ""}`}
+          onClick={toggleHistoryButton}
           title="Chat-Historie"
         >
           <History size={14} />
@@ -44,6 +33,11 @@ export function ChatPanelHeader({
         >
           <Plus size={14} />
         </button>
+        {
+          openChatHistory && (
+            <ChatHistoryPanel />
+          )
+        }
       </div>
     </div>
   );

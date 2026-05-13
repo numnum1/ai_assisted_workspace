@@ -7,9 +7,9 @@ import {
 } from "react";
 import { ChatHistoryPanel } from "../chat/components/ChatHistoryPanel";
 import ProjectContext from "../project/project-context";
-import { ChatPanelHeader } from "./ChatPanelHeader";
 import { ChatPane, NewChat, type Chat } from "../chat/Chat";
 import { NewChatDialog } from "./NewChatDialog";
+import { ChatPanelSidebar } from "./ChatPanelSidebar";
 
 /**
  * This is NOT an open chat but a panel in which a chat can be opened!
@@ -91,12 +91,7 @@ export function ChatPanel({
           </div>
 
           <div className="chat-panel-body-right">
-            <ChatPanelHeader
-              onHistoryButtonClicked={() =>
-                console.log("History button clicked")
-              }
-              onNewChatButtonClicked={handleCreateNewChatClicked}
-            />
+            <ChatPanelSidebar onNewChatButtonClicked={handleCreateNewChatClicked} />
           </div>
         </div>
       </div>
