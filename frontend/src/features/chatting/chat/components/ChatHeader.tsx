@@ -1,5 +1,4 @@
 import { History, Wand2, Pencil, Maximize2, Minimize2 } from "lucide-react";
-import { useMemo } from "react";
 import { ModeSelector } from "./ModeSelector";
 import type { AssistantMode, LLM } from "../../project/project-types";
 
@@ -22,18 +21,10 @@ export function ChatHeader({
   onNewChatButtonClicked: () => void;
   selectedMode: AssistantMode | null;
   availableModes: AssistantMode[];
-  selectMode: (newSelectedModeId: string) => void;
+  selectMode: (newSelectedMode: string) => void;
   selectedLLM: LLM | null;
   availableLLMs : LLM[]
 }) {
-
-  const modeSelector = useMemo(() => {
-    return {
-      modes: availableModes,
-      selectedMode: selectedMode?.name ?? 'No Mode Selected',
-      selectMode: selectMode
-    };
-  }, [selectedMode, availableModes, selectMode]);
 
   // #region placeholder
   console.log(JSON.stringify({name, rename, onHistoryButtonClicked, onNewChatButtonClicked}))
@@ -78,7 +69,7 @@ export function ChatHeader({
       ) : (
         <div className="mode-selector-placeholder" data-testid="modeSelector">
           {/* ModeSelector Platzhalter */}
-          <ModeSelector {...modeSelector} />
+          <ModeSelector modes={availableModes} selectedMode={selectedMode} selectMode={selectMode} />
         </div>
       )}
       <div className="chat-header-actions">

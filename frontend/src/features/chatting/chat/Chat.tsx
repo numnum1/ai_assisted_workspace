@@ -37,19 +37,21 @@ export function ChatPane({
     setChat(id, {name: newName})
   }, [setChat, id])
 
-  const chatHeader = useMemo(() => {
-    return {
-      name: name,
-      rename: rename,
-      onHistoryButtonClicked: () => {},
-      onNewChatButtonClicked: () => {},
-      selectedMode: findModeById(settings.selectedModeId),
-      availableModes: collectById(settings.availableModeIds, findModeById),
-      selectMode: (newSelectedModeId: string) => { setChat(id, {settings: {...settings, selectedModeId: newSelectedModeId }}) },
-      selectedLLM: settings.selectedLLM.id ? findLLMById(settings.selectedLLM.id) : null,
-      availableLLMs: []
-    };
-  }, [settings, findModeById, id, setChat, name, rename, findLLMById]);
+  const selectedMode = useMemo(() => {
+    return findModeById(settings.selectedModeId)
+  }, [findModeById, settings.selectedModeId])
+
+  const availableModes = useMemo(() => {
+    return collectById(settings.availableModeIds, findModeById)
+  }, [settings.availableModeIds, findModeById])
+
+  const selectedLLM = useMemo(() => {
+    return settings.selectedLLM.id ? findLLMById(settings.selectedLLM.id) : null
+}, [settings.selectedLLM.id, findLLMById])
+
+  const selectMode = useCallback((newSelectedModeId: string) => { 
+    setChat(id, {settings: {...settings, selectedModeId: newSelectedModeId }}) 
+  }, [setChat, id, settings])
 
   // #region Placeholders
   console.log('Project: ' + JSON.stringify(parentChatId + conversation))
@@ -111,7 +113,15 @@ export function ChatPane({
 
   return (
     <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
-      <ChatHeader {...chatHeader} />
+      <ChatHeader name={name}
+      rename={rename}
+      onHistoryButtonClicked={() => console.log('History button clicked')}
+      onNewChatButtonClicked={() => console.log('History button clicked')}
+      selectedMode={selectedMode}
+      availableModes={availableModes}
+      selectMode={selectMode}
+      selectedLLM={selectedLLM}
+      availableLLMs={[]} />
 
       {historyOpen && <ChatHistoryPanel />}
 

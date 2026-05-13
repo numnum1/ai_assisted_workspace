@@ -1,7 +1,7 @@
-import { useContext } from 'react';
+import { useContext, useMemo } from 'react';
 import { effectiveModeColor, getContrastingTextColor } from '../../../../components/chat/modeColorTheme.ts';
-import { ThemeContext } from '../../../../ThemeContext.tsx';
 import type { AssistantMode } from '../../project/project-types.ts';
+import { ThemeContext } from '../../../../ThemeContext.ts';
 
 export function ModeSelector({
   modes,
@@ -9,29 +9,35 @@ export function ModeSelector({
   selectMode,
 }: {
     modes: AssistantMode[];
-    selectedMode: string;
+    selectedMode: AssistantMode | null;
     selectMode: (newSelectedModeId: string) => void;
 }) {
 
   const theme = useContext(ThemeContext)
 
-  const currentMode = modes.find((m) => m.id === selectedMode);
-  const modeColor = currentMode?.color;
-  const displayColor = effectiveModeColor(modeColor, theme.name) ?? modeColor;
-  const textColor = getContrastingTextColor(displayColor);
+  const selectedColor = useMemo(() => {
+    const modeColor = selectedMode?.color ?? 'grey';
+    return effectiveModeColor(modeColor, theme.name) ?? modeColor
+  }, [theme, selectedMode])
+
+  const textColor = useMemo(() => {
+    const modeColor = selectedMode?.color ?? 'grey';
+    const selectedColorTmp = effectiveModeColor(modeColor, theme.name) ?? modeColor
+    return getContrastingTextColor(selectedColorTmp) ?? 'black'
+  }, [theme, selectedMode])
 
   return (
     <div className="mode-selector">
-      <label style={displayColor ? { color: displayColor } : undefined}>Mode:</label>
+      <label style={selectedColor ? { color: selectedColor } : undefined}>Mode:</label>
       <select
-        value={selectedMode}
+        value={selectedMode?.id}
         onChange={(e) => selectMode(e.target.value)}
         style={
-          displayColor
+          selectedColor
             ? {
-                backgroundColor: displayColor,
+                backgroundColor: selectedColor,
                 color: textColor,
-                borderColor: displayColor,
+                borderColor: selectedColor,
               }
             : undefined
         }
