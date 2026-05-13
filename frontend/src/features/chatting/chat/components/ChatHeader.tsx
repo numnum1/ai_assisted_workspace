@@ -127,37 +127,6 @@ export function ChatHeader({
             <Wand2 size={14} />
           </button>
         )}
-        <button
-          type="button"
-          data-testid="expandButton"
-          className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
-          onClick={toggleFullscreen}
-          title={
-            activeIsThread
-              ? "Thread-Workspace öffnen"
-              : isFullscreen
-                ? "Vergrößerte Ansicht schließen (Esc)"
-                : "Chat vergrößern"
-          }
-          aria-pressed={isFullscreen}
-        >
-          {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        </button>
-        <button
-          className={`chat-history-btn ${historyOpen ? "active" : ""}`}
-          onClick={toggleHistoryOpen}
-          title="Chat-Historie"
-        >
-          <History size={14} />
-        </button>
-        <button
-          type="button"
-          className="new-chat-button"
-          onClick={() => setNewChatDialogOpen(true)}
-          title="Neuer Chat"
-        >
-          +
-        </button>
       </div>
       <div className="chat-header-title-row">
         {renamingTitle ? (
