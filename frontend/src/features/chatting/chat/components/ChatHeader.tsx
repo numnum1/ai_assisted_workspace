@@ -1,4 +1,4 @@
-import { History, Wand2, Pencil, Maximize2, Minimize2 } from "lucide-react";
+import { Wand2, Pencil } from "lucide-react";
 import { ModeSelector } from "./ModeSelector";
 import type { ProjectViewModel } from "../../project/project-types";
 import { useContext, useMemo } from "react";
@@ -48,16 +48,8 @@ export function ChatHeader({
     }),
   );
 
-  const isFullscreen = false;
-  const toggleFullscreen = () => {};
   const onOpenPromptPack = false;
-  const activeIsThread = false;
   const renamingTitle = false;
-  const toggleHistoryOpen = () => {};
-  const historyOpen = false;
-  const setNewChatDialogOpen = (newOpen: boolean) => {
-    console.log(newOpen);
-  };
   const titleDraft = "TitleDraft";
   const setTitleDraft = (newTitleDraft: string) => {
     console.log(newTitleDraft);
@@ -93,7 +85,6 @@ export function ChatHeader({
         </div>
       ) : (
         <div className="mode-selector-placeholder" data-testid="modeSelector">
-          {/* ModeSelector Platzhalter */}
           <ModeSelector
             modes={modes}
             selectedMode={selectedMode}
