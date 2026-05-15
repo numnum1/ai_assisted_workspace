@@ -7,17 +7,20 @@ export function ChatPanelSidebar({
 }: {
   onNewChatButtonClicked: () => void;
 }) {
-
-  const [openChatHistory, setOpenChatHistory] = useState(false)
+  const [openChatHistory, setOpenChatHistory] = useState(false);
   const toggleHistoryButton = useCallback(() => {
     setOpenChatHistory((prev) => {
-      return !prev
-    })
-  }, [setOpenChatHistory])
+      return !prev;
+    });
+  }, [setOpenChatHistory]);
 
   return (
     <div className="chat-header chat-header--sidebar">
-      <div className="chat-header-actions">
+      <div
+        className={
+          openChatHistory ? "chat-sidebar-btn-row" : "chat-header-actions"
+        }
+      >
         <button
           className={`chat-history-btn ${openChatHistory ? "active" : ""}`}
           onClick={toggleHistoryButton}
@@ -33,12 +36,10 @@ export function ChatPanelSidebar({
         >
           <Plus size={14} />
         </button>
-        {
-          openChatHistory && (
-            <ChatHistoryPane onCloseClicked={() => setOpenChatHistory(false)} />
-          )
-        }
       </div>
+      {openChatHistory && (
+        <ChatHistoryPane onCloseClicked={() => setOpenChatHistory(false)} />
+      )}
     </div>
   );
 }

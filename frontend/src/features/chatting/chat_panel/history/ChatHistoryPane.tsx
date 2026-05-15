@@ -54,7 +54,7 @@ export function ChatHistoryPane({
   );
 
   return (
-    <div className="chat-history-panel">
+    <div className="chat-history-pane">
       <div className="chat-history-header">
         <span className="chat-history-title">Chats</span>
         <button
