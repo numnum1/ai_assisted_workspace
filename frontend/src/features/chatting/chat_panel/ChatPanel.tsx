@@ -91,7 +91,7 @@ export function ChatPanel({
           </div>
 
           <div className="chat-panel-body-right">
-            <ChatPanelSidebar onNewChatButtonClicked={handleCreateNewChatClicked} />
+            <ChatPanelSidebar onNewChatButtonClicked={handleCreateNewChatClicked} onChatClicked={setOpenChatId} />
           </div>
         </div>
       </div>

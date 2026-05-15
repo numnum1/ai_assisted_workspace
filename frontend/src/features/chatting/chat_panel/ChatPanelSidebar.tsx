@@ -4,8 +4,10 @@ import { ChatHistoryPane } from "./history/ChatHistoryPane";
 
 export function ChatPanelSidebar({
   onNewChatButtonClicked,
+  onChatClicked
 }: {
   onNewChatButtonClicked: () => void;
+  onChatClicked: (chatId: string) => void;
 }) {
   const [openChatHistory, setOpenChatHistory] = useState(false);
   const toggleHistoryButton = useCallback(() => {
@@ -38,7 +40,7 @@ export function ChatPanelSidebar({
         </button>
       </div>
       {openChatHistory && (
-        <ChatHistoryPane onCloseClicked={() => setOpenChatHistory(false)} />
+        <ChatHistoryPane onCloseClicked={() => setOpenChatHistory(false)} onChatClicked={onChatClicked} />
       )}
     </div>
   );

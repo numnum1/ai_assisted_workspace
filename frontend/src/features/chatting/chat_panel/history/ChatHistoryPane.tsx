@@ -4,8 +4,10 @@ import ProjectContext from "../../project/project-context.ts";
 
 export function ChatHistoryPane({
   onCloseClicked,
+  onChatClicked,
 }: {
   onCloseClicked: () => void;
+  onChatClicked: (chatId: string) => void;
 }) {
   const { chats, setChat, setChats } = useContext(ProjectContext);
   const [search, setSearch] = useState("");
@@ -99,7 +101,7 @@ export function ChatHistoryPane({
               ) : (
                 <div
                   className="chat-history-item-title"
-                  onDoubleClick={(e) => handleStartRename(chat, e)}
+                  onClick={() => onChatClicked(chat.id)}
                 >
                   <span>{chat.name}</span>
                 </div>

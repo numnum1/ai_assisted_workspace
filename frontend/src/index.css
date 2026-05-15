@@ -2140,6 +2140,7 @@ body.file-tree-native-dragging {
     justify-content: space-between;
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
+    height: 32px;
 }
 
 .chat-guided-execution-summary {
@@ -2268,6 +2269,7 @@ body.file-tree-native-dragging {
     align-items: center;
     gap: 4px;
     padding: 0 12px 6px;
+    width: 160px;
 }
 
 .chat-header-title {
@@ -5348,7 +5350,8 @@ body.file-tree-native-dragging {
 }
 
 .chat-history-pane {
-    flex: 1;
+    max-width: 300px;
+    flex-shrink: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -5513,6 +5516,8 @@ body.file-tree-native-dragging {
     cursor: pointer;
     transition: background 0.1s;
     position: relative;
+    height: 40px;
+    box-sizing: border-box;
 }
 
 .chat-history-item:hover {
@@ -5635,14 +5640,16 @@ body.file-tree-native-dragging {
 }
 
 .chat-history-item-actions {
-    display: none;
+    display: flex;
     align-items: center;
     gap: 2px;
     flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease;
 }
 
 .chat-history-item:hover .chat-history-item-actions {
-    display: flex;
+    opacity: 1;
 }
 
 .chat-history-action-btn {
