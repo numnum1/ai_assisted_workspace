@@ -1,6 +1,6 @@
 import { useCallback, useContext, useState, useRef } from "react";
-import { Trash2, MessageSquare, Pencil } from "lucide-react";
 import ProjectContext from "../../project/project-context.ts";
+import { ChatHistoryEntry } from "./ChatHistoryEntry.tsx";
 
 export function ChatHistoryPane({
   onCloseClicked,
@@ -82,54 +82,19 @@ export function ChatHistoryPane({
           <div className="chat-history-empty">Keine Chats gefunden</div>
         )}
         {filteredChats.map((chat) => (
-          <div key={chat.id} className="chat-history-item">
-            <div className="chat-history-item-icon">
-              <MessageSquare size={14} />
-            </div>
-
-            <div className="chat-history-item-content">
-              {editingId === chat.id ? (
-                <input
-                  ref={editRef}
-                  className="chat-history-rename-input"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={handleKeyDown}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <div
-                  className="chat-history-item-title"
-                  onClick={() => onChatClicked(chat.id)}
-                >
-                  <span>{chat.name}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="chat-history-item-actions">
-              <button
-                type="button"
-                className="chat-history-action-btn"
-                onClick={(e) => handleStartRename(chat, e)}
-                title="Umbenennen"
-              >
-                <Pencil size={12} />
-              </button>
-              <button
-                type="button"
-                className="chat-history-delete-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteChat(chat.id);
-                }}
-                title="Löschen"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          </div>
+          <ChatHistoryEntry
+            key={chat.id}
+            chat={chat}
+            editingId={editingId}
+            editTitle={editTitle}
+            editRef={editRef}
+            setEditTitle={setEditTitle}
+            commitRename={commitRename}
+            handleKeyDown={handleKeyDown}
+            onChatClicked={onChatClicked}
+            handleStartRename={handleStartRename}
+            deleteChat={deleteChat}
+          />
         ))}
       </div>
     </div>
