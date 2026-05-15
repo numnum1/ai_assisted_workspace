@@ -6,7 +6,7 @@ import type { CardState } from "../../../components/chat/ChangeCard";
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatHistoryPanel } from "./components/ChatHistoryPanel";
 import { SteeringPlanPanel } from "./components/SteeringPlanPanel";
-import { ChatComposer } from "./components/ChatComposer";
+import { ChatComposer } from "./components/ChatBottomPane";
 import { ContextBar } from "./components/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
