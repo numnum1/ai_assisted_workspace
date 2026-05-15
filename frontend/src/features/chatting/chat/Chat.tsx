@@ -1,4 +1,4 @@
-import { useCallback, useContext, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ChatSettings, Conversation } from "./unsortedChatTypes";
 import { ChatMessagesPane } from "../../../components/chat/ChatMessagesPane";
 import type { ChatMessage } from "../../../types";
@@ -13,6 +13,8 @@ import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
 import ProjectContext from "../project/project-context";
 import type { ProjectViewModel } from "../project/project-types";
 import { v4 as uuidv4 } from "uuid";
+import ChatContext from "./chat-context";
+import type { ChatViewModel } from "./chat-view-model";
 
 export type Chat = {
   parentChatId: string | null;
@@ -73,7 +75,10 @@ export function ChatPane({
   const selectLLM = useCallback(
     (newSelectedLLMId: string) => {
       setChat(id, {
-        settings: { ...settings, selectedLLM: { id: newSelectedLLMId, useReasoning: true } },
+        settings: {
+          ...settings,
+          selectedLLM: { id: newSelectedLLMId, useReasoning: true },
+        },
       });
     },
     [setChat, id, settings],
@@ -135,86 +140,100 @@ export function ChatPane({
   };
   // #endregion
 
+  const context: ChatViewModel = useMemo(() => {
+    return {
+      parentChatId,
+      id,
+      name,
+      conversation,
+      settings
+    };
+  }, [parentChatId, id, name, conversation, settings]);
+
   return (
-    <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
-      <ChatHeader
-        name={name}
-        rename={rename}
-        selectedModeId={settings.selectedModeId}
-        selectMode={selectMode}
-        selectedLLMId={settings.selectedLLM.id}
-        selectLLM={selectLLM}
-      />
+    <ChatContext.Provider value={context}>
+      <div
+        className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}
+      >
+        <ChatHeader
+          name={name}
+          rename={rename}
+          selectedModeId={settings.selectedModeId}
+          selectMode={selectMode}
+          selectedLLMId={settings.selectedLLM.id}
+          selectLLM={selectLLM}
+        />
 
-      {historyOpen && <ChatHistoryPanel />}
+        {historyOpen && <ChatHistoryPanel />}
 
-      <div className="chat-panel-body">
-        <div className="chat-pane" data-testid="chatPane">
-          <div className="chat-panel-body-main">
-            <ChatMessagesPane
-              messages={messages}
-              readOnly={false}
-              scrollRef={messagesScrollRef}
-              streaming={streaming}
-              error={error}
-              toolActivity={toolActivity}
-              activeIsThread={activeIsThread}
-              editingIdx={editingIdx}
-              setEditingIdx={setEditingIdx}
-              copiedIdx={copiedIdx}
-              setCopiedIdx={setCopiedIdx}
-              bulkDismissIds={bulkDismissIds}
-              composerBatchForced={composerBatchForced}
-              onForkFromMessage={noop}
-              onStartThreadFromMessage={noop}
-              onForkToNewConversation={noop}
-              onEditMessage={noop}
-              onDeleteMessages={noop}
-              commitEdit={commitEdit}
-              cancelEdit={cancelEdit}
-              theme="dark"
+        <div className="chat-panel-body">
+          <div className="chat-pane" data-testid="chatPane">
+            <div className="chat-panel-body-main">
+              <ChatMessagesPane
+                messages={messages}
+                readOnly={false}
+                scrollRef={messagesScrollRef}
+                streaming={streaming}
+                error={error}
+                toolActivity={toolActivity}
+                activeIsThread={activeIsThread}
+                editingIdx={editingIdx}
+                setEditingIdx={setEditingIdx}
+                copiedIdx={copiedIdx}
+                setCopiedIdx={setCopiedIdx}
+                bulkDismissIds={bulkDismissIds}
+                composerBatchForced={composerBatchForced}
+                onForkFromMessage={noop}
+                onStartThreadFromMessage={noop}
+                onForkToNewConversation={noop}
+                onEditMessage={noop}
+                onDeleteMessages={noop}
+                commitEdit={commitEdit}
+                cancelEdit={cancelEdit}
+                theme="dark"
+              />
+
+              <SteeringPlanPanel
+                activeSessionKind={activeSessionKind}
+                steeringPlan={steeringPlan}
+                steeringPlanOpen={steeringPlanOpen}
+                setSteeringPlanOpen={setSteeringPlanOpen}
+                streaming={streaming}
+              />
+
+              <ChatComposer
+                activeSelection={activeSelection}
+                referencedFiles={referencedFiles}
+                streaming={streaming}
+                useReasoning={useReasoning}
+              />
+            </div>
+
+            <ContextBar
+              activeFile={activeFile}
+              isDirty={isDirty}
+              systemPromptPreview={systemPromptPreview}
             />
 
-            <SteeringPlanPanel
-              activeSessionKind={activeSessionKind}
-              steeringPlan={steeringPlan}
-              steeringPlanOpen={steeringPlanOpen}
-              setSteeringPlanOpen={setSteeringPlanOpen}
-              streaming={streaming}
+            <GlossaryPopup
+              glossaryPopup={glossaryPopup}
+              glossaryForm={glossaryForm}
+              disabledToolkits={disabledToolkits}
+              setGlossaryForm={setGlossaryForm}
             />
 
-            <ChatComposer
-              activeSelection={activeSelection}
-              referencedFiles={referencedFiles}
-              streaming={streaming}
-              useReasoning={useReasoning}
+            <GlossarySaveDialog
+              glossaryForm={glossaryForm}
+              setGlossaryForm={setGlossaryForm}
+              glossaryPopup={glossaryPopup}
+              setGlossaryPopup={setGlossaryPopup}
+              glossarySaving={glossarySaving}
+              setGlossarySaving={setGlossarySaving}
+              disabledToolkits={disabledToolkits}
             />
           </div>
-
-          <ContextBar
-            activeFile={activeFile}
-            isDirty={isDirty}
-            systemPromptPreview={systemPromptPreview}
-          />
-
-          <GlossaryPopup
-            glossaryPopup={glossaryPopup}
-            glossaryForm={glossaryForm}
-            disabledToolkits={disabledToolkits}
-            setGlossaryForm={setGlossaryForm}
-          />
-
-          <GlossarySaveDialog
-            glossaryForm={glossaryForm}
-            setGlossaryForm={setGlossaryForm}
-            glossaryPopup={glossaryPopup}
-            setGlossaryPopup={setGlossaryPopup}
-            glossarySaving={glossarySaving}
-            setGlossarySaving={setGlossarySaving}
-            disabledToolkits={disabledToolkits}
-          />
         </div>
       </div>
-    </div>
+    </ChatContext.Provider>
   );
 }
