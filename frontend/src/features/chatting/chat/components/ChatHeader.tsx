@@ -1,4 +1,4 @@
-import { Wand2, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { ModeSelector } from "./ModeSelector";
 import type { ProjectViewModel } from "../../project/project-types";
 import { useCallback, useContext, useMemo, useState } from "react";
@@ -10,16 +10,12 @@ const noop = () => {};
 export function ChatHeader({
   name,
   rename,
-  onHistoryButtonClicked,
-  onNewChatButtonClicked,
   selectedModeId,
   selectMode,
   selectedLLM,
 }: {
   name: string;
   rename: (newName: string) => void;
-  onHistoryButtonClicked: () => void;
-  onNewChatButtonClicked: () => void;
   selectedModeId: string | null;
   selectMode: (newSelectedMode: string) => void;
   selectedLLM: SelectedLLM;
@@ -50,17 +46,6 @@ export function ChatHeader({
   }, [rename, renameTitle, setRenaming]);
 
   // #region placeholder
-  console.log(
-    JSON.stringify({
-      name,
-      rename,
-      onHistoryButtonClicked,
-      onNewChatButtonClicked,
-    }),
-  );
-
-  const onOpenPromptPack = false;
-
   const guidedExecSummary = null as {
     modeLabel: string;
     llmLabel: string;
@@ -109,16 +94,6 @@ export function ChatHeader({
               </option>
             ))}
           </select>
-        )}
-        {onOpenPromptPack && (
-          <button
-            type="button"
-            className="chat-prompt-pack-btn"
-            onClick={noop}
-            title="Prompt-Paket (Export für ChatGPT / Grok)"
-          >
-            <Wand2 size={14} />
-          </button>
         )}
       </div>
       <div className="chat-header-title-row">

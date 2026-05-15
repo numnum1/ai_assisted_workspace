@@ -131,8 +131,6 @@ export function ChatPane({
       <ChatHeader
         name={name}
         rename={rename}
-        onHistoryButtonClicked={() => console.log("History button clicked")}
-        onNewChatButtonClicked={() => console.log("History button clicked")}
         selectedModeId={settings.selectedModeId}
         selectMode={selectMode}
         selectedLLM={settings.selectedLLM}
