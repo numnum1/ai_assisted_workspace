@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useContext, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import {
   Search,
@@ -22,8 +22,18 @@ import {
 import { hasClarificationFence } from "./clarificationUtils.ts";
 import { MessageEditBox } from "./MessageEditBox.tsx";
 import { EMPTY_COMPOSER_BATCH_FORCED, EMPTY_SNAPSHOT_DISMISS } from "../../../components/chat/ChatMessagesPane.tsx";
+import ChatContext from "../chat/chat-context.ts";
+import type { ConversationTurn } from "../chat/unsortedChatTypes.ts";
 
-export function ConversationPane({}: {}) {
+export function ConversationPane() {
+
+  const { conversation: { turns } } = useContext(ChatContext)
+
+  // TODO: Implement
+  const lastParentTurn: ConversationTurn | null = useMemo(() => {
+    return null
+  }, [])
+
   // Placeholder values replacing all parameters and hooks
   const messages: ChatMessage[] = [];
   const readOnly = false;
