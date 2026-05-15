@@ -75,7 +75,7 @@ export function ChatPanel({
   // #endregion
 
   return (
-    <div>
+    <div style={{ height: "100%" }}>
       {newChatDialogOpen && (
         <NewChatDialog
           onConfirmClicked={handleConfirmedClickedInNewEventChat}
@@ -91,7 +91,10 @@ export function ChatPanel({
           </div>
 
           <div className="chat-panel-body-right">
-            <ChatPanelSidebar onNewChatButtonClicked={handleCreateNewChatClicked} onChatClicked={setOpenChatId} />
+            <ChatPanelSidebar
+              onNewChatButtonClicked={handleCreateNewChatClicked}
+              onChatClicked={setOpenChatId}
+            />
           </div>
         </div>
       </div>

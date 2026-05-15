@@ -43,7 +43,7 @@ export function ProjectPane() {
         findChatById,
         findModeById,
         findLLMById,
-        setChats
+        setChats,
       }}
     >
       <div
@@ -53,6 +53,7 @@ export function ProjectPane() {
           flexDirection: "row",
           gap: "1rem",
           overflowX: "auto",
+          height: "100%",
         }}
       >
         <ChatPanel

@@ -2363,6 +2363,7 @@ body.file-tree-native-dragging {
     padding: 8px 12px;
     gap: 0;
     border-bottom: none !important;
+    height: 100%;
 }
 
 .chat-sidebar-btn-row {
