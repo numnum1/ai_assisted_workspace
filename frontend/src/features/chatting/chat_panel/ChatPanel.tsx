@@ -3,7 +3,6 @@ import {
   useContext,
   useMemo,
   useState,
-  type SetStateAction,
 } from "react";
 import { ChatHistoryPanel } from "../chat/components/ChatHistoryPanel";
 import ProjectContext from "../project/project-context";
@@ -17,15 +16,12 @@ import { ChatPanelSidebar } from "./ChatPanelSidebar";
 export function ChatPanel({
   openChatId,
   setOpenChatId,
-  setChats,
 }: {
-  openChatId: string;
-  setOpenChatId: (newOpenChatId: string) => void;
-  setChats: React.Dispatch<SetStateAction<Chat[]>>;
+  openChatId: string | null;
+  setOpenChatId: (newOpenChatId: string | null) => void;
 }) {
   const {
-    chats,
-    setChat,
+    setChats,
     findChatById,
     settings: { modes },
   } = useContext(ProjectContext);
@@ -34,14 +30,20 @@ export function ChatPanel({
     return openChatId ? findChatById(openChatId) : null;
   }, [findChatById, openChatId]);
 
-  console.log(JSON.stringify({ openChatId, setOpenChatId, chats, setChat }));
-
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const handleCreateNewChatClicked = useCallback(() => {
     setNewChatDialogOpen((prev) => {
       return !prev;
     });
   }, [setNewChatDialogOpen]);
+
+  const deleteChat = useCallback(
+    (id: string) => {
+      setChats((prev) => prev.filter((chat) => chat.id !== id));
+      setOpenChatId(null);
+    },
+    [setChats, setOpenChatId],
+  );
 
   // New Event Chat
   const handleConfirmedClickedInNewEventChat = useCallback(
@@ -94,6 +96,7 @@ export function ChatPanel({
             <ChatPanelSidebar
               onNewChatButtonClicked={handleCreateNewChatClicked}
               onChatClicked={setOpenChatId}
+              onDeleteClicked={deleteChat}
             />
           </div>
         </div>

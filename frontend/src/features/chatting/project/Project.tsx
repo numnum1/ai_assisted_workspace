@@ -31,7 +31,7 @@ export function ProjectPane() {
   console.log(JSON.stringify({ openFolderPath, setOpenFolderPath }));
 
   // TODO: Move somewhere else
-  const [openChatId, setOpenChatId] = useState("");
+  const [openChatId, setOpenChatId] = useState<string | null>("");
 
   return (
     <ProjectContext
@@ -56,11 +56,7 @@ export function ProjectPane() {
           height: "100%",
         }}
       >
-        <ChatPanel
-          openChatId={openChatId}
-          setOpenChatId={setOpenChatId}
-          setChats={setChats}
-        />
+        <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} />
       </div>
     </ProjectContext>
   );

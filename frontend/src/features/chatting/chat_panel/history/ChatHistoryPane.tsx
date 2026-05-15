@@ -5,11 +5,13 @@ import { ChatHistoryEntry } from "./ChatHistoryEntry.tsx";
 export function ChatHistoryPane({
   onCloseClicked,
   onChatClicked,
+  onDeleteClicked
 }: {
   onCloseClicked: () => void;
   onChatClicked: (chatId: string) => void;
+  onDeleteClicked: (chatId: string) => void;
 }) {
-  const { chats, setChat, setChats } = useContext(ProjectContext);
+  const { chats, setChat } = useContext(ProjectContext);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -20,13 +22,6 @@ export function ChatHistoryPane({
       setChat(id, { name: newName });
     },
     [setChat],
-  );
-
-  const deleteChat = useCallback(
-    (id: string) => {
-      setChats((prev) => prev.filter((chat) => chat.id !== id));
-    },
-    [setChats],
   );
 
   const handleStartRename = (
@@ -93,7 +88,7 @@ export function ChatHistoryPane({
             handleKeyDown={handleKeyDown}
             onChatClicked={onChatClicked}
             handleStartRename={handleStartRename}
-            deleteChat={deleteChat}
+            deleteChat={onDeleteClicked}
           />
         ))}
       </div>
