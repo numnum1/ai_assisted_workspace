@@ -1,6 +1,6 @@
 import { History, Plus } from "lucide-react";
 import { useCallback, useState } from "react";
-import { ChatHistoryPanel } from "../chat/components/ChatHistoryPanel";
+import { ChatHistoryPane } from "./history/ChatHistoryPane";
 
 export function ChatPanelSidebar({
   onNewChatButtonClicked,
@@ -35,7 +35,7 @@ export function ChatPanelSidebar({
         </button>
         {
           openChatHistory && (
-            <ChatHistoryPanel />
+            <ChatHistoryPane onCloseClicked={() => setOpenChatHistory(false)} />
           )
         }
       </div>

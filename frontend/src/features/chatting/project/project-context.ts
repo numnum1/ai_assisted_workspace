@@ -12,6 +12,7 @@ const defaultProjectViewModel: ProjectViewModel = {
   findChatById: () => null,
   findModeById: () => null,
   findLLMById: () => null,
+  setChats: () => null,
 }
 
 const ProjectContext = createContext<ProjectViewModel>(defaultProjectViewModel)

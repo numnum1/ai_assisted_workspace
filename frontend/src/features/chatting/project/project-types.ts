@@ -7,6 +7,7 @@ export type ProjectViewModel = {
   findChatById: Finder<Chat>;
   findModeById: Finder<AssistantMode>;
   findLLMById: Finder<LLM>;
+  setChats: Setter<Chat[]>;
 } & Project;
 
 export type AssistantMode = {

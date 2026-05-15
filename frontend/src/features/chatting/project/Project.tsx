@@ -43,6 +43,7 @@ export function ProjectPane() {
         findChatById,
         findModeById,
         findLLMById,
+        setChats
       }}
     >
       <div
