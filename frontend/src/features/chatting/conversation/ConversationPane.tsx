@@ -1,4 +1,84 @@
+import { useMemo, useRef } from "react";
+import type { RefObject } from "react";
+import {
+  Search,
+  Scissors,
+  GitFork,
+  Pencil,
+  Trash2,
+  RotateCcw,
+  MessageSquare,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { ChatMessage } from "./types.ts";
+import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
+import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
+import { buildChatRenderUnits } from "./chatRenderUnits.ts";
+import {
+  effectiveModeColor,
+  getContrastingTextColor,
+} from "./modeColorTheme.ts";
+import { hasClarificationFence } from "./clarificationUtils.ts";
+import { MessageEditBox } from "./MessageEditBox.tsx";
+import { EMPTY_COMPOSER_BATCH_FORCED, EMPTY_SNAPSHOT_DISMISS } from "../../../components/chat/ChatMessagesPane.tsx";
+
 export function ConversationPane({}: {}) {
+  // Placeholder values replacing all parameters and hooks
+  const messages: ChatMessage[] = [];
+  const readOnly = false;
+  const scrollRef: RefObject<HTMLDivElement | null> =
+    useRef<HTMLDivElement>(null);
+  const onMouseUp = undefined;
+  const streaming = false;
+  const error: string | null = null;
+  const toolActivity: string | null = null;
+  const activeIsThread = false;
+  const editingIdx: number | null = null;
+  const setEditingIdx = (_idx: number | null) => {console.log(_idx)};
+  const copiedIdx: number | null = null;
+  const setCopiedIdx = (_idx: number | null) => {console.log(_idx)};
+  const bulkDismissIds = EMPTY_SNAPSHOT_DISMISS;
+  const composerBatchForced = EMPTY_COMPOSER_BATCH_FORCED;
+  const onFileChanged = undefined;
+  const onSnapshotSettled = undefined;
+  const onForkFromMessage = (_index: number) => {console.log(_index)};
+  const onStartThreadFromMessage = (_index: number) => {console.log(_index)};
+  const onForkToNewConversation = (_index: number) => {console.log(_index)};
+  const onEditMessage = (_index: number, _content: string) => {console.log(_index + _content)};
+  const onDeleteMessages = (_indices: number[]) => {console.log(_indices)};
+  const onUseMessageAsThreadSummary = undefined;
+  const commitEdit = (_index: number, _text: string) => {console.log(_index + _text)};
+  const cancelEdit = () => {};
+  const onReplaceSelection = undefined as
+    | ((text: string, ctx: unknown) => void)
+    | undefined;
+  const onApplyFieldUpdate = undefined;
+  const fieldLabels = undefined;
+  const onRetry = undefined;
+  const onOpenPromptPack = undefined;
+  const theme: "light" | "dark" = "light";
+  const parentLastMessage = null as ChatMessage | null;
+
+  const visibleEntries = useMemo(
+    () =>
+      messages
+        .map((msg, originalIdx) => ({ msg, originalIdx }))
+        .filter(({ msg }) => !msg.hidden),
+    [messages],
+  );
+  const renderUnits = useMemo(
+    () => buildChatRenderUnits(visibleEntries),
+    [visibleEntries],
+  );
+
+  const dismissIds = readOnly ? EMPTY_SNAPSHOT_DISMISS : bulkDismissIds;
+  const batchForced = readOnly
+    ? EMPTY_COMPOSER_BATCH_FORCED
+    : composerBatchForced;
+  const fileCb = readOnly ? undefined : onFileChanged;
+  const snapshotCb = readOnly ? undefined : onSnapshotSettled;
+
   return (
     <div
       className={`chat-messages${readOnly ? " chat-messages--readonly" : ""}`}
@@ -6,7 +86,7 @@ export function ConversationPane({}: {}) {
       ref={scrollRef}
       onMouseUp={readOnly ? undefined : onMouseUp}
     >
-      {parentLastMessage && (
+      {parentLastMessage != null && (
         <div className="thread-parent-context-banner">
           <div className="thread-parent-context-content">
             {parentLastMessage.role === "user" ? (
@@ -101,7 +181,7 @@ export function ConversationPane({}: {}) {
                   ? {
                       backgroundColor: displayModeColor,
                       borderLeftColor: displayModeColor,
-                      color: getContrastingTextColor(displayModeColor),
+                      color: getContrastingTextColor(displayModeColor!),
                     }
                   : undefined
               }
@@ -111,7 +191,7 @@ export function ConversationPane({}: {}) {
                   className="chat-message-role"
                   style={
                     displayModeColor
-                      ? { color: getContrastingTextColor(displayModeColor) }
+                      ? { color: getContrastingTextColor(displayModeColor!) }
                       : undefined
                   }
                 >
@@ -122,7 +202,7 @@ export function ConversationPane({}: {}) {
                         <span
                           className="chat-message-mode"
                           style={{
-                            color: getContrastingTextColor(displayModeColor),
+                            color: getContrastingTextColor(displayModeColor!),
                           }}
                         >
                           {" · "}
@@ -155,7 +235,7 @@ export function ConversationPane({}: {}) {
                     selectionContext={msg.selectionContext}
                     onReplace={
                       !readOnly && msg.selectionContext && onReplaceSelection
-                        ? (text) =>
+                        ? (text: string) =>
                             onReplaceSelection(text, msg.selectionContext!)
                         : undefined
                     }

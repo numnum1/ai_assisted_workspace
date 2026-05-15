@@ -7,7 +7,7 @@ export interface ChatComposerProps {
 
 const noop = () => {};
 
-export function ChatComposer({
+export function ChatBottomPane({
   activeSelection,
   referencedFiles,
   streaming,

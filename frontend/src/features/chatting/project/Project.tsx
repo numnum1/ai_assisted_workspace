@@ -46,18 +46,7 @@ export function ProjectPane() {
         setChats,
       }}
     >
-      <div
-        data-component="ProjectPane"
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          gap: "1rem",
-          overflowX: "auto",
-          height: "100%",
-        }}
-      >
-        <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} />
-      </div>
+      <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} />
     </ProjectContext>
   );
 }

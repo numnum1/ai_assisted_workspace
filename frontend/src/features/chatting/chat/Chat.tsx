@@ -1,12 +1,8 @@
-import { useCallback, useContext, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import type { ChatSettings, Conversation } from "./unsortedChatTypes";
-import { ChatMessagesPane } from "../../../components/chat/ChatMessagesPane";
-import type { ChatMessage } from "../../../types";
-import type { CardState } from "../../../components/chat/ChangeCard";
 import { ChatHeader } from "./components/ChatHeader";
-import { ChatHistoryPanel } from "./components/ChatHistoryPanel";
 import { SteeringPlanPanel } from "./components/SteeringPlanPanel";
-import { ChatComposer } from "./components/ChatBottomPane";
+import { ChatBottomPane } from "./components/ChatBottomPane";
 import { ContextBar } from "./components/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
@@ -15,6 +11,7 @@ import type { ProjectViewModel } from "../project/project-types";
 import { v4 as uuidv4 } from "uuid";
 import ChatContext from "./chat-context";
 import type { ChatViewModel } from "./chat-view-model";
+import { ConversationPane } from "../conversation/ConversationPane";
 
 export type Chat = {
   parentChatId: string | null;
@@ -84,11 +81,17 @@ export function ChatPane({
     [setChat, id, settings],
   );
 
-  // #region Placeholders
-  console.log("Project: " + JSON.stringify({ parentChatId, conversation }));
+  const context: ChatViewModel = useMemo(() => {
+    return {
+      parentChatId,
+      id,
+      name,
+      conversation,
+      settings,
+    };
+  }, [parentChatId, id, name, conversation, settings]);
 
-  const [historyOpen] = useState(false);
-  const [isFullscreen] = useState(false);
+  // #region Placeholders
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
   const [glossaryPopup, setGlossaryPopup] = useState<{
     x: number;
@@ -101,11 +104,8 @@ export function ChatPane({
   } | null>(null);
   const [glossarySaving, setGlossarySaving] = useState(false);
 
-  const activeIsThread = false;
   const activeSessionKind = "standard" as "standard" | "guided";
   const streaming = false;
-  const error = null as string | null;
-  const toolActivity = null as string | null;
   const useReasoning = false;
   const steeringPlan = "";
   const activeFile = null as string | null;
@@ -113,48 +113,12 @@ export function ChatPane({
   const systemPromptPreview = null as string | null;
   const activeSelection = null;
   const referencedFiles = [] as string[];
-  const messagesScrollRef = useRef<HTMLDivElement>(null);
-
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-  const [bulkDismissIds] = useState(() => new Set<string>());
-  const [composerBatchForced] = useState<Record<string, CardState>>({});
-
-  const messages = [
-    {
-      role: "user" as const,
-      content: "Hallo, kannst du mir bei einem React-Problem helfen?",
-    },
-    {
-      role: "assistant" as const,
-      content:
-        "Natürlich! Beschreib einfach, worum es geht — ob State-Management, Rendering, Performance oder Styling. Ich schaue mir das gerne an.",
-    },
-  ] as ChatMessage[];
   const disabledToolkits = new Set<string>();
-
-  const noop = () => {};
-  const cancelEdit = () => setEditingIdx(null);
-  const commitEdit = () => {
-    setEditingIdx(null);
-  };
   // #endregion
-
-  const context: ChatViewModel = useMemo(() => {
-    return {
-      parentChatId,
-      id,
-      name,
-      conversation,
-      settings
-    };
-  }, [parentChatId, id, name, conversation, settings]);
 
   return (
     <ChatContext.Provider value={context}>
-      <div
-        className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}
-      >
+      <div className="chat-panel">
         <ChatHeader
           name={name}
           rename={rename}
@@ -164,34 +128,10 @@ export function ChatPane({
           selectLLM={selectLLM}
         />
 
-        {historyOpen && <ChatHistoryPanel />}
-
         <div className="chat-panel-body">
           <div className="chat-pane" data-testid="chatPane">
             <div className="chat-panel-body-main">
-              <ChatMessagesPane
-                messages={messages}
-                readOnly={false}
-                scrollRef={messagesScrollRef}
-                streaming={streaming}
-                error={error}
-                toolActivity={toolActivity}
-                activeIsThread={activeIsThread}
-                editingIdx={editingIdx}
-                setEditingIdx={setEditingIdx}
-                copiedIdx={copiedIdx}
-                setCopiedIdx={setCopiedIdx}
-                bulkDismissIds={bulkDismissIds}
-                composerBatchForced={composerBatchForced}
-                onForkFromMessage={noop}
-                onStartThreadFromMessage={noop}
-                onForkToNewConversation={noop}
-                onEditMessage={noop}
-                onDeleteMessages={noop}
-                commitEdit={commitEdit}
-                cancelEdit={cancelEdit}
-                theme="dark"
-              />
+              <ConversationPane />
 
               <SteeringPlanPanel
                 activeSessionKind={activeSessionKind}
@@ -201,7 +141,7 @@ export function ChatPane({
                 streaming={streaming}
               />
 
-              <ChatComposer
+              <ChatBottomPane
                 activeSelection={activeSelection}
                 referencedFiles={referencedFiles}
                 streaming={streaming}
