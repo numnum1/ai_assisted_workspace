@@ -1,7 +1,7 @@
 import { Wand2, Pencil } from "lucide-react";
 import { ModeSelector } from "./ModeSelector";
 import type { ProjectViewModel } from "../../project/project-types";
-import { useContext, useMemo } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import ProjectContext from "../../project/project-context";
 import type { SelectedLLM } from "../unsortedChatTypes";
 
@@ -38,6 +38,17 @@ export function ChatHeader({
     return selectedLLM.id ? findLLMById(selectedLLM.id) : null;
   }, [selectedLLM.id, findLLMById]);
 
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const startRenaming = useCallback(() => {
+    setRenameTitle("");
+    setRenaming(true);
+  }, [setRenameTitle, setRenaming]);
+  const applyNewName = useCallback(() => {
+      rename(renameTitle)
+      setRenaming(false)
+  }, [rename, renameTitle, setRenaming]);
+
   // #region placeholder
   console.log(
     JSON.stringify({
@@ -49,15 +60,6 @@ export function ChatHeader({
   );
 
   const onOpenPromptPack = false;
-  const renamingTitle = false;
-  const titleDraft = "TitleDraft";
-  const setTitleDraft = (newTitleDraft: string) => {
-    console.log(newTitleDraft);
-  };
-  const setRenamingTitle = (newRenamingTitle: boolean) => {
-    console.log(newRenamingTitle);
-  };
-  const activeTitle = "Active Title";
 
   const guidedExecSummary = null as {
     modeLabel: string;
@@ -120,31 +122,28 @@ export function ChatHeader({
         )}
       </div>
       <div className="chat-header-title-row">
-        {renamingTitle ? (
+        {renaming ? (
           <input
             className="chat-header-rename-input"
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
+            value={renameTitle}
+            onChange={(e) => setRenameTitle(e.target.value)}
             onBlur={() => {
-              setRenamingTitle(false);
+              setRenaming(false);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") setRenamingTitle(false);
-              if (e.key === "Escape") setRenamingTitle(false);
+              if (e.key === "Enter") applyNewName();
+              if (e.key === "Escape") setRenaming(false);
             }}
             autoFocus
           />
         ) : (
-          <span className="chat-header-title" title={activeTitle}>
-            {activeTitle}
+          <span className="chat-header-title" title={name}>
+            {name}
           </span>
         )}
         <button
           className="chat-header-rename-btn"
-          onClick={() => {
-            setTitleDraft(activeTitle);
-            setRenamingTitle(true);
-          }}
+          onClick={startRenaming}
           title="Chat umbenennen"
         >
           <Pencil size={11} />
