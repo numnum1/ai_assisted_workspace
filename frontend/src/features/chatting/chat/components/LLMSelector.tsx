@@ -6,7 +6,7 @@ export function LLMSelector({
   availableLLMs,
 }: {
   selectedLLMId: string | null;
-  setSelectedLLMId: (newSelectedLLMId: string | null) => void;
+  setSelectedLLMId: (newSelectedLLMId: string) => void;
   availableLLMs: LLM[];
 }) {
   return (

@@ -70,6 +70,15 @@ export function ChatPane({
     [setChat, id, settings],
   );
 
+  const selectLLM = useCallback(
+    (newSelectedLLMId: string) => {
+      setChat(id, {
+        settings: { ...settings, selectedLLM: { id: newSelectedLLMId, useReasoning: true } },
+      });
+    },
+    [setChat, id, settings],
+  );
+
   // #region Placeholders
   console.log("Project: " + JSON.stringify({ parentChatId, conversation }));
 
@@ -133,7 +142,8 @@ export function ChatPane({
         rename={rename}
         selectedModeId={settings.selectedModeId}
         selectMode={selectMode}
-        selectedLLM={settings.selectedLLM}
+        selectedLLMId={settings.selectedLLM.id}
+        selectLLM={selectLLM}
       />
 
       {historyOpen && <ChatHistoryPanel />}

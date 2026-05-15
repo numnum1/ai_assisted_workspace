@@ -3,36 +3,31 @@ import { ModeSelector } from "./ModeSelector";
 import type { ProjectViewModel } from "../../project/project-types";
 import { useCallback, useContext, useMemo, useState } from "react";
 import ProjectContext from "../../project/project-context";
-import type { SelectedLLM } from "../unsortedChatTypes";
-
-const noop = () => {};
+import { LLMSelector } from "./LLMSelector";
 
 export function ChatHeader({
   name,
   rename,
   selectedModeId,
   selectMode,
-  selectedLLM,
+  selectedLLMId,
+  selectLLM
 }: {
   name: string;
   rename: (newName: string) => void;
   selectedModeId: string | null;
   selectMode: (newSelectedMode: string) => void;
-  selectedLLM: SelectedLLM;
+  selectedLLMId: string | null;
+  selectLLM: (newSelectedLLMId: string) => void;
 }) {
   const {
     settings: { modes, llms },
     findModeById,
-    findLLMById,
   }: ProjectViewModel = useContext<ProjectViewModel>(ProjectContext);
 
   const selectedMode = useMemo(() => {
     return selectedModeId ? findModeById(selectedModeId) : null;
   }, [findModeById, selectedModeId]);
-
-  const selectedLLMData = useMemo(() => {
-    return selectedLLM.id ? findLLMById(selectedLLM.id) : null;
-  }, [selectedLLM.id, findLLMById]);
 
   const [renameTitle, setRenameTitle] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -80,21 +75,7 @@ export function ChatHeader({
         </div>
       )}
       <div className="chat-header-actions">
-        {!guidedExecSummary && llms.length > 0 && (
-          <select
-            className="chat-llm-select"
-            value={selectedLLMData?.name ?? ""}
-            onChange={noop}
-            title="LLM auswählen"
-          >
-            <option value="">— Standard —</option>
-            {llms.map((llm) => (
-              <option key={llm.id} value={llm.id}>
-                {llm.name}
-              </option>
-            ))}
-          </select>
-        )}
+        <LLMSelector selectedLLMId={selectedLLMId} setSelectedLLMId={selectLLM} availableLLMs={llms} />
       </div>
       <div className="chat-header-title-row">
         {renaming ? (

@@ -10,7 +10,7 @@ export type TextMessage = {
 export type Message = TextMessage
 
 export type ConversationTurnBase = {
-    timestamp: number
+    timestamp: number;
 }
 
 export type SystemTurn = {
