@@ -16,6 +16,7 @@ const defaultChatViewModel: ChatViewModel = {
     },
     enabledToolIds: [],
   },
+  userMessage: '',
   streaming: false,
   send: () => {},
   cancel: () => {},

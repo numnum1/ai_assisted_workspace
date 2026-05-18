@@ -9,7 +9,7 @@ export type Tool = {
 export const toolList = [
   { id: "web", label: "Web-Suche", Icon: Wrench },
   { id: "wiki", label: "Wiki", Icon: Wrench },
-  { id: "dateisystem", label: "Dateisystem", Icon: Wrench },
+  { id: "filesystem", label: "Dateisystem", Icon: Wrench },
 ];
 
 export function findToolById (id: string) : Tool | null {

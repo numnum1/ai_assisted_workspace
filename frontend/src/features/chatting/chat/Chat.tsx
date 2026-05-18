@@ -19,6 +19,7 @@ export type Chat = {
   name: string;
   conversation: Conversation;
   settings: ChatSettings;
+  userMessage: string;
 };
 
 export function NewChat(
@@ -41,6 +42,7 @@ export function NewChat(
       },
       enabledToolIds: [],
     },
+    userMessage: "",
   };
 }
 
@@ -50,6 +52,7 @@ export function ChatPane({
   name,
   conversation,
   settings,
+  userMessage,
 }: Chat) {
   const { setChat }: ProjectViewModel =
     useContext<ProjectViewModel>(ProjectContext);
@@ -82,6 +85,52 @@ export function ChatPane({
     [setChat, id, settings],
   );
 
+  const setUseReasoning = useCallback(
+    (newUseReasoning: boolean) => {
+      setChat(id, {
+        settings: {
+          ...settings,
+          selectedLLM: {
+            ...settings.selectedLLM,
+            useReasoning: newUseReasoning,
+          },
+        },
+      });
+    },
+    [id, setChat, settings],
+  );
+
+  const enableToolById = useCallback(
+    (toolId: string) => {
+      setChat(id, {
+        settings: {
+          ...settings,
+          enabledToolIds: [...settings.enabledToolIds, toolId],
+        },
+      });
+    },
+    [id, setChat, settings],
+  );
+
+  const disableToolById = useCallback(
+    (toolId: string) => {
+      setChat(id, {
+        settings: {
+          ...settings,
+          enabledToolIds: settings.enabledToolIds.filter((id) => id !== toolId),
+        },
+      });
+    },
+    [id, setChat, settings],
+  );
+
+  const setUserMessage = useCallback(
+    (newUserMessage: string) => {
+      setChat(id, { userMessage: newUserMessage });
+    },
+    [id, setChat],
+  );
+
   const context: ChatViewModel = useMemo<ChatViewModel>(() => {
     return {
       parentChatId,
@@ -89,6 +138,7 @@ export function ChatPane({
       name,
       conversation,
       settings,
+      userMessage,
       streaming: false,
       send: () => {
         console.log("Send Clicked");
@@ -96,20 +146,23 @@ export function ChatPane({
       cancel: () => {
         console.log("Cancel Clicked");
       },
-      setUserMessage: (newUserMessage: string) => {
-        console.log("User Message Clicked: " + newUserMessage);
-      },
-      setUseReasoning: (newUseReasoning: boolean) => {
-        console.log("Use Reasoning Clicked: " + newUseReasoning);
-      },
-      enableToolById: (id: string) => {
-        console.log("Enable Tool Clicked: " + id);
-      },
-      disableToolById: (id: string) => {
-        console.log("Disable Tool Clicked: " + id);
-      }
+      setUserMessage: setUserMessage,
+      setUseReasoning: setUseReasoning,
+      enableToolById: enableToolById,
+      disableToolById: disableToolById,
     };
-  }, [parentChatId, id, name, conversation, settings]);
+  }, [
+    parentChatId,
+    id,
+    name,
+    conversation,
+    settings,
+    userMessage,
+    setUseReasoning,
+    enableToolById,
+    disableToolById,
+    setUserMessage,
+  ]);
 
   // #region Placeholders
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
