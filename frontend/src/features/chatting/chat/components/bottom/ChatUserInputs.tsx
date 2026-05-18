@@ -1,6 +1,7 @@
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext } from "react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
+import { ToolkitMenu } from "./ToolkitMenu";
 
 export function ChatUserInputs() {
   const {
@@ -14,15 +15,9 @@ export function ChatUserInputs() {
     setUseReasoning,
   } = useContext<ChatViewModel>(ChatContext);
 
-  const [isToolkitListOpen, setIsToolkitListOpen] = useState(false);
-
-  const toggleToolkitList = useCallback(() => {
-    setIsToolkitListOpen((open) => !open);
-  }, [setIsToolkitListOpen]);
-
   const toggleUseReasoning = useCallback(() => {
-    setUseReasoning((use) => !use);
-  }, [setUseReasoning]);
+    setUseReasoning(!useReasoning);
+  }, [setUseReasoning, useReasoning]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -59,14 +54,7 @@ export function ChatUserInputs() {
         >
           ⚡
         </button>
-        <button
-          type="button"
-          className="chat-tools-toggle-btn active"
-          onClick={toggleToolkitList}
-          title="Toolkits"
-        >
-          🔧
-        </button>
+        <ToolkitMenu />
         {streaming ? (
           <button className="chat-send-btn stop" onClick={cancel} title="Stop">
             ⏹

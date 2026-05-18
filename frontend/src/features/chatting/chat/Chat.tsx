@@ -39,6 +39,7 @@ export function NewChat(
         id: null,
         useReasoning: false,
       },
+      enabledToolIds: [],
     },
   };
 }
@@ -81,13 +82,32 @@ export function ChatPane({
     [setChat, id, settings],
   );
 
-  const context: ChatViewModel = useMemo(() => {
+  const context: ChatViewModel = useMemo<ChatViewModel>(() => {
     return {
       parentChatId,
       id,
       name,
       conversation,
       settings,
+      streaming: false,
+      send: () => {
+        console.log("Send Clicked");
+      },
+      cancel: () => {
+        console.log("Cancel Clicked");
+      },
+      setUserMessage: (newUserMessage: string) => {
+        console.log("User Message Clicked: " + newUserMessage);
+      },
+      setUseReasoning: (newUseReasoning: boolean) => {
+        console.log("Use Reasoning Clicked: " + newUseReasoning);
+      },
+      enableToolById: (id: string) => {
+        console.log("Enable Tool Clicked: " + id);
+      },
+      disableToolById: (id: string) => {
+        console.log("Disable Tool Clicked: " + id);
+      }
     };
   }, [parentChatId, id, name, conversation, settings]);
 
@@ -106,13 +126,10 @@ export function ChatPane({
 
   const activeSessionKind = "standard" as "standard" | "guided";
   const streaming = false;
-  const useReasoning = false;
   const steeringPlan = "";
   const activeFile = null as string | null;
   const isDirty = false;
   const systemPromptPreview = null as string | null;
-  const activeSelection = null;
-  const referencedFiles = [] as string[];
   const disabledToolkits = new Set<string>();
   // #endregion
 

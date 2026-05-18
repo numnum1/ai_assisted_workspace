@@ -14,12 +14,15 @@ const defaultChatViewModel: ChatViewModel = {
       id: null,
       useReasoning: false,
     },
+    enabledToolIds: [],
   },
   streaming: false,
   send: () => {},
   cancel: () => {},
   setUserMessage: () => {},
   setUseReasoning: () => {},
+  enableToolById: () => {},
+  disableToolById: () => {},
 };
 
 const ChatContext = createContext<ChatViewModel>(defaultChatViewModel);
