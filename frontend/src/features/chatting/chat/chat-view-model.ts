@@ -8,4 +8,7 @@ export type ChatViewModel = {
   setUseReasoning: (newUseReasoning: boolean) => void;
   enableToolById: (id: string) => void;
   disableToolById: (id: string) => void;
+  rename: (newName: string) => void;
+  selectMode: (newSelectedModeId: string) => void;
+  selectLLM: (newSelectedLLM: string) => void;
 } & Chat;

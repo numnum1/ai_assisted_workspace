@@ -4,22 +4,13 @@ import type { ProjectViewModel } from "../../project/project-types";
 import { useCallback, useContext, useMemo, useState } from "react";
 import ProjectContext from "../../project/project-context";
 import { LLMSelector } from "./LLMSelector";
+import ChatContext from "../chat-context";
+import type { ChatViewModel } from "../chat-view-model";
 
-export function ChatHeader({
-  name,
-  rename,
-  selectedModeId,
-  selectMode,
-  selectedLLMId,
-  selectLLM
-}: {
-  name: string;
-  rename: (newName: string) => void;
-  selectedModeId: string | null;
-  selectMode: (newSelectedMode: string) => void;
-  selectedLLMId: string | null;
-  selectLLM: (newSelectedLLMId: string) => void;
-}) {
+export function ChatHeader() {
+  const { name, rename, selectMode, selectLLM, settings: { selectedModeId, selectedLLM: { id: selectedLLMId } } } =
+    useContext<ChatViewModel>(ChatContext);
+
   const {
     settings: { modes, llms },
     findModeById,
@@ -36,8 +27,8 @@ export function ChatHeader({
     setRenaming(true);
   }, [setRenameTitle, setRenaming]);
   const applyNewName = useCallback(() => {
-      rename(renameTitle)
-      setRenaming(false)
+    rename(renameTitle);
+    setRenaming(false);
   }, [rename, renameTitle, setRenaming]);
 
   // #region placeholder
@@ -75,7 +66,11 @@ export function ChatHeader({
         </div>
       )}
       <div className="chat-header-actions">
-        <LLMSelector selectedLLMId={selectedLLMId} setSelectedLLMId={selectLLM} availableLLMs={llms} />
+        <LLMSelector
+          selectedLLMId={selectedLLMId}
+          setSelectedLLMId={selectLLM}
+          availableLLMs={llms}
+        />
       </div>
       <div className="chat-header-title-row">
         {renaming ? (
