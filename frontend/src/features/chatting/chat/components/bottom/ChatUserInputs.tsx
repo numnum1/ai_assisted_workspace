@@ -1,7 +1,7 @@
 import { useCallback, useContext } from "react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
-import { ToolkitMenu } from "./ToolkitMenu";
+import { ToolkitMenu } from "./toolkit/ToolkitMenu";
 
 export function ChatUserInputs() {
   const {

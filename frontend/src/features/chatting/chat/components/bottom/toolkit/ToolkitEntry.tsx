@@ -1,7 +1,7 @@
 import { useCallback, useContext, useMemo } from "react";
-import type { ChatViewModel } from "../../chat-view-model";
-import ChatContext from "../../chat-context";
-import type { Tool } from "../../../toolkit/Tools";
+import type { ChatViewModel } from "../../../chat-view-model";
+import ChatContext from "../../../chat-context";
+import type { Tool } from "../../../../toolkit/Tools";
 
 export function ToolkitEntry({ id, label, Icon }: Tool) {
   const {

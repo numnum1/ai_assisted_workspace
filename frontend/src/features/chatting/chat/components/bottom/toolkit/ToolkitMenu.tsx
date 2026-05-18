@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useContext, useMemo } from "react";
 import { Wrench } from "lucide-react";
-import type { ChatViewModel } from "../../chat-view-model";
-import ChatContext from "../../chat-context";
-import { toolList } from "../../../toolkit/Tools";
+import type { ChatViewModel } from "../../../chat-view-model";
+import ChatContext from "../../../chat-context";
+import { toolList } from "../../../../toolkit/Tools";
 import { ToolkitEntry } from "./ToolkitEntry";
 
 export function ToolkitMenu() {

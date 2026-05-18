@@ -16,7 +16,7 @@ const defaultChatViewModel: ChatViewModel = {
     },
     enabledToolIds: [],
   },
-  userMessage: '',
+  userMessage: "",
   streaming: false,
   send: () => {},
   cancel: () => {},
@@ -24,6 +24,12 @@ const defaultChatViewModel: ChatViewModel = {
   setUseReasoning: () => {},
   enableToolById: () => {},
   disableToolById: () => {},
+  rename: () => {},
+  selectMode: () => {},
+  selectLLM: () => {},
+  context: {
+    placeholder: "",
+  },
 };
 
 const ChatContext = createContext<ChatViewModel>(defaultChatViewModel);

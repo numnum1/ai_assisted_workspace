@@ -3,7 +3,7 @@ import type { ChatSettings, Conversation } from "./unsortedChatTypes";
 import { ChatHeader } from "./components/ChatHeader";
 import { SteeringPlanPanel } from "./components/SteeringPlanPanel";
 import { ChatBottomPane } from "./components/bottom/ChatBottomPane";
-import { ContextBar } from "./components/ContextBar";
+import { ContextBar } from "./components/context/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
 import { v4 as uuidv4 } from "uuid";
@@ -64,9 +64,6 @@ export function ChatPane(value: Chat) {
   const activeSessionKind = "standard" as "standard" | "guided";
   const streaming = false;
   const steeringPlan = "";
-  const activeFile = null as string | null;
-  const isDirty = false;
-  const systemPromptPreview = null as string | null;
   const disabledToolkits = new Set<string>();
   // #endregion
 
@@ -91,11 +88,7 @@ export function ChatPane(value: Chat) {
               <ChatBottomPane />
             </div>
 
-            <ContextBar
-              activeFile={activeFile}
-              isDirty={isDirty}
-              systemPromptPreview={systemPromptPreview}
-            />
+            <ContextBar />
 
             <GlossaryPopup
               glossaryPopup={glossaryPopup}

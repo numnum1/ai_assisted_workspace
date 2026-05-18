@@ -11,4 +11,10 @@ export type ChatViewModel = {
   rename: (newName: string) => void;
   selectMode: (newSelectedModeId: string) => void;
   selectLLM: (newSelectedLLM: string) => void;
+  context: ChatContext;
 } & Chat;
+
+
+export type ChatContext = {
+    placeholder: string;
+}

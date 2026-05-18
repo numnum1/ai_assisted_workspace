@@ -1,6 +1,6 @@
-import { useCallback, useContext, useMemo } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import type { Chat } from "./Chat";
-import type { ChatViewModel } from "./chat-view-model";
+import { type ChatContext, type ChatViewModel } from "./chat-view-model";
 import type { ProjectViewModel } from "../project/project-types";
 import ProjectContext from "../project/project-context";
 
@@ -99,7 +99,16 @@ export function useChat({
     [setChat, id, settings],
   );
 
-  const context: ChatViewModel = useMemo<ChatViewModel>(() => {
+  const context = useMemo<ChatContext>(() => {
+    return {
+      placeholder: 'TODO: Implement'
+    }
+  }, []);
+
+  const [streaming, setStreaming] = useState(false);
+  console.log(setStreaming) // TODO: Remove
+
+  const res: ChatViewModel = useMemo<ChatViewModel>(() => {
     return {
       parentChatId,
       id,
@@ -107,7 +116,7 @@ export function useChat({
       conversation,
       settings,
       userMessage,
-      streaming: false,
+      streaming,
       send: send,
       cancel: cancel,
       setUserMessage: setUserMessage,
@@ -117,6 +126,7 @@ export function useChat({
       rename,
       selectMode,
       selectLLM,
+      context,
     };
   }, [
     parentChatId,
@@ -125,6 +135,7 @@ export function useChat({
     conversation,
     settings,
     userMessage,
+    streaming,
     setUseReasoning,
     enableToolById,
     disableToolById,
@@ -134,7 +145,8 @@ export function useChat({
     rename,
     selectMode,
     selectLLM,
+    context,
   ]);
 
-  return context;
+  return res;
 }
