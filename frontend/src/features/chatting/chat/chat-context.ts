@@ -28,7 +28,11 @@ const defaultChatViewModel: ChatViewModel = {
   selectMode: () => {},
   selectLLM: () => {},
   context: {
-    placeholder: "",
+    estimatedTokens: 0,
+    maxTokens: null,
+    percent: null,
+    includedFiles: [],
+    systemPrompt: '',
   },
 };
 

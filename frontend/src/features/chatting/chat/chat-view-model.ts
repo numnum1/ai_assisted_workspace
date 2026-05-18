@@ -15,6 +15,17 @@ export type ChatViewModel = {
 } & Chat;
 
 
+// TODO: Add other stuff or rework when needed
+export type FileInContext = {
+  path: string;
+  useReference: boolean;
+  length: number;
+}
+
 export type ChatContext = {
-    placeholder: string;
+  estimatedTokens: number;
+  maxTokens: number | null;
+  percent: number | null;
+  includedFiles: FileInContext[];
+  systemPrompt: string;
 }

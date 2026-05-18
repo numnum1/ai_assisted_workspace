@@ -1,6 +1,8 @@
 import { Eye } from "lucide-react";
 import { ContextInspector } from "./ContextInspector";
-import { useCallback, useState } from "react";
+import { useCallback, useContext, useState } from "react";
+import ChatContext from "../../chat-context";
+import type { ChatViewModel } from "../../chat-view-model";
 
 export interface ContextBarProps {
   activeFile: string | null;
@@ -11,9 +13,26 @@ export interface ContextBarProps {
 export function ContextBar() {
   const [open, setOpen] = useState(false);
 
+  const {
+    context: {
+      estimatedTokens,
+      includedFiles,
+      maxTokens,
+      percent,
+      systemPrompt,
+    },
+  } = useContext<ChatViewModel>(ChatContext);
+
   const toggleOpen = useCallback(() => {
     setOpen((prev) => !prev);
   }, [setOpen]);
+
+  function tokenBarColor(tokens: number): string {
+    if (tokens >= 100_000) return "var(--red, #f38ba8)";
+    if (tokens >= 75_000) return "var(--orange, #fab387)";
+    if (tokens >= 60_000) return "var(--yellow, #f9e2af)";
+    return "var(--green, #a6e3a1)";
+  }
 
   return (
     <div className="context-bar-wrapper">
@@ -21,44 +40,44 @@ export function ContextBar() {
         <div className="context-bar-left"></div>
         <div className="context-bar-right">
           <span className="context-bar-files">
-            {contextInfo.includedFiles.length} files in context
+            {includedFiles.length} files in context
           </span>
-          {hasMax ? (
+          {maxTokens ? (
             <span
               className="context-bar-tokens context-bar-tokens--with-bar"
-              title={`${contextInfo!.estimatedTokens.toLocaleString()} / ${contextInfo!.maxContextTokens!.toLocaleString()} tokens`}
+              title={`${estimatedTokens.toLocaleString()} / ${maxTokens!.toLocaleString()} tokens`}
             >
               <span
                 className="context-bar-token-pct"
                 style={{
-                  color: tokenBarColor(contextInfo!.estimatedTokens),
+                  color: tokenBarColor(estimatedTokens),
                 }}
               >
-                {pct}%
+                {percent ?? 0}%
               </span>
               <span className="context-bar-token-bar" aria-hidden="true">
                 <span
                   className="context-bar-token-bar-fill"
                   style={{
-                    width: `${pct}%`,
-                    background: tokenBarColor(contextInfo!.estimatedTokens),
+                    width: `${percent ?? 0}%`,
+                    background: tokenBarColor(estimatedTokens),
                   }}
                 />
               </span>
-              ~{contextInfo.estimatedTokens.toLocaleString()} /{" "}
-              {(contextInfo.maxContextTokens! / 1000).toFixed(0)}k
+              ~{estimatedTokens.toLocaleString()} /{" "}
+              {(maxTokens ? maxTokens / 1000 : 0).toFixed(0)}k
             </span>
           ) : (
             <span className="context-bar-tokens">
-              ~{contextInfo.estimatedTokens.toLocaleString()} tokens
+              ~{estimatedTokens.toLocaleString()} tokens
             </span>
           )}
-          {systemPromptPreview != null && systemPromptPreview.length > 0 && (
+          {systemPrompt != null && systemPrompt.length > 0 && (
             <span
               className="context-bar-system-prompt-hint"
               title="Zeichen im vollständigen Systemprompt (nächster Send)"
             >
-              {systemPromptPreview.length.toLocaleString()} Zeichen System
+              {systemPrompt.length.toLocaleString()} Zeichen System
             </span>
           )}
           <button

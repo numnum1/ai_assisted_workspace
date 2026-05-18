@@ -19,13 +19,6 @@ interface ContextBarProps {
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
 }
 
-function tokenBarColor(tokens: number): string {
-  if (tokens >= 100_000) return 'var(--red, #f38ba8)';
-  if (tokens >= 75_000)  return 'var(--orange, #fab387)';
-  if (tokens >= 60_000)  return 'var(--yellow, #f9e2af)';
-  return 'var(--green, #a6e3a1)';
-}
-
 function typeIcon(type: string): string {
   switch (type) {
     case 'mode': return '⚙️';
