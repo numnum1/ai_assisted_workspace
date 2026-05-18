@@ -2,11 +2,11 @@ export function ContextInspector() {
   return (
     <div className="context-inspector">
       <div className="context-inspector-header">
-        <span className="context-inspector-title">Konversations-Inspector</span>
+        <span className="context-inspector-title">Context-Inspector</span>
       </div>
       <div className="context-inspector-body">
         <div className="context-inspector-scroll">
-          {systemPromptPreview != null && systemPromptPreview.length > 0 && (
+          {systemPrompt != null && systemPrompt.length > 0 && (
             <div className="context-block">
               <div
                 className="context-block-header"
@@ -24,7 +24,7 @@ export function ContextInspector() {
                   Systemprompt (gesamt)
                 </span>
                 <span className="context-block-tokens">
-                  {systemPromptPreview.length.toLocaleString()} Zeichen
+                  {systemPrompt.length.toLocaleString()} Zeichen
                 </span>
                 <button
                   type="button"
@@ -45,7 +45,7 @@ export function ContextInspector() {
               </div>
               {systemPromptExpanded && (
                 <div className="context-block-content context-block-content--system-prompt">
-                  <pre>{systemPromptPreview}</pre>
+                  <pre>{systemPrompt}</pre>
                 </div>
               )}
             </div>
