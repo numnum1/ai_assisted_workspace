@@ -15,6 +15,11 @@ const defaultChatViewModel: ChatViewModel = {
       useReasoning: false,
     },
   },
+  streaming: false,
+  send: () => {},
+  cancel: () => {},
+  setUserMessage: () => {},
+  setUseReasoning: () => {},
 };
 
 const ChatContext = createContext<ChatViewModel>(defaultChatViewModel);

@@ -2,7 +2,7 @@ import { useCallback, useContext, useMemo, useState } from "react";
 import type { ChatSettings, Conversation } from "./unsortedChatTypes";
 import { ChatHeader } from "./components/ChatHeader";
 import { SteeringPlanPanel } from "./components/SteeringPlanPanel";
-import { ChatBottomPane } from "./components/ChatBottomPane";
+import { ChatBottomPane } from "./components/bottom/ChatBottomPane";
 import { ContextBar } from "./components/ContextBar";
 import { GlossaryPopup } from "./components/GlossaryPopup";
 import { GlossarySaveDialog } from "./components/GlossarySaveDialog";
@@ -141,12 +141,7 @@ export function ChatPane({
                 streaming={streaming}
               />
 
-              <ChatBottomPane
-                activeSelection={activeSelection}
-                referencedFiles={referencedFiles}
-                streaming={streaming}
-                useReasoning={useReasoning}
-              />
+              <ChatBottomPane />
             </div>
 
             <ContextBar
