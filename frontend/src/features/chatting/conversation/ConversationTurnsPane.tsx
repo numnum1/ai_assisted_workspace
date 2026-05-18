@@ -1,7 +1,9 @@
-export function ConversationTurnsPane () {
+import type { ConversationTurn } from '../chat/unsortedChatTypes';
+
+export function ConversationTurnsPane (turn: ConversationTurn) {
     return (
-        <div>
-            
-        </div>
+        <>
+
+        </>
     )
 }
