@@ -1,5 +1,4 @@
-import { useCallback, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { streamChat } from "../../../api";
 import type { Chat } from "../chat/Chat";
 import type {
@@ -29,6 +28,50 @@ function turnsToChatMessages(turns: ConversationTurn[]): ChatMessage[] {
   return messages;
 }
 
+function buildChatRequest(
+  chat: Chat,
+  userMessage: string,
+  modeName: string,
+): ChatRequest {
+  return {
+    message: userMessage,
+    mode: modeName,
+    history: turnsToChatMessages(chat.conversation.turns),
+    referencedFiles: [],
+    useReasoning: chat.settings.selectedLLM.useReasoning ?? false,
+    llmId: chat.settings.selectedLLM.id ?? undefined,
+  };
+}
+
+function addTurnsToChat(
+  chat: Chat,
+  userMessage: string,
+  modeName: string,
+): Chat {
+  const now = Date.now();
+
+  const userTurn: UserTurn = {
+    type: "USER",
+    text: userMessage,
+    timestamp: now,
+  };
+
+  const assistantTurn: AssistantTurn = {
+    type: "ASSISTANT",
+    usedModeName: modeName,
+    messages: [{ type: "TEXT", text: "" }],
+    timestamp: now + 1,
+  };
+
+  return {
+    ...chat,
+    conversation: {
+      turns: [...chat.conversation.turns, userTurn, assistantTurn],
+    },
+    userMessage: "",
+  };
+}
+
 export type ChatStreamingApi = {
   startStream: (chatId: string, userMessage: string) => void;
   stopStream: (chatId: string) => void;
@@ -37,9 +80,17 @@ export type ChatStreamingApi = {
 };
 
 export function useChatStreaming(
+  chats: Chat[],
   setChats: React.Dispatch<React.SetStateAction<Chat[]>>,
   findModeById: Finder<AssistantMode>,
 ): ChatStreamingApi {
+  // Mirror of chats in a ref so callbacks can read current state without
+  // being listed as dependencies or triggering re-renders.
+  const chatsRef = useRef<Chat[]>(chats);
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
+
   const streamsRef = useRef<Map<string, ChatStream>>(new Map());
   const [streams, setStreams] = useState<Map<string, ChatStream>>(new Map());
 
@@ -58,8 +109,7 @@ export function useChatStreaming(
     (chatId: string, patch: Partial<ChatStream>) => {
       const current = streamsRef.current.get(chatId);
       if (!current) return;
-      const updated = { ...current, ...patch };
-      streamsRef.current.set(chatId, updated);
+      streamsRef.current.set(chatId, { ...current, ...patch });
       setStreams(new Map(streamsRef.current));
     },
     [],
@@ -96,72 +146,35 @@ export function useChatStreaming(
         return;
       }
 
-      let builtRequest: ChatRequest | null = null;
-
-      flushSync(() => {
-        setChats((prevChats) => {
-          const chat = prevChats.find((c) => c.id === chatId) ?? null;
-          if (!chat) {
-            console.warn(`[useChatStreaming] Chat not found: ${chatId}`);
-            return prevChats;
-          }
-          if (abortControllersRef.current.has(chatId)) {
-            console.warn(
-              `[useChatStreaming] Stream already active for chat: ${chatId}`,
-            );
-            return prevChats;
-          }
-
-          const mode = findModeById(chat.settings.selectedModeId ?? "");
-          const modeName =
-            mode?.name ?? chat.settings.selectedModeId ?? "default";
-
-          builtRequest = {
-            message: userMessage,
-            mode: modeName,
-            history: turnsToChatMessages(chat.conversation.turns),
-            referencedFiles: [],
-            useReasoning: chat.settings.selectedLLM.useReasoning ?? false,
-            llmId: chat.settings.selectedLLM.id ?? undefined,
-          };
-
-          console.log(`[useChatStreaming] Request built:`, builtRequest);
-
-          const now = Date.now();
-
-          const userTurn: UserTurn = {
-            type: "USER",
-            text: userMessage,
-            timestamp: now,
-          };
-
-          const assistantTurn: AssistantTurn = {
-            type: "ASSISTANT",
-            usedModeName: modeName,
-            messages: [{ type: "TEXT", text: "" }],
-            timestamp: now + 1,
-          };
-
-          const updatedChat: Chat = {
-            ...chat,
-            conversation: {
-              turns: [...chat.conversation.turns, userTurn, assistantTurn],
-            },
-            userMessage: "",
-          };
-
-          return prevChats.map((c) => (c.id === chatId ? updatedChat : c));
-        });
-      });
-
-      const request = builtRequest;
-      if (!request) {
+      if (abortControllersRef.current.has(chatId)) {
         console.warn(
-          `[useChatStreaming] No request was built — aborting stream start.`,
+          `[useChatStreaming] Stream already active for chat: ${chatId}`,
         );
         return;
       }
 
+      // 1. Read current chat state synchronously from the ref — no setState needed.
+      const chat = chatsRef.current.find((c) => c.id === chatId) ?? null;
+      if (!chat) {
+        console.warn(`[useChatStreaming] Chat not found: ${chatId}`);
+        return;
+      }
+
+      // 2. Build the request from the current chat — pure, no side-effects.
+      const mode = findModeById(chat.settings.selectedModeId ?? "");
+      const modeName = mode?.name ?? chat.settings.selectedModeId ?? "default";
+      const request = buildChatRequest(chat, userMessage, modeName);
+
+      console.log(`[useChatStreaming] Request built:`, request);
+
+      // 3. Update UI state — purely for rendering, decoupled from request building.
+      setChats((prevChats) =>
+        prevChats.map((c) =>
+          c.id === chatId ? addTurnsToChat(c, userMessage, modeName) : c,
+        ),
+      );
+
+      // 4. Initialise the stream entry.
       streamsRef.current.set(chatId, {
         chatId,
         status: "starting",
@@ -172,12 +185,14 @@ export function useChatStreaming(
         `[useChatStreaming] Stream status set to "starting" for chatId=${chatId}`,
       );
 
+      // 5. Kick off the actual streaming.
       const abortController = streamChat(
         request,
         (token) => {
           console.log(
             `[useChatStreaming] onToken: "${token.slice(0, 40)}${token.length > 40 ? "..." : ""}"`,
           );
+
           const stream = streamsRef.current.get(chatId);
           if (stream) {
             streamsRef.current.set(chatId, {
@@ -204,15 +219,9 @@ export function useChatStreaming(
                 } else {
                   messages.push({ type: "TEXT", text: token });
                 }
-                turns[turns.length - 1] = {
-                  ...lastTurn,
-                  messages,
-                };
+                turns[turns.length - 1] = { ...lastTurn, messages };
               }
-              return {
-                ...c,
-                conversation: { turns },
-              };
+              return { ...c, conversation: { turns } };
             }),
           );
         },
@@ -244,10 +253,7 @@ export function useChatStreaming(
           if (stream?.contextInfo) {
             streamsRef.current.set(chatId, {
               ...stream,
-              contextInfo: {
-                ...stream.contextInfo,
-                estimatedTokens,
-              },
+              contextInfo: { ...stream.contextInfo, estimatedTokens },
             });
             scheduleRender();
           }

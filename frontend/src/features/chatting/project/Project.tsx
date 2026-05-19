@@ -26,7 +26,7 @@ export function ProjectPane({ openFolderPath }: { openFolderPath: string }) {
   );
   const findLLMById: Finder<LLM, string> = useFindById(settings.llms);
 
-  const chatStreaming = useChatStreaming(setChats, findModeById);
+  const chatStreaming = useChatStreaming(chats, setChats, findModeById);
 
   // TODO: Move somewhere else
   const [openChatId, setOpenChatId] = useState<string | null>("");
