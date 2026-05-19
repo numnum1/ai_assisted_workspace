@@ -101,34 +101,18 @@ export function useChat({
 
   const context = useMemo<ChatContext>(() => {
     return {
-      placeholder: 'TODO: Implement'
-    }
+      estimatedTokens: 23420,
+      maxTokens: 60000,
+      percent: 39,
+      includedFiles: [],
+      systemPrompt: "You are a helpful assistant that helps answer questions.",
+    };
   }, []);
 
   const [streaming, setStreaming] = useState(false);
-  console.log(setStreaming) // TODO: Remove
+  console.log(setStreaming); // TODO: Remove
 
-  const res: ChatViewModel = useMemo<ChatViewModel>(() => {
-    return {
-      parentChatId,
-      id,
-      name,
-      conversation,
-      settings,
-      userMessage,
-      streaming,
-      send: send,
-      cancel: cancel,
-      setUserMessage: setUserMessage,
-      setUseReasoning: setUseReasoning,
-      enableToolById: enableToolById,
-      disableToolById: disableToolById,
-      rename,
-      selectMode,
-      selectLLM,
-      context,
-    };
-  }, [
+  return {
     parentChatId,
     id,
     name,
@@ -136,17 +120,15 @@ export function useChat({
     settings,
     userMessage,
     streaming,
-    setUseReasoning,
-    enableToolById,
-    disableToolById,
-    setUserMessage,
-    send,
-    cancel,
+    send: send,
+    cancel: cancel,
+    setUserMessage: setUserMessage,
+    setUseReasoning: setUseReasoning,
+    enableToolById: enableToolById,
+    disableToolById: disableToolById,
     rename,
     selectMode,
     selectLLM,
     context,
-  ]);
-
-  return res;
+  };
 }

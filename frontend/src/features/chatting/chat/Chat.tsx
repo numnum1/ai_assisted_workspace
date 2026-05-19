@@ -45,7 +45,6 @@ export function NewChat(
 }
 
 export function ChatPane(value: Chat) {
-
   const context = useChat(value);
 
   // #region Placeholders
