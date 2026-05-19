@@ -812,7 +812,7 @@ async function runChatStream(
       data: { estimatedTokens: preview.estimatedTokens },
     });
 
-    let conversationMessages = buildOpenAiMessages(
+    const conversationMessages = buildOpenAiMessages(
       request,
       preview.systemPrompt,
     );
