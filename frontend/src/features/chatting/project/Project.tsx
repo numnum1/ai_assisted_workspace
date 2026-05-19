@@ -11,12 +11,9 @@ import { isValid, type AssistantMode, type LLM } from "./project-types";
 import { ChatPanel } from "../chat_panel/ChatPanel";
 import { useMemo, useState } from "react";
 import type { SelectedLLM } from "../chat/unsortedChatTypes";
-import { useAddStreaming } from "../stream/useChatStreaming";
+import { useChatStreaming } from "../stream/useChatStreaming";
 
 export function ProjectPane() {
-
-  const streaming = useAddStreaming();
-
   const [chats, setChats] = useState(testProjectData.chats);
   const [settings, setSettings] = useState(testProjectData.settings);
 
@@ -27,6 +24,8 @@ export function ProjectPane() {
     settings.modes,
   );
   const findLLMById: Finder<LLM, string> = useFindById(settings.llms);
+
+  const chatStreaming = useChatStreaming(setChats, findModeById);
 
   const [openFolderPath, setOpenFolderPath] = useLocalStorageState(
     "openFolderPath",
@@ -67,6 +66,7 @@ export function ProjectPane() {
         findLLMById,
         setChats,
         defaultLLM,
+        chatStreaming,
       }}
     >
       <ChatPanel openChatId={openChatId} setOpenChatId={setOpenChatId} />

@@ -17,6 +17,12 @@ const defaultProjectViewModel: ProjectViewModel = {
     id: null,
     useReasoning: false,
   },
+  chatStreaming: {
+    startStream: () => {},
+    stopStream: () => {},
+    getStream: () => undefined,
+    streams: new Map(),
+  },
 };
 
 const ProjectContext = createContext<ProjectViewModel>(defaultProjectViewModel);

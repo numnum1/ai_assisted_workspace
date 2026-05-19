@@ -1,4 +1,4 @@
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext } from "react";
 import type { Chat } from "./Chat";
 import type { ChatViewModel } from "./chat-view-model";
 import type { ProjectViewModel } from "../project/project-types";
@@ -14,7 +14,7 @@ export function useChat({
   settings,
   userMessage,
 }: Chat): ChatViewModel {
-  const { setChat }: ProjectViewModel =
+  const { setChat, chatStreaming }: ProjectViewModel =
     useContext<ProjectViewModel>(ProjectContext);
 
   const setUseReasoning = useCallback(
@@ -63,15 +63,13 @@ export function useChat({
     [id, setChat],
   );
 
-  // TODO: Implement
   const send = useCallback(() => {
-    console.log("Send Clicked");
-  }, []);
+    chatStreaming.startStream(id);
+  }, [id, chatStreaming]);
 
-  // TODO: Implement
   const cancel = useCallback(() => {
-    console.log("Cancel Clicked");
-  }, []);
+    chatStreaming.stopStream(id);
+  }, [id, chatStreaming]);
 
   const rename = useCallback(
     (newName: string) => {
@@ -103,8 +101,9 @@ export function useChat({
 
   const context = useChatContext(settings);
 
-  const [streaming, setStreaming] = useState(false);
-  console.log(setStreaming); // TODO: Remove
+  const stream = chatStreaming.getStream(id);
+  const streaming =
+    stream?.status === "streaming" || stream?.status === "starting";
 
   return {
     parentChatId,
@@ -114,8 +113,8 @@ export function useChat({
     settings,
     userMessage,
     streaming,
-    send: send,
-    cancel: cancel,
+    send,
+    cancel,
     setUserMessage: setUserMessage,
     setUseReasoning: setUseReasoning,
     enableToolById: enableToolById,
