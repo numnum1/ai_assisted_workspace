@@ -30,11 +30,10 @@ const testChats: Chat[] = [
     },
     settings: {
       selectedModeId: "review",
-      availableModeIds: ["review", "edit", "agent"],
       selectedLLM: { id: "gpt-4", useReasoning: false },
-      availableLLMIds: ["gpt-4", "gpt-3.5"],
-      availableToolsIds: ["web", "wiki"],
+      enabledToolIds: ['web', 'wiki', 'filesystem'],
     },
+    userMessage: ''
   },
 ];
 
@@ -49,11 +48,13 @@ export const testProjectData: Project = {
           host: "https://api.openai.com",
           apiKey: "test-key",
           model: "gpt-4",
+          maxTokens: 500000,
         },
         reasoning: {
           host: "https://api.openai.com",
           apiKey: "test-key",
           model: "gpt-4-turbo",
+          maxTokens: 1000000,
         },
       },
       {
@@ -63,11 +64,13 @@ export const testProjectData: Project = {
           host: "https://api.openai.com",
           apiKey: "test-key",
           model: "gpt-3.5-turbo",
+          maxTokens: 250000,
         },
         reasoning: {
           host: "https://api.openai.com",
           apiKey: "test-key",
           model: "gpt-3.5-turbo",
+          maxTokens: 500000,
         },
       },
     ],

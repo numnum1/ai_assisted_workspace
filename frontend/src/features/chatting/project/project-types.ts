@@ -21,6 +21,7 @@ export type LLMVersion = {
   host: string;
   apiKey: string;
   model: string;
+  maxTokens: number;
 };
 
 export type LLM = {

@@ -1,3 +1,4 @@
+import type { ToolId } from "../toolkit/Tools";
 import type { Chat } from "./Chat";
 
 export type ChatViewModel = {
@@ -6,8 +7,8 @@ export type ChatViewModel = {
   cancel: () => void;
   setUserMessage: (newUserMessage: string) => void;
   setUseReasoning: (newUseReasoning: boolean) => void;
-  enableToolById: (id: string) => void;
-  disableToolById: (id: string) => void;
+  enableToolById: (id: ToolId) => void;
+  disableToolById: (id: ToolId) => void;
   rename: (newName: string) => void;
   selectMode: (newSelectedModeId: string) => void;
   selectLLM: (newSelectedLLM: string) => void;

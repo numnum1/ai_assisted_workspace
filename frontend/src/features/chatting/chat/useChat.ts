@@ -1,8 +1,10 @@
-import { useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useState } from "react";
 import type { Chat } from "./Chat";
-import { type ChatContext, type ChatViewModel } from "./chat-view-model";
+import type { ChatViewModel } from "./chat-view-model";
 import type { ProjectViewModel } from "../project/project-types";
 import ProjectContext from "../project/project-context";
+import { useChatContext } from "./useChatContext";
+import type { ToolId } from "../toolkit/Tools";
 
 export function useChat({
   parentChatId,
@@ -31,7 +33,7 @@ export function useChat({
   );
 
   const enableToolById = useCallback(
-    (toolId: string) => {
+    (toolId: ToolId) => {
       setChat(id, {
         settings: {
           ...settings,
@@ -43,7 +45,7 @@ export function useChat({
   );
 
   const disableToolById = useCallback(
-    (toolId: string) => {
+    (toolId: ToolId) => {
       setChat(id, {
         settings: {
           ...settings,
@@ -99,15 +101,7 @@ export function useChat({
     [setChat, id, settings],
   );
 
-  const context = useMemo<ChatContext>(() => {
-    return {
-      estimatedTokens: 23420,
-      maxTokens: 60000,
-      percent: 39,
-      includedFiles: [],
-      systemPrompt: "You are a helpful assistant that helps answer questions.",
-    };
-  }, []);
+  const context = useChatContext(settings);
 
   const [streaming, setStreaming] = useState(false);
   console.log(setStreaming); // TODO: Remove
