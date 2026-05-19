@@ -2789,7 +2789,7 @@ function App() {
           />
         </div>
         <div className="app-viewport-section">
-          <ProjectPane openFolderPath={openFolderPath} />
+          <ProjectPane key={openFolderPath} openFolderPath={openFolderPath} />
         </div>
       </ThemeContext.Provider>
     </div>

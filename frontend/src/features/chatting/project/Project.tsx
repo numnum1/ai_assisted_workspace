@@ -13,8 +13,33 @@ import type { SelectedLLM } from "../chat/unsortedChatTypes";
 import { useChatStreaming } from "../stream/useChatStreaming";
 import { useProjectSettings } from "./settings/useProjectSettings.ts";
 
+const getStorageKey = (path: string) => `project-chats-${path}`;
+
 export function ProjectPane({ openFolderPath }: { openFolderPath: string }) {
-  const [chats, setChats] = useState(testProjectData.chats);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    if (!openFolderPath) return testProjectData.chats;
+    try {
+      const stored = localStorage.getItem(getStorageKey(openFolderPath));
+      if (stored) {
+        return JSON.parse(stored) as Chat[];
+      }
+    } catch (e) {
+      console.error("Failed to parse stored chats:", e);
+    }
+    return testProjectData.chats;
+  });
+
+  useEffect(() => {
+    if (!openFolderPath) return;
+    try {
+      localStorage.setItem(
+        getStorageKey(openFolderPath),
+        JSON.stringify(chats),
+      );
+    } catch (e) {
+      console.error("Failed to save chats to localStorage:", e);
+    }
+  }, [chats, openFolderPath]);
 
   const [settings, setSettings] = useProjectSettings(openFolderPath);
 
