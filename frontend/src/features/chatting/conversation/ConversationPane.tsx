@@ -5,12 +5,22 @@ import { ConversationTurnsPane } from "./ConversationTurnsPane.tsx";
 export function ConversationPane() {
   const {
     conversation: { turns },
+    streaming,
+    parentChatId,
   } = useContext(ChatContext);
+
+  const activeIsThread = parentChatId !== null;
 
   return (
     <div className="chat-messages" data-testid="ChatMessagesPane">
       {turns.map((turn, index) => (
-        <ConversationTurnsPane key={index} turn={turn} />
+        <ConversationTurnsPane
+          key={index}
+          turn={turn}
+          turnIndex={index}
+          streaming={streaming}
+          activeIsThread={activeIsThread}
+        />
       ))}
       {turns.length === 0 && (
         <div className="chat-empty">

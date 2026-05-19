@@ -1,3 +1,4 @@
-export function hasClarificationFence(_content: string): boolean {
+export function hasClarificationFence(content: string): boolean {
+  void content;
   return false;
 }
