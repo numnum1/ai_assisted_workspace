@@ -28,19 +28,8 @@ function turnsToChatMessages(turns: ConversationTurn[]): ChatMessage[] {
   return messages;
 }
 
-function buildChatRequest(chat: Chat, modeName: string): ChatRequest {
-  return {
-    message: chat.userMessage,
-    mode: modeName,
-    history: turnsToChatMessages(chat.conversation.turns),
-    referencedFiles: [],
-    useReasoning: chat.settings.selectedLLM.useReasoning ?? false,
-    llmId: chat.settings.selectedLLM.id ?? undefined,
-  };
-}
-
 export type ChatStreamingApi = {
-  startStream: (chatId: string) => void;
+  startStream: (chatId: string, userMessage: string) => void;
   stopStream: (chatId: string) => void;
   getStream: (chatId: string) => ChatStream | undefined;
   streams: Map<string, ChatStream>;
@@ -50,42 +39,34 @@ export function useChatStreaming(
   setChats: React.Dispatch<React.SetStateAction<Chat[]>>,
   findModeById: Finder<AssistantMode>,
 ): ChatStreamingApi {
-  // --- Optimierung: useRef statt useState für die Map ---
-  // Die Map wird direkt mutiert; nur ein primitiver Zahl-Ticker
-  // löst Re-Renders aus. Dadurch entsteht bei jedem Token
-  // kein neues Map-Objekt mehr.
   const streamsRef = useRef<Map<string, ChatStream>>(new Map());
-  const [, setStreamsTick] = useState(0);
+  const [streams, setStreams] = useState<Map<string, ChatStream>>(new Map());
 
-  // Throttle-Ref: maximale Render-Rate ~60fps
   const tickScheduledRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const pendingRequestRef = useRef<ChatRequest | null>(null);
 
-  // Render maximal einmal pro ~16ms auslösen
   const scheduleRender = useCallback(() => {
     if (tickScheduledRef.current !== null) return;
     tickScheduledRef.current = setTimeout(() => {
-      setStreamsTick((t) => t + 1);
+      setStreams(new Map(streamsRef.current));
       tickScheduledRef.current = null;
     }, 16);
   }, []);
 
-  // Hilfsfunktion: Stream-Eintrag patchen und Render planen
   const updateStream = useCallback(
     (chatId: string, patch: Partial<ChatStream>) => {
       const current = streamsRef.current.get(chatId);
       if (!current) return;
-      streamsRef.current.set(chatId, { ...current, ...patch });
-      scheduleRender();
+      const updated = { ...current, ...patch };
+      streamsRef.current.set(chatId, updated);
+      setStreams(new Map(streamsRef.current));
     },
-    [scheduleRender],
+    [],
   );
 
   const getStream = useCallback(
     (chatId: string) => streamsRef.current.get(chatId),
-    // streamsRef ist stabil; kein Dep nötig
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -98,24 +79,25 @@ export function useChatStreaming(
     const stream = streamsRef.current.get(chatId);
     if (stream && stream.status !== "done" && stream.status !== "error") {
       streamsRef.current.set(chatId, { ...stream, status: "stopped" });
-      setStreamsTick((t) => t + 1); // sofortiger Render beim Stop
+      setStreams(new Map(streamsRef.current));
     }
   }, []);
 
   const startStream = useCallback(
-    (chatId: string) => {
-      const snapshotRef = { current: null as Chat | null };
+    (chatId: string, userMessage: string) => {
+      if (!userMessage.trim()) {
+        console.warn(
+          `[useChatStreaming] userMessage is empty for chat: ${chatId}`,
+        );
+        return;
+      }
+
+      pendingRequestRef.current = null;
 
       setChats((prevChats) => {
         const chat = prevChats.find((c) => c.id === chatId) ?? null;
         if (!chat) {
           console.warn(`[useChatStreaming] Chat not found: ${chatId}`);
-          return prevChats;
-        }
-        if (!chat.userMessage.trim()) {
-          console.warn(
-            `[useChatStreaming] userMessage is empty for chat: ${chatId}`,
-          );
           return prevChats;
         }
         if (abortControllersRef.current.has(chatId)) {
@@ -125,15 +107,24 @@ export function useChatStreaming(
           return prevChats;
         }
 
-        snapshotRef.current = chat;
         const mode = findModeById(chat.settings.selectedModeId ?? "");
         const modeName =
           mode?.name ?? chat.settings.selectedModeId ?? "default";
+
+        pendingRequestRef.current = {
+          message: userMessage,
+          mode: modeName,
+          history: turnsToChatMessages(chat.conversation.turns),
+          referencedFiles: [],
+          useReasoning: chat.settings.selectedLLM.useReasoning ?? false,
+          llmId: chat.settings.selectedLLM.id ?? undefined,
+        };
+
         const now = Date.now();
 
         const userTurn: UserTurn = {
           type: "USER",
-          text: chat.userMessage,
+          text: userMessage,
           timestamp: now,
         };
 
@@ -155,26 +146,19 @@ export function useChatStreaming(
         return prevChats.map((c) => (c.id === chatId ? updatedChat : c));
       });
 
-      const chatSnapshot = snapshotRef.current;
-      if (!chatSnapshot) return;
+      const request = pendingRequestRef.current;
+      if (!request) return;
 
-      const mode = findModeById(chatSnapshot.settings.selectedModeId ?? "");
-      const modeName =
-        mode?.name ?? chatSnapshot.settings.selectedModeId ?? "default";
-      const request = buildChatRequest(chatSnapshot, modeName);
-
-      // Stream-Eintrag direkt in die Ref schreiben, einmal rendern
       streamsRef.current.set(chatId, {
         chatId,
         status: "starting",
         assistantText: "",
       });
-      setStreamsTick((t) => t + 1);
+      setStreams(new Map(streamsRef.current));
 
       const abortController = streamChat(
         request,
         (token) => {
-          // Token: nur Ref mutieren + gedrosselter Render
           const stream = streamsRef.current.get(chatId);
           if (stream) {
             streamsRef.current.set(chatId, {
@@ -251,9 +235,6 @@ export function useChatStreaming(
     startStream,
     stopStream,
     getStream,
-    // Wir geben die Ref-Map direkt zurück. Der Ticker sorgt dafür,
-    // dass Konsumenten bei Änderungen neu rendern – die Map-Referenz
-    // bleibt dabei stabil (kein unnötiges Diffing).
-    streams: streamsRef.current,
+    streams,
   };
 }

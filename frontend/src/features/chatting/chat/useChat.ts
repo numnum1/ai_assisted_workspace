@@ -63,30 +63,13 @@ export function useChat({
     [id, setChat],
   );
 
-  const addUserTurn = useCallback(
-    (messageAsText: string) => {
-      setChat(id, {
-        conversation: {
-          ...conversation,
-          turns: [
-            ...conversation.turns,
-            { type: "USER", text: messageAsText, timestamp: Date.now() },
-          ],
-        },
-      });
-    },
-    [id, setChat, conversation],
-  );
-
   const send = useCallback(() => {
-    console.log('Sending...')
-    addUserTurn(userMessage);
-    setUserMessage("");
-    chatStreaming.startStream(id);
-  }, [addUserTurn, id, chatStreaming, userMessage, setUserMessage]);
+    console.log("Sending...");
+    chatStreaming.startStream(id, userMessage);
+  }, [id, chatStreaming, userMessage]);
 
   const cancel = useCallback(() => {
-    console.log('Cancelling...')
+    console.log("Cancelling...");
     chatStreaming.stopStream(id);
   }, [id, chatStreaming]);
 

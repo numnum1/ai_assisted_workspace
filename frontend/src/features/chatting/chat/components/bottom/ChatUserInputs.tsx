@@ -1,4 +1,4 @@
-import { useCallback, useContext } from "react";
+import { useCallback, useContext, useMemo } from "react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
 import { ToolkitMenu } from "./toolkit/ToolkitMenu";
@@ -37,6 +37,10 @@ export function ChatUserInputs() {
     [setUserMessage],
   );
 
+  const disabled = useMemo(() => {
+    return userMessage.trim() === "" || streaming;
+  }, [userMessage, streaming])
+
   return (
     <div className="chat-input-toolbar-card">
       <div className="chat-input-row">
@@ -62,7 +66,7 @@ export function ChatUserInputs() {
             ⏹
           </button>
         ) : (
-          <button className="chat-send-btn" onClick={send} title="Send (Enter)">
+          <button className="chat-send-btn" onClick={send} title="Send (Enter)" disabled={disabled}>
             ➤
           </button>
         )}
