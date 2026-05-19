@@ -13,6 +13,7 @@ export function ChatUserInputs() {
     cancel,
     setUserMessage,
     setUseReasoning,
+    userMessage
   } = useContext<ChatViewModel>(ChatContext);
 
   const toggleUseReasoning = useCallback(() => {
@@ -45,6 +46,7 @@ export function ChatUserInputs() {
           rows={1}
           onChange={handleChanged}
           onKeyDown={handleKeyDown}
+          value={userMessage}
         />
         <button
           type="button"

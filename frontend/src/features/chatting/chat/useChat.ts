@@ -79,12 +79,14 @@ export function useChat({
   );
 
   const send = useCallback(() => {
+    console.log('Sending...')
     addUserTurn(userMessage);
     setUserMessage("");
     chatStreaming.startStream(id);
   }, [addUserTurn, id, chatStreaming, userMessage, setUserMessage]);
 
   const cancel = useCallback(() => {
+    console.log('Cancelling...')
     chatStreaming.stopStream(id);
   }, [id, chatStreaming]);
 
