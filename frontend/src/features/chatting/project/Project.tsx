@@ -2,29 +2,21 @@ import { type Chat } from "../chat/Chat";
 import ProjectContext from "./project-context";
 import {
   useFindById,
-  useLocalStorageState,
   usePatchEntry,
   type Finder,
 } from "../../../utils/generics";
 import { testProjectData } from "./test-project-data";
 import { isValid, type AssistantMode, type LLM } from "./project-types";
 import { ChatPanel } from "../chat_panel/ChatPanel";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SelectedLLM } from "../chat/unsortedChatTypes";
 import { useChatStreaming } from "../stream/useChatStreaming";
 import { useProjectSettings } from "./settings/useProjectSettings.ts";
 
-export function ProjectPane() {
+export function ProjectPane({ openFolderPath }: { openFolderPath: string }) {
   const [chats, setChats] = useState(testProjectData.chats);
 
-  const [openFolderPath, setOpenFolderPath] = useLocalStorageState(
-    "openFolderPath",
-    "",
-  );
-
   const [settings, setSettings] = useProjectSettings(openFolderPath);
-
-  console.log(JSON.stringify({ openFolderPath, setOpenFolderPath }));
 
   const setChat = usePatchEntry(setChats);
 
@@ -38,6 +30,19 @@ export function ProjectPane() {
 
   // TODO: Move somewhere else
   const [openChatId, setOpenChatId] = useState<string | null>("");
+
+  // For debugging purposes
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).printProjectSettings = () => {
+      console.log("[ProjectPane] Current Open Path:", openFolderPath);
+      console.log("[ProjectPane] Current settings:", settings);
+    };
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).printProjectSettings;
+    };
+  }, [settings, openFolderPath]);
 
   const defaultLLM: SelectedLLM = useMemo(() => {
     let res: SelectedLLM = { id: null, useReasoning: false };

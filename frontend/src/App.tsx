@@ -6,7 +6,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { ThemeContext, type ThemeName } from './ThemeContext';
+import { ThemeContext, type ThemeName } from "./ThemeContext";
 import { Panel, Group, Separator, usePanelRef } from "react-resizable-panels";
 import type { Layout } from "react-resizable-panels";
 import {
@@ -202,6 +202,7 @@ function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
 }
 
 const MAIN_PANEL_LAYOUT_KEY = "assistant-main-panel-layout";
+const OPEN_FOLDER_PATH_KEY = "open-folder-path";
 const MAIN_PANEL_IDS = ["outliner", "editor", "chat"] as const;
 
 function loadMainPanelLayout(): Layout | undefined {
@@ -289,6 +290,25 @@ function agentPersistSignature(conv: Conversation): string {
 
 function App() {
   const [theme, setTheme] = useState<ThemeName>("light");
+  const [openFolderPath, setOpenFolderPath] = useState<string>(() => {
+    try {
+      return localStorage.getItem(OPEN_FOLDER_PATH_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (openFolderPath) {
+        localStorage.setItem(OPEN_FOLDER_PATH_KEY, openFolderPath);
+      } else {
+        localStorage.removeItem(OPEN_FOLDER_PATH_KEY);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [openFolderPath]);
 
   // Testing
 
@@ -1398,11 +1418,12 @@ function App() {
 
   const handleOpenProject = useCallback(
     async (path: string) => {
+      setOpenFolderPath(path);
       await project.openProject(path);
       await chapter.refreshChapters();
       loadModes();
     },
-    [project, chapter, loadModes],
+    [project, chapter, loadModes, setOpenFolderPath],
   );
 
   const workspaceModeId = chapter.activeSubprojectType ?? "default";
@@ -2768,9 +2789,9 @@ function App() {
           />
         </div>
         <div className="app-viewport-section">
-          <ProjectPane></ProjectPane>
+          <ProjectPane openFolderPath={openFolderPath} />
         </div>
-        </ThemeContext.Provider>
+      </ThemeContext.Provider>
     </div>
   );
 }
