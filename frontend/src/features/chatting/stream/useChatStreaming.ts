@@ -50,12 +50,43 @@ export function useChatStreaming(
   setChats: React.Dispatch<React.SetStateAction<Chat[]>>,
   findModeById: Finder<AssistantMode>,
 ): ChatStreamingApi {
-  const [streams, setStreams] = useState<Map<string, ChatStream>>(new Map());
+  // --- Optimierung: useRef statt useState für die Map ---
+  // Die Map wird direkt mutiert; nur ein primitiver Zahl-Ticker
+  // löst Re-Renders aus. Dadurch entsteht bei jedem Token
+  // kein neues Map-Objekt mehr.
+  const streamsRef = useRef<Map<string, ChatStream>>(new Map());
+  const [, setStreamsTick] = useState(0);
+
+  // Throttle-Ref: maximale Render-Rate ~60fps
+  const tickScheduledRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
+  // Render maximal einmal pro ~16ms auslösen
+  const scheduleRender = useCallback(() => {
+    if (tickScheduledRef.current !== null) return;
+    tickScheduledRef.current = setTimeout(() => {
+      setStreamsTick((t) => t + 1);
+      tickScheduledRef.current = null;
+    }, 16);
+  }, []);
+
+  // Hilfsfunktion: Stream-Eintrag patchen und Render planen
+  const updateStream = useCallback(
+    (chatId: string, patch: Partial<ChatStream>) => {
+      const current = streamsRef.current.get(chatId);
+      if (!current) return;
+      streamsRef.current.set(chatId, { ...current, ...patch });
+      scheduleRender();
+    },
+    [scheduleRender],
+  );
+
   const getStream = useCallback(
-    (chatId: string) => streams.get(chatId),
-    [streams],
+    (chatId: string) => streamsRef.current.get(chatId),
+    // streamsRef ist stabil; kein Dep nötig
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   const stopStream = useCallback((chatId: string) => {
@@ -64,14 +95,11 @@ export function useChatStreaming(
       controller.abort();
       abortControllersRef.current.delete(chatId);
     }
-    setStreams((prev) => {
-      const next = new Map(prev);
-      const stream = next.get(chatId);
-      if (stream && stream.status !== "done" && stream.status !== "error") {
-        next.set(chatId, { ...stream, status: "stopped" });
-      }
-      return next;
-    });
+    const stream = streamsRef.current.get(chatId);
+    if (stream && stream.status !== "done" && stream.status !== "error") {
+      streamsRef.current.set(chatId, { ...stream, status: "stopped" });
+      setStreamsTick((t) => t + 1); // sofortiger Render beim Stop
+    }
   }, []);
 
   const startStream = useCallback(
@@ -135,31 +163,27 @@ export function useChatStreaming(
         mode?.name ?? chatSnapshot.settings.selectedModeId ?? "default";
       const request = buildChatRequest(chatSnapshot, modeName);
 
-      setStreams((prev) => {
-        const next = new Map(prev);
-        next.set(chatId, {
-          chatId,
-          status: "starting",
-          assistantText: "",
-        });
-        return next;
+      // Stream-Eintrag direkt in die Ref schreiben, einmal rendern
+      streamsRef.current.set(chatId, {
+        chatId,
+        status: "starting",
+        assistantText: "",
       });
+      setStreamsTick((t) => t + 1);
 
       const abortController = streamChat(
         request,
         (token) => {
-          setStreams((prev) => {
-            const next = new Map(prev);
-            const stream = next.get(chatId);
-            if (stream) {
-              next.set(chatId, {
-                ...stream,
-                status: "streaming",
-                assistantText: stream.assistantText + token,
-              });
-            }
-            return next;
-          });
+          // Token: nur Ref mutieren + gedrosselter Render
+          const stream = streamsRef.current.get(chatId);
+          if (stream) {
+            streamsRef.current.set(chatId, {
+              ...stream,
+              status: "streaming",
+              assistantText: stream.assistantText + token,
+            });
+            scheduleRender();
+          }
 
           setChats((prevChats) =>
             prevChats.map((c) => {
@@ -190,88 +214,46 @@ export function useChatStreaming(
           );
         },
         (context) => {
-          setStreams((prev) => {
-            const next = new Map(prev);
-            const stream = next.get(chatId);
-            if (stream) {
-              next.set(chatId, {
-                ...stream,
-                contextInfo: context,
-              });
-            }
-            return next;
-          });
+          updateStream(chatId, { contextInfo: context });
         },
         (fullText) => {
-          setStreams((prev) => {
-            const next = new Map(prev);
-            const stream = next.get(chatId);
-            if (stream) {
-              next.set(chatId, {
-                ...stream,
-                status: "done",
-                assistantText: fullText,
-              });
-            }
-            return next;
-          });
+          updateStream(chatId, { status: "done", assistantText: fullText });
           abortControllersRef.current.delete(chatId);
         },
         (err) => {
-          setStreams((prev) => {
-            const next = new Map(prev);
-            const stream = next.get(chatId);
-            if (stream) {
-              next.set(chatId, {
-                ...stream,
-                status: "error",
-                errorMessage: err.message,
-              });
-            }
-            return next;
-          });
+          updateStream(chatId, { status: "error", errorMessage: err.message });
           abortControllersRef.current.delete(chatId);
         },
         (description) => {
-          setStreams((prev) => {
-            const next = new Map(prev);
-            const stream = next.get(chatId);
-            if (stream) {
-              next.set(chatId, {
-                ...stream,
-                toolCallDescription: description,
-              });
-            }
-            return next;
-          });
+          updateStream(chatId, { toolCallDescription: description });
         },
         (estimatedTokens) => {
-          setStreams((prev) => {
-            const next = new Map(prev);
-            const stream = next.get(chatId);
-            if (stream?.contextInfo) {
-              next.set(chatId, {
-                ...stream,
-                contextInfo: {
-                  ...stream.contextInfo,
-                  estimatedTokens,
-                },
-              });
-            }
-            return next;
-          });
+          const stream = streamsRef.current.get(chatId);
+          if (stream?.contextInfo) {
+            streamsRef.current.set(chatId, {
+              ...stream,
+              contextInfo: {
+                ...stream.contextInfo,
+                estimatedTokens,
+              },
+            });
+            scheduleRender();
+          }
         },
       );
 
       abortControllersRef.current.set(chatId, abortController);
     },
-    [findModeById, setChats],
+    [findModeById, setChats, scheduleRender, updateStream],
   );
 
   return {
     startStream,
     stopStream,
     getStream,
-    streams,
+    // Wir geben die Ref-Map direkt zurück. Der Ticker sorgt dafür,
+    // dass Konsumenten bei Änderungen neu rendern – die Map-Referenz
+    // bleibt dabei stabil (kein unnötiges Diffing).
+    streams: streamsRef.current,
   };
 }
