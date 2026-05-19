@@ -50,6 +50,8 @@
     --red: #f38ba8;
     --yellow: #f9e2af;
     --surface: #1e1e2e;
+    --surface1: #181825;
+    --surface2: #313244;
     --chat-user-bg: #313244;
     --chat-ai-bg: #1e1e2e;
     /* User preferences — overridden at runtime via document.documentElement.style */
@@ -75,6 +77,8 @@ body.theme-light {
     --red: #dc3545;
     --yellow: #e6a817;
     --surface: #ffffff;
+    --surface1: #f5f5f7;
+    --surface2: #e8e8ed;
     --chat-user-bg: #e8e8f0;
     --chat-ai-bg: #f5f5f7;
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ChatSettings, Conversation } from "./unsortedChatTypes";
+import type { ChatSettings, Conversation, SelectedLLM } from "./unsortedChatTypes";
 import { ChatHeader } from "./components/ChatHeader";
 import { SteeringPlanPanel } from "./components/SteeringPlanPanel";
 import { ChatBottomPane } from "./components/bottom/ChatBottomPane";
@@ -24,6 +24,7 @@ export function NewChat(
   parentChatId: string | null = null,
   name: string,
   selectedModeId: string | null,
+  selectedLLM: SelectedLLM
 ): Chat {
   return {
     parentChatId: parentChatId,
@@ -34,10 +35,7 @@ export function NewChat(
     },
     settings: {
       selectedModeId: selectedModeId,
-      selectedLLM: {
-        id: null,
-        useReasoning: false,
-      },
+      selectedLLM: selectedLLM,
       enabledToolIds: [],
     },
     userMessage: "",

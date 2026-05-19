@@ -24,6 +24,7 @@ export function ChatPanel({
     setChats,
     findChatById,
     settings: { modes },
+    defaultLLM
   } = useContext(ProjectContext);
 
   const openChat: Chat | null = useMemo(() => {
@@ -49,7 +50,7 @@ export function ChatPanel({
   const handleConfirmedClickedInNewEventChat = useCallback(
     (newChatName: string, keepOld: boolean) => {
       const firstMode: string | null = modes.length > 0 ? modes[0].id : null;
-      const newChat = NewChat(null, newChatName, firstMode);
+      const newChat = NewChat(null, newChatName, firstMode, defaultLLM);
       setChats((prev) => {
         let newArray;
         if (keepOld) {
@@ -65,7 +66,7 @@ export function ChatPanel({
       setOpenChatId(newChat.id);
       setNewChatDialogOpen(false);
     },
-    [setChats, setNewChatDialogOpen, openChatId, setOpenChatId, modes],
+    [setChats, setNewChatDialogOpen, openChatId, setOpenChatId, modes, defaultLLM],
   );
 
   const handleCancelClickedInNewEventChat = useCallback(() => {

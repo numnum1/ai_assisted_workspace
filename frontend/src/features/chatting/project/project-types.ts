@@ -1,5 +1,6 @@
 import type { Finder, Patcher, Setter } from "../../../utils/generics";
 import type { Chat } from "../chat/Chat";
+import type { SelectedLLM } from "../chat/unsortedChatTypes";
 
 export type ProjectViewModel = {
   setSettings: Setter<ProjectSettings>;
@@ -8,6 +9,7 @@ export type ProjectViewModel = {
   findModeById: Finder<AssistantMode>;
   findLLMById: Finder<LLM>;
   setChats: Setter<Chat[]>;
+  defaultLLM: SelectedLLM;
 } & Project;
 
 export type AssistantMode = {
@@ -16,6 +18,10 @@ export type AssistantMode = {
   systemPrompt: string;
   color: string;
 };
+
+export function isValid({host, model}: LLMVersion): boolean {
+  return host !== "" && model !== "";
+}
 
 export type LLMVersion = {
   host: string;
