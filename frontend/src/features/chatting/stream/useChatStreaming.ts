@@ -45,7 +45,6 @@ export function useChatStreaming(
 
   const tickScheduledRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
-  const pendingRequestRef = useRef<ChatRequest | null>(null);
 
   const scheduleRender = useCallback(() => {
     if (tickScheduledRef.current !== null) return;
