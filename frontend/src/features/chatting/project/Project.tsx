@@ -14,6 +14,7 @@ import { useChatStreaming } from "../stream/useChatStreaming";
 import { useProjectSettings } from "./settings/useProjectSettings.ts";
 
 const getStorageKey = (path: string) => `project-chats-${path}`;
+const getOpenChatStorageKey = (path: string) => `project-open-chat-${path}`;
 
 export function ProjectPane({ openFolderPath }: { openFolderPath: string }) {
   const [chats, setChats] = useState<Chat[]>(() => {
@@ -53,8 +54,32 @@ export function ProjectPane({ openFolderPath }: { openFolderPath: string }) {
 
   const chatStreaming = useChatStreaming(chats, setChats, findModeById);
 
-  // TODO: Move somewhere else
-  const [openChatId, setOpenChatId] = useState<string | null>("");
+  const [openChatId, setOpenChatId] = useState<string | null>(() => {
+    if (!openFolderPath) return "";
+    try {
+      const stored = localStorage.getItem(
+        getOpenChatStorageKey(openFolderPath),
+      );
+      if (stored !== null) {
+        return stored === "null" ? null : stored;
+      }
+    } catch (e) {
+      console.error("Failed to parse stored open chat id:", e);
+    }
+    return "";
+  });
+
+  useEffect(() => {
+    if (!openFolderPath) return;
+    try {
+      localStorage.setItem(
+        getOpenChatStorageKey(openFolderPath),
+        openChatId === null ? "null" : openChatId,
+      );
+    } catch (e) {
+      console.error("Failed to save open chat id to localStorage:", e);
+    }
+  }, [openChatId, openFolderPath]);
 
   // For debugging purposes
   useEffect(() => {
