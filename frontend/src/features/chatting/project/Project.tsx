@@ -12,10 +12,19 @@ import { ChatPanel } from "../chat_panel/ChatPanel";
 import { useMemo, useState } from "react";
 import type { SelectedLLM } from "../chat/unsortedChatTypes";
 import { useChatStreaming } from "../stream/useChatStreaming";
+import { useProjectSettings } from "./settings/useProjectSettings.ts";
 
 export function ProjectPane() {
   const [chats, setChats] = useState(testProjectData.chats);
-  const [settings, setSettings] = useState(testProjectData.settings);
+
+  const [openFolderPath, setOpenFolderPath] = useLocalStorageState(
+    "openFolderPath",
+    "",
+  );
+
+  const [settings, setSettings] = useProjectSettings(openFolderPath);
+
+  console.log(JSON.stringify({ openFolderPath, setOpenFolderPath }));
 
   const setChat = usePatchEntry(setChats);
 
@@ -26,13 +35,6 @@ export function ProjectPane() {
   const findLLMById: Finder<LLM, string> = useFindById(settings.llms);
 
   const chatStreaming = useChatStreaming(setChats, findModeById);
-
-  const [openFolderPath, setOpenFolderPath] = useLocalStorageState(
-    "openFolderPath",
-    "",
-  );
-
-  console.log(JSON.stringify({ openFolderPath, setOpenFolderPath }));
 
   // TODO: Move somewhere else
   const [openChatId, setOpenChatId] = useState<string | null>("");
