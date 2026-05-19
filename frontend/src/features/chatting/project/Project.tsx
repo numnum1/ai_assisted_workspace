@@ -11,8 +11,12 @@ import { isValid, type AssistantMode, type LLM } from "./project-types";
 import { ChatPanel } from "../chat_panel/ChatPanel";
 import { useMemo, useState } from "react";
 import type { SelectedLLM } from "../chat/unsortedChatTypes";
+import { useAddStreaming } from "../stream/useChatStreaming";
 
 export function ProjectPane() {
+
+  const streaming = useAddStreaming();
+
   const [chats, setChats] = useState(testProjectData.chats);
   const [settings, setSettings] = useState(testProjectData.settings);
 
