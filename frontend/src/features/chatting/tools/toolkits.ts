@@ -1,4 +1,4 @@
-import type { Toolkit, ToolkitId } from "./toolkit";
+import type { Toolkit, ToolkitId } from './toolkit';
 import { FolderOpen, Book, CircleHelp } from 'lucide-react';
 
 export function findToolkitById(id: ToolkitId): Toolkit | null {
@@ -7,150 +7,157 @@ export function findToolkitById(id: ToolkitId): Toolkit | null {
 
 export const TOOLKITS: Toolkit[] = [
   {
-    id: "filesystem",
-    label: "Dateisystem",
+    id: 'filesystem',
+    label: 'Dateisystem',
     icon: FolderOpen,
     tools: [
       {
-        type: "function",
+        type: 'function',
+        label: 'Datei System Layout',
         function: {
-          name: "read_file",
-          description: "Read a project file by relative path.",
+          name: 'read_file',
+          description: 'Read a project file by relative path.',
           parameters: {
-            type: "object",
-            properties: { path: { type: "string" } },
-            required: ["path"],
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
           },
         },
       },
       {
-        type: "function",
+        type: 'function',
+        label: 'Semantische Suche',
         function: {
-          name: "semantic_search",
+          name: 'semantic_search',
           description:
-            "Search project files and wiki by meaning, not just exact keywords. " +
-            "Finds thematically relevant content even if the exact words differ. " +
-            "Use scope='wiki' to limit to wiki files, 'project' for project files only, " +
-            "or 'all' (default) to search everything.",
+            'Search project files and wiki by meaning, not just exact keywords. ' +
+            'Finds thematically relevant content even if the exact words differ. ' +
+            'Use scope=\'wiki\' to limit to wiki files, \'project\' for project files only, ' +
+            'or \'all\' (default) to search everything.',
           parameters: {
-            type: "object",
+            type: 'object',
             properties: {
-              query: { type: "string" },
+              query: { type: 'string' },
               scope: {
-                type: "string",
-                enum: ["all", "project", "wiki"],
+                type: 'string',
+                enum: ['all', 'project', 'wiki'],
               },
-              limit: { type: "number" },
+              limit: { type: 'number' },
             },
-            required: ["query"],
+            required: ['query'],
           },
         },
       },
       {
-        type: "function",
+        type: 'function',
+        label: 'Datei schreiben',
         function: {
-          name: "write_file",
-          description: "Write a file inside the current project.",
+          name: 'write_file',
+          description: 'Write a file inside the current project.',
           parameters: {
-            type: "object",
+            type: 'object',
             properties: {
-              path: { type: "string" },
-              content: { type: "string" },
+              path: { type: 'string' },
+              content: { type: 'string' },
             },
-            required: ["path", "content"],
+            required: ['path', 'content'],
           },
         },
       },
     ],
   },
   {
-    id: "wiki",
-    label: "Wiki",
+    id: 'wiki',
+    label: 'Wiki',
     icon: Book,
     tools: [
       {
-        type: "function",
+        type: 'function',
+        label: 'Wiki Eintrag lesen',
         function: {
-          name: "wiki_read",
+          name: 'wiki_read',
           description:
-            "Read a wiki markdown file by relative path inside wiki/.",
+            'Read a wiki markdown file by relative path inside wiki/.',
           parameters: {
-            type: "object",
-            properties: { path: { type: "string" } },
-            required: ["path"],
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
           },
         },
       },
     ],
   },
   {
-    id: "glossary",
-    label: "Glossar",
+    id: 'glossary',
+    label: 'Glossar',
     icon: Book,
     tools: [
       {
-        type: "function",
+        type: 'function',
+        label: 'Glossar Eintrag hinzufügen',
         function: {
-          name: "glossary_add",
-          description: "Add a term to the local glossary.",
+          name: 'glossary_add',
+          description: 'Add a term to the local glossary.',
           parameters: {
-            type: "object",
+            type: 'object',
             properties: {
-              term: { type: "string" },
-              definition: { type: "string" },
+              term: { type: 'string' },
+              definition: { type: 'string' },
             },
-            required: ["term", "definition"],
+            required: ['term', 'definition'],
           },
         },
       },
     ],
   },
   {
-    id: "multipleChoice",
-    label: "Multiple Choice",
+    id: 'multipleChoice',
+    label: 'Multiple Choice',
     icon: CircleHelp,
     tools: [
       {
-        type: "function",
+        type: 'function',
+        label: 'Multiple Choice Fragen stellen',
         function: {
-          name: "ask_clarification",
+          name: 'ask_clarification',
           description:
-            "Ask the user one or more clarifying questions before proceeding.",
+            'Ask the user one or more clarifying questions before proceeding.',
           parameters: {
-            type: "object",
+            type: 'object',
             properties: {
               questions: {
-                type: "array",
+                type: 'array',
                 items: {
-                  type: "object",
+                  type: 'object',
                   properties: {
-                    question: { type: "string" },
-                    options: { type: "array", items: { type: "string" } },
+                    question: { type: 'string' },
+                    options: { type: 'array', items: { type: 'string' } },
                   },
-                  required: ["question", "options"],
+                  required: ['question', 'options'],
                 },
               },
             },
-            required: ["questions"],
+            required: ['questions'],
           },
         },
       },
       {
-        type: "function",
+        type: 'function',
+        label: 'Geführten Thread vorschlagen',
         function: {
-          name: "propose_guided_thread",
+          name: 'propose_guided_thread',
           description:
-            "Propose a guided follow-up thread with a steering plan for structured work.",
+            'Propose a guided follow-up thread with a steering plan for structured work.',
           parameters: {
-            type: "object",
+            type: 'object',
             properties: {
-              steeringPlanMarkdown: { type: "string" },
-              threadTitle: { type: "string" },
-              summary: { type: "string" },
-              modeId: { type: "string" },
-              agentPresetId: { type: "string" },
+              steeringPlanMarkdown: { type: 'string' },
+              threadTitle: { type: 'string' },
+              summary: { type: 'string' },
+              modeId: { type: 'string' },
+              agentPresetId: { type: 'string' },
             },
-            required: ["steeringPlanMarkdown"],
+            required: ['steeringPlanMarkdown'],
           },
         },
       },
