@@ -72,7 +72,10 @@ import {
 } from "./services/typedFilesService.js";
 import { searchProjectContent } from "./services/searchService.js";
 import { indexProject, getIndexStatus } from "./services/vectorService.js";
-import { listProviders, resolveEmbeddingCredentials } from "./services/aiProviderService.js";
+import {
+  listProviders,
+  resolveEmbeddingCredentials,
+} from "./services/aiProviderService.js";
 import {
   gitAheadBehind,
   gitCommit,
@@ -198,7 +201,8 @@ function registerIpcHandlers(): void {
       },
     ) => {
       const focusNorm =
-        typeof body.focusInstructions === "string" && body.focusInstructions.trim().length > 0
+        typeof body.focusInstructions === "string" &&
+        body.focusInstructions.trim().length > 0
           ? body.focusInstructions.trim()
           : undefined;
       console.trace(
@@ -242,7 +246,13 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("vector:status", async () => {
     const projectPath = getCurrentProjectPath();
-    if (!projectPath) return { indexed: false, indexedAt: null, chunkCount: 0, embeddingModel: null };
+    if (!projectPath)
+      return {
+        indexed: false,
+        indexedAt: null,
+        chunkCount: 0,
+        embeddingModel: null,
+      };
     return getIndexStatus(projectPath);
   });
 
@@ -283,10 +293,14 @@ function registerIpcHandlers(): void {
     gitLog(getCurrentProjectPath(), limit ?? 20),
   );
   ipcMain.handle("git:init", () => gitInit(getCurrentProjectPath()));
-  ipcMain.handle("git:aheadBehind", () => gitAheadBehind(getCurrentProjectPath()));
+  ipcMain.handle("git:aheadBehind", () =>
+    gitAheadBehind(getCurrentProjectPath()),
+  );
   ipcMain.handle("git:sync", () => gitSync(getCurrentProjectPath()));
-  ipcMain.handle("git:setCredentials", (_event, username: string, token: string) =>
-    setGitCredentials(username, token),
+  ipcMain.handle(
+    "git:setCredentials",
+    (_event, username: string, token: string) =>
+      setGitCredentials(username, token),
   );
   ipcMain.handle("git:fileHistory", (_event, filePath: string) =>
     gitFileHistory(getCurrentProjectPath(), filePath),
@@ -295,13 +309,8 @@ function registerIpcHandlers(): void {
     gitFileAtCommit(getCurrentProjectPath(), filePath, hash),
   );
 
-  ipcMain.handle(
-    "chapter:list",
-    (_event, structureRoot?: string | null) =>
-      chapterService.listChapters(
-        getCurrentProjectPath(),
-        structureRoot ?? null,
-      ),
+  ipcMain.handle("chapter:list", (_event, structureRoot?: string | null) =>
+    chapterService.listChapters(getCurrentProjectPath(), structureRoot ?? null),
   );
   ipcMain.handle(
     "chapter:getStructure",
@@ -351,12 +360,7 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle(
     "chapter:createScene",
-    (
-      _event,
-      chapterId: string,
-      title: string,
-      structureRoot?: string | null,
-    ) =>
+    (_event, chapterId: string, title: string, structureRoot?: string | null) =>
       chapterService.createScene(
         getCurrentProjectPath(),
         chapterId,
@@ -542,13 +546,8 @@ function registerIpcHandlers(): void {
       ),
   );
 
-  ipcMain.handle(
-    "book:getMeta",
-    (_event, structureRoot?: string | null) =>
-      chapterService.getBookMeta(
-        getCurrentProjectPath(),
-        structureRoot ?? null,
-      ),
+  ipcMain.handle("book:getMeta", (_event, structureRoot?: string | null) =>
+    chapterService.getBookMeta(getCurrentProjectPath(), structureRoot ?? null),
   );
   ipcMain.handle(
     "book:updateMeta",
@@ -624,9 +623,7 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle("preferences:get", () => getPreferences());
-  ipcMain.handle("preferences:set", (_event, patch) =>
-    patchPreferences(patch),
-  );
+  ipcMain.handle("preferences:set", (_event, patch) => patchPreferences(patch));
 
   ipcMain.handle("shell:openDevTools", (event) => {
     console.log("[electron] Received shell:openDevTools");
@@ -655,10 +652,18 @@ function createWindow(): void {
   win.webContents.on("preload-error", (_event, preloadPath, error) => {
     console.error(
       `[electron] preload-error path=${preloadPath}`,
-      error instanceof Error ? error.stack ?? error.message : error,
+      error instanceof Error ? (error.stack ?? error.message) : error,
     );
   });
   // win.webContents.openDevTools();
+
+  // F5 reload für das Fenster (nützlich im Dev-Mode)
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.key === "F5") {
+      event.preventDefault();
+      win.webContents.reload();
+    }
+  });
 
   if (!app.isPackaged) {
     void win.loadURL("http://localhost:5173");
