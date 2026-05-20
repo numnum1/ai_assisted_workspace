@@ -21,7 +21,7 @@ export function ContextBar() {
       percent,
       systemPrompt,
     },
-    selectedLLMVersion
+    selectedLLMVersion,
   } = useContext<ChatViewModel>(ChatContext);
 
   const toggleOpen = useCallback(() => {
@@ -36,21 +36,29 @@ export function ContextBar() {
   }
 
   const expectedCostText: number | null = useMemo(() => {
-    if (selectedLLMVersion == null || selectedLLMVersion.cost == null) return null;
-    return selectedLLMVersion.cost * estimatedTokens / 1000000
-  }, [estimatedTokens, selectedLLMVersion])
+    if (selectedLLMVersion == null || selectedLLMVersion.cost == null)
+      return null;
+    return (selectedLLMVersion.cost * estimatedTokens) / 1000000;
+  }, [estimatedTokens, selectedLLMVersion]);
 
   return (
     <div className="context-bar-wrapper">
       <div className="context-bar">
-        <div className="context-bar-left"></div>
-        <div className="context-bar-right">
+        <div className="context-bar-left">
           <span
             className="context-bar-system-prompt-hint"
             title="Expected Input Tokens cost"
           >
-            {expectedCostText != null ? expectedCostText.toLocaleString(undefined, { style: 'currency', currency: '€', maximumFractionDigits: 6 }) : ''}
+            {expectedCostText != null
+              ? expectedCostText.toLocaleString(undefined, {
+                  style: "currency",
+                  currency: "€",
+                  maximumFractionDigits: 6,
+                })
+              : "No cost specified"}
           </span>
+        </div>
+        <div className="context-bar-right">
           <span className="context-bar-files">
             {includedFiles.length} files in context
           </span>

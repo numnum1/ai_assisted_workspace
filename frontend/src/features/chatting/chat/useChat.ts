@@ -1,7 +1,7 @@
-import { useCallback, useContext } from "react";
+import { useCallback, useContext, useMemo } from "react";
 import type { Chat } from "./Chat";
 import type { ChatViewModel } from "./chat-view-model";
-import type { ProjectViewModel } from "../project/project-types";
+import type { LLM, LLMVersion, ProjectViewModel } from "../project/project-types";
 import ProjectContext from "../project/project-context";
 import { useChatContext } from "./useChatContext";
 import type { ToolkitId } from "../tools/toolkit";
@@ -14,7 +14,7 @@ export function useChat({
   settings,
   userMessage,
 }: Chat): ChatViewModel {
-  const { setChat, chatStreaming }: ProjectViewModel =
+  const { setChat, chatStreaming, findLLMById }: ProjectViewModel =
     useContext<ProjectViewModel>(ProjectContext);
 
   const setUseReasoning = useCallback(
@@ -103,6 +103,13 @@ export function useChat({
     [setChat, id, settings],
   );
 
+  const selectedLLMVersion: LLMVersion | null = useMemo(() => {
+    if (settings.selectedLLM.id == null) return null;
+    const llm: LLM | null = findLLMById(settings.selectedLLM.id)
+    if (llm == null) return null
+    return settings.selectedLLM.useReasoning ? llm.reasoning : llm.fast
+  }, [settings.selectedLLM, findLLMById])
+
   const stream = chatStreaming.getStream(id);
   const streaming =
     stream?.status === "streaming" || stream?.status === "starting";
@@ -125,5 +132,6 @@ export function useChat({
     selectMode,
     selectLLM,
     context,
+    selectedLLMVersion
   };
 }
