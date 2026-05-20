@@ -4,11 +4,15 @@ import { ContextInspectorEntry } from "./ContextInspectorEntry.tsx";
 import ChatContext from "../../chat-context";
 import { calculateTokensFromString } from "../../../../../utils/contextTools.ts";
 import { ToolsInspectorContent } from "./ToolsInspectorContent.tsx";
+import { computeToolSize, type Tool } from "../../../tools/tool.ts";
+import { TOOLKITS } from "../../../tools/toolkits.ts";
+import type { ChatViewModel } from "../../chat-view-model.ts";
 
 export function ContextInspector() {
   const {
     context: { systemPrompt, maxTokens },
-  } = useContext(ChatContext);
+    settings: { enabledToolkitIds },
+  } = useContext<ChatViewModel>(ChatContext);
 
   const systemPromptSize = useMemo(
     () => calculateTokensFromString(systemPrompt),
@@ -19,10 +23,15 @@ export function ContextInspector() {
     return maxTokens ? systemPromptSize / maxTokens : 0;
   }, [maxTokens, systemPromptSize]);
 
-  // TODO: Implement
   const toolsSize = useMemo(() => {
-    return 183;
-  }, []);
+    let res = 0;
+    TOOLKITS.filter((t) => enabledToolkitIds.includes(t.id)).forEach((t) => {
+      t.tools.forEach((tool: Tool) => {
+        res += computeToolSize(tool)
+      });
+    });
+    return res;
+  }, [enabledToolkitIds]);
 
   const toolsPercentage = useMemo(() => {
     return maxTokens ? toolsSize / maxTokens : 0;

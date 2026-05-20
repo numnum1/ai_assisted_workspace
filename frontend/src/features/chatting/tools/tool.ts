@@ -11,3 +11,12 @@ export type Tool = {
     };
   };
 };
+
+export function computeToolSize(tool: Tool): number {
+  const definitionJson = JSON.stringify({
+    type: tool.type,
+    function: tool.function,
+  });
+  const definitionTokens = Math.ceil(definitionJson.length / 4);
+  return definitionTokens;
+}
