@@ -32,6 +32,7 @@ function buildChatRequest(
   chat: Chat,
   userMessage: string,
   modeName: string,
+  systemPrompt?: string,
 ): ChatRequest {
   return {
     message: userMessage,
@@ -40,6 +41,7 @@ function buildChatRequest(
     referencedFiles: [],
     useReasoning: chat.settings.selectedLLM.useReasoning ?? false,
     llmId: chat.settings.selectedLLM.id ?? undefined,
+    systemPrompt,
   };
 }
 
@@ -73,7 +75,11 @@ function addTurnsToChat(
 }
 
 export type ChatStreamingApi = {
-  startStream: (chatId: string, userMessage: string) => void;
+  startStream: (
+    chatId: string,
+    userMessage: string,
+    systemPrompt?: string,
+  ) => void;
   stopStream: (chatId: string) => void;
   getStream: (chatId: string) => ChatStream | undefined;
   streams: Map<string, ChatStream>;
@@ -134,7 +140,7 @@ export function useChatStreaming(
   }, []);
 
   const startStream = useCallback(
-    (chatId: string, userMessage: string) => {
+    (chatId: string, userMessage: string, systemPrompt?: string) => {
       console.log(
         `[useChatStreaming] startStream called for chatId=${chatId}, msg.length=${userMessage.length}`,
       );
@@ -163,7 +169,12 @@ export function useChatStreaming(
       // 2. Build the request from the current chat — pure, no side-effects.
       const mode = findModeById(chat.settings.selectedModeId ?? "");
       const modeName = mode?.name ?? chat.settings.selectedModeId ?? "default";
-      const request = buildChatRequest(chat, userMessage, modeName);
+      const request = buildChatRequest(
+        chat,
+        userMessage,
+        modeName,
+        systemPrompt,
+      );
 
       console.log(`[useChatStreaming] Request built:`, request);
 

@@ -728,7 +728,13 @@ export async function previewChatContext(
     projectPath,
     request.mode,
   );
-  const systemPrompt = buildSystemPrompt(request, context, modeSystemPrompt);
+  // Keep old builder alive – tool-call extraction pending.
+  const legacySystemPrompt = buildSystemPrompt(
+    request,
+    context,
+    modeSystemPrompt,
+  );
+  const systemPrompt = request.systemPrompt ?? legacySystemPrompt;
   console.debug(
     `[chat] previewChatContext: done (systemPrompt=${systemPrompt.length} chars, modeSystemPrompt=${modeSystemPrompt.length} chars)`,
   );

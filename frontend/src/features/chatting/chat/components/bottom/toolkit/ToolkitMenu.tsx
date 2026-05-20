@@ -2,13 +2,13 @@ import { useState, useRef, useEffect, useContext, useMemo } from "react";
 import { Wrench } from "lucide-react";
 import type { ChatViewModel } from "../../../chat-view-model";
 import ChatContext from "../../../chat-context";
-import { toolList } from "../../../../toolkit/Tools";
 import { ToolkitEntry } from "./ToolkitEntry";
+import { TOOLKITS } from "../../../../tools/toolkits";
 
 export function ToolkitMenu() {
   const {
     streaming,
-    settings: { enabledToolIds },
+    settings: { enabledToolkitIds },
   } = useContext<ChatViewModel>(ChatContext);
 
   const [open, setOpen] = useState(false);
@@ -35,18 +35,18 @@ export function ToolkitMenu() {
   }, [open]);
 
   const wrenchClass = useMemo(() => {
-    const n = toolList.length - enabledToolIds.length;
-    const total = toolList.length;
+    const n = TOOLKITS.length - enabledToolkitIds.length;
+    const total = TOOLKITS.length;
     let wrenchClassTmp = "chat-tools-toggle-btn";
     if (n === total) wrenchClassTmp += " chat-tools-toggle-btn--off";
     else if (n > 0) wrenchClassTmp += " chat-tools-toggle-btn--partial";
     else wrenchClassTmp += " active";
     return wrenchClassTmp;
-  }, [enabledToolIds]);
+  }, [enabledToolkitIds]);
 
   const title = useMemo(() => {
-    const n = toolList.length - enabledToolIds.length;
-    const total = toolList.length;
+    const n = TOOLKITS.length - enabledToolkitIds.length;
+    const total = TOOLKITS.length;
     const titleTmp =
       n === 0
         ? "Toolkits — alle aktiv (klicken für Einstellungen)"
@@ -54,7 +54,7 @@ export function ToolkitMenu() {
           ? "Toolkits — alle aus (klicken für Einstellungen)"
           : `Toolkits — ${total - n} von ${total} aktiv (klicken für Einstellungen)`;
     return titleTmp;
-  }, [enabledToolIds]);
+  }, [enabledToolkitIds]);
 
   return (
     <div ref={wrapRef} className="chat-toolkit-wrap">
@@ -76,7 +76,7 @@ export function ToolkitMenu() {
           onMouseDown={(e) => e.preventDefault()}
         >
           <div className="chat-toolkit-popover-title">KI-Toolkits</div>
-          {toolList.map((tool) => {
+          {TOOLKITS.map((tool) => {
             return (
               <div key={tool.id} className="chat-toolkit-row" role="none">
                 <ToolkitEntry {...tool} />

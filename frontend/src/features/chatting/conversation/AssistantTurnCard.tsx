@@ -103,18 +103,18 @@ export function AssistantTurnCard({
   const showActions = !readOnly && !streaming;
 
   const { preUnits, toolUnits, postUnits, hasToolCalls } = useMemo(() => {
-    const firstToolIdx = subUnits.findIndex((s) => s.type === "toolCall");
-    let lastToolIdx = -1;
+    const firstToolkitIdx = subUnits.findIndex((s) => s.type === "toolCall");
+    let lastToolkitIdx = -1;
     for (let i = subUnits.length - 1; i >= 0; i--) {
       if (subUnits[i]!.type === "toolCall") {
-        lastToolIdx = i;
+        lastToolkitIdx = i;
         break;
       }
     }
-    const hasTc = firstToolIdx >= 0;
-    const pre = hasTc ? subUnits.slice(0, firstToolIdx) : subUnits;
+    const hasTc = firstToolkitIdx >= 0;
+    const pre = hasTc ? subUnits.slice(0, firstToolkitIdx) : subUnits;
     const tools = subUnits.filter((s) => s.type === "toolCall");
-    const post = hasTc ? subUnits.slice(lastToolIdx + 1) : [];
+    const post = hasTc ? subUnits.slice(lastToolkitIdx + 1) : [];
     return {
       preUnits: pre,
       toolUnits: tools,

@@ -4,7 +4,7 @@ import type { ChatViewModel } from "./chat-view-model";
 import type { ProjectViewModel } from "../project/project-types";
 import ProjectContext from "../project/project-context";
 import { useChatContext } from "./useChatContext";
-import type { ToolId } from "../toolkit/Tools";
+import type { ToolkitId } from "../tools/toolkit";
 
 export function useChat({
   parentChatId,
@@ -33,11 +33,11 @@ export function useChat({
   );
 
   const enableToolById = useCallback(
-    (toolId: ToolId) => {
+    (ToolkitId: ToolkitId) => {
       setChat(id, {
         settings: {
           ...settings,
-          enabledToolIds: [...settings.enabledToolIds, toolId],
+          enabledToolkitIds: [...settings.enabledToolkitIds, ToolkitId],
         },
       });
     },
@@ -45,16 +45,18 @@ export function useChat({
   );
 
   const disableToolById = useCallback(
-    (toolId: ToolId) => {
+    (ToolkitId: ToolkitId) => {
       setChat(id, {
         settings: {
           ...settings,
-          enabledToolIds: settings.enabledToolIds.filter((id) => id !== toolId),
+          enabledToolkitIds: settings.enabledToolkitIds.filter((id) => id !== ToolkitId),
         },
       });
     },
     [id, setChat, settings],
   );
+
+  const context = useChatContext(settings);
 
   const setUserMessage = useCallback(
     (newUserMessage: string) => {
@@ -65,8 +67,8 @@ export function useChat({
 
   const send = useCallback(() => {
     console.log("Sending...");
-    chatStreaming.startStream(id, userMessage);
-  }, [id, chatStreaming, userMessage]);
+    chatStreaming.startStream(id, userMessage, context.systemPrompt);
+  }, [id, chatStreaming, userMessage, context.systemPrompt]);
 
   const cancel = useCallback(() => {
     console.log("Cancelling...");
@@ -100,8 +102,6 @@ export function useChat({
     },
     [setChat, id, settings],
   );
-
-  const context = useChatContext(settings);
 
   const stream = chatStreaming.getStream(id);
   const streaming =

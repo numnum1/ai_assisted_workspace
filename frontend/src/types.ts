@@ -1,8 +1,14 @@
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
-export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant', 'glossary'] as const;
+export const CHAT_TOOLKIT_IDS = [
+  "web",
+  "wiki",
+  "dateisystem",
+  "assistant",
+  "glossary",
+] as const;
 
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
-export type ChatSessionKind = 'standard' | 'guided';
+export type ChatSessionKind = "standard" | "guided";
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
 
 export interface FileNode {
@@ -47,16 +53,21 @@ export interface SelectionContext {
   from: number;
   to: number;
   /** Which editor the selection came from */
-  editorId: 'file' | 'chapter';
+  editorId: "file" | "chapter";
 }
 
 export interface AltVersionSession {
   originalText: string;
   from: number;
   to: number;
-  editorId: 'file' | 'chapter';
+  editorId: "file" | "chapter";
   /** Returns current viewport-relative coordinates of the selection anchor, or null when off-screen */
-  getAnchorCoords: () => { top: number; bottom: number; left: number; right: number } | null;
+  getAnchorCoords: () => {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  } | null;
   replaceFn: (from: number, to: number, insert: string) => void;
 }
 
@@ -72,7 +83,7 @@ export interface ThreadSummaryMeta {
 }
 
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'tool' | 'system';
+  role: "user" | "assistant" | "tool" | "system";
   content: string;
   mode?: string;
   modeColor?: string;
@@ -87,7 +98,7 @@ export interface ChatMessage {
   /** Present on user messages: the expanded content with file data prepended, used as history content */
   resolvedContent?: string;
   /** Special message kinds for non-standard rendering */
-  kind?: 'thread-summary';
+  kind?: "thread-summary";
   /** Present when kind === 'thread-summary' */
   threadSummaryMeta?: ThreadSummaryMeta;
 }
@@ -111,6 +122,8 @@ export interface ChatRequest {
   sessionKind?: ChatSessionKind;
   /** Persisted plan text for guided sessions; sent each request when set. */
   steeringPlan?: string | null;
+  /** Optional system prompt override supplied by the frontend context. */
+  systemPrompt?: string;
 }
 
 export interface ContextInfo {
@@ -180,7 +193,7 @@ export interface Conversation {
    * Persisted so the "Pending changes" bar does not reappear after an app restart.
    * Key = snapshotId, value = 'applied' | 'reverted'.
    */
-  writeFileSettled?: Record<string, 'applied' | 'reverted'>;
+  writeFileSettled?: Record<string, "applied" | "reverted">;
 }
 
 /** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */
@@ -266,7 +279,7 @@ export interface WorkspaceModeSchema {
   /** 'prose' | 'standard' | 'none' | future modes */
   editorMode: string;
   /** When `scene`, prose body is edited per scene; outliner hides the action level. */
-  proseLeafLevel?: 'scene' | 'action' | string;
+  proseLeafLevel?: "scene" | "action" | string;
   rootMetaLabel: string;
   rootMetaIcon?: string;
   levels: WorkspaceLevelConfig[];
@@ -277,7 +290,7 @@ export interface WorkspaceModeSchema {
 export interface WorkspaceModeInfo {
   id: string;
   name: string;
-  source: 'builtin' | 'user';
+  source: "builtin" | "user";
   icon: string;
   mediaType: boolean;
 }
@@ -331,7 +344,7 @@ export interface ScrollTarget {
   actionId?: string;
 }
 
-export type MetaNodeType = 'book' | 'chapter' | 'scene' | 'action';
+export type MetaNodeType = "book" | "chapter" | "scene" | "action";
 
 export interface MetaSelection {
   type: MetaNodeType;
@@ -345,11 +358,10 @@ export interface MetaSelection {
 export interface AppearancePreferences {
   fontFamily?: string;
   chatFontSizePx?: number;
-  theme?: 'dark' | 'light';
+  theme?: "dark" | "light";
 }
 
 export interface AppPreferences {
   version: 1;
   appearance: AppearancePreferences;
 }
-

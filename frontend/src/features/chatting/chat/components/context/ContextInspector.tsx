@@ -1,8 +1,9 @@
 import { useContext, useMemo } from "react";
-import { Brain } from "lucide-react";
+import { Brain, Wrench } from "lucide-react";
 import { ContextInspectorEntry } from "./ContextInspectorEntry.tsx";
 import ChatContext from "../../chat-context";
 import { calculateTokensFromString } from "../../../../../utils/contextTools.ts";
+import { ToolsInspectorContent } from "./ToolsInspectorContent.tsx";
 
 export function ContextInspector() {
   const {
@@ -17,6 +18,15 @@ export function ContextInspector() {
   const systemPromptPercentage = useMemo(() => {
     return maxTokens ? systemPromptSize / maxTokens : 0;
   }, [maxTokens, systemPromptSize]);
+
+  // TODO: Implement
+  const toolsSize = useMemo(() => {
+    return 183;
+  }, []);
+
+  const toolsPercentage = useMemo(() => {
+    return maxTokens ? toolsSize / maxTokens : 0;
+  }, [maxTokens, toolsSize]);
 
   return (
     <div className="context-inspector">
@@ -38,6 +48,14 @@ export function ContextInspector() {
 
           <div className="context-inspector-section-title">Kontext-Blöcke</div>
           {/* TODO: Add missing context blocks */}
+          <ContextInspectorEntry
+            name="Tools"
+            icon={Wrench}
+            size={toolsSize}
+            percentage={toolsPercentage}
+            Content={<ToolsInspectorContent />}
+            contentClassName="context-block-content--system-prompt"
+          />
         </div>
       </div>
     </div>

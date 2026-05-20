@@ -1,4 +1,5 @@
-import type { ToolId } from "../toolkit/Tools"
+import type { ToolkitId } from "../tools/toolkit"
+
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type MessageBase = {
@@ -45,5 +46,5 @@ export type SelectedLLM = {
 export type ChatSettings = {
     selectedModeId: string | null
     selectedLLM: SelectedLLM,
-    enabledToolIds: ToolId[],
+    enabledToolkitIds: ToolkitId[],
 }

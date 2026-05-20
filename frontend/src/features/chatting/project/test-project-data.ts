@@ -31,7 +31,7 @@ const testChats: Chat[] = [
     settings: {
       selectedModeId: "review",
       selectedLLM: { id: "gpt-4", useReasoning: false },
-      enabledToolIds: ['web', 'wiki', 'filesystem'],
+      enabledToolkitIds: ['web', 'wiki', 'filesystem'],
     },
     userMessage: ''
   },

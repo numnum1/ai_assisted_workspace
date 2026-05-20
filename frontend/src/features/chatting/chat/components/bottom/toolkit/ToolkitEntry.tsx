@@ -1,26 +1,26 @@
 import { useCallback, useContext, useMemo } from "react";
 import type { ChatViewModel } from "../../../chat-view-model";
 import ChatContext from "../../../chat-context";
-import type { Tool } from "../../../../toolkit/Tools";
+import type { Toolkit } from "../../../../tools/toolkit";
 
-export function ToolkitEntry({ id, label, Icon }: Tool) {
+export function ToolkitEntry({ id, label, icon: Icon }: Toolkit) {
   const {
-    settings: { enabledToolIds },
+    settings: { enabledToolkitIds },
     enableToolById,
     disableToolById,
   } = useContext<ChatViewModel>(ChatContext);
 
   const toggleToolById = useCallback(() => {
-    if (enabledToolIds.includes(id)) {
+    if (enabledToolkitIds.includes(id)) {
       disableToolById(id);
     } else {
       enableToolById(id);
     }
-  }, [enabledToolIds, id, enableToolById, disableToolById]);
+  }, [enabledToolkitIds, id, enableToolById, disableToolById]);
 
   const enabled = useMemo(() => {
-    return enabledToolIds.includes(id);
-  }, [enabledToolIds, id]);
+    return enabledToolkitIds.includes(id);
+  }, [enabledToolkitIds, id]);
 
   return (
     <>

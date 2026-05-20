@@ -14,7 +14,7 @@ const defaultChatViewModel: ChatViewModel = {
       id: null,
       useReasoning: false,
     },
-    enabledToolIds: [],
+    enabledToolkitIds: [],
   },
   userMessage: "",
   streaming: false,

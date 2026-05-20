@@ -36,7 +36,7 @@ export function NewChat(
     settings: {
       selectedModeId: selectedModeId,
       selectedLLM: selectedLLM,
-      enabledToolIds: [],
+      enabledToolkitIds: [],
     },
     userMessage: "",
   };
