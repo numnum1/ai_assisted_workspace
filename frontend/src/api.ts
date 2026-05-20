@@ -314,6 +314,8 @@ export interface LlmCreateRequest {
   reasoningModel?: string;
   reasoningApiKey?: string;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export interface LlmUpdateRequest {
@@ -325,6 +327,8 @@ export interface LlmUpdateRequest {
   reasoningModel?: string;
   reasoningApiKey?: string;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export const llmApi = {

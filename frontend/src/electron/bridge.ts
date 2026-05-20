@@ -120,6 +120,8 @@ export interface LlmCreateRequest {
   reasoningModel?: string;
   reasoningApiKey?: string;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export interface LlmUpdateRequest {
@@ -131,6 +133,8 @@ export interface LlmUpdateRequest {
   reasoningModel?: string;
   reasoningApiKey?: string;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export interface ProjectCurrentResult {
@@ -227,7 +231,7 @@ export interface AppBridge {
     startStream: (body: ChatRequest) => Promise<ChatStreamStartResult>;
     stopStream: (streamId: string) => Promise<{ status: string }>;
     summarizeThread: (body: {
-      messages: import('../types.ts').ChatMessage[];
+      messages: import("../types.ts").ChatMessage[];
       focusInstructions?: string | null;
     }) => Promise<string>;
     onStreamEvent: (
@@ -280,19 +284,30 @@ export interface AppBridge {
       message: string,
       files?: string[],
     ) => Promise<{ hash: string; message: string }>;
-    revertFile: (path: string, untracked: boolean) => Promise<{ status: string }>;
+    revertFile: (
+      path: string,
+      untracked: boolean,
+    ) => Promise<{ status: string }>;
     revertDirectory: (path: string) => Promise<{ status: string }>;
     diff: () => Promise<{ diff: string }>;
     log: (limit?: number) => Promise<GitCommit[]>;
     init: () => Promise<{ status: string }>;
     aheadBehind: () => Promise<GitSyncStatus>;
     sync: () => Promise<{ action: string; details: string }>;
-    setCredentials: (username: string, token: string) => Promise<{ status: string }>;
+    setCredentials: (
+      username: string,
+      token: string,
+    ) => Promise<{ status: string }>;
     fileHistory: (path: string) => Promise<GitCommit[]>;
     fileAtCommit: (
       path: string,
       hash: string,
-    ) => Promise<{ path: string; hash: string; content: string; exists: boolean }>;
+    ) => Promise<{
+      path: string;
+      hash: string;
+      content: string;
+      exists: boolean;
+    }>;
   };
   chapter?: {
     list: (structureRoot?: string | null) => Promise<ChapterSummary[]>;

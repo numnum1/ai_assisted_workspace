@@ -38,7 +38,8 @@ export function ContextBar() {
   const expectedCostText: number | null = useMemo(() => {
     if (selectedLLMVersion == null || selectedLLMVersion.cost == null)
       return null;
-    return (selectedLLMVersion.cost * estimatedTokens) / 1000000;
+    const rawCost = (selectedLLMVersion.cost * estimatedTokens) / 1000000;
+    return Math.ceil(rawCost * 100) / 100; // round up to the next cent
   }, [estimatedTokens, selectedLLMVersion]);
 
   return (
@@ -50,11 +51,7 @@ export function ContextBar() {
             title="Expected Input Tokens cost"
           >
             {expectedCostText != null
-              ? expectedCostText.toLocaleString(undefined, {
-                  style: "currency",
-                  currency: "€",
-                  maximumFractionDigits: 6,
-                })
+              ? "" + expectedCostText + "€"
               : "No cost specified"}
           </span>
         </div>

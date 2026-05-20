@@ -12,6 +12,8 @@ export interface AiProvider {
   reasoningApiKey: string;
   reasoningModel: string;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export interface AiProviderPublic {
@@ -24,6 +26,8 @@ export interface AiProviderPublic {
   reasoningModel: string;
   reasoningApiKeySet: boolean;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export interface AiProviderRequest {
@@ -35,6 +39,8 @@ export interface AiProviderRequest {
   reasoningApiKey?: string;
   reasoningModel?: string;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export interface AiProvidersListResponse {
@@ -84,7 +90,9 @@ function normalizeOptionalUrl(value: string | null | undefined): string {
   }
 }
 
-function normalizeOptionalMaxTokens(value: number | null | undefined): number | undefined {
+function normalizeOptionalMaxTokens(
+  value: number | null | undefined,
+): number | undefined {
   if (value == null) return undefined;
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error("maxTokens must be a positive number when provided.");
@@ -121,6 +129,8 @@ function toPublicProvider(provider: AiProvider): AiProviderPublic {
     reasoningModel: provider.reasoningModel,
     reasoningApiKeySet: normalizeString(provider.reasoningApiKey).length > 0,
     maxTokens: provider.maxTokens,
+    costFast: provider.costFast,
+    costReasoning: provider.costReasoning,
   };
 }
 
@@ -136,32 +146,46 @@ function validateNormalizedProvider(provider: Omit<AiProvider, "id">): void {
   }
 
   const hasFast =
-    provider.fastApiUrl.length > 0 || provider.fastModel.length > 0 || provider.fastApiKey.length > 0;
+    provider.fastApiUrl.length > 0 ||
+    provider.fastModel.length > 0 ||
+    provider.fastApiKey.length > 0;
   const hasReasoning =
     provider.reasoningApiUrl.length > 0 ||
     provider.reasoningModel.length > 0 ||
     provider.reasoningApiKey.length > 0;
 
   if (!hasFast && !hasReasoning) {
-    throw new Error("At least one Fast or Reasoning model configuration is required.");
+    throw new Error(
+      "At least one Fast or Reasoning model configuration is required.",
+    );
   }
 
   if (hasFast) {
-    if (!provider.fastApiUrl) throw new Error("Fast API URL is required when Fast config is used.");
-    if (!provider.fastModel) throw new Error("Fast model is required when Fast config is used.");
-    if (!provider.fastApiKey) throw new Error("Fast API key is required when Fast config is used.");
+    if (!provider.fastApiUrl)
+      throw new Error("Fast API URL is required when Fast config is used.");
+    if (!provider.fastModel)
+      throw new Error("Fast model is required when Fast config is used.");
+    if (!provider.fastApiKey)
+      throw new Error("Fast API key is required when Fast config is used.");
   }
 
   if (hasReasoning) {
-    const effectiveReasoningUrl = provider.reasoningApiUrl || provider.fastApiUrl;
+    const effectiveReasoningUrl =
+      provider.reasoningApiUrl || provider.fastApiUrl;
     if (!effectiveReasoningUrl) {
-      throw new Error("Reasoning API URL or Fast API URL is required when Reasoning config is used.");
+      throw new Error(
+        "Reasoning API URL or Fast API URL is required when Reasoning config is used.",
+      );
     }
     if (!provider.reasoningModel) {
-      throw new Error("Reasoning model is required when Reasoning config is used.");
+      throw new Error(
+        "Reasoning model is required when Reasoning config is used.",
+      );
     }
     if (!provider.reasoningApiKey && !provider.fastApiKey) {
-      throw new Error("Reasoning API key or Fast API key is required when Reasoning config is used.");
+      throw new Error(
+        "Reasoning API key or Fast API key is required when Reasoning config is used.",
+      );
     }
   }
 }
@@ -172,19 +196,36 @@ function normalizeProviderInput(
 ): Omit<AiProvider, "id"> {
   const name = normalizeString(body.name ?? existing?.name);
 
-  const fastApiUrl = normalizeOptionalUrl(body.fastApiUrl ?? existing?.fastApiUrl);
+  const fastApiUrl = normalizeOptionalUrl(
+    body.fastApiUrl ?? existing?.fastApiUrl,
+  );
   const fastApiKey =
-    body.fastApiKey !== undefined ? normalizeString(body.fastApiKey) : normalizeString(existing?.fastApiKey);
+    body.fastApiKey !== undefined
+      ? normalizeString(body.fastApiKey)
+      : normalizeString(existing?.fastApiKey);
   const fastModel = normalizeString(body.fastModel ?? existing?.fastModel);
 
-  const reasoningApiUrl = normalizeOptionalUrl(body.reasoningApiUrl ?? existing?.reasoningApiUrl);
+  const reasoningApiUrl = normalizeOptionalUrl(
+    body.reasoningApiUrl ?? existing?.reasoningApiUrl,
+  );
   const reasoningApiKey =
     body.reasoningApiKey !== undefined
       ? normalizeString(body.reasoningApiKey)
       : normalizeString(existing?.reasoningApiKey);
-  const reasoningModel = normalizeString(body.reasoningModel ?? existing?.reasoningModel);
+  const reasoningModel = normalizeString(
+    body.reasoningModel ?? existing?.reasoningModel,
+  );
 
-  const maxTokens = normalizeOptionalMaxTokens(body.maxTokens ?? existing?.maxTokens);
+  const maxTokens = normalizeOptionalMaxTokens(
+    body.maxTokens ?? existing?.maxTokens,
+  );
+
+  const costFast =
+    body.costFast !== undefined ? body.costFast : existing?.costFast;
+  const costReasoning =
+    body.costReasoning !== undefined
+      ? body.costReasoning
+      : existing?.costReasoning;
 
   const normalized: Omit<AiProvider, "id"> = {
     name,
@@ -195,6 +236,8 @@ function normalizeProviderInput(
     reasoningApiKey,
     reasoningModel,
     maxTokens,
+    ...(costFast !== undefined ? { costFast } : {}),
+    ...(costReasoning !== undefined ? { costReasoning } : {}),
   };
 
   validateNormalizedProvider(normalized);
@@ -232,8 +275,19 @@ async function readProviders(): Promise<AiProvider[]> {
         reasoningApiKey: normalizeString(candidate.reasoningApiKey),
         reasoningModel: normalizeString(candidate.reasoningModel),
         maxTokens:
-          typeof candidate.maxTokens === "number" && Number.isFinite(candidate.maxTokens)
+          typeof candidate.maxTokens === "number" &&
+          Number.isFinite(candidate.maxTokens)
             ? Math.round(candidate.maxTokens)
+            : undefined,
+        costFast:
+          typeof candidate.costFast === "number" &&
+          Number.isFinite(candidate.costFast)
+            ? candidate.costFast
+            : undefined,
+        costReasoning:
+          typeof candidate.costReasoning === "number" &&
+          Number.isFinite(candidate.costReasoning)
+            ? candidate.costReasoning
             : undefined,
       });
     }
@@ -247,7 +301,11 @@ async function readProviders(): Promise<AiProvider[]> {
 async function writeProviders(providers: AiProvider[]): Promise<void> {
   await ensureAppDataDir();
   const filePath = getProvidersFilePath();
-  await fs.writeFile(filePath, `${JSON.stringify(sortProviders(providers), null, 2)}\n`, "utf8");
+  await fs.writeFile(
+    filePath,
+    `${JSON.stringify(sortProviders(providers), null, 2)}\n`,
+    "utf8",
+  );
 }
 
 export async function listProviders(): Promise<AiProvider[]> {
@@ -278,7 +336,9 @@ export async function requireProviderById(id: string): Promise<AiProvider> {
   return provider;
 }
 
-export async function createProvider(body: AiProviderRequest): Promise<AiProviderPublic> {
+export async function createProvider(
+  body: AiProviderRequest,
+): Promise<AiProviderPublic> {
   const providers = await readProviders();
   const normalized = normalizeProviderInput(body);
 
@@ -293,7 +353,10 @@ export async function createProvider(body: AiProviderRequest): Promise<AiProvide
   return toPublicProvider(nextProvider);
 }
 
-export async function updateProvider(id: string, body: AiProviderRequest): Promise<AiProviderPublic> {
+export async function updateProvider(
+  id: string,
+  body: AiProviderRequest,
+): Promise<AiProviderPublic> {
   const normalizedId = normalizeString(id);
   if (!normalizedId) {
     throw new Error("Provider id must not be empty.");
@@ -345,12 +408,18 @@ export function resolveProviderConfig(
   const useReasoning = options?.useReasoning === true;
 
   if (useReasoning) {
-    const apiUrl = normalizeString(provider.reasoningApiUrl) || normalizeString(provider.fastApiUrl);
-    const apiKey = normalizeString(provider.reasoningApiKey) || normalizeString(provider.fastApiKey);
+    const apiUrl =
+      normalizeString(provider.reasoningApiUrl) ||
+      normalizeString(provider.fastApiUrl);
+    const apiKey =
+      normalizeString(provider.reasoningApiKey) ||
+      normalizeString(provider.fastApiKey);
     const model = normalizeString(provider.reasoningModel);
 
     if (!apiUrl || !apiKey || !model) {
-      throw new Error(`Reasoning configuration is incomplete for provider: ${provider.id}`);
+      throw new Error(
+        `Reasoning configuration is incomplete for provider: ${provider.id}`,
+      );
     }
 
     return {
@@ -366,7 +435,9 @@ export function resolveProviderConfig(
   const model = normalizeString(provider.fastModel);
 
   if (!apiUrl || !apiKey || !model) {
-    throw new Error(`Fast configuration is incomplete for provider: ${provider.id}`);
+    throw new Error(
+      `Fast configuration is incomplete for provider: ${provider.id}`,
+    );
   }
 
   return {

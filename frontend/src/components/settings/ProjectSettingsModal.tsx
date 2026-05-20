@@ -72,8 +72,8 @@ interface LlmFormState {
   reasoningModel: string;
   reasoningApiKey: string;
   maxTokens: string;
-  fastCost: string;
-  reasoningCost: string;
+  costFast: string;
+  costReasoning: string;
 }
 
 interface ModeForm {
@@ -619,8 +619,8 @@ export function ProjectSettingsModal({
     reasoningModel: "",
     reasoningApiKey: "",
     maxTokens: "",
-    fastCost: "",
-    reasoningCost: "",
+    costFast: "",
+    costReasoning: "",
   });
 
   const openNewLlm = () => setLlmForm(emptyLlmForm());
@@ -636,8 +636,8 @@ export function ProjectSettingsModal({
       reasoningModel: p.reasoningModel ?? "",
       reasoningApiKey: "",
       maxTokens: p.maxTokens ? String(p.maxTokens) : "",
-      fastCost: p.costFast != null ? String(p.costFast) : "",
-      reasoningCost: p.costReasoning != null ? String(p.costReasoning) : "",
+      costFast: p.costFast != null ? String(p.costFast) : "",
+      costReasoning: p.costReasoning != null ? String(p.costReasoning) : "",
     });
   };
 
@@ -653,8 +653,8 @@ export function ProjectSettingsModal({
       reasoningModel,
       reasoningApiKey,
       maxTokens,
-      fastCost,
-      reasoningCost,
+      costFast,
+      costReasoning,
     } = llmForm;
     const hasFast = fastModel.trim().length > 0;
     const hasReasoning = reasoningModel.trim().length > 0;
@@ -676,10 +676,10 @@ export function ProjectSettingsModal({
     const parsedMaxTokens = parseInt(maxTokens, 10);
     const maxTokensPayload = parsedMaxTokens > 0 ? parsedMaxTokens : undefined;
 
-    const parsedFastCost = parseFloat(fastCost);
+    const parsedFastCost = parseFloat(costFast);
     const fastCostPayload = parsedFastCost > 0 ? parsedFastCost : undefined;
 
-    const parsedReasoningCost = parseFloat(reasoningCost);
+    const parsedReasoningCost = parseFloat(costReasoning);
     const reasoningCostPayload =
       parsedReasoningCost > 0 ? parsedReasoningCost : undefined;
     setSavingLlm(true);
@@ -697,8 +697,8 @@ export function ProjectSettingsModal({
             ? { reasoningApiKey: reasoningApiKey.trim() }
             : {}),
           maxTokens: maxTokensPayload,
-          fastCost: fastCostPayload,
-          reasoningCost: reasoningCostPayload,
+          costFast: fastCostPayload,
+          costReasoning: reasoningCostPayload,
         });
       } else {
         await llmApi.create({
@@ -710,8 +710,8 @@ export function ProjectSettingsModal({
           reasoningModel: reasoningModel.trim(),
           reasoningApiKey: reasoningApiKey.trim(),
           maxTokens: maxTokensPayload,
-          fastCost: fastCostPayload,
-          reasoningCost: reasoningCostPayload,
+          costFast: fastCostPayload,
+          costReasoning: reasoningCostPayload,
         });
       }
       setLlmForm(null);
@@ -1677,7 +1677,7 @@ export function ProjectSettingsModal({
               <div className="ps-tab-content ps-wp-tab">
                 <p className="ps-hint">
                   Lege hier eigene Medien-Projekt-Typen ab: eine YAML-Datei pro
-                  Modus (Dateiname = id, z. B. <code>my-mode.yaml</code>). Mit{" "}
+                  Modus (Dateiname = id, z.B. <code>my-mode.yaml</code>). Mit{" "}
                   <code>mediaType: true</code> erscheint der Typ im Kontextmenü
                   „Als Medien-Projekt einrichten“. Nach Änderungen auf der
                   Festplatte unten auf „App neu laden“ klicken.
@@ -1876,10 +1876,10 @@ export function ProjectSettingsModal({
                       type="number"
                       step="0.01"
                       className="ps-input"
-                      value={llmForm.fastCost}
+                      value={llmForm.costFast}
                       onChange={(e) =>
                         setLlmForm(
-                          (p) => p && { ...p, fastCost: e.target.value },
+                          (p) => p && { ...p, costFast: e.target.value },
                         )
                       }
                       placeholder="z. B. 0.15"
@@ -1950,10 +1950,10 @@ export function ProjectSettingsModal({
                       type="number"
                       step="0.01"
                       className="ps-input"
-                      value={llmForm.reasoningCost}
+                      value={llmForm.costReasoning}
                       onChange={(e) =>
                         setLlmForm(
-                          (p) => p && { ...p, reasoningCost: e.target.value },
+                          (p) => p && { ...p, costReasoning: e.target.value },
                         )
                       }
                       placeholder="z. B. 0.15"
