@@ -1,4 +1,5 @@
 import { useCallback, useContext, useMemo } from "react";
+import { Square } from "lucide-react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
 import { ToolkitMenu } from "./toolkit/ToolkitMenu";
@@ -13,7 +14,7 @@ export function ChatUserInputs() {
     cancel,
     setUserMessage,
     setUseReasoning,
-    userMessage
+    userMessage,
   } = useContext<ChatViewModel>(ChatContext);
 
   const toggleUseReasoning = useCallback(() => {
@@ -39,7 +40,7 @@ export function ChatUserInputs() {
 
   const disabled = useMemo(() => {
     return userMessage.trim() === "" || streaming;
-  }, [userMessage, streaming])
+  }, [userMessage, streaming]);
 
   return (
     <div className="chat-input-toolbar-card">
@@ -63,10 +64,15 @@ export function ChatUserInputs() {
         <ToolkitMenu />
         {streaming ? (
           <button className="chat-send-btn stop" onClick={cancel} title="Stop">
-            ⏹
+            <Square size={16} />
           </button>
         ) : (
-          <button className="chat-send-btn" onClick={send} title="Send (Enter)" disabled={disabled}>
+          <button
+            className="chat-send-btn"
+            onClick={send}
+            title="Send (Enter)"
+            disabled={disabled}
+          >
             ➤
           </button>
         )}

@@ -5783,6 +5783,7 @@ body.file-tree-native-dragging {
 
 .chat-send-btn.stop {
     background: var(--red);
+    color: #fff;
 }
 
 /* Expand button (opens large prompt modal) */
@@ -6355,6 +6356,7 @@ body.file-tree-native-dragging {
 
 .quick-chat-send.stop {
     background: var(--red);
+    color: #fff;
 }
 
 /* ==================== Chat Autocomplete ==================== */
