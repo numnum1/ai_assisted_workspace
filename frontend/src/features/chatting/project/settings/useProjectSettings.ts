@@ -21,12 +21,14 @@ function mapProviderToLLM(provider: LlmPublic): LLM {
       apiKey: "",
       model: provider.fastModel,
       maxTokens: provider.maxTokens ?? 0,
+      cost: provider.costFast ?? null,
     },
     reasoning: {
       host: provider.reasoningApiUrl,
       apiKey: "",
       model: provider.reasoningModel,
       maxTokens: provider.maxTokens ?? 0,
+      cost: provider.costReasoning ?? null,
     },
   };
 }

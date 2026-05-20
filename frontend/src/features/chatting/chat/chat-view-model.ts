@@ -1,4 +1,5 @@
 
+import type { LLMVersion } from "../project/project-types";
 import type { ToolkitId } from "../tools/toolkit";
 import type { Chat } from "./Chat";
 
@@ -14,6 +15,7 @@ export type ChatViewModel = {
   selectMode: (newSelectedModeId: string) => void;
   selectLLM: (newSelectedLLM: string) => void;
   context: ChatContext;
+  selectedLLMVersion: LLMVersion | null;
 } & Chat;
 
 

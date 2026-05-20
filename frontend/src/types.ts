@@ -230,6 +230,8 @@ export interface LlmPublic {
   reasoningModel: string;
   reasoningApiKeySet: boolean;
   maxTokens?: number;
+  costFast?: number;
+  costReasoning?: number;
 }
 
 export interface LlmsListResponse {

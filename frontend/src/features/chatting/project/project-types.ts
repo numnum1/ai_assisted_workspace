@@ -29,7 +29,8 @@ export type LLMVersion = {
   host: string;
   apiKey: string;
   model: string;
-  maxTokens: number;
+  maxTokens: number | null;
+  cost: number | null;
 };
 
 export type LLM = {

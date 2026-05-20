@@ -1,6 +1,6 @@
 import { Eye } from "lucide-react";
 import { ContextInspector } from "./ContextInspector";
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
 
@@ -21,6 +21,7 @@ export function ContextBar() {
       percent,
       systemPrompt,
     },
+    selectedLLMVersion
   } = useContext<ChatViewModel>(ChatContext);
 
   const toggleOpen = useCallback(() => {
@@ -34,11 +35,22 @@ export function ContextBar() {
     return "var(--green, #a6e3a1)";
   }
 
+  const expectedCostText: number | null = useMemo(() => {
+    if (selectedLLMVersion == null || selectedLLMVersion.cost == null) return null;
+    return selectedLLMVersion.cost * estimatedTokens / 1000000
+  }, [estimatedTokens, selectedLLMVersion])
+
   return (
     <div className="context-bar-wrapper">
       <div className="context-bar">
         <div className="context-bar-left"></div>
         <div className="context-bar-right">
+          <span
+            className="context-bar-system-prompt-hint"
+            title="Expected Input Tokens cost"
+          >
+            {expectedCostText != null ? expectedCostText.toLocaleString(undefined, { style: 'currency', currency: '€', maximumFractionDigits: 6 }) : ''}
+          </span>
           <span className="context-bar-files">
             {includedFiles.length} files in context
           </span>
