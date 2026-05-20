@@ -191,7 +191,7 @@ export function AssistantTurnCard({
       const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
       const showCopyForPromptPack =
         msg.role === "assistant" &&
-        msg.content.trim() &&
+        (msg.content ? msg.content.trim() : '') &&
         prevUser?.role === "user" &&
         prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
 
