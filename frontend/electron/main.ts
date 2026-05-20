@@ -655,7 +655,7 @@ function createWindow(): void {
       error instanceof Error ? (error.stack ?? error.message) : error,
     );
   });
-  // win.webContents.openDevTools();
+  win.webContents.openDevTools();
 
   // F5 reload für das Fenster (nützlich im Dev-Mode)
   win.webContents.on("before-input-event", (event, input) => {

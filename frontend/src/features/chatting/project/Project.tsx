@@ -5,7 +5,6 @@ import {
   usePatchEntry,
   type Finder,
 } from "../../../utils/generics";
-import { testProjectData } from "./test-project-data";
 import { isValid, type AssistantMode, type LLM } from "./project-types";
 import { ChatPanel } from "../chat_panel/ChatPanel";
 import { useEffect, useMemo, useState } from "react";
@@ -16,18 +15,48 @@ import { useProjectSettings } from "./settings/useProjectSettings.ts";
 const getStorageKey = (path: string) => `project-chats-${path}`;
 const getOpenChatStorageKey = (path: string) => `project-open-chat-${path}`;
 
+/**
+ * Migriert alte Chat-Daten (z. B. Umbenennung von enabledToolIds -> enabledToolkitIds)
+ */
+function migrateChat(raw: unknown): Chat {
+  const chat = (raw ?? {}) as Record<string, unknown>;
+
+  const settings = ((chat.settings as Record<string, unknown>) ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+  let enabledToolkitIds: string[] = [];
+
+  if (Array.isArray(settings.enabledToolkitIds)) {
+    enabledToolkitIds = settings.enabledToolkitIds as string[];
+  } else if (Array.isArray(settings.enabledToolIds)) {
+    // Migration vom alten Feldnamen
+    enabledToolkitIds = settings.enabledToolIds as string[];
+  }
+
+  return {
+    ...(chat as Omit<Chat, "settings">),
+    settings: {
+      ...(settings as any),
+      enabledToolkitIds,
+    },
+  } as Chat;
+}
+
 export function ProjectPane({ openFolderPath }: { openFolderPath: string }) {
   const [chats, setChats] = useState<Chat[]>(() => {
-    if (!openFolderPath) return testProjectData.chats;
+    if (!openFolderPath) return [];
     try {
       const stored = localStorage.getItem(getStorageKey(openFolderPath));
       if (stored) {
-        return JSON.parse(stored) as Chat[];
+        const parsed = JSON.parse(stored) as any[];
+        return parsed.map(migrateChat);
       }
     } catch (e) {
       console.error("Failed to parse stored chats:", e);
     }
-    return testProjectData.chats;
+    return [];
   });
 
   useEffect(() => {

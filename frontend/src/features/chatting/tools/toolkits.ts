@@ -107,7 +107,7 @@ export const TOOLKITS: Toolkit[] = [
   },
   {
     id: "multipleChoice",
-    label: "Auswahl",
+    label: "Multiple Choice",
     icon: CircleHelp,
     tools: [
       {
