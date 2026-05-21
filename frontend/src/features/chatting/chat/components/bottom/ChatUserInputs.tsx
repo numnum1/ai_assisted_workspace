@@ -3,19 +3,22 @@ import { Square } from "lucide-react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
 import { ToolkitMenu } from "./toolkit/ToolkitMenu";
+import { useUserMessage } from "../../useUserMessage";
+import { writeUserMessage } from "../../userMessageStore";
 
 export function ChatUserInputs() {
   const {
+    id,
     streaming,
     settings: {
       selectedLLM: { useReasoning },
     },
     send,
     cancel,
-    setUserMessage,
     setUseReasoning,
-    userMessage,
   } = useContext<ChatViewModel>(ChatContext);
+
+  const userMessage = useUserMessage(id);
 
   const toggleUseReasoning = useCallback(() => {
     setUseReasoning(!useReasoning);
@@ -33,9 +36,9 @@ export function ChatUserInputs() {
 
   const handleChanged = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setUserMessage(e.target.value);
+      writeUserMessage(id, e.target.value);
     },
-    [setUserMessage],
+    [id],
   );
 
   const disabled = useMemo(() => {

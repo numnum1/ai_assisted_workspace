@@ -16,11 +16,9 @@ const defaultChatViewModel: ChatViewModel = {
     },
     enabledToolkitIds: [],
   },
-  userMessage: "",
   streaming: false,
   send: () => {},
   cancel: () => {},
-  setUserMessage: () => {},
   setUseReasoning: () => {},
   enableToolById: () => {},
   disableToolById: () => {},
@@ -32,7 +30,7 @@ const defaultChatViewModel: ChatViewModel = {
     maxTokens: null,
     percent: null,
     includedFiles: [],
-    systemPrompt: '',
+    systemPrompt: "",
   },
 };
 

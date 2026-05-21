@@ -3,6 +3,7 @@ import { ContextInspector } from "./ContextInspector";
 import { useCallback, useContext, useMemo, useState } from "react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
+import { useUserMessage } from "../../useUserMessage";
 
 export interface ContextBarProps {
   activeFile: string | null;
@@ -14,6 +15,7 @@ export function ContextBar() {
   const [open, setOpen] = useState(false);
 
   const {
+    id,
     context: {
       estimatedTokens,
       includedFiles,
@@ -23,6 +25,8 @@ export function ContextBar() {
     },
     selectedLLMVersion,
   } = useContext<ChatViewModel>(ChatContext);
+
+  const enteredUserMessage = useUserMessage(id);
 
   const toggleOpen = useCallback(() => {
     setOpen((prev) => !prev);
@@ -95,6 +99,14 @@ export function ContextBar() {
               title="Zeichen im vollständigen Systemprompt (nächster Send)"
             >
               {systemPrompt.length.toLocaleString()} Zeichen System
+            </span>
+          )}
+          {enteredUserMessage.length > 0 && (
+            <span
+              className="context-bar-system-prompt-hint"
+              title="Zeichen in der aktuellen Eingabe"
+            >
+              {enteredUserMessage.length.toLocaleString()} Zeichen Eingabe
             </span>
           )}
           <button

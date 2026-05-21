@@ -61,7 +61,8 @@ export function ConversationTurnsPane({
   const Content = contentByType[turn.type];
 
   return (
-    <div>
+    <>
+      {Content}
       {index > 0 && (
         <div
           className="assistant-turn-actions"
@@ -111,7 +112,6 @@ export function ConversationTurnsPane({
           </button>
         </div>
       )}
-      {Content}
-    </div>
+    </>
   );
 }

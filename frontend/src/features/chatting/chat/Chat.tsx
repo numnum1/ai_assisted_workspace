@@ -25,7 +25,7 @@ export function NewChat(
   parentChatId: string | null = null,
   name: string,
   selectedModeId: string | null,
-  selectedLLM: SelectedLLM
+  selectedLLM: SelectedLLM,
 ): Chat {
   return {
     parentChatId: parentChatId,
@@ -45,6 +45,8 @@ export function NewChat(
 
 export function ChatPane(value: Chat) {
   const context = useChat(value);
+
+  console.log('Chat rendered')
 
   // #region Placeholders
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);

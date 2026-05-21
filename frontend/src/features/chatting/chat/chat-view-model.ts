@@ -1,4 +1,3 @@
-
 import type { LLMVersion } from "../project/project-types";
 import type { ToolkitId } from "../tools/toolkit";
 import type { Chat } from "./Chat";
@@ -7,7 +6,6 @@ export type ChatViewModel = {
   streaming: boolean;
   send: () => void;
   cancel: () => void;
-  setUserMessage: (newUserMessage: string) => void;
   setUseReasoning: (newUseReasoning: boolean) => void;
   enableToolById: (id: ToolkitId) => void;
   disableToolById: (id: ToolkitId) => void;
@@ -22,15 +20,14 @@ export type ChatViewModel = {
   deleteTurn: (turnIndex: number) => void;
   startNewThread: (turnIndex: number) => void;
   summarizeFromTurn: (turnIndex: number) => void;
-} & Chat;
-
+} & Omit<Chat, "userMessage">;
 
 // TODO: Add other stuff or rework when needed
 export type FileInContext = {
   path: string;
   useReference: boolean;
   length: number;
-}
+};
 
 export type ChatContext = {
   estimatedTokens: number;
@@ -38,4 +35,4 @@ export type ChatContext = {
   percent: number | null;
   includedFiles: FileInContext[];
   systemPrompt: string;
-}
+};

@@ -1,10 +1,15 @@
 import { useCallback, useContext, useMemo } from "react";
 import type { Chat } from "./Chat";
 import type { ChatViewModel } from "./chat-view-model";
-import type { LLM, LLMVersion, ProjectViewModel } from "../project/project-types";
+import type {
+  LLM,
+  LLMVersion,
+  ProjectViewModel,
+} from "../project/project-types";
 import ProjectContext from "../project/project-context";
 import { useChatContext } from "./useChatContext";
 import type { ToolkitId } from "../tools/toolkit";
+import { getUserMessage, writeUserMessage } from "./userMessageStore";
 import { useTurnViewFunctions } from "./useTurnViewFunctions";
 
 export function useChat({
@@ -17,6 +22,10 @@ export function useChat({
 }: Chat): ChatViewModel {
   const { setChat, chatStreaming, findLLMById }: ProjectViewModel =
     useContext<ProjectViewModel>(ProjectContext);
+
+  useMemo(() => {
+    writeUserMessage(id, userMessage);
+  }, [id, userMessage]);
 
   const setUseReasoning = useCallback(
     (newUseReasoning: boolean) => {
@@ -50,7 +59,9 @@ export function useChat({
       setChat(id, {
         settings: {
           ...settings,
-          enabledToolkitIds: settings.enabledToolkitIds.filter((id) => id !== ToolkitId),
+          enabledToolkitIds: settings.enabledToolkitIds.filter(
+            (id) => id !== ToolkitId,
+          ),
         },
       });
     },
@@ -59,17 +70,10 @@ export function useChat({
 
   const context = useChatContext(settings);
 
-  const setUserMessage = useCallback(
-    (newUserMessage: string) => {
-      setChat(id, { userMessage: newUserMessage });
-    },
-    [id, setChat],
-  );
-
   const send = useCallback(() => {
     console.log("Sending...");
-    chatStreaming.startStream(id, userMessage, context.systemPrompt);
-  }, [id, chatStreaming, userMessage, context.systemPrompt]);
+    chatStreaming.startStream(id, getUserMessage(id), context.systemPrompt);
+  }, [id, chatStreaming, context.systemPrompt]);
 
   const cancel = useCallback(() => {
     console.log("Cancelling...");
@@ -106,16 +110,16 @@ export function useChat({
 
   const selectedLLMVersion: LLMVersion | null = useMemo(() => {
     if (settings.selectedLLM.id == null) return null;
-    const llm: LLM | null = findLLMById(settings.selectedLLM.id)
-    if (llm == null) return null
-    return settings.selectedLLM.useReasoning ? llm.reasoning : llm.fast
-  }, [settings.selectedLLM, findLLMById])
+    const llm: LLM | null = findLLMById(settings.selectedLLM.id);
+    if (llm == null) return null;
+    return settings.selectedLLM.useReasoning ? llm.reasoning : llm.fast;
+  }, [settings.selectedLLM, findLLMById]);
 
   const stream = chatStreaming.getStream(id);
   const streaming =
     stream?.status === "streaming" || stream?.status === "starting";
 
-  const turnFunctions = useTurnViewFunctions(id, setChat)
+  const turnFunctions = useTurnViewFunctions(id, setChat);
 
   return {
     parentChatId,
@@ -123,11 +127,9 @@ export function useChat({
     name,
     conversation,
     settings,
-    userMessage,
     streaming,
     send,
     cancel,
-    setUserMessage: setUserMessage,
     setUseReasoning: setUseReasoning,
     enableToolById: enableToolById,
     disableToolById: disableToolById,
@@ -136,6 +138,6 @@ export function useChat({
     selectLLM,
     context,
     selectedLLMVersion,
-    ...turnFunctions
+    ...turnFunctions,
   };
 }
