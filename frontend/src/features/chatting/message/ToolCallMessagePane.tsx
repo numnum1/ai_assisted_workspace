@@ -1,4 +1,4 @@
-import type { ToolCall } from '../conversation/types';
+import type { ToolCall } from "../tool_call/tool_call.types"
 
 export function ToolCallMessagePane ({content}: {content: ToolCall}) {
     console.log(content)

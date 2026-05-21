@@ -19,4 +19,4 @@ export type ToolCallMessage = {
     content: ToolCall
 } & MessageBase
 
-export type Message = TextMessage | ToolCall | ThinkingMessage
+export type Message = TextMessage | ToolCallMessage | ThinkingMessage

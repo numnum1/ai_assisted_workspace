@@ -9,13 +9,14 @@ import { ThinkingMessagePane } from "./ThinkingMessagePane";
 import { ToolCallMessagePane } from "./ToolCallMessagePane";
 
 export function MessagePane({ message }: { message: Message }) {
-  const contentByType: Record<string, React.ReactNode> = {
-    TEXT: <TextMessagePane text={(message as TextMessage).text} />,
-    THINKING: <ThinkingMessagePane text={(message as ThinkingMessage).text} />,
-    TOOL_CALL: (
-      <ToolCallMessagePane content={(message as ToolCallMessage).content} />
-    ),
-  };
-
-  return contentByType[message.type];
+  switch (message.type) {
+    case "TEXT":
+      return <TextMessagePane text={(message as TextMessage).text} />;
+    case "THINKING":
+      return <ThinkingMessagePane text={(message as ThinkingMessage).text} />;
+    case "TOOL_CALL":
+      return (
+        <ToolCallMessagePane content={(message as ToolCallMessage).content} />
+      );
+  }
 }
