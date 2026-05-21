@@ -6,6 +6,9 @@ import type { AssistantMode } from "../project/project-types";
 import type { ChatMessage, ChatRequest } from "../../../types";
 import type { AssistantTurn, ConversationTurn, UserTurn } from "../turn/turn.types";
 import type { Chat } from "../chat/Chat";
+import type { Message } from "../message/message.types";
+import type { FunctionCallToolCall } from "../tool_call/tool_call.types";
+import { writeStreamingText, parseStreamMessages } from "./assistantStreamStore";
 
 function turnsToChatMessages(turns: ConversationTurn[]): ChatMessage[] {
   const messages: ChatMessage[] = [];
@@ -16,7 +19,8 @@ function turnsToChatMessages(turns: ConversationTurn[]): ChatMessage[] {
       messages.push({ role: "user", content: turn.text });
     } else if (turn.type === "ASSISTANT") {
       const content = turn.messages
-        .map((m) => (m.type === "TEXT" ? m.text : ""))
+        .filter((m) => m.type === "TEXT")
+        .map((m) => m.text)
         .join("");
       messages.push({ role: "assistant", content });
     }
@@ -41,11 +45,7 @@ function buildChatRequest(
   };
 }
 
-function addTurnsToChat(
-  chat: Chat,
-  userMessage: string,
-  modeName: string,
-): Chat {
+function addTurnsToChat(chat: Chat, userMessage: string, modeName: string): Chat {
   const now = Date.now();
 
   const userTurn: UserTurn = {
@@ -57,7 +57,7 @@ function addTurnsToChat(
   const assistantTurn: AssistantTurn = {
     type: "ASSISTANT",
     usedModeName: modeName,
-    messages: [{ type: "TEXT", text: "" }],
+    messages: [],
     timestamp: now + 1,
   };
 
@@ -68,6 +68,41 @@ function addTurnsToChat(
     },
     userMessage: "",
   };
+}
+
+/**
+ * Converts the old-format ChatMessage[] from a tool_history event into the new Message[] format.
+ * Groups assistant text + tool calls, attaches tool results where available.
+ */
+function convertToolHistoryToMessages(toolMessages: ChatMessage[]): Message[] {
+  const out: Message[] = [];
+
+  for (const msg of toolMessages) {
+    if (msg.role === "assistant") {
+      if (msg.content?.trim()) {
+        out.push({ type: "TEXT", text: msg.content });
+      }
+      if (msg.toolCalls && msg.toolCalls.length > 0) {
+        for (const tc of msg.toolCalls) {
+          // Find the matching tool result message
+          const resultMsg = toolMessages.find(
+            (m) => m.role === "tool" && m.toolCallId === tc.id,
+          );
+          const call: FunctionCallToolCall = {
+            type: "FUNCTION_CALL",
+            id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+            result: resultMsg?.content,
+          };
+          out.push({ type: "TOOL_CALL", content: call });
+        }
+      }
+    }
+    // Tool result messages are embedded into TOOL_CALL above; skip them at the top level
+  }
+
+  return out;
 }
 
 export type ChatStreamingApi = {
@@ -86,8 +121,6 @@ export function useChatStreaming(
   setChats: React.Dispatch<React.SetStateAction<Chat[]>>,
   findModeById: Finder<AssistantMode>,
 ): ChatStreamingApi {
-  // Mirror of chats in a ref so callbacks can read current state without
-  // being listed as dependencies or triggering re-renders.
   const chatsRef = useRef<Chat[]>(chats);
   useEffect(() => {
     chatsRef.current = chats;
@@ -99,6 +132,7 @@ export function useChatStreaming(
   const tickScheduledRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
+  // Batches stream-metadata renders to ~60 fps (avoids setStreams on every token).
   const scheduleRender = useCallback(() => {
     if (tickScheduledRef.current !== null) return;
     tickScheduledRef.current = setTimeout(() => {
@@ -107,15 +141,12 @@ export function useChatStreaming(
     }, 16);
   }, []);
 
-  const updateStream = useCallback(
-    (chatId: string, patch: Partial<ChatStream>) => {
-      const current = streamsRef.current.get(chatId);
-      if (!current) return;
-      streamsRef.current.set(chatId, { ...current, ...patch });
-      setStreams(new Map(streamsRef.current));
-    },
-    [],
-  );
+  const updateStream = useCallback((chatId: string, patch: Partial<ChatStream>) => {
+    const current = streamsRef.current.get(chatId);
+    if (!current) return;
+    streamsRef.current.set(chatId, { ...current, ...patch });
+    setStreams(new Map(streamsRef.current));
+  }, []);
 
   const getStream = useCallback(
     (chatId: string) => streamsRef.current.get(chatId),
@@ -133,129 +164,91 @@ export function useChatStreaming(
       streamsRef.current.set(chatId, { ...stream, status: "stopped" });
       setStreams(new Map(streamsRef.current));
     }
+    writeStreamingText(chatId, null);
   }, []);
 
   const startStream = useCallback(
     (chatId: string, userMessage: string, systemPrompt?: string) => {
-      console.log(
-        `[useChatStreaming] startStream called for chatId=${chatId}, msg.length=${userMessage.length}`,
-      );
-
-      if (!userMessage.trim()) {
-        console.warn(
-          `[useChatStreaming] userMessage is empty for chat: ${chatId}`,
-        );
-        return;
-      }
+      if (!userMessage.trim()) return;
 
       if (abortControllersRef.current.has(chatId)) {
-        console.warn(
-          `[useChatStreaming] Stream already active for chat: ${chatId}`,
-        );
+        console.warn(`[useChatStreaming] Stream already active for chat: ${chatId}`);
         return;
       }
 
-      // 1. Read current chat state synchronously from the ref — no setState needed.
       const chat = chatsRef.current.find((c) => c.id === chatId) ?? null;
       if (!chat) {
         console.warn(`[useChatStreaming] Chat not found: ${chatId}`);
         return;
       }
 
-      // 2. Build the request from the current chat — pure, no side-effects.
       const mode = findModeById(chat.settings.selectedModeId ?? "");
       const modeName = mode?.name ?? chat.settings.selectedModeId ?? "default";
-      const request = buildChatRequest(
-        chat,
-        userMessage,
-        modeName,
-        systemPrompt,
-      );
+      const request = buildChatRequest(chat, userMessage, modeName, systemPrompt);
 
-      console.log(`[useChatStreaming] Request built:`, request);
-
-      // 3. Update UI state — purely for rendering, decoupled from request building.
+      // Add user + empty assistant turn to the conversation (one setChats at turn start)
       setChats((prevChats) =>
         prevChats.map((c) =>
           c.id === chatId ? addTurnsToChat(c, userMessage, modeName) : c,
         ),
       );
 
-      // 4. Initialise the stream entry.
       streamsRef.current.set(chatId, {
         chatId,
         status: "starting",
         assistantText: "",
       });
       setStreams(new Map(streamsRef.current));
-      console.log(
-        `[useChatStreaming] Stream status set to "starting" for chatId=${chatId}`,
-      );
 
-      // 5. Kick off the actual streaming.
       const abortController = streamChat(
         request,
+        // onToken — write to external store only, no React state change
         (token) => {
-          console.log(
-            `[useChatStreaming] onToken: "${token.slice(0, 40)}${token.length > 40 ? "..." : ""}"`,
-          );
-
           const stream = streamsRef.current.get(chatId);
-          if (stream) {
-            streamsRef.current.set(chatId, {
-              ...stream,
-              status: "streaming",
-              assistantText: stream.assistantText + token,
-            });
-            scheduleRender();
-          }
-
+          if (!stream) return;
+          const newText = stream.assistantText + token;
+          streamsRef.current.set(chatId, {
+            ...stream,
+            status: "streaming",
+            assistantText: newText,
+          });
+          scheduleRender();
+          writeStreamingText(chatId, newText);
+        },
+        // onContext
+        (context) => {
+          updateStream(chatId, { contextInfo: context });
+        },
+        // onDone — commit final parsed messages to conversation state, then clear store
+        (fullText) => {
+          writeStreamingText(chatId, null);
+          const finalMessages = parseStreamMessages(fullText);
           setChats((prevChats) =>
             prevChats.map((c) => {
               if (c.id !== chatId) return c;
               const turns = [...c.conversation.turns];
-              const lastTurn = turns[turns.length - 1];
-              if (lastTurn?.type === "ASSISTANT") {
-                const messages = [...lastTurn.messages];
-                const lastMsg = messages[messages.length - 1];
-                if (lastMsg?.type === "TEXT") {
-                  messages[messages.length - 1] = {
-                    ...lastMsg,
-                    text: lastMsg.text + token,
-                  };
-                } else {
-                  messages.push({ type: "TEXT", text: token });
-                }
-                turns[turns.length - 1] = { ...lastTurn, messages };
+              const lastIdx = turns.findLastIndex((t) => t.type === "ASSISTANT");
+              if (lastIdx >= 0) {
+                turns[lastIdx] = { ...(turns[lastIdx] as AssistantTurn), messages: finalMessages };
               }
               return { ...c, conversation: { turns } };
             }),
           );
-        },
-        (context) => {
-          console.log(`[useChatStreaming] onContext:`, context);
-          updateStream(chatId, { contextInfo: context });
-        },
-        (fullText) => {
-          console.log(
-            `[useChatStreaming] onDone: fullText.length=${fullText.length}`,
-          );
           updateStream(chatId, { status: "done", assistantText: fullText });
           abortControllersRef.current.delete(chatId);
         },
+        // onError
         (err) => {
-          console.error(`[useChatStreaming] onError:`, err.message);
+          writeStreamingText(chatId, null);
           updateStream(chatId, { status: "error", errorMessage: err.message });
           abortControllersRef.current.delete(chatId);
         },
+        // onToolCall (activity description)
         (description) => {
-          console.log(`[useChatStreaming] onToolCall:`, description);
           updateStream(chatId, { toolCallDescription: description });
         },
+        // onContextUpdate
         (estimatedTokens) => {
-          console.log(
-            `[useChatStreaming] onContextUpdate: estimatedTokens=${estimatedTokens}`,
-          );
           const stream = streamsRef.current.get(chatId);
           if (stream?.contextInfo) {
             streamsRef.current.set(chatId, {
@@ -265,12 +258,36 @@ export function useChatStreaming(
             scheduleRender();
           }
         },
+        // onToolHistory — convert to new Message format and commit; store is cleared so next
+        // round starts with a fresh streaming text accumulator
+        (toolMessages) => {
+          writeStreamingText(chatId, null);
+          const roundMessages = convertToolHistoryToMessages(toolMessages);
+          setChats((prevChats) =>
+            prevChats.map((c) => {
+              if (c.id !== chatId) return c;
+              const turns = [...c.conversation.turns];
+              const lastIdx = turns.findLastIndex((t) => t.type === "ASSISTANT");
+              if (lastIdx >= 0) {
+                const prev = turns[lastIdx] as AssistantTurn;
+                // Append this tool round's messages to whatever was already in the turn
+                turns[lastIdx] = {
+                  ...prev,
+                  messages: [...prev.messages, ...roundMessages],
+                };
+              }
+              return { ...c, conversation: { turns } };
+            }),
+          );
+          // Reset accumulated text so the next streaming round starts clean
+          const stream = streamsRef.current.get(chatId);
+          if (stream) {
+            streamsRef.current.set(chatId, { ...stream, assistantText: "" });
+          }
+        },
       );
 
       abortControllersRef.current.set(chatId, abortController);
-      console.log(
-        `[useChatStreaming] AbortController stored for chatId=${chatId}`,
-      );
     },
     [findModeById, setChats, scheduleRender, updateStream],
   );
