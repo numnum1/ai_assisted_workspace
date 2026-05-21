@@ -16,6 +16,12 @@ export type ChatViewModel = {
   selectLLM: (newSelectedLLM: string) => void;
   context: ChatContext;
   selectedLLMVersion: LLMVersion | null;
+  // Conversation Utils
+  fork: (turnIndex: number) => void;
+  cut: (turnIndex: number) => void;
+  deleteTurn: (turnIndex: number) => void;
+  startNewThread: (turnIndex: number) => void;
+  summarizeFromTurn: (turnIndex: number) => void;
 } & Chat;
 
 

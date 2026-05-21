@@ -5,6 +5,7 @@ import type { LLM, LLMVersion, ProjectViewModel } from "../project/project-types
 import ProjectContext from "../project/project-context";
 import { useChatContext } from "./useChatContext";
 import type { ToolkitId } from "../tools/toolkit";
+import { useTurnViewFunctions } from "./useTurnViewFunctions";
 
 export function useChat({
   parentChatId,
@@ -114,6 +115,8 @@ export function useChat({
   const streaming =
     stream?.status === "streaming" || stream?.status === "starting";
 
+  const turnFunctions = useTurnViewFunctions(id, setChat)
+
   return {
     parentChatId,
     id,
@@ -132,6 +135,7 @@ export function useChat({
     selectMode,
     selectLLM,
     context,
-    selectedLLMVersion
+    selectedLLMVersion,
+    ...turnFunctions
   };
 }

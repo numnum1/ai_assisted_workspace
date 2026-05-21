@@ -1,25 +1,31 @@
 import { useContext } from "react";
 import ChatContext from "../chat/chat-context.ts";
-import { ConversationTurnsPane } from "./ConversationTurnsPane.tsx";
+import { ConversationTurnsPane } from "./turn/ConversationTurnsPane.tsx";
 
 export function ConversationPane() {
   const {
     conversation: { turns },
-    streaming,
     parentChatId,
+    fork,
+    cut,
+    deleteTurn,
+    startNewThread,
+    summarizeFromTurn,
   } = useContext(ChatContext);
-
-  const activeIsThread = parentChatId !== null;
 
   return (
     <div className="chat-messages" data-testid="ChatMessagesPane">
       {turns.map((turn, index) => (
         <ConversationTurnsPane
           key={index}
+          index={index}
           turn={turn}
-          turnIndex={index}
-          streaming={streaming}
-          activeIsThread={activeIsThread}
+          hasParentThread={parentChatId != null}
+          onCutClicked={cut}
+          onDeleteClicked={deleteTurn}
+          onForkClicked={fork}
+          onNewThreadClicked={startNewThread}
+          onUseMessageAsThreadSummary={summarizeFromTurn}
         />
       ))}
       {turns.length === 0 && (
