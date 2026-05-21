@@ -8,7 +8,7 @@ import { computeToolSize, type Tool } from "../../../tools/tool.ts";
 import { TOOLKITS } from "../../../tools/toolkits.ts";
 import type { ChatViewModel } from "../../chat-view-model.ts";
 
-export function ContextInspector() {
+export function ContextInspector({userInput, systemPrompt, maxTokens, enabledToolkitIds }: {userInput: string}) {
   const {
     context: { systemPrompt, maxTokens },
     settings: { enabledToolkitIds },

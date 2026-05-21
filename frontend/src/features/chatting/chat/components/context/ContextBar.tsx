@@ -4,6 +4,7 @@ import { useCallback, useContext, useMemo, useState } from "react";
 import ChatContext from "../../chat-context";
 import type { ChatViewModel } from "../../chat-view-model";
 import { useUserMessage } from "../../useUserMessage";
+import { calculateTokensFromString } from "../../../../../utils/contextTools";
 
 export interface ContextBarProps {
   activeFile: string | null;
@@ -21,12 +22,21 @@ export function ContextBar() {
       includedFiles,
       maxTokens,
       percent,
-      systemPrompt,
     },
     selectedLLMVersion,
   } = useContext<ChatViewModel>(ChatContext);
 
   const enteredUserMessage = useUserMessage(id);
+  console.log('ContextBar rendered')
+
+  const actualTokens = useMemo(() => {
+    return estimatedTokens + calculateTokensFromString(enteredUserMessage)
+  }, [estimatedTokens, enteredUserMessage])
+
+  const actualPercentage = useMemo(() => {
+    if (maxTokens == null) return 0
+    return actualTokens * 100 / maxTokens
+  }, [actualTokens, maxTokens])
 
   const toggleOpen = useCallback(() => {
     setOpen((prev) => !prev);
@@ -42,9 +52,9 @@ export function ContextBar() {
   const expectedCostText: number | null = useMemo(() => {
     if (selectedLLMVersion == null || selectedLLMVersion.cost == null)
       return null;
-    const rawCost = (selectedLLMVersion.cost * estimatedTokens) / 1000000;
+    const rawCost = (selectedLLMVersion.cost * actualTokens) / 1000000;
     return Math.ceil(rawCost * 100) / 100; // round up to the next cent
-  }, [estimatedTokens, selectedLLMVersion]);
+  }, [actualTokens, selectedLLMVersion]);
 
   return (
     <div className="context-bar-wrapper">
@@ -66,47 +76,31 @@ export function ContextBar() {
           {maxTokens ? (
             <span
               className="context-bar-tokens context-bar-tokens--with-bar"
-              title={`${estimatedTokens.toLocaleString()} / ${maxTokens!.toLocaleString()} tokens`}
+              title={`${actualTokens.toLocaleString()} / ${maxTokens!.toLocaleString()} tokens`}
             >
               <span
                 className="context-bar-token-pct"
                 style={{
-                  color: tokenBarColor(estimatedTokens),
+                  color: tokenBarColor(actualTokens),
                 }}
               >
-                {percent ?? 0}%
+                {actualPercentage ?? 0}%
               </span>
               <span className="context-bar-token-bar" aria-hidden="true">
                 <span
                   className="context-bar-token-bar-fill"
                   style={{
-                    width: `${percent ?? 0}%`,
-                    background: tokenBarColor(estimatedTokens),
+                    width: `${actualPercentage ?? 0}%`,
+                    background: tokenBarColor(actualTokens),
                   }}
                 />
               </span>
-              ~{estimatedTokens.toLocaleString()} /{" "}
+              ~{actualTokens.toLocaleString()} /{" "}
               {(maxTokens ? maxTokens / 1000 : 0).toFixed(0)}k
             </span>
           ) : (
             <span className="context-bar-tokens">
-              ~{estimatedTokens.toLocaleString()} tokens
-            </span>
-          )}
-          {systemPrompt != null && systemPrompt.length > 0 && (
-            <span
-              className="context-bar-system-prompt-hint"
-              title="Zeichen im vollständigen Systemprompt (nächster Send)"
-            >
-              {systemPrompt.length.toLocaleString()} Zeichen System
-            </span>
-          )}
-          {enteredUserMessage.length > 0 && (
-            <span
-              className="context-bar-system-prompt-hint"
-              title="Zeichen in der aktuellen Eingabe"
-            >
-              {enteredUserMessage.length.toLocaleString()} Zeichen Eingabe
+              ~{actualTokens.toLocaleString()} tokens
             </span>
           )}
           <button
@@ -119,7 +113,7 @@ export function ContextBar() {
         </div>
       </div>
 
-      {open && <ContextInspector />}
+      {open && <ContextInspector userInput={enteredUserMessage} />}
     </div>
   );
 }
