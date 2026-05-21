@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamChat } from "../../../api";
-import type { Chat } from "../chat/Chat";
-import type {
-  AssistantTurn,
-  ConversationTurn,
-  UserTurn,
-} from "../chat/chat.types";
 import type { ChatStream } from "./chat-streaming-types";
 import type { Finder } from "../../../utils/generics";
 import type { AssistantMode } from "../project/project-types";
 import type { ChatMessage, ChatRequest } from "../../../types";
+import type { AssistantTurn, ConversationTurn, UserTurn } from "../turn/turn.types";
+import type { Chat } from "../chat/Chat";
 
 function turnsToChatMessages(turns: ConversationTurn[]): ChatMessage[] {
   const messages: ChatMessage[] = [];
