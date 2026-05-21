@@ -14,6 +14,9 @@ export type MultipleChoiceToolCall = {
     options: MultipleChoiceOption[]
     hasUserInputOption: boolean;
     userInputOptionText: string;
-}
+} & ToolCallBase
 
-export type ToolCall = MultipleChoiceToolCall
+export type UnknownToolCall = {
+} & ToolCallBase
+
+export type ToolCall = MultipleChoiceToolCall | UnknownToolCall

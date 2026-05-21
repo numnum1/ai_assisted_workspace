@@ -5,17 +5,17 @@ export type MessageBase = {
 }
 
 export type TextMessage = {
-    type: "TEXT";
+    type: 'TEXT';
     text: string;
 } & MessageBase
 
 export type ThinkingMessage = {
-    type: "THINKING";
+    type: 'THINKING';
     text: string;
 } & MessageBase
 
 export type ToolCallMessage = {
-    type: "TOOL_CALL";
+    type: 'TOOL_CALL';
     content: ToolCall
 } & MessageBase
 
