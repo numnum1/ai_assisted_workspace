@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ChatSettings, Conversation, SelectedLLM } from "./unsortedChatTypes";
+import type { ChatSettings, SelectedLLM } from "./chat.types";
 import { ChatHeader } from "./components/ChatHeader";
 import { SteeringPlanPanel } from "./components/SteeringPlanPanel";
 import { ChatBottomPane } from "./components/bottom/ChatBottomPane";
@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from "uuid";
 import ChatContext from "./chat-context";
 import { ConversationPane } from "../conversation/ConversationPane";
 import { useChat } from "./useChat";
+import type { Conversation } from "../conversation/conversation.types";
 
 export type Chat = {
   parentChatId: string | null;

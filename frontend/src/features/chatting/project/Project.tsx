@@ -8,7 +8,7 @@ import {
 import { isValid, type AssistantMode, type LLM } from "./project-types";
 import { ChatPanel } from "../chat_panel/ChatPanel";
 import { useEffect, useMemo, useState } from "react";
-import type { SelectedLLM } from "../chat/unsortedChatTypes";
+import type { SelectedLLM } from "../chat/chat.types.ts";
 import { useChatStreaming } from "../stream/useChatStreaming";
 import { useProjectSettings } from "./settings/useProjectSettings.ts";
 

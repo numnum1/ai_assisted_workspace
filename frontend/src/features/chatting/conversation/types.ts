@@ -1,3 +1,5 @@
+// TODO: Remove
+
 export interface ChatMessage {
   role: "user" | "assistant" | "system" | "tool";
   content: string;

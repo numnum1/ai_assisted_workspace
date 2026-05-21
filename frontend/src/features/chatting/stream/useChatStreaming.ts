@@ -5,7 +5,7 @@ import type {
   AssistantTurn,
   ConversationTurn,
   UserTurn,
-} from "../chat/unsortedChatTypes";
+} from "../chat/chat.types";
 import type { ChatStream } from "./chat-streaming-types";
 import type { Finder } from "../../../utils/generics";
 import type { AssistantMode } from "../project/project-types";

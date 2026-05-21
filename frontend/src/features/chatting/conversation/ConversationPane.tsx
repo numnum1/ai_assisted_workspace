@@ -1,6 +1,8 @@
 import { useContext } from "react";
 import ChatContext from "../chat/chat-context.ts";
-import { ConversationTurnsPane } from "./turn/ConversationTurnsPane.tsx";
+import { ConversationTurnsPane } from "../turn/ConversationTurnsPane.tsx";
+import type { ConversationTurn } from "../turn/turn.types.ts";
+import type { ChatViewModel } from "../chat/chat-view-model.ts";
 
 export function ConversationPane() {
   const {
@@ -11,11 +13,11 @@ export function ConversationPane() {
     deleteTurn,
     startNewThread,
     summarizeFromTurn,
-  } = useContext(ChatContext);
+  } = useContext<ChatViewModel>(ChatContext);
 
   return (
     <div className="chat-messages" data-testid="ChatMessagesPane">
-      {turns.map((turn, index) => (
+      {turns.map((turn: ConversationTurn, index: number) => (
         <ConversationTurnsPane
           key={index}
           index={index}

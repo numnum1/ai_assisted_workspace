@@ -1,6 +1,6 @@
 import type { Finder, Patcher, Setter } from "../../../utils/generics";
 import type { Chat } from "../chat/Chat";
-import type { SelectedLLM } from "../chat/unsortedChatTypes";
+import type { SelectedLLM } from "../chat/chat.types";
 import type { ChatStreamingApi } from "../stream/useChatStreaming";
 
 export type ProjectViewModel = {

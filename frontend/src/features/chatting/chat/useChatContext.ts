@@ -1,7 +1,7 @@
 import { useContext, useMemo } from "react";
 import type { ChatContext } from "./chat-view-model";
 import ProjectContext from "../project/project-context";
-import type { ChatSettings } from './unsortedChatTypes';
+import type { ChatSettings } from './chat.types';
 
 /**
  * Just to extract code into a smaller file

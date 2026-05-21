@@ -1,9 +1,5 @@
 import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
-import type {
-  AssistantTurn,
-  ConversationTurn,
-} from "../../chat/unsortedChatTypes.ts";
 import {
   GitFork,
   GitMerge,
@@ -11,6 +7,7 @@ import {
   Scissors,
   Trash2,
 } from "lucide-react";
+import type { AssistantTurn, ConversationTurn, SystemTurn, UserTurn } from "./turn.types.ts";
 
 export function ConversationTurnsPane({
   index,
@@ -31,32 +28,25 @@ export function ConversationTurnsPane({
   onUseMessageAsThreadSummary: (index: number) => void;
   onDeleteClicked: (index: number) => void;
 }) {
-  let Content;
-
-  if (turn.type === "ASSISTANT") {
-    const casted = turn as AssistantTurn;
-    Content = <AssistantTurnCard {...casted} />;
-  }
-
-  if (turn.type === "USER") {
-    Content = (
-      <div className={`chat-message user`}>
+  const contentByType: Record<string, React.ReactNode> = {
+    ASSISTANT: <AssistantTurnCard {...(turn as AssistantTurn)} />,
+    USER: (
+      <div className="chat-message user">
         <div className="chat-message-content chat-message-md">
-          <ChatMessageMarkdown content={turn.text} />
+          <ChatMessageMarkdown content={(turn as UserTurn).text} />
         </div>
       </div>
-    );
-  }
-
-  if (turn.type === "SYSTEM") {
-    Content = (
-      <div className={`chat-message system`}>
+    ),
+    SYSTEM: (
+      <div className="chat-message system">
         <div className="chat-message-content chat-message-md">
-          <ChatMessageMarkdown content={turn.text} />
+          <ChatMessageMarkdown content={(turn as SystemTurn).text} />
         </div>
       </div>
-    );
-  }
+    ),
+  };
+
+  const Content = contentByType[turn.type];
 
   return (
     <div>
