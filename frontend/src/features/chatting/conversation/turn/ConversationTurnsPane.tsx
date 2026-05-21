@@ -20,7 +20,7 @@ export function ConversationTurnsPane({
   onCutClicked,
   onForkClicked,
   onUseMessageAsThreadSummary,
-  onDeleteClicked
+  onDeleteClicked,
 }: {
   index: number;
   turn: ConversationTurn;
