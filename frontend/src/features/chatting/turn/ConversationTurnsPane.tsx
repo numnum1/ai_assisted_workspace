@@ -7,7 +7,12 @@ import {
   Scissors,
   Trash2,
 } from "lucide-react";
-import type { AssistantTurn, ConversationTurn, SystemTurn, UserTurn } from "./turn.types.ts";
+import type {
+  AssistantTurn,
+  ConversationTurn,
+  SystemTurn,
+  UserTurn,
+} from "./turn.types.ts";
 
 export function ConversationTurnsPane({
   index,
@@ -28,8 +33,15 @@ export function ConversationTurnsPane({
   onUseMessageAsThreadSummary: (index: number) => void;
   onDeleteClicked: (index: number) => void;
 }) {
+  
   const contentByType: Record<string, React.ReactNode> = {
-    ASSISTANT: <AssistantTurnCard {...(turn as AssistantTurn)} />,
+    ASSISTANT: (
+      <AssistantTurnCard
+        timestamp={(turn as AssistantTurn).timestamp}
+        usedModeName={(turn as AssistantTurn).usedModeName}
+        messages={(turn as AssistantTurn).messages}
+      />
+    ),
     USER: (
       <div className="chat-message user">
         <div className="chat-message-content chat-message-md">
