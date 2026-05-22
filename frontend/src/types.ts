@@ -74,6 +74,8 @@ export interface ThreadSummaryMeta {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
+  /** Groups all messages belonging to one conversational exchange (user prompt + AI response + tool calls). */
+  turnId?: string;
   mode?: string;
   modeColor?: string;
   /** Present on assistant messages when the user sent this via Ctrl+L selection */
@@ -86,10 +88,17 @@ export interface ChatMessage {
   hidden?: boolean;
   /** Present on user messages: the expanded content with file data prepended, used as history content */
   resolvedContent?: string;
+  /** File/wiki paths attached when this message was sent */
+  attachedFiles?: string[];
   /** Special message kinds for non-standard rendering */
   kind?: 'thread-summary';
   /** Present when kind === 'thread-summary' */
   threadSummaryMeta?: ThreadSummaryMeta;
+  /** Present on user messages that are answers to a clarification multiple-choice */
+  clarificationData?: {
+    questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
+    selected: Record<number, string[]>;
+  };
 }
 
 export interface ChatRequest {
@@ -111,6 +120,8 @@ export interface ChatRequest {
   sessionKind?: ChatSessionKind;
   /** Persisted plan text for guided sessions; sent each request when set. */
   steeringPlan?: string | null;
+  /** When true, project-level KI-Regeln are not injected into the system prompt. */
+  rulesDisabled?: boolean;
 }
 
 export interface ContextInfo {
@@ -189,6 +200,12 @@ export interface ProjectExtraFeatures {
   chatDownload?: boolean;
 }
 
+/** A named AI rule injected into the system prompt (like a Cursor rule file). */
+export interface ProjectRule {
+  name: string;
+  body: string;
+}
+
 export interface ProjectConfig {
   name: string;
   description: string;
@@ -203,6 +220,8 @@ export interface ProjectConfig {
   threadSummaryLlmId?: string;
   /** Max number of tool-call rounds before the loop exits (default: 6). */
   maxToolRounds?: number;
+  /** Project-level AI rules injected into every system prompt (like Cursor rules). */
+  rules?: ProjectRule[];
   extraFeatures?: ProjectExtraFeatures;
 }
 

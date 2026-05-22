@@ -207,6 +207,11 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     typeof input?.maxToolRounds === "number" && input.maxToolRounds >= 1
       ? Math.round(input.maxToolRounds)
       : undefined;
+  const rules = Array.isArray(input?.rules)
+    ? input.rules
+        .filter((r) => r && typeof r === "object" && typeof r.name === "string" && r.name.trim().length > 0)
+        .map((r) => ({ name: (r as { name: string; body?: string }).name.trim(), body: typeof (r as { name: string; body?: string }).body === "string" ? (r as { name: string; body: string }).body : "" }))
+    : [];
   return {
     name: input?.name ?? "",
     description: input?.description ?? "",
@@ -218,6 +223,7 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     quickChatLlmId: input?.quickChatLlmId ?? "",
     threadSummaryLlmId: input?.threadSummaryLlmId ?? "",
     ...(maxToolRounds !== undefined ? { maxToolRounds } : {}),
+    rules,
     extraFeatures: input?.extraFeatures ?? {},
   };
 }

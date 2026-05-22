@@ -1,0 +1,33 @@
+.turn-card {
+    position: relative;
+    margin-bottom: 0.5rem;
+}
+
+.turn-card-content {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Action bar ────────────────────────────────────────────────────────── */
+
+.turn-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.turn-card-actions .chat-fork-btn {
+    background: transparent;
+}
+
+/* User turns: actions float top-right, overlaid on the turn */
+.turn-card[data-turn-type="user"] .turn-card-actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+}
+
+/* Assistant turns: actions sit below the content */
+.turn-card[data-turn-type="assistant"] .turn-card-actions {
+    padding: 0.15rem 0.25rem 0;
+}

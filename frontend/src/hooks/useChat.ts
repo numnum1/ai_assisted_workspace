@@ -22,6 +22,8 @@ export interface EditMessageSendParams {
   conversationId: string;
   sessionKind: ChatSessionKind;
   steeringPlan?: string;
+  /** When true, project-level KI-Regeln are not injected into the system prompt. */
+  rulesDisabled?: boolean;
 }
 
 /** Active conversation id + session kind; sent with each chat request for guided mode / plan persistence. */
@@ -35,6 +37,13 @@ export interface ChatStreamSessionMeta {
 export interface SendMessageOptions {
   /** When true, the new user message is stored and sent to the API but not shown in the chat UI. */
   userHidden?: boolean;
+  /** When set, the user message is a clarification multiple-choice answer — stored for rendering. */
+  clarificationData?: {
+    questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
+    selected: Record<number, string[]>;
+  };
+  /** When true, project-level KI-Regeln are not injected into the system prompt. */
+  rulesDisabled?: boolean;
 }
 
 export interface UseChatOptions {
@@ -125,12 +134,16 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       syncEnabledRef.current = true;
       setError(null);
       setToolActivity(null);
+      const turnId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         role: 'user',
         content: text,
+        turnId,
         mode: modeName,
         modeColor,
+        ...(referencedFiles.length > 0 ? { attachedFiles: [...referencedFiles] } : {}),
         ...(sendOpts?.userHidden ? { hidden: true as const } : {}),
+        ...(sendOpts?.clarificationData ? { clarificationData: sendOpts.clarificationData } : {}),
       };
       currentBaseRef.current = [...messagesRef.current, userMsg];
       setMessages(currentBaseRef.current);
@@ -143,6 +156,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         setToolActivity,
         setContextInfo,
         currentBaseRef,
+        turnId,
       };
 
       const streamMeta =
@@ -162,6 +176,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           ? { disabledToolkits: [...disabledToolkits] }
           : {}),
         ...buildSessionChatRequestFields(streamSession),
+        ...(sendOpts?.rulesDisabled ? { rulesDisabled: true } : {}),
       };
       lastStreamCallRef.current = { chatRequest: request, selectionContext, streamMeta };
 
@@ -236,9 +251,11 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       syncEnabledRef.current = true;
       setError(null);
       setToolActivity(null);
+      const turnId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         role: 'user',
         content: trimmed,
+        turnId,
         mode: target.mode,
         modeColor: target.modeColor,
       };
@@ -253,6 +270,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         setToolActivity,
         setContextInfo,
         currentBaseRef,
+        turnId,
       };
 
       const streamMeta = {
@@ -275,6 +293,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           sessionKind: sendParams.sessionKind,
           steeringPlan: sendParams.steeringPlan,
         }),
+        ...(sendParams.rulesDisabled ? { rulesDisabled: true } : {}),
       };
 
       const onComplete =

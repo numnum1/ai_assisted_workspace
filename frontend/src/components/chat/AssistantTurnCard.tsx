@@ -9,6 +9,7 @@ import {
   Check,
   GitMerge,
 } from "lucide-react";
+import { TurnCard } from "./TurnCard.tsx";
 import type { ChatMessage, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { ToolCallDisplay } from "./ToolCallDisplay.tsx";
@@ -290,8 +291,66 @@ export function AssistantTurnCard({
     );
   };
 
+  const assistantActions = (
+    <>
+      {firstVisIdx > 0 && (
+        <button
+          type="button"
+          className="chat-fork-btn"
+          onClick={() => onStartThreadFromMessage(lastOriginalIdx)}
+          title="Thread starten (neuer Chat mit bisherigem Verlauf)"
+        >
+          <MessageSquare size={12} />
+        </button>
+      )}
+      {firstVisIdx > 0 && (
+        <button
+          type="button"
+          className="chat-fork-btn"
+          onClick={() => onForkFromMessage(lastOriginalIdx)}
+          title="Hier abschneiden (in-place)"
+        >
+          <Scissors size={12} />
+        </button>
+      )}
+      {firstVisIdx > 0 && (
+        <button
+          type="button"
+          className="chat-fork-btn"
+          onClick={() => onForkToNewConversation(lastOriginalIdx)}
+          title="Als neuen Chat forken"
+        >
+          <GitFork size={12} />
+        </button>
+      )}
+      {activeIsThread && onUseMessageAsThreadSummary && (
+        <button
+          type="button"
+          className="chat-fork-btn chat-fork-btn--merge"
+          onClick={() => onUseMessageAsThreadSummary(lastOriginalIdx)}
+          title="Verwende diese Nachricht als Zusammenfassung"
+        >
+          <GitMerge size={12} />
+        </button>
+      )}
+      <button
+        type="button"
+        className="chat-fork-btn chat-fork-btn--danger"
+        onClick={() => onDeleteMessages(originalIndices)}
+        title="Diese KI-Antwort löschen"
+      >
+        <Trash2 size={12} />
+      </button>
+    </>
+  );
+
   return (
-    <div className="assistant-turn-wrap" data-testid="AssistantTurnCard">
+    <TurnCard
+      turnType="assistant"
+      showActions={showActions}
+      actions={assistantActions}
+      data-testid="AssistantTurnCard"
+    >
       <div className="assistant-turn-chunks">
         {hasToolCalls ? (
           <>
@@ -357,61 +416,6 @@ export function AssistantTurnCard({
           })
         )}
       </div>
-      {showActions && (
-        <div
-          className="assistant-turn-actions"
-          aria-label="Aktionen für diese KI-Antwort"
-        >
-          {firstVisIdx > 0 && (
-            <button
-              type="button"
-              className="chat-fork-btn"
-              onClick={() => onStartThreadFromMessage(lastOriginalIdx)}
-              title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-            >
-              <MessageSquare size={12} />
-            </button>
-          )}
-          {firstVisIdx > 0 && (
-            <button
-              type="button"
-              className="chat-fork-btn"
-              onClick={() => onForkFromMessage(lastOriginalIdx)}
-              title="Hier abschneiden (in-place)"
-            >
-              <Scissors size={12} />
-            </button>
-          )}
-          {firstVisIdx > 0 && (
-            <button
-              type="button"
-              className="chat-fork-btn"
-              onClick={() => onForkToNewConversation(lastOriginalIdx)}
-              title="Als neuen Chat forken"
-            >
-              <GitFork size={12} />
-            </button>
-          )}
-          {activeIsThread && onUseMessageAsThreadSummary && (
-            <button
-              type="button"
-              className="chat-fork-btn chat-fork-btn--merge"
-              onClick={() => onUseMessageAsThreadSummary(lastOriginalIdx)}
-              title="Verwende diese Nachricht als Zusammenfassung"
-            >
-              <GitMerge size={12} />
-            </button>
-          )}
-          <button
-            type="button"
-            className="chat-fork-btn chat-fork-btn--danger"
-            onClick={() => onDeleteMessages(originalIndices)}
-            title="Diese KI-Antwort löschen"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
-      )}
-    </div>
+    </TurnCard>
   );
 }

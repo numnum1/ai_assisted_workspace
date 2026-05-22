@@ -20,6 +20,7 @@ export function buildNextMainChatRequest(params: {
    * Use empty string when only committed messages should shape the preview.
    */
   pendingMessage: string;
+  rulesDisabled?: boolean;
 }): ChatRequest {
   const {
     previewModeId,
@@ -29,6 +30,7 @@ export function buildNextMainChatRequest(params: {
     conv,
     historyMessages,
     pendingMessage,
+    rulesDisabled,
   } = params;
   return {
     message: pendingMessage,
@@ -41,5 +43,6 @@ export function buildNextMainChatRequest(params: {
     disabledToolkits: exec.disabledToolkits,
     sessionKind: conv?.sessionKind ?? 'standard',
     steeringPlan: conv?.sessionKind === 'guided' ? conv.steeringPlan ?? null : undefined,
+    ...(rulesDisabled ? { rulesDisabled: true } : {}),
   };
 }

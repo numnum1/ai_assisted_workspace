@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from "react";
+import React, { useState, useMemo, memo } from "react";
 import type { RefObject } from "react";
 import {
   Search,
@@ -16,6 +16,7 @@ import remarkGfm from "remark-gfm";
 import type { ChatMessage, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
+import { TurnCard } from "./TurnCard.tsx";
 import { buildChatRenderUnits } from "./chatRenderUnits.ts";
 import {
   effectiveModeColor,
@@ -23,9 +24,82 @@ import {
 } from "./modeColorTheme.ts";
 import { hasClarificationFence } from "./clarificationUtils.ts";
 import type { CardState } from "./ChangeCard.tsx";
+import { FileChip } from "../common/FileChip.tsx";
 
 export const EMPTY_SNAPSHOT_DISMISS = new Set<string>();
 export const EMPTY_COMPOSER_BATCH_FORCED: Record<string, CardState> = {};
+
+const CHOICE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+function ClarificationAnswerCard({
+  data,
+  modeColor,
+  contrastColor,
+}: {
+  data: NonNullable<ChatMessage["clarificationData"]>;
+  modeColor?: string;
+  contrastColor?: string;
+}) {
+  const colorOverrides =
+    modeColor && contrastColor
+      ? ({
+          "--sac-letter-bg": `color-mix(in srgb, ${contrastColor} 18%, transparent)`,
+          "--sac-letter-border": `color-mix(in srgb, ${contrastColor} 40%, transparent)`,
+          "--sac-letter-color": contrastColor,
+          "--sac-selected-letter-bg": contrastColor,
+          "--sac-selected-letter-border": contrastColor,
+          "--sac-selected-letter-color": modeColor,
+          "--sac-selected-text": contrastColor,
+          "--sac-question-color": `color-mix(in srgb, ${contrastColor} 65%, transparent)`,
+        } as React.CSSProperties)
+      : undefined;
+
+  return (
+    <div className="sac-surface clarification-answer-card" style={colorOverrides}>
+      <div className="sac-body">
+        {data.questions.map((q, qIdx) => {
+          const sel = data.selected[qIdx] ?? [];
+          const customAnswers = sel.filter((s) => !q.options.includes(s));
+          return (
+            <div key={qIdx} className="sac-block">
+              <p className="sac-question">{q.question}</p>
+              <div className="sac-options">
+                {q.options.map((opt, i) => {
+                  const letter =
+                    i < CHOICE_LETTERS.length
+                      ? CHOICE_LETTERS[i]
+                      : String(i + 1);
+                  const isSelected = sel.includes(opt);
+                  return (
+                    <div key={i} className="sac-option-wrap">
+                      <button
+                        type="button"
+                        className={`sac-option${isSelected ? " selected" : ""}`}
+                        disabled
+                      >
+                        <span className="sac-letter" aria-hidden>
+                          {letter}
+                        </span>
+                        <span className="sac-option-text">{opt}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+                {customAnswers.map((custom, i) => (
+                  <div key={`custom-${i}`} className="sac-option-wrap">
+                    <button type="button" className="sac-option selected" disabled>
+                      <span className="sac-option-text">{custom}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface MessageEditBoxProps {
   initialContent: string;
@@ -265,57 +339,164 @@ export function ChatMessagesPane({
           );
         }
 
-        const { visIdx, msg, originalIdx } = unit;
-        const visArr = visibleEntries;
-        const isLastUserMsg =
-          msg.role === "user" &&
-          !visArr.slice(visIdx + 1).some(({ msg: m }) => m.role === "user");
-        const displayModeColor =
-          msg.role === "user" && msg.modeColor
-            ? (effectiveModeColor(msg.modeColor, theme) ?? msg.modeColor)
+        if (unit.type === "userTurn") {
+          const { messages: turnMsgs, originalIndices, lastOriginalIdx, firstVisIdx } = unit;
+          const visArr = visibleEntries;
+          const isLastTurn = !visArr
+            .slice(firstVisIdx + turnMsgs.length)
+            .some(({ msg: m }) => m.role === "user");
+          // First message drives the visual style (mode color, role label).
+          const firstMsg = turnMsgs[0]!.msg;
+          const displayModeColor = firstMsg.modeColor
+            ? (effectiveModeColor(firstMsg.modeColor, theme) ?? firstMsg.modeColor)
             : undefined;
 
-        return (
-          <div key={originalIdx}>
-            <div
-              className={`chat-message ${msg.role}`}
-              style={
-                displayModeColor
-                  ? {
-                      backgroundColor: displayModeColor,
-                      borderLeftColor: displayModeColor,
-                      color: getContrastingTextColor(displayModeColor),
-                    }
-                  : undefined
-              }
+          const userActions = (
+            <>
+              <button
+                type="button"
+                className="chat-fork-btn"
+                onClick={() => onStartThreadFromMessage(lastOriginalIdx)}
+                title="Thread starten (neuer Chat mit bisherigem Verlauf)"
+              >
+                <MessageSquare size={12} />
+              </button>
+              {isLastTurn && (
+                <button
+                  type="button"
+                  className="chat-fork-btn chat-resend-btn"
+                  onClick={() => onEditMessage(lastOriginalIdx, turnMsgs[turnMsgs.length - 1]!.msg.content)}
+                  title="Nachricht erneut senden"
+                >
+                  <RotateCcw size={12} />
+                </button>
+              )}
+              {turnMsgs.length === 1 && (
+                <button
+                  type="button"
+                  className="chat-fork-btn chat-edit-btn"
+                  onClick={() => setEditingIdx(turnMsgs[0]!.originalIdx)}
+                  title="Nachricht bearbeiten"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+              {firstVisIdx > 0 && (
+                <button
+                  type="button"
+                  className="chat-fork-btn"
+                  onClick={() => onForkFromMessage(lastOriginalIdx)}
+                  title="Hier abschneiden (in-place)"
+                >
+                  <Scissors size={12} />
+                </button>
+              )}
+              {firstVisIdx > 0 && (
+                <button
+                  type="button"
+                  className="chat-fork-btn"
+                  onClick={() => onForkToNewConversation(lastOriginalIdx)}
+                  title="Als neuen Chat forken"
+                >
+                  <GitFork size={12} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="chat-fork-btn chat-fork-btn--danger"
+                onClick={() => onDeleteMessages(originalIndices)}
+                title="Turn löschen"
+              >
+                <Trash2 size={12} />
+              </button>
+            </>
+          );
+
+          return (
+            <TurnCard
+              key={`uturn-${lastOriginalIdx}`}
+              turnType="user"
+              showActions={!readOnly && !streaming && !turnMsgs.some((m) => editingIdx === m.originalIdx)}
+              actions={userActions}
             >
-              {(msg.role === "user" || msg.role === "system") && (
+              {turnMsgs.map(({ msg, originalIdx: msgIdx }) => (
                 <div
-                  className="chat-message-role"
+                  key={msgIdx}
+                  className="chat-message user"
                   style={
                     displayModeColor
-                      ? { color: getContrastingTextColor(displayModeColor) }
+                      ? {
+                          backgroundColor: displayModeColor,
+                          borderLeftColor: displayModeColor,
+                          color: getContrastingTextColor(displayModeColor),
+                        }
                       : undefined
                   }
                 >
-                  {msg.role === "user" ? (
+                  <div
+                    className="chat-message-role"
+                    style={
+                      displayModeColor
+                        ? { color: getContrastingTextColor(displayModeColor) }
+                        : undefined
+                    }
+                  >
                     <span>
                       You
                       {msg.mode && (
                         <span
                           className="chat-message-mode"
-                          style={{
-                            color: getContrastingTextColor(displayModeColor),
-                          }}
+                          style={{ color: getContrastingTextColor(displayModeColor) }}
                         >
                           {" · "}
                           {msg.mode}
                         </span>
                       )}
                     </span>
-                  ) : (
-                    <span>Thread · Kontext</span>
+                  </div>
+                  <div className="chat-message-content">
+                    {readOnly || editingIdx !== msgIdx ? (
+                      msg.clarificationData ? (
+                        <ClarificationAnswerCard
+                          data={msg.clarificationData}
+                          modeColor={displayModeColor}
+                          contrastColor={getContrastingTextColor(displayModeColor)}
+                        />
+                      ) : (
+                        msg.content
+                      )
+                    ) : (
+                      <MessageEditBox
+                        initialContent={msg.content}
+                        onSave={(text) => commitEdit(msgIdx, text)}
+                        onCancel={cancelEdit}
+                      />
+                    )}
+                  </div>
+                  {msg.attachedFiles && msg.attachedFiles.length > 0 && (
+                    <div className="chat-message-attached-files">
+                      {msg.attachedFiles.map((f) => (
+                        <FileChip key={f} path={f} readonly />
+                      ))}
+                    </div>
                   )}
+                </div>
+              ))}
+            </TurnCard>
+          );
+        }
+
+        // Fallback for system messages and legacy message units.
+        const { visIdx, msg, originalIdx } = unit;
+
+        return (
+          <div key={originalIdx}>
+            <div
+              className={`chat-message ${msg.role}`}
+            >
+              {msg.role === "system" && (
+                <div className="chat-message-role">
+                  <span>Thread · Kontext</span>
                 </div>
               )}
               <div
@@ -350,18 +531,10 @@ export function ChatMessagesPane({
                       msg.content,
                     )}
                   />
-                ) : msg.role === "system" ? (
+                ) : (
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {msg.content}
                   </ReactMarkdown>
-                ) : readOnly || editingIdx !== originalIdx ? (
-                  msg.content
-                ) : (
-                  <MessageEditBox
-                    initialContent={msg.content}
-                    onSave={(text) => commitEdit(originalIdx, text)}
-                    onCancel={cancelEdit}
-                  />
                 )}
               </div>
               {!readOnly && !streaming && editingIdx !== originalIdx && (
@@ -374,26 +547,6 @@ export function ChatMessagesPane({
                   >
                     <MessageSquare size={12} />
                   </button>
-                  {msg.role === "user" && isLastUserMsg && (
-                    <button
-                      type="button"
-                      className="chat-fork-btn chat-resend-btn"
-                      onClick={() => onEditMessage(originalIdx, msg.content)}
-                      title="Nachricht erneut senden"
-                    >
-                      <RotateCcw size={12} />
-                    </button>
-                  )}
-                  {msg.role === "user" && (
-                    <button
-                      type="button"
-                      className="chat-fork-btn chat-edit-btn"
-                      onClick={() => setEditingIdx(originalIdx)}
-                      title="Nachricht bearbeiten"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                  )}
                   {visIdx > 0 && (
                     <button
                       type="button"

@@ -23,6 +23,7 @@ export interface UseConversationModelParams {
   modeLlmId: string | undefined;
   useReasoning: boolean;
   disabledToolkits: ReadonlySet<string>;
+  rulesDisabled: boolean;
   referencedFiles: string[];
   focusedFieldKey: string | null | undefined;
   activeSelection: SelectionContext | null;
@@ -36,6 +37,7 @@ export interface UseConversationModelParams {
   chat: UseChatInstance;
   patchConversation: (id: string, patch: Partial<Conversation>) => void;
   onActiveSelectionClear: () => void;
+  clearReferencedFiles: () => void;
 }
 
 const PREVIEW_DEBOUNCE_MS = 300;
@@ -55,6 +57,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled,
     referencedFiles,
     focusedFieldKey,
     activeSelection,
@@ -63,6 +66,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     chat,
     patchConversation,
     onActiveSelectionClear,
+    clearReferencedFiles,
   } = p;
 
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
@@ -76,6 +80,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled,
     referencedFiles,
     focusedFieldKey,
     messages,
@@ -88,6 +93,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled,
     referencedFiles,
     focusedFieldKey,
     messages,
@@ -114,6 +120,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         modeLlmId: mlid,
         useReasoning: ur,
         disabledToolkits: dt,
+        rulesDisabled: rd,
         referencedFiles: rf,
         focusedFieldKey: fk,
         messages: hist,
@@ -132,6 +139,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conv: c,
         historyMessages: hist,
         pendingMessage: pendingMessageRef.current,
+        rulesDisabled: rd,
       });
       chatApi
         .previewContext(req)
@@ -168,12 +176,13 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     focusedFieldKey,
     disabledToolkits,
+    rulesDisabled,
     messages,
     schedulePreviewRefresh,
   ]);
 
   const send = useCallback(
-    (message: string) => {
+    (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => {
       const c = conv;
       const modeId = effectiveChatModeIdForRequest(c, selectedMode, modes);
       const mode = modes.find((m) => m.id === modeId);
@@ -199,10 +208,14 @@ export function useConversationModel(p: UseConversationModelParams) {
         focusedFieldKey ?? null,
         exec.disabledToolkits,
         streamSession,
-        undefined,
+        {
+          ...(clarificationData != null ? { clarificationData } : {}),
+          ...(rulesDisabled ? { rulesDisabled: true } : {}),
+        },
       );
       patchConversation(activeConversationId, { mode: modeId });
       onActiveSelectionClear();
+      clearReferencedFiles();
     },
     [
       conv,
@@ -218,6 +231,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       activeConversationId,
       patchConversation,
       onActiveSelectionClear,
+      clearReferencedFiles,
     ],
   );
 
@@ -241,6 +255,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conversationId: c?.id ?? activeConversationId,
         sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: c?.steeringPlan,
+        rulesDisabled,
       });
       patchConversation(activeConversationId, { mode: modeId });
       onActiveSelectionClear();
@@ -270,6 +285,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       modeLlmId: mlid,
       useReasoning: ur,
       disabledToolkits: dt,
+      rulesDisabled: rd,
       referencedFiles: rf,
       focusedFieldKey: fk,
       messages: hist,
@@ -289,6 +305,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conv: c,
         historyMessages: hist,
         pendingMessage: pendingMessageRef.current,
+        rulesDisabled: rd,
       }),
     );
     return result.contextBlocks ?? [];

@@ -4224,7 +4224,7 @@ body.file-tree-native-dragging {
     margin: 0 0 2px;
     font-size: 12px;
     font-weight: 400;
-    color: var(--text-muted);
+    color: var(--sac-question-color, var(--text-muted));
     line-height: 1.45;
 }
 
@@ -4293,19 +4293,20 @@ body.file-tree-native-dragging {
 }
 
 .sac-option.selected .sac-letter {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    background: var(--sac-selected-letter-bg, var(--accent));
+    border-color: var(--sac-selected-letter-border, var(--accent));
+    color: var(--sac-selected-letter-color, #fff);
 }
 
 .sac-option-text {
     flex: 1;
     line-height: 1.45;
     padding-top: 1px;
+    color: var(--sac-question-color, inherit);
 }
 
 .sac-option.selected .sac-option-text {
-    color: var(--text-primary);
+    color: var(--sac-selected-text, var(--text-primary));
 }
 
 .sac-other-row {
@@ -4358,6 +4359,19 @@ body.file-tree-native-dragging {
 
 .sac-submit:disabled {
     opacity: 0.35;
+    cursor: default;
+}
+
+/* Clarification answer card — read-only history view of a multiple-choice answer */
+.sac-surface.clarification-answer-card {
+    opacity: 1;
+}
+
+.sac-surface.clarification-answer-card .sac-option:not(.selected) {
+    opacity: 0.38;
+}
+
+.sac-surface.clarification-answer-card .sac-option {
     cursor: default;
 }
 
@@ -5885,6 +5899,46 @@ body.file-tree-native-dragging {
     cursor: default;
 }
 
+.chat-rules-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 8px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+        background 0.15s,
+        color 0.15s,
+        border-color 0.15s;
+}
+
+.chat-rules-btn:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.chat-rules-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg-tertiary);
+}
+
+.chat-rules-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.chat-rules-btn-label {
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
 /* Tools an (Standard): hell / klar erkennbar */
 .chat-tools-toggle-btn {
     display: flex;
@@ -6391,6 +6445,14 @@ body.file-tree-native-dragging {
 .file-chip-remove:hover {
     background: var(--accent);
     color: var(--bg-tertiary);
+}
+
+/* Attached file chips on sent user messages */
+.chat-message-attached-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
 }
 
 /* ==================== Mode Selector ==================== */
@@ -8252,6 +8314,145 @@ body.file-tree-native-dragging {
 .ps-tag-add-btn:disabled {
     opacity: 0.4;
     cursor: default;
+}
+
+/* Rules editor */
+.ps-rules-editor {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 220px;
+    max-height: 340px;
+}
+
+.ps-rules-list {
+    width: 180px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.ps-rules-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    user-select: none;
+    gap: 4px;
+}
+
+.ps-rules-list-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.ps-rules-list-item.selected {
+    background: var(--bg-active, var(--bg-hover));
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.ps-rules-list-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ps-rules-list-delete {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.1s, color 0.1s;
+}
+
+.ps-rules-list-item:hover .ps-rules-list-delete {
+    opacity: 1;
+}
+
+.ps-rules-list-delete:hover {
+    color: var(--red);
+}
+
+.ps-rules-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 10px;
+}
+
+.ps-rules-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 7px 10px;
+    margin-top: auto;
+    transition: background 0.1s, color 0.1s;
+}
+
+.ps-rules-add-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.ps-rules-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+    background: var(--bg-primary);
+}
+
+.ps-rules-name-input {
+    border: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    font-weight: 600;
+    font-size: 13px;
+    background: transparent !important;
+}
+
+.ps-rules-name-input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.ps-rules-body-input {
+    flex: 1;
+    resize: none;
+    border: none !important;
+    border-radius: 0 !important;
+    font-size: 12px;
+    line-height: 1.6;
+    background: transparent !important;
+    height: 100%;
+}
+
+.ps-rules-body-input:focus {
+    outline: none;
+    box-shadow: none;
 }
 
 /* List (modes + rules) */

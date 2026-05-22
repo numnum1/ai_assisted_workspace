@@ -112,6 +112,8 @@ export interface ThreadWorkspacePanelProps {
   onToggleReasoning?: () => void;
   disabledToolkits?: ReadonlySet<string>;
   onToggleToolkit?: (kitId: string) => void;
+  rulesEnabled?: boolean;
+  onToggleRules?: () => void;
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
   activeSelection?: SelectionContext | null;
@@ -196,6 +198,8 @@ export function ThreadWorkspacePanel({
   onToggleReasoning,
   disabledToolkits = new Set<string>(),
   onToggleToolkit,
+  rulesEnabled = true,
+  onToggleRules,
   reasoningAvailable = true,
   fastAvailable = true,
   activeSelection = null,
@@ -385,6 +389,8 @@ export function ThreadWorkspacePanel({
                 onToggleReasoning={onToggleReasoning}
                 disabledToolkits={disabledToolkits}
                 onToggleToolkit={onToggleToolkit}
+                rulesEnabled={rulesEnabled}
+                onToggleRules={onToggleRules}
                 reasoningAvailable={reasoningAvailable}
                 fastAvailable={fastAvailable}
                 structureRoot={structureRoot}
@@ -434,6 +440,8 @@ export function ThreadWorkspacePanel({
                 onToggleReasoning={onToggleReasoning}
                 disabledToolkits={disabledToolkits}
                 onToggleToolkit={onToggleToolkit}
+                rulesEnabled={rulesEnabled}
+                onToggleRules={onToggleRules}
                 reasoningAvailable={reasoningAvailable}
                 fastAvailable={fastAvailable}
                 activeSelection={activeSelection}

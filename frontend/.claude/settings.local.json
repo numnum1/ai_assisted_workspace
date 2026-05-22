@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Recurse -Directory)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Format-Table FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Depth 3 -Exclude node_modules | ForEach-Object { $_.FullName })",
+      "Bash(find C:/Users/marcm -name \"project.json\" -path \"*/.assistant/*\" 2>/dev/null | head -5)",
+      "Bash(Select-String -Pattern \"ProjectConfig|config\")",
+      "Bash(find /c/Users/marcm -name \"project.json\" -path \"*/.assistant/*\" 2>/dev/null | head -10)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Recurse -Directory -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Read(//c/Users/marcm/IdeaProjects/markdown_project/**)",
+      "Bash(dir \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\")",
+      "Bash(xargs grep -l \"rules\")",
+      "PowerShell(Get-ChildItem -Recurse -Path 'C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\backend\\\\src' | Select-Object -First 30 | ForEach-Object { $_.FullName })",
+      "Bash(findstr /r /c:\"onForkFromMessage\\\\|onDeleteMessages\\\\|onStartThreadFromMessage\" C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\\\\src\\\\components\\\\chat\\\\ChatPanel.tsx)"
+    ]
+  }
+}

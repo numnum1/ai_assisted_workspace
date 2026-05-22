@@ -47,8 +47,10 @@ interface ChatPanelProps {
   onToggleReasoning: () => void;
   disabledToolkits?: ReadonlySet<string>;
   onToggleToolkit?: (kitId: string) => void;
+  rulesEnabled?: boolean;
+  onToggleRules?: () => void;
   onModeChange: (mode: string) => void;
-  onSend: (message: string) => void;
+  onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
@@ -122,6 +124,8 @@ export function ChatPanel({
   onToggleReasoning,
   disabledToolkits = new Set<string>(),
   onToggleToolkit,
+  rulesEnabled = true,
+  onToggleRules,
   onModeChange,
   onSend,
   onStop,
@@ -418,6 +422,8 @@ export function ChatPanel({
           onToggleReasoning={onToggleReasoning}
           disabledToolkits={disabledToolkits}
           onToggleToolkit={onToggleToolkit}
+          rulesEnabled={rulesEnabled}
+          onToggleRules={onToggleRules}
           reasoningAvailable={reasoningAvailable}
           fastAvailable={fastAvailable}
           activeSelection={activeSelection}

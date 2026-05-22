@@ -28,6 +28,14 @@ export type ChatRenderUnit =
       firstVisIdx: number;
       subUnits: SubRenderUnit[];
     }
+  | {
+      type: 'userTurn';
+      /** All messages belonging to this turn (visible user messages sharing the same turnId). */
+      messages: { msg: ChatMessage; visIdx: number; originalIdx: number }[];
+      originalIndices: number[];
+      lastOriginalIdx: number;
+      firstVisIdx: number;
+    }
   | { type: 'message'; visIdx: number; msg: ChatMessage; originalIdx: number };
 
 function findToolResult(
@@ -149,9 +157,34 @@ export function buildChatRenderUnits(
     const { msg, originalIdx } = visible[i]!;
     const role = msg.role;
 
-    if (role === 'user' || role === 'system') {
+    if (role === 'system') {
       out.push({ type: 'message', visIdx: i, msg, originalIdx });
       i += 1;
+      continue;
+    }
+
+    if (role === 'user') {
+      // Collect all consecutive user messages that share the same turnId (or just this one).
+      const tid = msg.turnId;
+      const items: { msg: ChatMessage; visIdx: number; originalIdx: number }[] = [
+        { msg, visIdx: i, originalIdx },
+      ];
+      if (tid !== undefined) {
+        let j = i + 1;
+        while (j < visible.length && visible[j]!.msg.role === 'user' && visible[j]!.msg.turnId === tid) {
+          items.push({ msg: visible[j]!.msg, visIdx: j, originalIdx: visible[j]!.originalIdx });
+          j++;
+        }
+      }
+      const originalIndices = items.map((it) => it.originalIdx);
+      out.push({
+        type: 'userTurn',
+        messages: items,
+        originalIndices,
+        lastOriginalIdx: originalIndices[originalIndices.length - 1]!,
+        firstVisIdx: i,
+      });
+      i += items.length;
       continue;
     }
 

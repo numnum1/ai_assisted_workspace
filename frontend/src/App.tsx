@@ -142,6 +142,7 @@ function conversationHasVisibleMessages(conv: Conversation): boolean {
 
 const LLM_PREFS_KEY = "chat-llm-prefs";
 const CHAT_DISABLED_TOOLKITS_KEY = "chat-disabled-toolkits";
+const CHAT_RULES_ENABLED_KEY = "chat-rules-enabled";
 
 function loadInitialDisabledToolkits(): Set<string> {
   try {
@@ -165,6 +166,24 @@ function loadInitialDisabledToolkits(): Set<string> {
 function saveDisabledToolkits(s: Set<string>) {
   try {
     localStorage.setItem(CHAT_DISABLED_TOOLKITS_KEY, JSON.stringify([...s]));
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadInitialRulesEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem(CHAT_RULES_ENABLED_KEY);
+    if (raw === "false") return false;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+function saveRulesEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(CHAT_RULES_ENABLED_KEY, String(enabled));
   } catch {
     /* ignore */
   }
@@ -304,6 +323,7 @@ function App() {
   const [disabledToolkits, setDisabledToolkits] = useState(
     loadInitialDisabledToolkits,
   );
+  const [rulesEnabled, setRulesEnabled] = useState(loadInitialRulesEnabled);
   const [chatDownloadFeatureEnabled, setChatDownloadFeatureEnabled] =
     useState(false);
 
@@ -372,6 +392,7 @@ function App() {
       return next;
     });
   }, []);
+  const handleToggleRules = useCallback(() => setRulesEnabled((v) => !v), []);
 
   const handleLlmChange = useCallback(
     (id: string | undefined) => {
@@ -1045,6 +1066,10 @@ function App() {
     saveDisabledToolkits(disabledToolkits);
   }, [disabledToolkits]);
 
+  useEffect(() => {
+    saveRulesEnabled(rulesEnabled);
+  }, [rulesEnabled]);
+
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
   const [focusedField, setFocusedField] = useState<{
@@ -1540,6 +1565,7 @@ function App() {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled: !rulesEnabled,
     referencedFiles: refs.referencedFiles,
     focusedFieldKey: focusedField?.fieldKey,
     activeSelection,
@@ -1548,6 +1574,7 @@ function App() {
     chat,
     patchConversation: history.patchConversation,
     onActiveSelectionClear: clearActiveSelectionForChat,
+    clearReferencedFiles: refs.clearFiles,
   });
 
   const parentConversationModel = useConversationModel({
@@ -1559,6 +1586,7 @@ function App() {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled: !rulesEnabled,
     referencedFiles: refs.referencedFiles,
     focusedFieldKey: focusedField?.fieldKey,
     activeSelection: null,
@@ -1567,6 +1595,7 @@ function App() {
     chat: parentChat,
     patchConversation: history.patchConversation,
     onActiveSelectionClear: () => {},
+    clearReferencedFiles: refs.clearFiles,
   });
 
   const handleComposerDraftChange = useCallback(
@@ -1611,7 +1640,7 @@ function App() {
         focusedField?.fieldKey ?? null,
         exec.disabledToolkits,
         streamSession,
-        { userHidden: true },
+        { userHidden: true, ...(!rulesEnabled ? { rulesDisabled: true } : {}) },
       );
       history.patchConversation(conv.id, { mode: modeId });
       setActiveSelection(null);
@@ -1625,6 +1654,7 @@ function App() {
       modeLlmId,
       focusedField,
       disabledToolkits,
+      rulesEnabled,
       history.patchConversation,
     ],
   );
@@ -1692,7 +1722,7 @@ function App() {
           conversationId: conv?.id ?? history.activeId,
           sessionKind: "standard",
         },
-        undefined,
+        { ...(!rulesEnabled ? { rulesDisabled: true } : {}) },
       );
       history.patchConversation(history.activeId, { mode: "prompt-pack" });
       setPromptPackOpen(false);
@@ -1703,6 +1733,7 @@ function App() {
       useReasoning,
       modeLlmId,
       disabledToolkits,
+      rulesEnabled,
       history.activeConversation,
       history.activeId,
       history.patchConversation,
@@ -2012,6 +2043,7 @@ function App() {
           steeringPlan: offer.steeringPlanMarkdown.trim(),
           mode: threadMode,
         });
+        scheduleGuidedAgentPresetKickoff(newConv.id);
       } else {
         history.patchConversation(newConv.id, {
           steeringPlan: offer.steeringPlanMarkdown.trim(),
@@ -2465,6 +2497,8 @@ function App() {
                 onToggleReasoning={handleToggleReasoning}
                 disabledToolkits={disabledToolkits}
                 onToggleToolkit={handleToggleToolkit}
+                rulesEnabled={rulesEnabled}
+                onToggleRules={handleToggleRules}
                 reasoningAvailable={reasoningAvailable}
                 fastAvailable={fastAvailable}
                 onModeChange={handleModeChange}
@@ -2624,6 +2658,8 @@ function App() {
                     onToggleReasoning={handleToggleReasoning}
                     disabledToolkits={disabledToolkits}
                     onToggleToolkit={handleToggleToolkit}
+                    rulesEnabled={rulesEnabled}
+                    onToggleRules={handleToggleRules}
                     reasoningAvailable={reasoningAvailable}
                     fastAvailable={fastAvailable}
                     activeSelection={activeSelection}

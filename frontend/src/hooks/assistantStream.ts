@@ -22,16 +22,18 @@ export type StreamCallbacks = {
   setToolActivity: (v: string | null) => void;
   setContextInfo: Dispatch<SetStateAction<ContextInfo | null>>;
   currentBaseRef: MutableRefObject<ChatMessage[]>;
+  turnId?: string;
 };
 
 function assistantMessage(
   content: string,
   selectionContext: SelectionContext | undefined,
+  turnId: string | undefined,
 ): ChatMessage {
-  if (selectionContext !== undefined) {
-    return { role: 'assistant', content, selectionContext };
-  }
-  return { role: 'assistant', content };
+  const msg: ChatMessage = { role: 'assistant', content };
+  if (selectionContext !== undefined) msg.selectionContext = selectionContext;
+  if (turnId !== undefined) msg.turnId = turnId;
+  return msg;
 }
 
 /**
@@ -48,12 +50,14 @@ export function attachAssistantStream(
   let shellVisible = false;
   const mode = CHAT_ASSISTANT_UI_MODE;
 
+  const { turnId } = cbs;
+
   const pushAssistantShell = () => {
     if (shellVisible) return;
     shellVisible = true;
     cbs.setMessages([
       ...cbs.currentBaseRef.current,
-      assistantMessage('', selectionContext),
+      assistantMessage('', selectionContext, turnId),
     ]);
   };
 
@@ -65,7 +69,7 @@ export function attachAssistantStream(
       if (mode === 'live') {
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
-          assistantMessage(assistantContent, selectionContext),
+          assistantMessage(assistantContent, selectionContext, turnId),
         ]);
         return;
       }
@@ -78,7 +82,7 @@ export function attachAssistantStream(
       if (mode === 'on-done') {
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
-          assistantMessage(fullAssistantText, selectionContext),
+          assistantMessage(fullAssistantText, selectionContext, turnId),
         ]);
       } else {
         // Live: the trailing assistant bubble was never in currentBaseRef; persist it so tool rows
@@ -88,7 +92,7 @@ export function attachAssistantStream(
         if (body.trim().length > 0) {
           cbs.currentBaseRef.current = [
             ...cbs.currentBaseRef.current,
-            assistantMessage(body, selectionContext),
+            assistantMessage(body, selectionContext, turnId),
           ];
         }
         cbs.setMessages([...cbs.currentBaseRef.current]);
@@ -105,14 +109,14 @@ export function attachAssistantStream(
       if (mode === 'live' && assistantContent.trim().length > 0) {
         cbs.currentBaseRef.current = [
           ...cbs.currentBaseRef.current,
-          assistantMessage(assistantContent, selectionContext),
+          assistantMessage(assistantContent, selectionContext, turnId),
         ];
         assistantContent = '';
         cbs.setMessages([...cbs.currentBaseRef.current]);
       } else if (mode === 'on-done' && assistantContent.length > 0) {
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
-          assistantMessage(assistantContent, selectionContext),
+          assistantMessage(assistantContent, selectionContext, turnId),
         ]);
       }
     },
@@ -130,13 +134,17 @@ export function attachAssistantStream(
       assistantContent = '';
       cbs.currentBaseRef.current = [
         ...cbs.currentBaseRef.current,
-        ...toolMessages.map((m) => ({ ...m, hidden: !isVisibleToolHistoryMessage(m) })),
+        ...toolMessages.map((m) => ({
+          ...m,
+          hidden: !isVisibleToolHistoryMessage(m),
+          ...(turnId !== undefined ? { turnId } : {}),
+        })),
       ];
       if (mode === 'on-done') {
         shellVisible = true;
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
-          assistantMessage('', selectionContext),
+          assistantMessage('', selectionContext, turnId),
         ]);
       } else {
         cbs.setMessages([...cbs.currentBaseRef.current]);

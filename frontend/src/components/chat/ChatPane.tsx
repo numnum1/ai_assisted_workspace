@@ -123,7 +123,7 @@ export interface ChatPaneProps {
   error: string | null;
   toolActivity: string | null;
 
-  onSend: (message: string) => void;
+  onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;
@@ -148,6 +148,8 @@ export interface ChatPaneProps {
   onToggleReasoning?: () => void;
   disabledToolkits?: ReadonlySet<string>;
   onToggleToolkit?: (kitId: string) => void;
+  rulesEnabled?: boolean;
+  onToggleRules?: () => void;
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
   activeSelection?: SelectionContext | null;
@@ -208,6 +210,8 @@ export function ChatPane({
   onToggleReasoning,
   disabledToolkits = new Set<string>(),
   onToggleToolkit,
+  rulesEnabled = true,
+  onToggleRules,
   reasoningAvailable = true,
   fastAvailable = true,
   activeSelection = null,
@@ -659,7 +663,7 @@ export function ChatPane({
             <ChatComposerCard>
               <GuidedThreadOfferCard
                 offer={pendingGuidedThreadOffer.offer}
-                blocked={false}
+                blocked={isThread}
                 disabled={streaming}
                 onAccept={handleAcceptGuidedThreadOfferClick}
                 onDismiss={handleDismissGuidedThreadOffer}
@@ -689,6 +693,8 @@ export function ChatPane({
             onToggleReasoning={agentMode ? undefined : onToggleReasoning}
             disabledToolkits={disabledToolkits}
             onToggleToolkit={agentMode ? undefined : onToggleToolkit}
+            rulesEnabled={rulesEnabled}
+            onToggleRules={agentMode ? undefined : onToggleRules}
             reasoningAvailable={reasoningAvailable}
             fastAvailable={fastAvailable}
             activeSelection={activeSelection}

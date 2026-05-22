@@ -13,6 +13,7 @@ import {
   FolderOpen,
   Sparkles,
   ScrollText,
+  ListChecks,
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
 import { wikiApi } from "../../api.ts";
@@ -210,6 +211,9 @@ interface ChatInputProps {
   fullscreen?: boolean;
   /** Fired when the composer text changes (e.g. to align context preview with the next send). */
   onDraftChange?: (text: string) => void;
+  /** Whether project KI-Regeln are currently active (injected into system prompt). */
+  rulesEnabled?: boolean;
+  onToggleRules?: () => void;
 }
 
 export function ChatInput({
@@ -234,6 +238,8 @@ export function ChatInput({
   focusTriggerRef,
   fullscreen = false,
   onDraftChange,
+  rulesEnabled = true,
+  onToggleRules,
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const [expandOpen, setExpandOpen] = useState(false);
@@ -383,23 +389,19 @@ export function ChatInput({
       if (!textarea) return;
 
       const queryEnd = ac.atIndex + 1 + ac.query.length;
-      const newText =
-        text.slice(0, ac.atIndex) +
-        "@" +
-        item.path +
-        " " +
-        text.slice(queryEnd);
+      const newText = text.slice(0, ac.atIndex) + text.slice(queryEnd);
       setText(newText);
       setAc(null);
+      onAddFile(item.path);
 
-      const newCursor = ac.atIndex + 1 + item.path.length + 1;
+      const newCursor = ac.atIndex;
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(newCursor, newCursor);
         syncTextareaHeight();
       });
     },
-    [ac, text, syncTextareaHeight],
+    [ac, text, syncTextareaHeight, onAddFile],
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -620,6 +622,22 @@ export function ChatInput({
               <Zap size={15} />
             </button>
           )}
+          {onToggleRules && (
+            <button
+              type="button"
+              className={`chat-rules-btn${rulesEnabled ? " active" : ""}`}
+              onClick={onToggleRules}
+              title={
+                rulesEnabled
+                  ? "KI-Regeln aktiv — klicken zum Deaktivieren"
+                  : "KI-Regeln deaktiviert — klicken zum Aktivieren"
+              }
+              disabled={streaming}
+            >
+              <ListChecks size={15} />
+              <span className="chat-rules-btn-label">KI-Regeln</span>
+            </button>
+          )}
           <ToolkitMenuButton
             disabledToolkits={disabledToolkits}
             onToggleToolkit={onToggleToolkit}
@@ -733,6 +751,21 @@ export function ChatInput({
                           <Zap size={15} />
                         </button>
                       )}
+                    {onToggleRules && (
+                      <button
+                        type="button"
+                        className={`chat-rules-btn${rulesEnabled ? " active" : ""}`}
+                        onClick={onToggleRules}
+                        title={
+                          rulesEnabled
+                            ? "KI-Regeln aktiv — klicken zum Deaktivieren"
+                            : "KI-Regeln deaktiviert — klicken zum Aktivieren"
+                        }
+                      >
+                        <ListChecks size={15} />
+                        <span className="chat-rules-btn-label">KI-Regeln</span>
+                      </button>
+                    )}
                     <ToolkitMenuButton
                       disabledToolkits={disabledToolkits}
                       onToggleToolkit={onToggleToolkit}
