@@ -901,7 +901,6 @@ export function streamChat(
     let errorHandled = false;
     let tokenCount = 0;
     let toolCallCount = 0;
-    let fullAssistantText = "";
     let activeStreamId: string | null = null;
     let unsubscribe: (() => void) | null = null;
 
@@ -952,7 +951,6 @@ export function streamChat(
       } else if (chatEvent.type === "token") {
         tokenCount++;
         const unescaped = decodeElectronStreamData(chatEvent.payload);
-        fullAssistantText += unescaped;
         onToken(unescaped);
         await yieldMacrotaskForTokenPaint();
       }
