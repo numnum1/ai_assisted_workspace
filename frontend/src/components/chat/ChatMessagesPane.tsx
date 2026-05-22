@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from "react";
+import React, { useState, useMemo, memo } from "react";
 import type { RefObject } from "react";
 import {
   Search,
@@ -32,11 +32,29 @@ const CHOICE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 function ClarificationAnswerCard({
   data,
+  modeColor,
+  contrastColor,
 }: {
   data: NonNullable<ChatMessage["clarificationData"]>;
+  modeColor?: string;
+  contrastColor?: string;
 }) {
+  const colorOverrides =
+    modeColor && contrastColor
+      ? ({
+          "--sac-letter-bg": `color-mix(in srgb, ${contrastColor} 18%, transparent)`,
+          "--sac-letter-border": `color-mix(in srgb, ${contrastColor} 40%, transparent)`,
+          "--sac-letter-color": contrastColor,
+          "--sac-selected-letter-bg": contrastColor,
+          "--sac-selected-letter-border": contrastColor,
+          "--sac-selected-letter-color": modeColor,
+          "--sac-selected-text": contrastColor,
+          "--sac-question-color": `color-mix(in srgb, ${contrastColor} 65%, transparent)`,
+        } as React.CSSProperties)
+      : undefined;
+
   return (
-    <div className="sac-surface clarification-answer-card">
+    <div className="sac-surface clarification-answer-card" style={colorOverrides}>
       <div className="sac-body">
         {data.questions.map((q, qIdx) => {
           const sel = data.selected[qIdx] ?? [];
@@ -411,7 +429,11 @@ export function ChatMessagesPane({
                   </ReactMarkdown>
                 ) : readOnly || editingIdx !== originalIdx ? (
                   msg.clarificationData ? (
-                    <ClarificationAnswerCard data={msg.clarificationData} />
+                    <ClarificationAnswerCard
+                      data={msg.clarificationData}
+                      modeColor={displayModeColor}
+                      contrastColor={getContrastingTextColor(displayModeColor)}
+                    />
                   ) : (
                     msg.content
                   )

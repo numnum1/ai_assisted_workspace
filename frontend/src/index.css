@@ -4224,7 +4224,7 @@ body.file-tree-native-dragging {
     margin: 0 0 2px;
     font-size: 12px;
     font-weight: 400;
-    color: var(--text-muted);
+    color: var(--sac-question-color, var(--text-muted));
     line-height: 1.45;
 }
 
@@ -4293,19 +4293,20 @@ body.file-tree-native-dragging {
 }
 
 .sac-option.selected .sac-letter {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    background: var(--sac-selected-letter-bg, var(--accent));
+    border-color: var(--sac-selected-letter-border, var(--accent));
+    color: var(--sac-selected-letter-color, #fff);
 }
 
 .sac-option-text {
     flex: 1;
     line-height: 1.45;
     padding-top: 1px;
+    color: var(--sac-question-color, inherit);
 }
 
 .sac-option.selected .sac-option-text {
-    color: var(--text-primary);
+    color: var(--sac-selected-text, var(--text-primary));
 }
 
 .sac-other-row {
