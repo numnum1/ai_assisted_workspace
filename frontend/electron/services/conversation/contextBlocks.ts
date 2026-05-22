@@ -158,12 +158,12 @@ export async function buildPreviewContext(
   if (modeBlock) blocks.push(modeBlock);
 
   if (!request.rulesDisabled) {
-    const rules = (projectConfig?.rules ?? []).filter(Boolean);
+    const rules = (projectConfig?.rules ?? []).filter((r) => r?.name);
     if (rules.length > 0) {
       const rulesBlock = createContextBlock(
         "rules",
         "KI-Regeln",
-        rules.map((r) => `- ${r}`).join("\n"),
+        rules.map((r) => `### ${(r as { name: string; body: string }).name}\n${(r as { name: string; body: string }).body}`).join("\n\n"),
       );
       if (rulesBlock) blocks.push(rulesBlock);
     }

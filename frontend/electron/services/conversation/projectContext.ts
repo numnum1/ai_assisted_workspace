@@ -11,7 +11,7 @@ export interface ProjectConfigData {
   /** Max number of tool-call rounds before the loop exits (default: 6). */
   maxToolRounds?: number;
   /** Project-level AI rules injected into every system prompt. */
-  rules?: string[];
+  rules?: { name: string; body: string }[];
   extraFeatures?: {
     chatDownload?: boolean;
   };
@@ -119,7 +119,9 @@ export async function readProjectConfig(
         ? config.quickChatLlmId
         : undefined,
     rules: Array.isArray(config.rules)
-      ? config.rules.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+      ? (config.rules as { name: string; body: string }[]).filter(
+          (r) => r && typeof r === "object" && typeof r.name === "string" && r.name.trim().length > 0,
+        )
       : undefined,
     extraFeatures:
       config.extraFeatures &&

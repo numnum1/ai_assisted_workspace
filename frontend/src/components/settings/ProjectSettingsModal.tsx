@@ -18,6 +18,7 @@ import type {
   AgentPreset,
   ChatToolkitId,
   ProjectConfig,
+  ProjectRule,
   Mode,
   WorkspaceModeInfo,
   LlmPublic,
@@ -160,6 +161,114 @@ function TagListEditor({
           >
             <Plus size={13} />
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RulesEditor({
+  rules,
+  onChange,
+  disabled,
+}: {
+  rules: ProjectRule[];
+  onChange: (rules: ProjectRule[]) => void;
+  disabled?: boolean;
+}) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(
+    rules.length > 0 ? 0 : null,
+  );
+  const [editName, setEditName] = useState(rules[0]?.name ?? "");
+  const [editBody, setEditBody] = useState(rules[0]?.body ?? "");
+
+  const selectRule = (i: number, ruleList?: ProjectRule[]) => {
+    const list = ruleList ?? rules;
+    setSelectedIdx(i);
+    setEditName(list[i]?.name ?? "");
+    setEditBody(list[i]?.body ?? "");
+  };
+
+  const commitEdit = (name: string, body: string) => {
+    if (selectedIdx === null) return;
+    onChange(rules.map((r, i) => (i === selectedIdx ? { name, body } : r)));
+  };
+
+  const addRule = () => {
+    const newRule: ProjectRule = { name: "Neue Regel", body: "" };
+    const updated = [...rules, newRule];
+    onChange(updated);
+    selectRule(updated.length - 1, updated);
+  };
+
+  const deleteRule = (i: number) => {
+    const updated = rules.filter((_, idx) => idx !== i);
+    onChange(updated);
+    if (updated.length === 0) {
+      setSelectedIdx(null);
+    } else {
+      const next = Math.min(i, updated.length - 1);
+      selectRule(next, updated);
+    }
+  };
+
+  return (
+    <div className="ps-rules-editor">
+      <div className="ps-rules-list">
+        {rules.map((rule, i) => (
+          <div
+            key={i}
+            className={`ps-rules-list-item${selectedIdx === i ? " selected" : ""}`}
+            onClick={() => {
+              if (selectedIdx !== null && selectedIdx !== i) {
+                commitEdit(editName, editBody);
+              }
+              selectRule(i);
+            }}
+          >
+            <span className="ps-rules-list-name">{rule.name || "Unbenannt"}</span>
+            {!disabled && (
+              <button
+                className="ps-rules-list-delete"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteRule(i);
+                }}
+                title="Regel löschen"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        ))}
+        {rules.length === 0 && (
+          <span className="ps-rules-empty">Keine Regeln</span>
+        )}
+        {!disabled && (
+          <button className="ps-rules-add-btn" onClick={addRule}>
+            <Plus size={12} /> Regel hinzufügen
+          </button>
+        )}
+      </div>
+
+      {selectedIdx !== null && rules[selectedIdx] !== undefined && (
+        <div className="ps-rules-panel">
+          <input
+            className="ps-input ps-rules-name-input"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onBlur={() => commitEdit(editName, editBody)}
+            placeholder="Regelname"
+            disabled={disabled}
+          />
+          <textarea
+            className="ps-input ps-rules-body-input"
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value)}
+            onBlur={() => commitEdit(editName, editBody)}
+            placeholder="Regeltext…"
+            disabled={disabled}
+          />
         </div>
       )}
     </div>
@@ -909,18 +1018,9 @@ export function ProjectSettingsModal({
                   wie Cursor-Regeln). Du kannst sie im Chat über den
                   „KI-Regeln"-Button deaktivieren.
                 </p>
-                <TagListEditor
-                  items={config.rules ?? []}
-                  onAdd={(v) =>
-                    setConfig((p) => ({ ...p, rules: [...(p.rules ?? []), v] }))
-                  }
-                  onRemove={(i) =>
-                    setConfig((p) => ({
-                      ...p,
-                      rules: (p.rules ?? []).filter((_, idx) => idx !== i),
-                    }))
-                  }
-                  placeholder="z. B. Antworte immer auf Deutsch"
+                <RulesEditor
+                  rules={config.rules ?? []}
+                  onChange={(rules) => setConfig((p) => ({ ...p, rules }))}
                 />
 
                 <label className="ps-label" style={{ marginTop: "1.25rem" }}>

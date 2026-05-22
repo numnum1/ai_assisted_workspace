@@ -208,7 +208,9 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
       ? Math.round(input.maxToolRounds)
       : undefined;
   const rules = Array.isArray(input?.rules)
-    ? input.rules.filter((r) => typeof r === "string" && r.trim().length > 0)
+    ? input.rules
+        .filter((r) => r && typeof r === "object" && typeof r.name === "string" && r.name.trim().length > 0)
+        .map((r) => ({ name: (r as { name: string; body?: string }).name.trim(), body: typeof (r as { name: string; body?: string }).body === "string" ? (r as { name: string; body: string }).body : "" }))
     : [];
   return {
     name: input?.name ?? "",

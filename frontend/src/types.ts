@@ -198,6 +198,12 @@ export interface ProjectExtraFeatures {
   chatDownload?: boolean;
 }
 
+/** A named AI rule injected into the system prompt (like a Cursor rule file). */
+export interface ProjectRule {
+  name: string;
+  body: string;
+}
+
 export interface ProjectConfig {
   name: string;
   description: string;
@@ -213,7 +219,7 @@ export interface ProjectConfig {
   /** Max number of tool-call rounds before the loop exits (default: 6). */
   maxToolRounds?: number;
   /** Project-level AI rules injected into every system prompt (like Cursor rules). */
-  rules?: string[];
+  rules?: ProjectRule[];
   extraFeatures?: ProjectExtraFeatures;
 }
 
