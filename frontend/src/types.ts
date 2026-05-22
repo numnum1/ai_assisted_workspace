@@ -74,6 +74,8 @@ export interface ThreadSummaryMeta {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
+  /** Groups all messages belonging to one conversational exchange (user prompt + AI response + tool calls). */
+  turnId?: string;
   mode?: string;
   modeColor?: string;
   /** Present on assistant messages when the user sent this via Ctrl+L selection */

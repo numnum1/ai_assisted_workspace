@@ -134,9 +134,11 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       syncEnabledRef.current = true;
       setError(null);
       setToolActivity(null);
+      const turnId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         role: 'user',
         content: text,
+        turnId,
         mode: modeName,
         modeColor,
         ...(referencedFiles.length > 0 ? { attachedFiles: [...referencedFiles] } : {}),
@@ -154,6 +156,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         setToolActivity,
         setContextInfo,
         currentBaseRef,
+        turnId,
       };
 
       const streamMeta =
@@ -248,9 +251,11 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       syncEnabledRef.current = true;
       setError(null);
       setToolActivity(null);
+      const turnId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         role: 'user',
         content: trimmed,
+        turnId,
         mode: target.mode,
         modeColor: target.modeColor,
       };
@@ -265,6 +270,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         setToolActivity,
         setContextInfo,
         currentBaseRef,
+        turnId,
       };
 
       const streamMeta = {
