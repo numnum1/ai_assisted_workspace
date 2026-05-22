@@ -288,6 +288,8 @@ function App() {
   const chapter = useChapter();
   const refs = useReferencedFiles();
   const { preferences, updatePreferences } = usePreferences();
+  const chatFontSizePxRef = useRef(preferences.appearance.chatFontSizePx ?? 14);
+  chatFontSizePxRef.current = preferences.appearance.chatFontSizePx ?? 14;
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [modes, setModes] = useState<Mode[]>([]);
   const [agentPresets, setAgentPresets] = useState<AgentPreset[]>([]);
@@ -1277,7 +1279,7 @@ function App() {
     const onKey = (e: KeyboardEvent) => {
       // Allow regular character input (like "ß", "ä", "ö", "ü", etc.)
       // Don't interfere with normal typing
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && !e.code.startsWith("Numpad")) {
         return; // Regular character - let it pass through
       }
       // Allow AltGr (Alt+Ctrl) for character input like "ß"
@@ -1290,15 +1292,12 @@ function App() {
         return;
       }
 
-      // Alt+Num+ / Alt+Num- for font size adjustment
+      // Num+ / Num- for font size adjustment
       if ((e.code === "NumpadAdd" || e.code === "Equal") && !e.shiftKey) {
         e.preventDefault();
         updatePreferences({
           appearance: {
-            chatFontSizePx: Math.min(
-              22,
-              (preferences.appearance.chatFontSizePx ?? 14) + 1,
-            ),
+            chatFontSizePx: Math.min(22, chatFontSizePxRef.current + 1),
           },
         });
         return;
@@ -1307,10 +1306,7 @@ function App() {
         e.preventDefault();
         updatePreferences({
           appearance: {
-            chatFontSizePx: Math.max(
-              10,
-              (preferences.appearance.chatFontSizePx ?? 14) - 1,
-            ),
+            chatFontSizePx: Math.max(10, chatFontSizePxRef.current - 1),
           },
         });
         return;

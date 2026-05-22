@@ -9,7 +9,7 @@ import { chatApi, type ContextBlock } from '../api.ts';
 import { buildNextMainChatRequest } from '../components/chat/contextPreviewRequest.ts';
 import { getEffectiveChatExecution } from '../components/chat/chatAgentUtils.ts';
 import { effectiveChatModeIdForRequest } from '../components/chat/effectiveChatModeForRequest.ts';
-import type { ChatMessage, Conversation, Mode, SelectionContext, ChatSessionKind } from '../types.ts';
+import type { ChatMessage, Conversation, ContextInfo, Mode, SelectionContext, ChatSessionKind } from '../types.ts';
 import { useChat } from './useChat.ts';
 
 type UseChatInstance = ReturnType<typeof useChat>;
@@ -66,6 +66,7 @@ export function useConversationModel(p: UseConversationModelParams) {
   } = p;
 
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
+  const [previewContextInfo, setPreviewContextInfo] = useState<ContextInfo | null>(null);
 
   const paramsRef = useRef({
     projectPath,
@@ -101,6 +102,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     if (!path) {
       previewFlightRef.current += 1;
       setSystemPrompt(null);
+      setPreviewContextInfo(null);
       return;
     }
     const flight = ++previewFlightRef.current;
@@ -136,10 +138,16 @@ export function useConversationModel(p: UseConversationModelParams) {
         .then((res) => {
           if (flight !== previewFlightRef.current) return;
           setSystemPrompt(res.systemPrompt ?? null);
+          setPreviewContextInfo(
+            res.estimatedTokens != null
+              ? { includedFiles: res.includedFiles ?? [], estimatedTokens: res.estimatedTokens }
+              : null,
+          );
         })
         .catch(() => {
           if (flight !== previewFlightRef.current) return;
           setSystemPrompt(null);
+          setPreviewContextInfo(null);
         });
     }, PREVIEW_DEBOUNCE_MS);
   }, [pendingMessageRef]);
@@ -294,7 +302,9 @@ export function useConversationModel(p: UseConversationModelParams) {
     schedulePreviewRefresh,
     messages: chat.messages,
     streaming: chat.streaming,
-    contextInfo: chat.contextInfo,
+    contextInfo: previewContextInfo
+      ? { ...previewContextInfo, maxContextTokens: chat.contextInfo?.maxContextTokens }
+      : chat.contextInfo,
     error: chat.error,
     toolActivity: chat.toolActivity,
     stopStreaming: chat.stopStreaming,
