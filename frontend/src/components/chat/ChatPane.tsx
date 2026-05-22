@@ -659,7 +659,7 @@ export function ChatPane({
             <ChatComposerCard>
               <GuidedThreadOfferCard
                 offer={pendingGuidedThreadOffer.offer}
-                blocked={false}
+                blocked={isThread}
                 disabled={streaming}
                 onAccept={handleAcceptGuidedThreadOfferClick}
                 onDismiss={handleDismissGuidedThreadOffer}

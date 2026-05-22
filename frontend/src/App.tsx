@@ -2018,6 +2018,7 @@ function App() {
           steeringPlan: offer.steeringPlanMarkdown.trim(),
           mode: threadMode,
         });
+        scheduleGuidedAgentPresetKickoff(newConv.id);
       } else {
         history.patchConversation(newConv.id, {
           steeringPlan: offer.steeringPlanMarkdown.trim(),
