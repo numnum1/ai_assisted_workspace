@@ -5,7 +5,10 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Recurse -Directory)",
       "Bash(Select-Object -First 30)",
       "Bash(Format-Table FullName)",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Depth 3 -Exclude node_modules | ForEach-Object { $_.FullName })"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Depth 3 -Exclude node_modules | ForEach-Object { $_.FullName })",
+      "Bash(find C:/Users/marcm -name \"project.json\" -path \"*/.assistant/*\" 2>/dev/null | head -5)",
+      "Bash(Select-String -Pattern \"ProjectConfig|config\")",
+      "Bash(find /c/Users/marcm -name \"project.json\" -path \"*/.assistant/*\" 2>/dev/null | head -10)"
     ]
   }
 }
