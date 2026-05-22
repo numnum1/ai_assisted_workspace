@@ -11,7 +11,7 @@ function choiceLetter(i: number): string {
 
 export interface SuggestedActionsCardProps {
   questions: ClarificationQuestion[];
-  onSubmit: (message: string) => void;
+  onSubmit: (message: string, clarificationData: { questions: ClarificationQuestion[]; selected: Record<number, string[]> }) => void;
   /** True while the assistant message is still streaming — freezes interaction. */
   disabled: boolean;
   /** Called when the "Andere…" free-text input opens or closes for any question. */
@@ -117,17 +117,17 @@ export function SuggestedActionsCard({
   );
 
   const submitMessage = useCallback(
-    (message: string) => {
+    (message: string, sel: Record<number, string[]>) => {
       setSubmitted(true);
-      onSubmit(message);
+      onSubmit(message, { questions, selected: sel });
     },
-    [onSubmit],
+    [onSubmit, questions],
   );
 
   const handleSubmit = useCallback(() => {
     if (frozen) return;
     if (!questions.every((_, idx) => (effective[idx]?.length ?? 0) > 0)) return;
-    submitMessage(buildMessage(questions, effective));
+    submitMessage(buildMessage(questions, effective), effective);
     setOtherOpen({});
     setOtherDraft({});
   }, [frozen, questions, effective, submitMessage]);
@@ -156,12 +156,12 @@ export function SuggestedActionsCard({
       const allowMultiple = q.allow_multiple ?? false;
       if (!allowMultiple && questions.length === 1) {
         setSubmitted(true);
-        onSubmit(opt);
+        onSubmit(opt, { questions, selected: { 0: [opt] } });
         return;
       }
       selectPreset(qIdx, opt, allowMultiple);
     },
-    [questions.length, onSubmit, selectPreset],
+    [questions, onSubmit, selectPreset],
   );
 
   const openOther = useCallback((qIdx: number, q: ClarificationQuestion) => {
@@ -181,7 +181,7 @@ export function SuggestedActionsCard({
 
       if (!allowMultiple && questions.length === 1) {
         setSubmitted(true);
-        onSubmit(draft);
+        onSubmit(draft, { questions, selected: { 0: [draft] } });
         setOtherDraft((d) => ({ ...d, [qIdx]: "" }));
         setOtherOpen((o) => ({ ...o, [qIdx]: false }));
         return;
@@ -230,7 +230,7 @@ export function SuggestedActionsCard({
         const opt = q.options[idx];
         if (opt !== undefined) {
           setSubmitted(true);
-          onSubmit(opt);
+          onSubmit(opt, { questions, selected: { 0: [opt] } });
         }
       }
     };

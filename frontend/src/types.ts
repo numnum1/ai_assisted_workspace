@@ -92,6 +92,11 @@ export interface ChatMessage {
   kind?: 'thread-summary';
   /** Present when kind === 'thread-summary' */
   threadSummaryMeta?: ThreadSummaryMeta;
+  /** Present on user messages that are answers to a clarification multiple-choice */
+  clarificationData?: {
+    questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
+    selected: Record<number, string[]>;
+  };
 }
 
 export interface ChatRequest {

@@ -35,6 +35,11 @@ export interface ChatStreamSessionMeta {
 export interface SendMessageOptions {
   /** When true, the new user message is stored and sent to the API but not shown in the chat UI. */
   userHidden?: boolean;
+  /** When set, the user message is a clarification multiple-choice answer — stored for rendering. */
+  clarificationData?: {
+    questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
+    selected: Record<number, string[]>;
+  };
 }
 
 export interface UseChatOptions {
@@ -132,6 +137,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         modeColor,
         ...(referencedFiles.length > 0 ? { attachedFiles: [...referencedFiles] } : {}),
         ...(sendOpts?.userHidden ? { hidden: true as const } : {}),
+        ...(sendOpts?.clarificationData ? { clarificationData: sendOpts.clarificationData } : {}),
       };
       currentBaseRef.current = [...messagesRef.current, userMsg];
       setMessages(currentBaseRef.current);

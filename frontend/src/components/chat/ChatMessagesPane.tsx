@@ -28,6 +28,60 @@ import { FileChip } from "../common/FileChip.tsx";
 export const EMPTY_SNAPSHOT_DISMISS = new Set<string>();
 export const EMPTY_COMPOSER_BATCH_FORCED: Record<string, CardState> = {};
 
+const CHOICE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+function ClarificationAnswerCard({
+  data,
+}: {
+  data: NonNullable<ChatMessage["clarificationData"]>;
+}) {
+  return (
+    <div className="sac-surface clarification-answer-card">
+      <div className="sac-body">
+        {data.questions.map((q, qIdx) => {
+          const sel = data.selected[qIdx] ?? [];
+          const customAnswers = sel.filter((s) => !q.options.includes(s));
+          return (
+            <div key={qIdx} className="sac-block">
+              <p className="sac-question">{q.question}</p>
+              <div className="sac-options">
+                {q.options.map((opt, i) => {
+                  const letter =
+                    i < CHOICE_LETTERS.length
+                      ? CHOICE_LETTERS[i]
+                      : String(i + 1);
+                  const isSelected = sel.includes(opt);
+                  return (
+                    <div key={i} className="sac-option-wrap">
+                      <button
+                        type="button"
+                        className={`sac-option${isSelected ? " selected" : ""}`}
+                        disabled
+                      >
+                        <span className="sac-letter" aria-hidden>
+                          {letter}
+                        </span>
+                        <span className="sac-option-text">{opt}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+                {customAnswers.map((custom, i) => (
+                  <div key={`custom-${i}`} className="sac-option-wrap">
+                    <button type="button" className="sac-option selected" disabled>
+                      <span className="sac-option-text">{custom}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface MessageEditBoxProps {
   initialContent: string;
   onSave: (text: string) => void;
@@ -356,7 +410,11 @@ export function ChatMessagesPane({
                     {msg.content}
                   </ReactMarkdown>
                 ) : readOnly || editingIdx !== originalIdx ? (
-                  msg.content
+                  msg.clarificationData ? (
+                    <ClarificationAnswerCard data={msg.clarificationData} />
+                  ) : (
+                    msg.content
+                  )
                 ) : (
                   <MessageEditBox
                     initialContent={msg.content}

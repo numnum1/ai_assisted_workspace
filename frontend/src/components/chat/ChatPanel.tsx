@@ -48,7 +48,7 @@ interface ChatPanelProps {
   disabledToolkits?: ReadonlySet<string>;
   onToggleToolkit?: (kitId: string) => void;
   onModeChange: (mode: string) => void;
-  onSend: (message: string) => void;
+  onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;

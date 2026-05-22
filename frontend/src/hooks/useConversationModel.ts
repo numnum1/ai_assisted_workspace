@@ -167,7 +167,7 @@ export function useConversationModel(p: UseConversationModelParams) {
   ]);
 
   const send = useCallback(
-    (message: string) => {
+    (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => {
       const c = conv;
       const modeId = effectiveChatModeIdForRequest(c, selectedMode, modes);
       const mode = modes.find((m) => m.id === modeId);
@@ -193,7 +193,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         focusedFieldKey ?? null,
         exec.disabledToolkits,
         streamSession,
-        undefined,
+        clarificationData != null ? { clarificationData } : undefined,
       );
       patchConversation(activeConversationId, { mode: modeId });
       onActiveSelectionClear();

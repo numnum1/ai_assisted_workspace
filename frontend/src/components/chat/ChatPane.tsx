@@ -123,7 +123,7 @@ export interface ChatPaneProps {
   error: string | null;
   toolActivity: string | null;
 
-  onSend: (message: string) => void;
+  onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;

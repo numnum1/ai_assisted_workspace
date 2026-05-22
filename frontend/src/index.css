@@ -4361,6 +4361,19 @@ body.file-tree-native-dragging {
     cursor: default;
 }
 
+/* Clarification answer card — read-only history view of a multiple-choice answer */
+.sac-surface.clarification-answer-card {
+    opacity: 1;
+}
+
+.sac-surface.clarification-answer-card .sac-option:not(.selected) {
+    opacity: 0.38;
+}
+
+.sac-surface.clarification-answer-card .sac-option {
+    cursor: default;
+}
+
 /* Pending write_file batch ÔÇö thin toolbar above ChatInput (Cursor-style) */
 .wf-batch-composer {
     width: 100%;
