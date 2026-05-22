@@ -22,6 +22,8 @@ export interface EditMessageSendParams {
   conversationId: string;
   sessionKind: ChatSessionKind;
   steeringPlan?: string;
+  /** When true, project-level KI-Regeln are not injected into the system prompt. */
+  rulesDisabled?: boolean;
 }
 
 /** Active conversation id + session kind; sent with each chat request for guided mode / plan persistence. */
@@ -40,6 +42,8 @@ export interface SendMessageOptions {
     questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
     selected: Record<number, string[]>;
   };
+  /** When true, project-level KI-Regeln are not injected into the system prompt. */
+  rulesDisabled?: boolean;
 }
 
 export interface UseChatOptions {
@@ -169,6 +173,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           ? { disabledToolkits: [...disabledToolkits] }
           : {}),
         ...buildSessionChatRequestFields(streamSession),
+        ...(sendOpts?.rulesDisabled ? { rulesDisabled: true } : {}),
       };
       lastStreamCallRef.current = { chatRequest: request, selectionContext, streamMeta };
 
@@ -282,6 +287,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           sessionKind: sendParams.sessionKind,
           steeringPlan: sendParams.steeringPlan,
         }),
+        ...(sendParams.rulesDisabled ? { rulesDisabled: true } : {}),
       };
 
       const onComplete =

@@ -118,6 +118,8 @@ export interface ChatRequest {
   sessionKind?: ChatSessionKind;
   /** Persisted plan text for guided sessions; sent each request when set. */
   steeringPlan?: string | null;
+  /** When true, project-level KI-Regeln are not injected into the system prompt. */
+  rulesDisabled?: boolean;
 }
 
 export interface ContextInfo {
@@ -210,6 +212,8 @@ export interface ProjectConfig {
   threadSummaryLlmId?: string;
   /** Max number of tool-call rounds before the loop exits (default: 6). */
   maxToolRounds?: number;
+  /** Project-level AI rules injected into every system prompt (like Cursor rules). */
+  rules?: string[];
   extraFeatures?: ProjectExtraFeatures;
 }
 

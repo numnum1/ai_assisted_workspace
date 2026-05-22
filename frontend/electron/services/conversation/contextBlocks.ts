@@ -157,6 +157,18 @@ export async function buildPreviewContext(
   const modeBlock = buildModeBlock(request);
   if (modeBlock) blocks.push(modeBlock);
 
+  if (!request.rulesDisabled) {
+    const rules = (projectConfig?.rules ?? []).filter(Boolean);
+    if (rules.length > 0) {
+      const rulesBlock = createContextBlock(
+        "rules",
+        "KI-Regeln",
+        rules.map((r) => `- ${r}`).join("\n"),
+      );
+      if (rulesBlock) blocks.push(rulesBlock);
+    }
+  }
+
   if (projectConfig?.workspaceMode) {
     const workspaceModeBlock = createContextBlock(
       "workspace-mode",

@@ -200,6 +200,14 @@ export function buildSystemPrompt(
   // 2. Current date
   sections.push(`Heutiges Datum: ${new Date().toISOString().slice(0, 10)}`);
 
+  // 2b. KI-Regeln (project-level rules, like Cursor rules)
+  if (!request.rulesDisabled && !request.quickChat) {
+    const rules = (context.projectConfig?.rules ?? []).filter(Boolean);
+    if (rules.length > 0) {
+      sections.push(`KI-Regeln:\n${rules.map((r) => `- ${r}`).join("\n")}`);
+    }
+  }
+
   // 3. Project context (non-quickChat only)
   if (!request.quickChat) {
     const projectLines: string[] = [];

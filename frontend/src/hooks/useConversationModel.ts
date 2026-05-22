@@ -23,6 +23,7 @@ export interface UseConversationModelParams {
   modeLlmId: string | undefined;
   useReasoning: boolean;
   disabledToolkits: ReadonlySet<string>;
+  rulesDisabled: boolean;
   referencedFiles: string[];
   focusedFieldKey: string | null | undefined;
   activeSelection: SelectionContext | null;
@@ -56,6 +57,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled,
     referencedFiles,
     focusedFieldKey,
     activeSelection,
@@ -77,6 +79,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled,
     referencedFiles,
     focusedFieldKey,
     messages,
@@ -89,6 +92,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     useReasoning,
     disabledToolkits,
+    rulesDisabled,
     referencedFiles,
     focusedFieldKey,
     messages,
@@ -114,6 +118,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         modeLlmId: mlid,
         useReasoning: ur,
         disabledToolkits: dt,
+        rulesDisabled: rd,
         referencedFiles: rf,
         focusedFieldKey: fk,
         messages: hist,
@@ -132,6 +137,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conv: c,
         historyMessages: hist,
         pendingMessage: pendingMessageRef.current,
+        rulesDisabled: rd,
       });
       chatApi
         .previewContext(req)
@@ -162,6 +168,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modeLlmId,
     focusedFieldKey,
     disabledToolkits,
+    rulesDisabled,
     messages,
     schedulePreviewRefresh,
   ]);
@@ -193,7 +200,10 @@ export function useConversationModel(p: UseConversationModelParams) {
         focusedFieldKey ?? null,
         exec.disabledToolkits,
         streamSession,
-        clarificationData != null ? { clarificationData } : undefined,
+        {
+          ...(clarificationData != null ? { clarificationData } : {}),
+          ...(rulesDisabled ? { rulesDisabled: true } : {}),
+        },
       );
       patchConversation(activeConversationId, { mode: modeId });
       onActiveSelectionClear();
@@ -237,6 +247,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conversationId: c?.id ?? activeConversationId,
         sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: c?.steeringPlan,
+        rulesDisabled,
       });
       patchConversation(activeConversationId, { mode: modeId });
       onActiveSelectionClear();
@@ -266,6 +277,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       modeLlmId: mlid,
       useReasoning: ur,
       disabledToolkits: dt,
+      rulesDisabled: rd,
       referencedFiles: rf,
       focusedFieldKey: fk,
       messages: hist,
@@ -285,6 +297,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conv: c,
         historyMessages: hist,
         pendingMessage: pendingMessageRef.current,
+        rulesDisabled: rd,
       }),
     );
     return result.contextBlocks ?? [];

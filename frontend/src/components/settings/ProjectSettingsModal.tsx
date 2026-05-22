@@ -744,6 +744,19 @@ export function ProjectSettingsModal({
                 />
 
                 <label className="ps-label" style={{ marginTop: '1.25rem' }}>
+                  KI-Regeln
+                </label>
+                <p className="ps-hint">
+                  Diese Regeln werden in jeden System-Prompt injiziert (ähnlich wie Cursor-Regeln). Du kannst sie im Chat über den „KI-Regeln"-Button deaktivieren.
+                </p>
+                <TagListEditor
+                  items={config.rules ?? []}
+                  onAdd={v => setConfig(p => ({ ...p, rules: [...(p.rules ?? []), v] }))}
+                  onRemove={i => setConfig(p => ({ ...p, rules: (p.rules ?? []).filter((_, idx) => idx !== i) }))}
+                  placeholder="z. B. Antworte immer auf Deutsch"
+                />
+
+                <label className="ps-label" style={{ marginTop: '1.25rem' }}>
                   Max. Tool-Runden
                 </label>
                 <p className="ps-hint">
