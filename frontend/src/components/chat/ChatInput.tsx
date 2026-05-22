@@ -383,23 +383,19 @@ export function ChatInput({
       if (!textarea) return;
 
       const queryEnd = ac.atIndex + 1 + ac.query.length;
-      const newText =
-        text.slice(0, ac.atIndex) +
-        "@" +
-        item.path +
-        " " +
-        text.slice(queryEnd);
+      const newText = text.slice(0, ac.atIndex) + text.slice(queryEnd);
       setText(newText);
       setAc(null);
+      onAddFile(item.path);
 
-      const newCursor = ac.atIndex + 1 + item.path.length + 1;
+      const newCursor = ac.atIndex;
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(newCursor, newCursor);
         syncTextareaHeight();
       });
     },
-    [ac, text, syncTextareaHeight],
+    [ac, text, syncTextareaHeight, onAddFile],
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

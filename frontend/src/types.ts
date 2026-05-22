@@ -86,6 +86,8 @@ export interface ChatMessage {
   hidden?: boolean;
   /** Present on user messages: the expanded content with file data prepended, used as history content */
   resolvedContent?: string;
+  /** File/wiki paths attached when this message was sent */
+  attachedFiles?: string[];
   /** Special message kinds for non-standard rendering */
   kind?: 'thread-summary';
   /** Present when kind === 'thread-summary' */

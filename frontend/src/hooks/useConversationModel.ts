@@ -36,6 +36,7 @@ export interface UseConversationModelParams {
   chat: UseChatInstance;
   patchConversation: (id: string, patch: Partial<Conversation>) => void;
   onActiveSelectionClear: () => void;
+  clearReferencedFiles: () => void;
 }
 
 const PREVIEW_DEBOUNCE_MS = 300;
@@ -63,6 +64,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     chat,
     patchConversation,
     onActiveSelectionClear,
+    clearReferencedFiles,
   } = p;
 
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
@@ -195,6 +197,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       );
       patchConversation(activeConversationId, { mode: modeId });
       onActiveSelectionClear();
+      clearReferencedFiles();
     },
     [
       conv,
@@ -210,6 +213,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       activeConversationId,
       patchConversation,
       onActiveSelectionClear,
+      clearReferencedFiles,
     ],
   );
 

@@ -130,6 +130,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         content: text,
         mode: modeName,
         modeColor,
+        ...(referencedFiles.length > 0 ? { attachedFiles: [...referencedFiles] } : {}),
         ...(sendOpts?.userHidden ? { hidden: true as const } : {}),
       };
       currentBaseRef.current = [...messagesRef.current, userMsg];

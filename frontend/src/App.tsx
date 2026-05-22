@@ -1552,6 +1552,7 @@ function App() {
     chat,
     patchConversation: history.patchConversation,
     onActiveSelectionClear: clearActiveSelectionForChat,
+    clearReferencedFiles: refs.clearFiles,
   });
 
   const parentConversationModel = useConversationModel({
@@ -1571,6 +1572,7 @@ function App() {
     chat: parentChat,
     patchConversation: history.patchConversation,
     onActiveSelectionClear: () => {},
+    clearReferencedFiles: refs.clearFiles,
   });
 
   const handleComposerDraftChange = useCallback(

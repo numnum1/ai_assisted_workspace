@@ -23,6 +23,7 @@ import {
 } from "./modeColorTheme.ts";
 import { hasClarificationFence } from "./clarificationUtils.ts";
 import type { CardState } from "./ChangeCard.tsx";
+import { FileChip } from "../common/FileChip.tsx";
 
 export const EMPTY_SNAPSHOT_DISMISS = new Set<string>();
 export const EMPTY_COMPOSER_BATCH_FORCED: Record<string, CardState> = {};
@@ -364,6 +365,13 @@ export function ChatMessagesPane({
                   />
                 )}
               </div>
+              {msg.role === "user" && msg.attachedFiles && msg.attachedFiles.length > 0 && (
+                <div className="chat-message-attached-files">
+                  {msg.attachedFiles.map((f) => (
+                    <FileChip key={f} path={f} readonly />
+                  ))}
+                </div>
+              )}
               {!readOnly && !streaming && editingIdx !== originalIdx && (
                 <div className="chat-fork-actions">
                   <button

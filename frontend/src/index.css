@@ -6393,6 +6393,14 @@ body.file-tree-native-dragging {
     color: var(--bg-tertiary);
 }
 
+/* Attached file chips on sent user messages */
+.chat-message-attached-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
 /* ==================== Mode Selector ==================== */
 
 .mode-selector {
