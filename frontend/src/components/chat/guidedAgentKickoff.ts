@@ -8,6 +8,13 @@ export const GUIDED_AGENT_KICKOFF_USER_MESSAGE =
   'Die geführte Sitzung startet jetzt. Der verbindliche Arbeitsplan steht im Panel — beginne mit Schritt 1, ' +
   'mache einen konkreten Fortschritt und gib danach den vollständigen aktualisierten ```plan```-Block aus.';
 
+/**
+ * Kickoff-Nachricht für geführte Sitzungen ohne Agent-Preset.
+ * Die KI soll die Sitzung eigenständig eröffnen und den Nutzer begrüßen.
+ */
+export const GUIDED_SIMPLE_KICKOFF_USER_MESSAGE =
+  'Die geführte Sitzung startet jetzt. Begrüße den Nutzer kurz und erkläre, wie du vorgehen wirst.';
+
 let pendingKickoffConversationId: string | null = null;
 
 const kickoffStartedConversationIds = new Set<string>();

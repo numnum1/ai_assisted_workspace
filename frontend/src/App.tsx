@@ -113,6 +113,7 @@ import {
 } from "./components/chat/effectiveChatModeForRequest.ts";
 import {
   GUIDED_AGENT_KICKOFF_USER_MESSAGE,
+  GUIDED_SIMPLE_KICKOFF_USER_MESSAGE,
   cancelGuidedAgentKickoffIfPendingMismatchesActive,
   clearPendingGuidedAgentKickoff,
   hasPendingGuidedAgentKickoffFor,
@@ -1666,8 +1667,12 @@ function App() {
         steeringPlan: conv.steeringPlan,
         isThread: conv.isThread ?? false,
       };
+      // Mit Steuerungsplan → detaillierte Kickoff-Nachricht; ohne → einfache Begrüßung.
+      const kickoffMessage = conv.steeringPlan?.trim()
+        ? GUIDED_AGENT_KICKOFF_USER_MESSAGE
+        : GUIDED_SIMPLE_KICKOFF_USER_MESSAGE;
       chat.sendMessage(
-        GUIDED_AGENT_KICKOFF_USER_MESSAGE,
+        kickoffMessage,
         modeId,
         refs.referencedFiles,
         mode?.name,
@@ -1750,8 +1755,6 @@ function App() {
 
     if (!hasPendingGuidedAgentKickoffFor(conv.id)) return;
     if (conv.sessionKind !== "guided") return;
-    if (!conv.agentPresetId?.trim()) return;
-    if (!conv.steeringPlan?.trim()) return;
     if (conv.messages.length > 0) return;
     // Wait until loadMessages has applied this conversation (avoid sendMessage using a stale message list).
     if (chat.messages.length !== conv.messages.length) return;
@@ -1896,6 +1899,10 @@ function App() {
             { llmId: modeLlmId, useReasoning, disabledToolkits },
             history.patchConversation,
           );
+          // Guided chat ohne Agent-Preset: KI soll trotzdem als erste sprechen.
+          if (payload.sessionKind === "guided") {
+            scheduleGuidedAgentPresetKickoff(newConv.id);
+          }
         }
         return;
       }
@@ -1964,6 +1971,10 @@ function App() {
             { llmId: modeLlmId, useReasoning, disabledToolkits },
             history.patchConversation,
           );
+          // Guided chat ohne Agent-Preset: KI soll trotzdem als erste sprechen.
+          if (payload.sessionKind === "guided") {
+            scheduleGuidedAgentPresetKickoff(newConv.id);
+          }
         }
         return;
       }
