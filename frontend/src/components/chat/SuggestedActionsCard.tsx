@@ -35,7 +35,7 @@ function effectiveSelected(
 ): Record<number, string[]> {
   const out: Record<number, string[]> = {};
   questions.forEach((q, idx) => {
-    const allowMultiple = q.allow_multiple ?? false;
+    const allowMultiple = q.allow_multiple ?? true;
     const base = [...(selected[idx] ?? [])];
     const open = otherOpen[idx] ?? false;
     const draft = (otherDraft[idx] ?? "").trim();
@@ -59,7 +59,7 @@ function buildMessage(
   const lines = questions.map((q, idx) => {
     const answers = selected[idx] ?? [];
     const answerText = answers.join(", ");
-    if (questions.length === 1 && !q.allow_multiple) {
+    if (questions.length === 1 && !(q.allow_multiple ?? true)) {
       return answerText;
     }
     return `${q.question} → ${answerText}`;
@@ -85,7 +85,7 @@ export function SuggestedActionsCard({
   frozenRef.current = disabled || submitted;
 
   const autoSubmitMode =
-    questions.length === 1 && !(questions[0]?.allow_multiple ?? false);
+    questions.length === 1 && !(questions[0]?.allow_multiple ?? true);
   const needsSubmitButton = !autoSubmitMode;
 
   useEffect(() => {
@@ -153,7 +153,7 @@ export function SuggestedActionsCard({
   const onPresetClick = useCallback(
     (qIdx: number, opt: string, q: ClarificationQuestion) => {
       if (frozenRef.current) return;
-      const allowMultiple = q.allow_multiple ?? false;
+      const allowMultiple = q.allow_multiple ?? true;
       if (!allowMultiple && questions.length === 1) {
         setSubmitted(true);
         onSubmit(opt, { questions, selected: { 0: [opt] } });
@@ -166,7 +166,7 @@ export function SuggestedActionsCard({
 
   const openOther = useCallback((qIdx: number, q: ClarificationQuestion) => {
     if (frozenRef.current) return;
-    const allowMultiple = q.allow_multiple ?? false;
+    const allowMultiple = q.allow_multiple ?? true;
     if (!allowMultiple) {
       setSelected((prev) => ({ ...prev, [qIdx]: [] }));
     }
@@ -177,7 +177,7 @@ export function SuggestedActionsCard({
     (qIdx: number, q: ClarificationQuestion) => {
       const draft = (otherDraft[qIdx] ?? "").trim();
       if (!draft || frozenRef.current) return;
-      const allowMultiple = q.allow_multiple ?? false;
+      const allowMultiple = q.allow_multiple ?? true;
 
       if (!allowMultiple && questions.length === 1) {
         setSubmitted(true);
@@ -243,7 +243,7 @@ export function SuggestedActionsCard({
     <div className={`sac-surface${frozen ? " frozen" : ""}`}>
       <div className="sac-body">
         {questions.map((q, qIdx) => {
-          const allowMultiple = q.allow_multiple ?? false;
+          const allowMultiple = q.allow_multiple ?? true;
           const sel = selected[qIdx] ?? [];
           const open = otherOpen[qIdx] ?? false;
           const otherActiveSingle =

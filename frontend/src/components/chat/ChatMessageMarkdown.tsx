@@ -169,7 +169,7 @@ function ClarificationBlock({
     const lines = questions!.map((q, idx) => {
       const answers = selected[idx] ?? [];
       const answerText = answers.join(', ');
-      if (questions!.length === 1 && !(q.allow_multiple)) {
+      if (questions!.length === 1 && !(q.allow_multiple ?? true)) {
         return answerText;
       }
       return `${q.question} → ${answerText}`;
@@ -186,7 +186,7 @@ function ClarificationBlock({
         <span>Rückfrage</span>
       </div>
       {questions.map((q, qIdx) => {
-        const allowMultiple = q.allow_multiple ?? false;
+        const allowMultiple = q.allow_multiple ?? true;
         const inputType = allowMultiple ? 'checkbox' : 'radio';
         const groupName = `clarification-q-${qIdx}`;
         return (
