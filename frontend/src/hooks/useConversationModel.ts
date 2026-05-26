@@ -195,6 +195,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conversationId: c?.id ?? activeConversationId,
         sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: c?.steeringPlan,
+        isThread: c?.isThread ?? false,
       };
       chat.sendMessage(
         message,
@@ -255,6 +256,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         conversationId: c?.id ?? activeConversationId,
         sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: c?.steeringPlan,
+        isThread: c?.isThread ?? false,
         rulesDisabled,
       });
       patchConversation(activeConversationId, { mode: modeId });

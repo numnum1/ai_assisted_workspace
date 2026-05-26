@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,7 +15,6 @@ import {
   MessageSquare,
   FolderCheck,
   X,
-  GitCommit,
 } from "lucide-react";
 import "./ThreadBranchPicker.css";
 
@@ -118,8 +116,8 @@ interface GraphRow {
 
 /** Horizontal pixels per lane */
 const LANE_W = 16;
-/** Minimum row height */
-const ROW_H = 32;
+/** Fixed row height — no ResizeObserver needed */
+const FIXED_ROW_H = 44;
 /** Horizontal center of lane l */
 const laneX = (l: number): number => l * LANE_W + 10;
 
@@ -205,11 +203,8 @@ function buildInternalItems(
     const parentId = thread.parentId ?? main.id;
     const parentLane = laneMap.get(parentId) ?? 0;
 
-    let lane = -1;
-    if (!thread.isClosed) {
-      lane = nextLane++;
-      laneMap.set(thread.id, lane);
-    }
+    const lane = nextLane++;
+    laneMap.set(thread.id, lane);
 
     items.push({
       ...thread,
@@ -225,186 +220,48 @@ function buildInternalItems(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NEW: Build Graph Events (chronological timeline)
+// Build Graph Events — one head row per item (main first, threads by createdAt)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function buildGraphEvents(items: InternalItem[]): GraphEvent[] {
-  const events: GraphEvent[] = [];
-
-  for (const item of items) {
-    const isMain = item.kind === "main";
-
-    // Fork event (creation) — only for threads
-    if (!isMain) {
-      events.push({
-        type: "fork",
-        timestamp:
-          item.createdAt ?? item.lastUpdated ?? item.updatedAt ?? Date.now(),
-        branch: item,
-        rowKind: "fork",
-      });
-    }
-
-    // Commit events (user messages) — only for threads
-    if (!isMain) {
-      const commits = getUserCommits(item);
-      if (commits.length > 0) {
-        // Always show first commit
-        events.push({
-          type: "commit",
-          timestamp:
-            item.lastUpdated ?? item.updatedAt ?? item.createdAt ?? Date.now(),
-          branch: item,
-          message: commits[0],
-          commitIndex: 1,
-          rowKind: "commit",
-        });
-
-        // Show last commit (tip) only if not merged
-        if (!item.mergedToParent && commits.length > 1) {
-          events.push({
-            type: "commit",
-            timestamp: item.lastUpdated ?? item.updatedAt ?? Date.now(),
-            branch: item,
-            message: commits[commits.length - 1],
-            commitIndex: commits.length,
-            rowKind: "commit",
-          });
-        }
-      }
-    }
-
-    // Merge event — thread merges back into main (sits on main lane)
-    if (!isMain && item.mergedToParent) {
-      events.push({
-        type: "merge",
-        timestamp: item.lastUpdated ?? item.updatedAt ?? Date.now(),
-        branch: item,
-        targetLane: 0,
-        message: item.mergeText || "Merged to main",
-        rowKind: "merge",
-      });
-    }
-
-    // Head event — always for main, for threads only if not merged and not closed
-    if (isMain || (!item.mergedToParent && !item.isClosed)) {
-      events.push({
-        type: "head",
-        timestamp: item.lastUpdated ?? item.updatedAt ?? Date.now(),
-        branch: item,
-        rowKind: "head",
-      });
-    }
-  }
-
-  // Completely stable sort: timestamp → type priority → id (as string tiebreaker)
-  // This prevents any reordering when clicking different branches.
-  const typePriority: Record<GraphEventType, number> = {
-    fork: 0,
-    commit: 1,
-    merge: 2,
-    head: 3,
-  };
-
-  events.sort((a, b) => {
-    const timeDiff = a.timestamp - b.timestamp;
-    if (timeDiff !== 0) return timeDiff;
-
-    const typeDiff = typePriority[a.rowKind] - typePriority[b.rowKind];
-    if (typeDiff !== 0) return typeDiff;
-
-    // Final stable tiebreaker using string id
-    return a.branch.id.localeCompare(b.branch.id);
-  });
-
-  return events;
+  return items.map((item) => ({
+    type: "head" as GraphEventType,
+    timestamp:
+      item.createdAt ?? item.lastUpdated ?? item.updatedAt ?? Date.now(),
+    branch: item,
+    rowKind: "head" as GraphEventType,
+  }));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NEW: Build Graph Rows with proper active lane tracking
+// Build Graph Rows — one row per event, isLaneLast flags the final row
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function buildGraphRows(
   items: InternalItem[],
   events: GraphEvent[],
 ): { rows: GraphRow[]; numLanes: number } {
-  const maxLane = Math.max(0, ...items.map((i) => i.lane), 0);
+  const maxLane = Math.max(0, ...items.map((i) => i.lane));
+  const lastIdx = events.length - 1;
 
-  // Track first and last occurrence per lane (for vertical lines)
-  const firstRowForLane = new Array(maxLane + 1).fill(-1);
-  const lastRowForLane = new Array(maxLane + 1).fill(-1);
-
-  // Build rows
-  const rows: GraphRow[] = events.map((event, index) => {
-    // Merge events sit visually on main lane (0), but their source lane
-    // (the thread being merged) also ends at this row
-    const isMerge = event.type === "merge";
-    const visualLane = isMerge ? 0 : event.branch.lane;
-
-    // Track visual lane usage
-    if (visualLane >= 0) {
-      if (firstRowForLane[visualLane] === -1)
-        firstRowForLane[visualLane] = index;
-      lastRowForLane[visualLane] = index;
-    }
-
-    // For merge events, also track the source thread lane ending here
-    if (isMerge && event.branch.lane > 0) {
-      if (firstRowForLane[event.branch.lane] === -1) {
-        firstRowForLane[event.branch.lane] = index;
-      }
-      lastRowForLane[event.branch.lane] = index;
-    }
-
-    return {
-      event,
-      branch: event.branch,
-      lane: visualLane,
-      activeLanes: [], // filled in second pass
-      parentLane:
-        event.branch.parentLane >= 0 ? event.branch.parentLane : undefined,
-      isLaneFirst: false,
-      isLaneLast: false,
-      index,
-      isClosedHead: !!(event.branch.isClosed && event.type === "head"),
-    };
-  });
-
-  // Second pass: determine active lanes per row
-  rows.forEach((row, index) => {
-    row.activeLanes = [];
-
-    for (let l = 0; l <= maxLane; l++) {
-      // Main lane (0) is always active
-      if (l === 0) {
-        row.activeLanes.push(l);
-        continue;
-      }
-
-      // For other lanes: check if this row is within the lane's active range
-      const firstIdx = firstRowForLane[l];
-      const lastIdx = lastRowForLane[l];
-
-      if (firstIdx === -1) continue; // Lane never used
-
-      // Lane is active from its first row to its last row
-      if (index >= firstIdx && index <= lastIdx) {
-        row.activeLanes.push(l);
-      }
-    }
-
-    // Mark first/last ONLY for this row's own lane
-    if (row.lane >= 0) {
-      if (index === firstRowForLane[row.lane]) row.isLaneFirst = true;
-      if (index === lastRowForLane[row.lane]) row.isLaneLast = true;
-    }
-  });
+  const rows: GraphRow[] = events.map((event, index) => ({
+    event,
+    branch: event.branch,
+    lane: event.branch.lane,
+    activeLanes: [],
+    parentLane:
+      event.branch.parentLane >= 0 ? event.branch.parentLane : undefined,
+    isLaneFirst: false,
+    isLaneLast: index === lastIdx,
+    index,
+    isClosedHead: !!(event.branch.isClosed),
+  }));
 
   return { rows, numLanes: maxLane + 1 };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NEW: Git-style Graph SVG Component
+// Git-style Graph SVG — fixed height, no ResizeObserver
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface GraphSvgProps {
@@ -413,196 +270,113 @@ interface GraphSvgProps {
 }
 
 function GraphSvg({ row, numLanes }: GraphSvgProps) {
-  const cellRef = useRef<HTMLDivElement>(null);
-  const [cellH, setCellH] = useState(ROW_H);
-
-  useLayoutEffect(() => {
-    const el = cellRef.current;
-    if (!el) return;
-    const measure = () => {
-      const h = el.getBoundingClientRect().height;
-      setCellH((prev) => {
-        const next = Math.max(ROW_H, Math.round(h * 100) / 100);
-        return Math.abs(prev - next) < 0.25 ? prev : next;
-      });
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // SVG viewport calculation - ensure we have enough width for all lanes
-  const maxLaneX = Math.max(
-    ...Array.from({ length: numLanes }, (_, i) => laneX(i)),
-  );
-  const svgW = Math.max(maxLaneX + 24, 40); // Add extra padding for connectors
-  const h = cellH;
-  const cx = row.lane >= 0 ? laneX(row.lane) : laneX(0);
+  const h = FIXED_ROW_H;
+  const svgW = Math.max(laneX(numLanes - 1) + 20, 32);
+  const lane = row.branch.lane;
+  const cx = laneX(lane);
   const cy = h / 2;
   const mainX = laneX(0);
+  const isMain = row.branch.kind === "main";
+  const isClosed = row.branch.isClosed ?? false;
+  const isMerged = row.branch.mergedToParent ?? false;
+  const parentX = laneX(row.parentLane ?? 0);
+  const isLast = row.isLaneLast;
 
-  // Node radius based on type
-  const nodeR =
-    row.event.type === "head"
-      ? row.branch.isClosed
-        ? 3
-        : 5
-      : row.event.type === "merge"
-        ? 4
-        : 3;
+  const nodeColor = isClosed ? "#64748b" : laneColor(lane);
+  const mainColor = laneColor(0);
 
-  // Color based on branch lane
-  const color =
-    row.event.type === "merge"
-      ? laneColor(row.branch.lane)
-      : laneColor(row.lane >= 0 ? row.lane : 0);
-
-  // Node position: merge and closed heads sit on main lane
-  const nodeCx =
-    row.event.type === "merge"
-      ? mainX
-      : row.branch.isClosed && row.event.type === "head"
-        ? mainX
-        : cx;
+  // Main vertical line: starts at cy for the main-head row, from 0 for thread rows;
+  // ends at cy on the final row, continues to h on all others.
+  const mainY1 = isMain ? cy : 0;
+  const mainY2 = isLast ? cy : h;
 
   return (
-    <div
-      ref={cellRef}
-      className="tbp__graph-cell"
-      style={{ width: svgW, minWidth: svgW }}
-    >
+    <div className="tbp__graph-cell" style={{ width: svgW, minWidth: svgW }}>
       <svg
         viewBox={`0 0 ${svgW} ${h}`}
-        preserveAspectRatio="xMidYMid slice"
+        width={svgW}
+        height={h}
         aria-hidden
         className="tbp__graph-svg"
       >
-        {/* 1. Vertical lines for active lanes */}
-        {row.activeLanes.map((l) => {
-          const x = laneX(l);
-          const isMain = l === 0;
-          const isThisLane = l === row.lane;
+        {/* 1. Main lane vertical line — always drawn */}
+        {mainY1 !== mainY2 && (
+          <line
+            x1={mainX}
+            y1={mainY1}
+            x2={mainX}
+            y2={mainY2}
+            stroke={mainColor}
+            strokeWidth={2}
+            opacity={0.4}
+          />
+        )}
 
-          // Determine y1 and y2 based on row position in lane lifecycle
-          let y1 = 0;
-          let y2 = h;
-
-          if (isThisLane) {
-            // This row's lane
-            if (row.isLaneFirst) {
-              // First row: start from center (fork point)
-              y1 = cy;
-            }
-            if (row.isLaneLast) {
-              // Last row: end at center
-              y2 = cy;
-            }
-          }
-
-          return (
-            <line
-              key={l}
-              x1={x}
-              y1={y1}
-              x2={x}
-              y2={y2}
-              stroke={laneColor(l)}
-              strokeWidth={isMain ? 2.5 : 2}
-              opacity={isMain ? 0.45 : 0.35}
-            />
-          );
-        })}
-
-        {/* 2. Fork connector: from parent lane to this lane */}
-        {row.event.type === "fork" &&
-          row.parentLane !== undefined &&
-          row.lane > row.parentLane && (
-            <path
-              d={`M ${laneX(row.parentLane)},${cy}
-                  Q ${laneX(row.parentLane) + 6},${cy} ${laneX(row.parentLane) + 6},${cy + 4}
-                  Q ${laneX(row.parentLane) + 6},${cy + 8} ${cx - 6},${cy + 8}
-                  Q ${cx},${cy + 8} ${cx},${cy}`}
-              stroke={color}
-              strokeWidth={2}
-              fill="none"
-              opacity={0.9}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-
-        {/* 3. Merge connector: from thread lane to main lane
-             The thread's vertical line ends at cy (isLaneLast), and the
-             connector curves smoothly from the thread lane to the merge node
-             on the main lane. */}
-        {row.event.type === "merge" && row.branch.lane > 0 && (
+        {/* 2. Fork connector: cubic bezier from parent lane top → thread node */}
+        {!isMain && (
           <path
-            d={`M ${laneX(row.branch.lane) + 6},${cy}
-                C ${laneX(row.branch.lane) + 6},${cy + 8} ${mainX - 6},${cy + 8} ${mainX},${cy}`}
-            stroke={laneColor(row.branch.lane)}
-            strokeWidth={2.5}
+            d={`M ${parentX},0 C ${parentX},${cy} ${parentX},${cy} ${cx},${cy}`}
+            stroke={nodeColor}
+            strokeWidth={1.5}
             fill="none"
-            opacity={0.9}
+            opacity={0.85}
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* 3. Merge arc: thread lane curves back toward main (merged threads only) */}
+        {isMerged && !isMain && (
+          <path
+            d={`M ${cx},${cy + 3} Q ${cx},${cy + 10} ${mainX},${cy + 10}`}
+            stroke={nodeColor}
+            strokeWidth={1.5}
+            fill="none"
+            opacity={0.45}
             strokeLinecap="round"
           />
         )}
 
         {/* 4. Node circle */}
         <circle
-          cx={nodeCx}
+          cx={cx}
           cy={cy}
-          r={nodeR}
-          fill={
-            row.branch.isClosed && row.event.type === "head"
-              ? "#94a3b8" // Gray for closed
-              : color
-          }
+          r={isMain ? 5 : 4}
+          fill={nodeColor}
           stroke="var(--bg-primary, #1e1e2e)"
-          strokeWidth={
-            row.event.type === "head" && !row.branch.isClosed ? 2 : 1.5
-          }
-          opacity={
-            row.event.type === "head" && !row.branch.isClosed
-              ? 1
-              : row.branch.isClosed
-                ? 0.5
-                : 0.85
-          }
+          strokeWidth={isMain ? 2 : 1.5}
+          opacity={isClosed ? 0.5 : 1}
         />
 
-        {/* 5. Active branch ring */}
-        {row.event.type === "head" &&
-          row.branch.isActive &&
-          !row.branch.isClosed && (
-            <circle
-              cx={nodeCx}
-              cy={cy}
-              r={nodeR + 3}
-              fill="none"
-              stroke={color}
-              strokeWidth={1.5}
-              opacity={0.5}
-            />
-          )}
+        {/* 5. Active selection ring */}
+        {row.branch.isActive && !isClosed && (
+          <circle
+            cx={cx}
+            cy={cy}
+            r={isMain ? 8 : 7}
+            fill="none"
+            stroke={nodeColor}
+            strokeWidth={1.5}
+            opacity={0.4}
+          />
+        )}
 
-        {/* 6. Closed indicator (X) for closed threads */}
-        {row.branch.isClosed && row.event.type === "head" && (
+        {/* 6. Closed indicator (×) */}
+        {isClosed && (
           <>
             <line
-              x1={nodeCx - 2}
-              y1={cy - 2}
-              x2={nodeCx + 2}
-              y2={cy + 2}
-              stroke="#94a3b8"
+              x1={cx - 2.5}
+              y1={cy - 2.5}
+              x2={cx + 2.5}
+              y2={cy + 2.5}
+              stroke="#64748b"
               strokeWidth={1.5}
             />
             <line
-              x1={nodeCx + 2}
-              y1={cy - 2}
-              x2={nodeCx - 2}
-              y2={cy + 2}
-              stroke="#94a3b8"
+              x1={cx + 2.5}
+              y1={cy - 2.5}
+              x2={cx - 2.5}
+              y2={cy + 2.5}
+              stroke="#64748b"
               strokeWidth={1.5}
             />
           </>
@@ -881,7 +655,7 @@ export function ThreadBranchPicker({
     </ul>
   );
 
-  // Commit graph list (normal mode)
+  // Graph list — one row per branch
   const commitList = (
     <ul id={listId} className="tbp__list" role="listbox" aria-label={ariaLabel}>
       {rows.length === 0 ? (
@@ -891,103 +665,11 @@ export function ThreadBranchPicker({
       ) : (
         rows.map((row, i) => {
           const isMain = row.branch.kind === "main";
-          const color = laneColor(row.lane >= 0 ? row.lane : 0);
           const isClosed = row.branch.isClosed;
+          const isMerged = row.branch.mergedToParent;
+          const color = laneColor(row.lane);
 
-          // Merge row
-          if (row.event.type === "merge") {
-            return (
-              <li
-                key={`${row.branch.id}::merge`}
-                role="option"
-                aria-selected={false}
-                className={[
-                  "tbp__option tbp__option--merge",
-                  i === selectedIndex && "tbp__option--keyboard",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={() => pick(row.branch.id)}
-                onMouseEnter={() => setSelectedIndex(i)}
-              >
-                {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
-                <div className="tbp__option-content tbp__option-content--commit">
-                  <GitMerge size={12} style={{ color, flexShrink: 0 }} />
-                  <span
-                    className="tbp__commit-text tbp__merge-text"
-                    title={row.event.message}
-                  >
-                    {row.event.message}
-                  </span>
-                </div>
-              </li>
-            );
-          }
-
-          // Commit row
-          if (row.event.type === "commit") {
-            return (
-              <li
-                key={`${row.branch.id}::commit-${row.event.commitIndex ?? 0}`}
-                role="option"
-                aria-selected={false}
-                className={[
-                  "tbp__option tbp__option--commit",
-                  row.branch.isActive && "tbp__option--active-branch",
-                  i === selectedIndex && "tbp__option--keyboard",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={() => pick(row.branch.id)}
-                onMouseEnter={() => setSelectedIndex(i)}
-              >
-                {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
-                <div className="tbp__option-content tbp__option-content--commit">
-                  <GitCommit
-                    size={10}
-                    style={{ color, flexShrink: 0, opacity: 0.7 }}
-                  />
-                  <span className="tbp__commit-tag">
-                    {row.event.commitIndex === 1 ? "start" : "tip"}
-                  </span>
-                  <span className="tbp__commit-text" title={row.event.message}>
-                    {row.event.message}
-                  </span>
-                </div>
-              </li>
-            );
-          }
-
-          // Fork row - visual indicator only, no separate interaction
-          if (row.event.type === "fork" && !isMain) {
-            return (
-              <li
-                key={`${row.branch.id}::fork`}
-                role="presentation"
-                className={[
-                  "tbp__option tbp__option--fork",
-                  i === selectedIndex && "tbp__option--keyboard",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={() => !isClosed && pick(row.branch.id)}
-                onMouseEnter={() => setSelectedIndex(i)}
-              >
-                {showGraph && <GraphSvg row={row} numLanes={numLanes} />}
-                <div className="tbp__option-content tbp__option-content--commit">
-                  <GitBranch
-                    size={10}
-                    style={{ color, flexShrink: 0, opacity: 0.7 }}
-                  />
-                  <span className="tbp__commit-text" style={{ opacity: 0.6 }}>
-                    Branch erstellt
-                  </span>
-                </div>
-              </li>
-            );
-          }
-
-          // Head row (branch selector)
+          const commitCount = getUserCommits(row.branch).length;
           const msgLabel =
             row.branch.messageCount !== undefined
               ? `${row.branch.messageCount} Nachr.`
@@ -997,6 +679,24 @@ export function ThreadBranchPicker({
             : row.branch.updatedAt
               ? formatRelativeTime(row.branch.updatedAt)
               : null;
+
+          const badgeBg = isClosed
+            ? "rgba(148,163,184,0.12)"
+            : isMerged
+              ? "rgba(34,197,94,0.12)"
+              : `${color}22`;
+          const badgeColor = isClosed
+            ? "#94a3b8"
+            : isMerged
+              ? "#22c55e"
+              : color;
+          const badgeLabel = isMain
+            ? "main"
+            : isClosed
+              ? "geschlossen"
+              : isMerged
+                ? "merged"
+                : "thread";
 
           return (
             <li
@@ -1024,6 +724,8 @@ export function ThreadBranchPicker({
                     <MessageSquare size={14} />
                   ) : isClosed ? (
                     <X size={14} />
+                  ) : isMerged ? (
+                    <GitMerge size={14} />
                   ) : (
                     <GitBranch size={14} />
                   )}
@@ -1035,14 +737,9 @@ export function ThreadBranchPicker({
                   <div className="tbp__option-label">
                     <span
                       className="tbp__kind-badge"
-                      style={{
-                        background: isClosed
-                          ? "rgba(148,163,184,0.12)"
-                          : `${color}22`,
-                        color: isClosed ? "#94a3b8" : color,
-                      }}
+                      style={{ background: badgeBg, color: badgeColor }}
                     >
-                      {isMain ? "main" : isClosed ? "geschlossen" : "thread"}
+                      {badgeLabel}
                     </span>
                     <span
                       className="tbp__option-title"
@@ -1055,12 +752,17 @@ export function ThreadBranchPicker({
                       {row.branch.title}
                     </span>
                   </div>
-                  {(msgLabel || timeLabel) && (
+                  {(msgLabel || commitCount > 0 || timeLabel) && (
                     <div className="tbp__option-meta">
                       {msgLabel && (
                         <span className="tbp__meta-chip">{msgLabel}</span>
                       )}
-                      {msgLabel && timeLabel && (
+                      {commitCount > 0 && (
+                        <span className="tbp__meta-chip tbp__meta-chip--commit">
+                          {commitCount} {commitCount === 1 ? "commit" : "commits"}
+                        </span>
+                      )}
+                      {(msgLabel || commitCount > 0) && timeLabel && (
                         <span className="tbp__meta-sep" aria-hidden>
                           ·
                         </span>

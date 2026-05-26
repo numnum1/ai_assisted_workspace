@@ -120,6 +120,8 @@ export interface ChatRequest {
   sessionKind?: ChatSessionKind;
   /** Persisted plan text for guided sessions; sent each request when set. */
   steeringPlan?: string | null;
+  /** When true, this request originates from a thread conversation (not root). */
+  isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
 }

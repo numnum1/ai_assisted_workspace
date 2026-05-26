@@ -39,6 +39,7 @@ import { ProjectSettingsModal } from "./components/settings/ProjectSettingsModal
 import type { CommandAction } from "./components/git/CommandPalette.tsx";
 import type {
   AgentPreset,
+  ChatMessage,
   Mode,
   Conversation,
   GitStatus,
@@ -118,6 +119,14 @@ import {
   scheduleGuidedAgentPresetKickoff,
   tryMarkGuidedAgentKickoffStarted,
 } from "./components/chat/guidedAgentKickoff.ts";
+import { hasThreadResultFence, parseThreadResult } from "./components/chat/threadResultUtils.ts";
+import {
+  PARENT_RESULT_INTEGRATION_USER_MESSAGE,
+  consumeNextPendingKickoffFor,
+  hasPendingParentResultKickoffFor,
+  scheduleParentResultKickoff,
+  tryMarkKickoffStarted,
+} from "./components/chat/parentResultKickoffState.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
@@ -486,11 +495,39 @@ function App() {
   const chat = useChat(history.updateMessages, {
     onAssistantResponseComplete: (fullText, meta) => {
       if (meta.sessionKind !== "guided") return;
+
       const parsed = parseSteeringPlanFromAssistant(fullText);
       if (parsed) {
         history.patchConversation(meta.conversationId, {
           steeringPlan: parsed,
         });
+      }
+
+      if (hasThreadResultFence(fullText)) {
+        const result = parseThreadResult(fullText);
+        if (result) {
+          const thisConv = history.conversations.find(
+            (c) => c.id === meta.conversationId,
+          );
+          const parentId = thisConv?.parentConversationId;
+          if (parentId) {
+            const displayTitle =
+              result.threadTitle ?? thisConv?.title ?? "Thread";
+            history.appendMessageToConversation(parentId, {
+              role: "assistant",
+              content: `**Thread-Ergebnis (${displayTitle}):**\n\n${result.summary}`,
+              hidden: true,
+              turnId: crypto.randomUUID(),
+            });
+            scheduleParentResultKickoff({
+              parentConversationId: parentId,
+              threadTitle: displayTitle,
+            });
+            if (history.activeId !== parentId) {
+              history.switchConversation(parentId);
+            }
+          }
+        }
       }
     },
   });
@@ -1627,6 +1664,7 @@ function App() {
         conversationId: conv.id,
         sessionKind: "guided" as ChatSessionKind,
         steeringPlan: conv.steeringPlan,
+        isThread: conv.isThread ?? false,
       };
       chat.sendMessage(
         GUIDED_AGENT_KICKOFF_USER_MESSAGE,
@@ -1650,6 +1688,50 @@ function App() {
       selectedMode,
       modes,
       refs.referencedFiles,
+      useReasoning,
+      modeLlmId,
+      focusedField,
+      disabledToolkits,
+      rulesEnabled,
+      history.patchConversation,
+    ],
+  );
+
+  const performParentResultKickoff = useCallback(
+    (parentConv: Conversation) => {
+      const modeId = effectiveChatModeIdForRequest(parentConv, selectedMode, modes);
+      const mode = modes.find((m) => m.id === modeId);
+      const exec = getEffectiveChatExecution(parentConv, {
+        llmId: modeLlmId,
+        useReasoning,
+        disabledToolkits,
+      });
+      const streamSession = {
+        conversationId: parentConv.id,
+        sessionKind: "guided" as ChatSessionKind,
+        steeringPlan: parentConv.steeringPlan,
+        // isThread intentionally not set — parent is a root conversation
+      };
+      chat.sendMessage(
+        PARENT_RESULT_INTEGRATION_USER_MESSAGE,
+        modeId,
+        [],
+        mode?.name,
+        mode?.color,
+        exec.useReasoning,
+        exec.llmId,
+        undefined,
+        focusedField?.fieldKey ?? null,
+        exec.disabledToolkits,
+        streamSession,
+        { userHidden: true, ...(!rulesEnabled ? { rulesDisabled: true } : {}) },
+      );
+      history.patchConversation(parentConv.id, { mode: modeId });
+    },
+    [
+      chat.sendMessage,
+      selectedMode,
+      modes,
       useReasoning,
       modeLlmId,
       focusedField,
@@ -1687,6 +1769,28 @@ function App() {
     chat.messages,
     chat.streaming,
     performGuidedAgentPresetKickoff,
+  ]);
+
+  // Subthread result: when the parent becomes active and has a pending result kickoff, integrate it.
+  useEffect(() => {
+    const conv = history.activeConversation;
+    if (!conv) return;
+    if (!hasPendingParentResultKickoffFor(conv.id)) return;
+    if (conv.sessionKind !== "guided") return;
+    if (chat.messages.length !== conv.messages.length) return;
+    if (chat.streaming) return;
+
+    const entry = consumeNextPendingKickoffFor(conv.id);
+    if (!entry) return;
+
+    if (!tryMarkKickoffStarted(entry.token)) return;
+
+    performParentResultKickoff(conv);
+  }, [
+    history.activeConversation,
+    chat.messages,
+    chat.streaming,
+    performParentResultKickoff,
   ]);
 
   const modesForChat = useMemo(() => {

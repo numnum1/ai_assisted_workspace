@@ -388,6 +388,29 @@ function buildGuidedThreadOfferFence(args: {
   return `\`\`\`guided_thread_offer\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
 }
 
+function buildThreadResultFence(args: {
+  summary?: unknown;
+  threadTitle?: unknown;
+  updatedFiles?: unknown;
+}): string | null {
+  const summary =
+    typeof args.summary === "string" ? args.summary.trim() : "";
+  if (!summary) return null;
+
+  const payload: Record<string, unknown> = { summary };
+  if (typeof args.threadTitle === "string" && args.threadTitle.trim()) {
+    payload.threadTitle = args.threadTitle.trim();
+  }
+  if (Array.isArray(args.updatedFiles) && args.updatedFiles.length > 0) {
+    const files = args.updatedFiles.filter(
+      (f) => typeof f === "string" && (f as string).trim(),
+    );
+    if (files.length > 0) payload.updatedFiles = files;
+  }
+
+  return `\`\`\`thread_result\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
+}
+
 function makeToolCallId(index: number): string {
   return `tool-call-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -565,6 +588,7 @@ function describeStreamingToolCall(toolCall: ToolCall): string {
   if (name === "write_file") return "Schreibe Datei";
   if (name === "ask_clarification") return "Stelle Rückfrage";
   if (name === "propose_guided_thread") return "Biete Guided Thread an";
+  if (name === "report_thread_result") return "Übermittle Thread-Ergebnis";
   return `Tool: ${name}`;
 }
 
@@ -635,6 +659,16 @@ async function executeToolCall(
       throw new Error("propose_guided_thread requires steeringPlanMarkdown.");
     }
     result = offer;
+  } else if (name === "report_thread_result") {
+    const fence = buildThreadResultFence({
+      summary: args.summary,
+      threadTitle: args.threadTitle,
+      updatedFiles: args.updatedFiles,
+    });
+    if (!fence) {
+      throw new Error("report_thread_result requires a non-empty summary.");
+    }
+    result = fence;
   } else {
     throw new Error(`Unknown tool: ${name}`);
   }

@@ -22,6 +22,7 @@ export interface EditMessageSendParams {
   conversationId: string;
   sessionKind: ChatSessionKind;
   steeringPlan?: string;
+  isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
 }
@@ -31,6 +32,7 @@ export interface ChatStreamSessionMeta {
   conversationId: string;
   sessionKind: ChatSessionKind;
   steeringPlan?: string;
+  isThread?: boolean;
 }
 
 /** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. guided preset bootstrap). */
@@ -62,6 +64,7 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
     return {
       sessionKind: 'guided',
       steeringPlan: meta.steeringPlan ?? null,
+      ...(meta.isThread ? { isThread: true } : {}),
     };
   }
   return { sessionKind: 'standard' };
@@ -292,6 +295,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           conversationId: sendParams.conversationId,
           sessionKind: sendParams.sessionKind,
           steeringPlan: sendParams.steeringPlan,
+          isThread: sendParams.isThread,
         }),
         ...(sendParams.rulesDisabled ? { rulesDisabled: true } : {}),
       };
