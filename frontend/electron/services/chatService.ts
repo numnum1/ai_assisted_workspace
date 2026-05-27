@@ -18,12 +18,17 @@ import {
   buildSystemPrompt,
   getActiveToolDefinitions,
   resolveModeSystemPrompt,
+  TOOLKIT_TOOL_DEFINITIONS,
 } from "./conversation/systemPrompt.js";
 import { semanticSearch, type EmbeddingConfig } from "./vectorService.js";
 import {
   resolveEmbeddingCredentials,
   type AiProvider,
 } from "./aiProviderService.js";
+import {
+  getNaviState,
+  buildClassificationPrompt,
+} from "./naviStateMachine.js";
 
 export type { ContextBlock };
 
@@ -50,7 +55,8 @@ export type ChatStreamEvent =
   | { type: "resolved_user_message"; data: string }
   | { type: "context_update"; data: { estimatedTokens: number } }
   | { type: "done"; data: { fullAssistantText: string } }
-  | { type: "error"; data: { message: string } };
+  | { type: "error"; data: { message: string } }
+  | { type: "navi_state"; data: { stateId: string } };
 
 export interface ChatStreamStartResult {
   streamId: string;
@@ -812,12 +818,324 @@ export function stopChatStream(streamId: string): { status: string } {
   return { status: "ok" };
 }
 
+async function runNaviChatStream(
+  streamId: string,
+  projectPath: string | null,
+  request: ChatRequest,
+  emit: (event: ChatStreamEvent) => void,
+): Promise<void> {
+  try {
+    const provider = await resolveAiProvider(request.llmId);
+    const endpoint = resolveProviderEndpoint(provider, false);
+
+    if (!isStreamActive(streamId)) return;
+
+    emit({
+      type: "context",
+      data: {
+        includedFiles: [],
+        estimatedTokens: 0,
+        maxContextTokens: endpoint.maxTokens,
+      },
+    });
+
+    const userMessage = normalizeText(request.message);
+    if (userMessage) {
+      emit({ type: "resolved_user_message", data: userMessage });
+    }
+
+    const currentStateId =
+      normalizeText(request.naviStateId ?? "") || "greeting";
+    const currentState =
+      getNaviState(currentStateId) ?? getNaviState("greeting")!;
+
+    let newStateId = currentStateId;
+
+    // Call 1: Classification — skip if no user message or no transitions
+    if (userMessage && currentState.transitions.length > 0) {
+      const classificationSystemPrompt =
+        'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.';
+      const classificationUserPrompt = buildClassificationPrompt(
+        currentStateId,
+        userMessage,
+        currentState.transitions,
+      );
+
+      try {
+        const classificationResponse = await fetch(
+          ensureChatCompletionsUrl(endpoint.apiUrl),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${endpoint.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: endpoint.model,
+              stream: false,
+              max_tokens: 5,
+              messages: [
+                { role: "system", content: classificationSystemPrompt },
+                { role: "user", content: classificationUserPrompt },
+              ],
+            }),
+          },
+        );
+
+        if (classificationResponse.ok) {
+          const classificationJson = (await classificationResponse.json()) as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const rawChoice =
+            classificationJson?.choices?.[0]?.message?.content?.trim() ?? "0";
+          const choiceNum = parseInt(rawChoice, 10);
+          if (
+            !isNaN(choiceNum) &&
+            choiceNum >= 1 &&
+            choiceNum <= currentState.transitions.length
+          ) {
+            newStateId = currentState.transitions[choiceNum - 1].to;
+          }
+        }
+      } catch {
+        // Classification error: keep current state, continue with response
+      }
+    }
+
+    if (!isStreamActive(streamId)) return;
+    emit({ type: "navi_state", data: { stateId: newStateId } });
+
+    const newState = getNaviState(newStateId) ?? currentState;
+
+    const naviSystemPrompt = [
+      "Du bist Navi, ein ehrlicher KI-Berater für Händler in NRW.",
+      "Antworte immer auf Deutsch, kurz und professionell.",
+      "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
+      "Maximal eine Frage pro Antwort.",
+      `Deine aktuelle Aufgabe: ${newState.instruction}`,
+    ].join("\n");
+
+    const conversationMessages: OpenAiMessage[] = [
+      { role: "system", content: naviSystemPrompt },
+    ];
+    const history = Array.isArray(request.history) ? request.history : [];
+    for (const msg of history) {
+      if (msg.hidden) continue;
+      if (msg.role === "assistant") {
+        const content =
+          typeof msg.content === "string" ? msg.content.trim() : "";
+        if (!content) continue;
+        const toolCalls = Array.isArray(msg.toolCalls)
+          ? msg.toolCalls.map((tc) => ({
+              id: tc.id,
+              type: "function" as const,
+              function: { name: tc.function.name, arguments: tc.function.arguments },
+            }))
+          : undefined;
+        conversationMessages.push({
+          role: "assistant",
+          content,
+          ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+        });
+      } else if (msg.role === "tool") {
+        const content =
+          typeof msg.content === "string" ? msg.content.trim() : "";
+        if (!content || !msg.toolCallId) continue;
+        conversationMessages.push({
+          role: "tool",
+          content,
+          tool_call_id: msg.toolCallId,
+        });
+      } else if (msg.role === "user") {
+        const content =
+          typeof msg.content === "string" ? msg.content.trim() : "";
+        if (!content) continue;
+        conversationMessages.push({ role: "user", content });
+      }
+    }
+    if (userMessage) {
+      conversationMessages.push({ role: "user", content: userMessage });
+    }
+
+    const naviTools = TOOLKIT_TOOL_DEFINITIONS.assistant.filter(
+      (t) => t.function.name === "ask_clarification",
+    );
+
+    let tokenCount = 0;
+    let fullAssistantText = "";
+    const maxNaviToolRounds = 3;
+    let toolRound = 0;
+
+    while (toolRound < maxNaviToolRounds) {
+      if (!isStreamActive(streamId)) return;
+
+      const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${endpoint.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: endpoint.model,
+          stream: true,
+          messages: conversationMessages,
+          ...(naviTools.length > 0 ? { tools: naviTools } : {}),
+        }),
+      });
+
+      if (!response.ok) {
+        let detail = `Navi chat error: ${response.status}`;
+        try {
+          const body = await response.text();
+          if (body) detail += ` — ${body}`;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentEvent = "";
+      let roundAssistantText = "";
+      const collectedToolCalls = new Map<number, ToolCall>();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!isStreamActive(streamId)) return;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            currentEvent = line.substring(6).trim();
+            continue;
+          }
+          if (!line.startsWith("data:")) continue;
+          const data = line.substring(5).trim();
+          if (!data) continue;
+          if (data === "[DONE]") {
+            currentEvent = "";
+            continue;
+          }
+          if (currentEvent === "error") throw new Error(data);
+
+          let parsed: OpenAiStreamChunk | null = null;
+          try {
+            parsed = JSON.parse(data) as OpenAiStreamChunk;
+          } catch {
+            parsed = null;
+          }
+          if (!parsed) {
+            currentEvent = "";
+            continue;
+          }
+
+          const token = extractContentToken(parsed);
+          if (token) {
+            tokenCount++;
+            roundAssistantText += token;
+            fullAssistantText += token;
+            emit({ type: "token", data: token });
+          }
+
+          accumulateToolCallChunks(parsed, collectedToolCalls);
+
+          const finishReason = extractFinishReason(parsed);
+          if (finishReason === "tool_calls") break;
+          currentEvent = "";
+        }
+      }
+
+      const toolCalls = [...collectedToolCalls.values()];
+
+      if (toolCalls.length === 0) {
+        if (!isStreamActive(streamId)) return;
+        if (tokenCount === 0 && !roundAssistantText.trim()) {
+          emit({ type: "error", data: { message: "MODEL_EMPTY_RESPONSE" } });
+          return;
+        }
+        emit({ type: "done", data: { fullAssistantText } });
+        return;
+      }
+
+      for (const toolCall of toolCalls) {
+        emit({ type: "tool_call", data: describeStreamingToolCall(toolCall) });
+      }
+
+      const executedResults: ToolExecutionResult[] = [];
+      for (const toolCall of toolCalls) {
+        executedResults.push(await executeToolCall(projectPath, toolCall));
+      }
+
+      const toolHistoryMessages: ChatMessage[] = [
+        { role: "assistant", content: roundAssistantText, toolCalls, hidden: true },
+        ...executedResults.map((result) => ({
+          role: "tool" as const,
+          toolCallId: result.toolCallId,
+          content: result.result,
+          hidden: false,
+        })),
+      ];
+      emit({ type: "tool_history", data: toolHistoryMessages });
+
+      conversationMessages.push({
+        role: "assistant",
+        content: roundAssistantText,
+        tool_calls: toolCalls.map((tc) => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        })),
+      });
+      for (const result of executedResults) {
+        conversationMessages.push({
+          role: "tool",
+          tool_call_id: result.toolCallId,
+          content: result.result,
+        });
+      }
+
+      // ask_clarification requires user interaction — stop here
+      if (toolCalls.some((tc) => tc.function.name === "ask_clarification")) {
+        if (!isStreamActive(streamId)) return;
+        emit({ type: "done", data: { fullAssistantText } });
+        return;
+      }
+
+      toolRound += 1;
+    }
+
+    if (!isStreamActive(streamId)) return;
+    emit({ type: "done", data: { fullAssistantText } });
+  } catch (error) {
+    if (!isStreamActive(streamId)) return;
+    emit({
+      type: "error",
+      data: {
+        message:
+          error instanceof Error ? error.message : "NAVI_STREAM_FAILED",
+      },
+    });
+  }
+}
+
 async function runChatStream(
   streamId: string,
   projectPath: string | null,
   request: ChatRequest,
   emit: (event: ChatStreamEvent) => void,
 ): Promise<void> {
+  if (request.sessionKind === "navi") {
+    return runNaviChatStream(streamId, projectPath, request, emit);
+  }
+
   try {
     const provider = await resolveAiProvider(request.llmId);
     const endpoint = resolveProviderEndpoint(provider, request.useReasoning);

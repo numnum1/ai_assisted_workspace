@@ -101,7 +101,8 @@ export type ChatStreamEvent =
   | { type: "resolved_user_message"; payload: string }
   | { type: "context_update"; payload: { estimatedTokens: number } }
   | { type: "done"; payload: { fullAssistantText: string } }
-  | { type: "error"; payload: { message: string } };
+  | { type: "error"; payload: { message: string } }
+  | { type: "navi_state"; payload: { stateId: string } };
 
 export interface ChatStreamStartResult {
   streamId: string;

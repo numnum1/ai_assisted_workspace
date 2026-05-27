@@ -33,6 +33,7 @@ export interface ChatStreamSessionMeta {
   sessionKind: ChatSessionKind;
   steeringPlan?: string;
   isThread?: boolean;
+  naviStateId?: string | null;
 }
 
 /** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. guided preset bootstrap). */
@@ -53,6 +54,7 @@ export interface UseChatOptions {
     fullText: string,
     meta: { conversationId: string; sessionKind: ChatSessionKind },
   ) => void;
+  onNaviStateTransition?: (stateId: string, conversationId: string) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -65,6 +67,12 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
       sessionKind: 'guided',
       steeringPlan: meta.steeringPlan ?? null,
       ...(meta.isThread ? { isThread: true } : {}),
+    };
+  }
+  if (sk === 'navi') {
+    return {
+      sessionKind: 'navi',
+      naviStateId: meta.naviStateId ?? null,
     };
   }
   return { sessionKind: 'standard' };
@@ -86,6 +94,8 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   onMessagesChangeRef.current = onMessagesChange;
   const onAssistantResponseCompleteRef = useRef(options?.onAssistantResponseComplete);
   onAssistantResponseCompleteRef.current = options?.onAssistantResponseComplete;
+  const onNaviStateTransitionRef = useRef(options?.onNaviStateTransition);
+  onNaviStateTransitionRef.current = options?.onNaviStateTransition;
 
   // Tracks the evolving base message list during an active stream so that
   // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
@@ -152,7 +162,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       setMessages(currentBaseRef.current);
       setStreaming(true);
 
-      const streamCbs: StreamCallbacks = {
+      const streamCbsBase: StreamCallbacks = {
         setMessages,
         setStreaming,
         setError,
@@ -166,6 +176,16 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         streamSession != null
           ? { conversationId: streamSession.conversationId, sessionKind: streamSession.sessionKind }
           : undefined;
+
+      const naviConversationId = streamSession?.conversationId ?? '';
+      const onNaviState =
+        streamSession?.sessionKind === 'navi' && onNaviStateTransitionRef.current
+          ? (stateId: string) => onNaviStateTransitionRef.current!(stateId, naviConversationId)
+          : undefined;
+
+      const streamCbs: StreamCallbacks = onNaviState
+        ? { ...streamCbsBase, onNaviState }
+        : streamCbsBase;
 
       const request: ChatRequest = {
         message: text,

@@ -128,6 +128,12 @@ import {
   scheduleParentResultKickoff,
   tryMarkKickoffStarted,
 } from "./components/chat/parentResultKickoffState.ts";
+import {
+  cancelNaviGreetingKickoffIfMismatch,
+  hasPendingNaviGreetingKickoffFor,
+  scheduleNaviGreetingKickoff,
+  tryMarkNaviGreetingKickoffStarted,
+} from "./components/chat/naviGreetingKickoff.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
@@ -494,6 +500,9 @@ function App() {
 
   const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages, {
+    onNaviStateTransition: (stateId, conversationId) => {
+      history.patchConversation(conversationId, { naviStateId: stateId });
+    },
     onAssistantResponseComplete: (fullText, meta) => {
       if (meta.sessionKind !== "guided") return;
 
@@ -1774,6 +1783,56 @@ function App() {
     performGuidedAgentPresetKickoff,
   ]);
 
+  // Navi session: trigger greeting call when a new navi conversation has no messages yet.
+  useEffect(() => {
+    const conv = history.activeConversation;
+    if (!conv) return;
+    cancelNaviGreetingKickoffIfMismatch(conv.id);
+    if (!hasPendingNaviGreetingKickoffFor(conv.id)) return;
+    if (conv.sessionKind !== "navi") return;
+    if (conv.messages.length > 0) return;
+    if (chat.messages.length !== conv.messages.length) return;
+    if (chat.streaming) return;
+    if (!tryMarkNaviGreetingKickoffStarted(conv.id)) return;
+
+    const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
+    const mode = modes.find((m) => m.id === modeId);
+    const exec = getEffectiveChatExecution(conv, {
+      llmId: modeLlmId,
+      useReasoning,
+      disabledToolkits,
+    });
+    chat.sendMessage(
+      "",
+      modeId,
+      [],
+      mode?.name,
+      mode?.color,
+      exec.useReasoning,
+      exec.llmId,
+      undefined,
+      null,
+      exec.disabledToolkits,
+      {
+        conversationId: conv.id,
+        sessionKind: "navi",
+        naviStateId: conv.naviStateId ?? "greeting",
+      },
+      { userHidden: true, rulesDisabled: !rulesEnabled },
+    );
+  }, [
+    history.activeConversation,
+    chat.messages,
+    chat.streaming,
+    chat.sendMessage,
+    selectedMode,
+    modes,
+    modeLlmId,
+    useReasoning,
+    disabledToolkits,
+    rulesEnabled,
+  ]);
+
   // Subthread result: when the parent becomes active and has a pending result kickoff, integrate it.
   useEffect(() => {
     const conv = history.activeConversation;
@@ -1903,6 +1962,10 @@ function App() {
           if (payload.sessionKind === "guided") {
             scheduleGuidedAgentPresetKickoff(newConv.id);
           }
+          if (payload.sessionKind === "navi") {
+            history.patchConversation(newConv.id, { naviStateId: "greeting" });
+            scheduleNaviGreetingKickoff(newConv.id);
+          }
         }
         return;
       }
@@ -1974,6 +2037,10 @@ function App() {
           // Guided chat ohne Agent-Preset: KI soll trotzdem als erste sprechen.
           if (payload.sessionKind === "guided") {
             scheduleGuidedAgentPresetKickoff(newConv.id);
+          }
+          if (payload.sessionKind === "navi") {
+            history.patchConversation(newConv.id, { naviStateId: "greeting" });
+            scheduleNaviGreetingKickoff(newConv.id);
           }
         }
         return;
@@ -2637,6 +2704,7 @@ function App() {
                 activeSessionKind={
                   history.activeConversation?.sessionKind ?? "standard"
                 }
+                naviStateId={history.activeConversation?.naviStateId ?? null}
                 steeringPlan={history.activeConversation?.steeringPlan ?? ""}
                 activeIsThread={history.activeConversation?.isThread === true}
                 onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
@@ -2753,6 +2821,7 @@ function App() {
                     activeSessionKind={
                       history.activeConversation?.sessionKind ?? "standard"
                     }
+                    naviStateId={history.activeConversation?.naviStateId ?? null}
                     steeringPlan={
                       history.activeConversation?.steeringPlan ?? ""
                     }

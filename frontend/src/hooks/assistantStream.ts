@@ -23,6 +23,7 @@ export type StreamCallbacks = {
   setContextInfo: Dispatch<SetStateAction<ContextInfo | null>>;
   currentBaseRef: MutableRefObject<ChatMessage[]>;
   turnId?: string;
+  onNaviState?: (stateId: string) => void;
 };
 
 function assistantMessage(
@@ -173,5 +174,6 @@ export function attachAssistantStream(
       cbs.currentBaseRef.current = base;
       cbs.setMessages(base);
     },
+    cbs.onNaviState,
   );
 }

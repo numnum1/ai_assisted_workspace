@@ -869,7 +869,8 @@ function ipcChatStreamPayloadToBridgeEvent(
     type === "tool_history" ||
     type === "done" ||
     type === "error" ||
-    type === "context_update"
+    type === "context_update" ||
+    type === "navi_state"
   ) {
     const payload = parseJson();
     if (payload == null) return null;
@@ -892,6 +893,7 @@ export function streamChat(
   onContextUpdate?: (estimatedTokens: number) => void,
   onToolHistory?: (messages: import("./types.ts").ChatMessage[]) => void,
   onResolvedUserMessage?: (content: string) => void,
+  onNaviState?: (stateId: string) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -948,6 +950,8 @@ export function streamChat(
         onResolvedUserMessage?.(decodeElectronStreamData(chatEvent.payload));
       } else if (chatEvent.type === "context_update") {
         onContextUpdate?.(chatEvent.payload.estimatedTokens);
+      } else if (chatEvent.type === "navi_state") {
+        onNaviState?.(chatEvent.payload.stateId);
       } else if (chatEvent.type === "token") {
         tokenCount++;
         const unescaped = decodeElectronStreamData(chatEvent.payload);

@@ -122,6 +122,21 @@ export function NewChatDialog({
                 dem Modus)
               </span>
             </label>
+            <label className="new-chat-dialog-radio-row">
+              <input
+                type="radio"
+                name="sessionKind"
+                checked={sessionKind === "navi"}
+                onChange={() => {
+                  setSessionKind("navi");
+                  setAgentPresetId("");
+                }}
+              />
+              <span>
+                <strong>Navi</strong> — KI-Berater für Händler in NRW, führt
+                durch eine strukturierte Software-Beratung
+              </span>
+            </label>
           </fieldset>
           {sessionKind === "guided" && (
             <div className="new-chat-dialog-guided-extra">

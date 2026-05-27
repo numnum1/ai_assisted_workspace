@@ -196,6 +196,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: c?.steeringPlan,
         isThread: c?.isThread ?? false,
+        naviStateId: c?.naviStateId ?? null,
       };
       chat.sendMessage(
         message,

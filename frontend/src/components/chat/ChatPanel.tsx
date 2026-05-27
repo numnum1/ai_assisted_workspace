@@ -16,6 +16,7 @@ import { NewChatButton } from "./NewChatButton.tsx";
 import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
 import type { GuidedThreadOfferPayload } from "./guidedThreadOfferUtils.ts";
 import { ChatPane } from "./ChatPane.tsx";
+import { NaviStatePanel } from "./NaviStatePanel.tsx";
 import type { ContextBlock } from "./ContextBar.tsx";
 
 function resolveGuidedExecutionSummary(
@@ -108,6 +109,7 @@ interface ChatPanelProps {
   isDirty: boolean;
   systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
+  naviStateId?: string | null;
 }
 
 export function ChatPanel({
@@ -177,6 +179,7 @@ export function ChatPanel({
   isDirty,
   systemPromptPreview,
   onFetchContextBlocks,
+  naviStateId,
 }: ChatPanelProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -394,6 +397,10 @@ export function ChatPanel({
           chatDownloadEnabled={chatDownloadEnabled}
           onClose={() => setHistoryOpen(false)}
         />
+      )}
+
+      {activeSessionKind === "navi" && naviStateId && (
+        <NaviStatePanel naviStateId={naviStateId} />
       )}
 
       <div className="chat-panel-body">

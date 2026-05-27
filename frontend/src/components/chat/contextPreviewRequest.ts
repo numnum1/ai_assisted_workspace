@@ -43,6 +43,7 @@ export function buildNextMainChatRequest(params: {
     disabledToolkits: exec.disabledToolkits,
     sessionKind: conv?.sessionKind ?? 'standard',
     steeringPlan: conv?.sessionKind === 'guided' ? conv.steeringPlan ?? null : undefined,
+    naviStateId: conv?.sessionKind === 'navi' ? conv.naviStateId ?? null : undefined,
     ...(rulesDisabled ? { rulesDisabled: true } : {}),
   };
 }

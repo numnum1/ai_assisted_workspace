@@ -2,7 +2,7 @@
 export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant', 'glossary'] as const;
 
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
-export type ChatSessionKind = 'standard' | 'guided';
+export type ChatSessionKind = 'standard' | 'guided' | 'navi';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
 
 export interface FileNode {
@@ -124,6 +124,8 @@ export interface ChatRequest {
   isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
+  /** Current state id for navi sessions; sent each request. */
+  naviStateId?: string | null;
 }
 
 export interface ContextInfo {
@@ -194,6 +196,8 @@ export interface Conversation {
    * Key = snapshotId, value = 'applied' | 'reverted'.
    */
   writeFileSettled?: Record<string, 'applied' | 'reverted'>;
+  /** Current navi state id; persisted for navi sessions and sent with each request. */
+  naviStateId?: string | null;
 }
 
 /** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */
