@@ -212,6 +212,15 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
         .filter((r) => r && typeof r === "object" && typeof r.name === "string" && r.name.trim().length > 0)
         .map((r) => ({ name: (r as { name: string; body?: string }).name.trim(), body: typeof (r as { name: string; body?: string }).body === "string" ? (r as { name: string; body: string }).body : "" }))
     : [];
+  const naviInstructionsRaw: Record<string, string> = {};
+  if (input?.naviInstructions && typeof input.naviInstructions === "object") {
+    for (const [k, v] of Object.entries(input.naviInstructions)) {
+      if (typeof k === "string" && k.trim() && typeof v === "string" && v.trim()) {
+        naviInstructionsRaw[k.trim()] = v;
+      }
+    }
+  }
+  const naviInstructions = Object.keys(naviInstructionsRaw).length > 0 ? naviInstructionsRaw : undefined;
   return {
     name: input?.name ?? "",
     description: input?.description ?? "",
@@ -224,6 +233,7 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     threadSummaryLlmId: input?.threadSummaryLlmId ?? "",
     ...(maxToolRounds !== undefined ? { maxToolRounds } : {}),
     rules,
+    ...(naviInstructions !== undefined ? { naviInstructions } : {}),
     extraFeatures: input?.extraFeatures ?? {},
   };
 }

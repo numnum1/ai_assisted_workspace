@@ -228,6 +228,8 @@ export interface ProjectConfig {
   maxToolRounds?: number;
   /** Project-level AI rules injected into every system prompt (like Cursor rules). */
   rules?: ProjectRule[];
+  /** Per-state instruction overrides for Navi sessions. Key = state id, value = instruction text. */
+  naviInstructions?: Record<string, string>;
   extraFeatures?: ProjectExtraFeatures;
 }
 

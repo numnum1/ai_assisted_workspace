@@ -16,7 +16,8 @@
       "Bash(xargs grep -l \"rules\")",
       "PowerShell(Get-ChildItem -Recurse -Path 'C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\backend\\\\src' | Select-Object -First 30 | ForEach-Object { $_.FullName })",
       "Bash(findstr /r /c:\"onForkFromMessage\\\\|onDeleteMessages\\\\|onStartThreadFromMessage\" C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\\\\src\\\\components\\\\chat\\\\ChatPanel.tsx)",
-      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\" -Directory)"
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\" -Directory)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Recurse -Directory -ErrorAction SilentlyContinue | Where-Object {$_.Name -match 'settings|config' -or $_.Name -eq 'electron'} | Select-Object -ExpandProperty FullName | Sort-Object)"
     ]
   }
 }

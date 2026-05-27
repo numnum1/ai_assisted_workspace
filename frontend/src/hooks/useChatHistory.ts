@@ -101,8 +101,8 @@ function createEmptyConversation(
     updatedAt: Date.now(),
     mode,
   };
-  if (sessionKind === "guided") {
-    base.sessionKind = "guided";
+  if (sessionKind !== "standard") {
+    base.sessionKind = sessionKind;
   }
   return base;
 }

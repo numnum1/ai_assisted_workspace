@@ -29,6 +29,7 @@ import {
   getNaviState,
   buildClassificationPrompt,
 } from "./naviStateMachine.js";
+import { getProjectConfig } from "./projectConfigService.js";
 
 export type { ContextBlock };
 
@@ -907,12 +908,23 @@ async function runNaviChatStream(
 
     const newState = getNaviState(newStateId) ?? currentState;
 
+    let effectiveInstruction = newState.instruction;
+    try {
+      const projConfig = await getProjectConfig(projectPath);
+      const override = projConfig.naviInstructions?.[newStateId];
+      if (typeof override === "string" && override.trim()) {
+        effectiveInstruction = override;
+      }
+    } catch {
+      // Config read failure: silently fall back to default instruction
+    }
+
     const naviSystemPrompt = [
       "Du bist Navi, ein ehrlicher KI-Berater für Händler in NRW.",
       "Antworte immer auf Deutsch, kurz und professionell.",
       "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
       "Maximal eine Frage pro Antwort.",
-      `Deine aktuelle Aufgabe: ${newState.instruction}`,
+      `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
     ].join("\n");
 
     const conversationMessages: OpenAiMessage[] = [

@@ -399,8 +399,8 @@ export function ChatPanel({
         />
       )}
 
-      {activeSessionKind === "navi" && naviStateId && (
-        <NaviStatePanel naviStateId={naviStateId} />
+      {activeSessionKind === "navi" && (
+        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} />
       )}
 
       <div className="chat-panel-body">

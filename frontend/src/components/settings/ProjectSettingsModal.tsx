@@ -25,6 +25,8 @@ import type {
   LlmsListResponse,
 } from "../../types.ts";
 import { CHAT_TOOLKIT_IDS } from "../../types.ts";
+import { NAVI_STATES } from "../../naviStateMachine.ts";
+import type { NaviState } from "../../naviStateMachine.ts";
 import { usePreferences } from "../../hooks/usePreferences.ts";
 import { effectiveModeColor } from "../chat/modeColorTheme.ts";
 
@@ -41,6 +43,7 @@ type Tab =
   | "quickChat"
   | "modes"
   | "agents"
+  | "navi"
   | "workspacePlugins"
   | "aiProviders";
 
@@ -275,6 +278,81 @@ function RulesEditor({
   );
 }
 
+function NaviInstructionsEditor({
+  states,
+  overrides,
+  onChange,
+}: {
+  states: NaviState[];
+  overrides: Record<string, string>;
+  onChange: (overrides: Record<string, string>) => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string>(states[0]?.id ?? "");
+  const selected = states.find((s) => s.id === selectedId);
+  const isOverridden = Boolean(overrides[selectedId]?.trim());
+
+  return (
+    <div className="ps-rules-editor">
+      <div className="ps-rules-list">
+        {states.map((s) => (
+          <div
+            key={s.id}
+            className={`ps-rules-list-item${selectedId === s.id ? " selected" : ""}`}
+            onClick={() => setSelectedId(s.id)}
+          >
+            <span className="ps-rules-list-name">{s.id}</span>
+            {overrides[s.id]?.trim() && (
+              <span title="Angepasst" style={{ color: "var(--accent)", fontSize: 10 }}>●</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {selected && (
+        <div className="ps-rules-panel">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <code style={{ fontSize: 11, opacity: 0.7 }}>{selected.id}</code>
+            {isOverridden && (
+              <button
+                type="button"
+                className="ps-secondary-btn"
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "2px 6px" }}
+                title="Auf Standard zurücksetzen"
+                onClick={() => {
+                  const next = { ...overrides };
+                  delete next[selectedId];
+                  onChange(next);
+                }}
+              >
+                <RefreshCw size={11} /> Zurücksetzen
+              </button>
+            )}
+          </div>
+          {!isOverridden && (
+            <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11 }}>
+              Standard-Anweisung (kein Override gesetzt) — klicke in das Textfeld zum Anpassen:
+            </p>
+          )}
+          <textarea
+            className="ps-textarea ps-textarea-tall"
+            value={isOverridden ? overrides[selectedId] : selected.instruction}
+            placeholder={selected.instruction}
+            rows={10}
+            onChange={(e) => {
+              onChange({ ...overrides, [selectedId]: e.target.value });
+            }}
+            onFocus={() => {
+              if (!isOverridden) {
+                onChange({ ...overrides, [selectedId]: selected.instruction });
+              }
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProjectSettingsModal({
   onClose,
   onModesChanged,
@@ -305,6 +383,7 @@ export function ProjectSettingsModal({
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
+  const [naviInstructionDraft, setNaviInstructionDraft] = useState<Record<string, string>>({});
 
   // Modes
   const [modes, setModes] = useState<Mode[]>([]);
@@ -433,6 +512,7 @@ export function ProjectSettingsModal({
           projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
         ]);
         setConfig(cfg);
+        setNaviInstructionDraft(cfg.naviInstructions ?? {});
         setModes(mds);
         setAgents(agentList);
       } else {
@@ -465,6 +545,7 @@ export function ProjectSettingsModal({
     try {
       const cfg = await projectConfigApi.init();
       setConfig(cfg);
+      setNaviInstructionDraft(cfg.naviInstructions ?? {});
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -858,6 +939,7 @@ export function ProjectSettingsModal({
                   "quickChat",
                   "modes",
                   "agents",
+                  "navi",
                   "workspacePlugins",
                   "aiProviders",
                 ] as Tab[]
@@ -892,6 +974,8 @@ export function ProjectSettingsModal({
                       />
                       Agenten ({agents.length})
                     </>
+                  ) : t === "navi" ? (
+                    "Navi"
                   ) : t === "workspacePlugins" ? (
                     "Workspace plugins"
                   ) : (
@@ -1775,6 +1859,51 @@ export function ProjectSettingsModal({
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Navi state machine instructions */}
+            {initialized && tab === "navi" && (
+              <div className="ps-tab-content">
+                <p className="ps-hint">
+                  Passe die Anweisungen für jeden Navi-State an. Ohne Override gilt die Standard-Anweisung aus dem Code.
+                  Die State-Übergänge und Gesprächsstruktur bleiben unverändert.
+                </p>
+                <NaviInstructionsEditor
+                  states={NAVI_STATES}
+                  overrides={naviInstructionDraft}
+                  onChange={setNaviInstructionDraft}
+                />
+                <div className="ps-actions">
+                  <button
+                    type="button"
+                    className="ps-save-btn"
+                    disabled={savingConfig}
+                    onClick={async () => {
+                      setSavingConfig(true);
+                      setError(null);
+                      try {
+                        const saved = await projectConfigApi.update({ ...config, naviInstructions: naviInstructionDraft });
+                        setConfig(saved);
+                        setNaviInstructionDraft(saved.naviInstructions ?? {});
+                        setConfigSaved(true);
+                        setTimeout(() => setConfigSaved(false), 2000);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Save failed");
+                      } finally {
+                        setSavingConfig(false);
+                      }
+                    }}
+                  >
+                    {savingConfig ? (
+                      <><Loader size={13} className="ps-spinner" /> Saving...</>
+                    ) : configSaved ? (
+                      <><Check size={13} /> Saved</>
+                    ) : (
+                      <><Save size={13} /> Speichern</>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
