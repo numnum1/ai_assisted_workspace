@@ -96,7 +96,7 @@ interface GraphRow {
   event: GraphEvent;
   branch: InternalItem;
   lane: number;
-  /** Lanes that should draw a vertical line through this row */
+  /** Lanes of OTHER branches whose vertical line passes fully through this row */
   activeLanes: number[];
   /** For fork: the parent lane to connect from */
   parentLane?: number;
@@ -104,6 +104,8 @@ interface GraphRow {
   isLaneFirst: boolean;
   /** Is this the last row for this lane? */
   isLaneLast: boolean;
+  /** True when this row's own lane line should continue below its node (open thread or has a child branching off later) */
+  continuesBelow: boolean;
   /** Index in the list */
   index: number;
   /** Is this a closed thread's final head? */
@@ -244,18 +246,66 @@ function buildGraphRows(
   const maxLane = Math.max(0, ...items.map((i) => i.lane));
   const lastIdx = events.length - 1;
 
-  const rows: GraphRow[] = events.map((event, index) => ({
-    event,
-    branch: event.branch,
-    lane: event.branch.lane,
-    activeLanes: [],
-    parentLane:
-      event.branch.parentLane >= 0 ? event.branch.parentLane : undefined,
-    isLaneFirst: false,
-    isLaneLast: index === lastIdx,
-    index,
-    isClosedHead: !!(event.branch.isClosed),
-  }));
+  // items, events and rows share the same order, so the row index of a lane's
+  // head equals that branch's position in the list.
+  const headIdx = new Map<number, number>();
+  items.forEach((it, idx) => headIdx.set(it.lane, idx));
+
+  // Lowest row index at which each lane has a child branching off.
+  const maxChildIdx = new Map<number, number>();
+  items.forEach((it, idx) => {
+    if (it.parentLane < 0) return;
+    const cur = maxChildIdx.get(it.parentLane) ?? -1;
+    if (idx > cur) maxChildIdx.set(it.parentLane, idx);
+  });
+
+  const isOpen = (it: InternalItem): boolean =>
+    !it.mergedToParent && !it.isClosed;
+
+  // bottomExtent[lane]: last row index (below the head) that should draw a
+  // vertical line for this lane. Open branches run to the bottom; ended
+  // (merged/closed) branches only reach down to just above their last child,
+  // where the fork connector takes over.
+  const bottomExtent = new Map<number, number>();
+  items.forEach((it, idx) => {
+    if (isOpen(it)) {
+      bottomExtent.set(it.lane, lastIdx);
+    } else {
+      const mc = maxChildIdx.get(it.lane) ?? -1;
+      bottomExtent.set(it.lane, mc > idx ? mc - 1 : idx);
+    }
+  });
+
+  const rows: GraphRow[] = events.map((event, index) => {
+    const ownLane = event.branch.lane;
+    const ownMaxChild = maxChildIdx.get(ownLane) ?? -1;
+    const continuesBelow =
+      index !== lastIdx &&
+      (isOpen(event.branch) || ownMaxChild > index);
+
+    // Lanes of other branches whose line passes through this row.
+    const activeLanes: number[] = [];
+    items.forEach((it) => {
+      if (it.lane === ownLane) return;
+      const start = headIdx.get(it.lane) ?? 0;
+      const end = bottomExtent.get(it.lane) ?? start;
+      if (index > start && index <= end) activeLanes.push(it.lane);
+    });
+
+    return {
+      event,
+      branch: event.branch,
+      lane: ownLane,
+      activeLanes,
+      parentLane:
+        event.branch.parentLane >= 0 ? event.branch.parentLane : undefined,
+      isLaneFirst: false,
+      isLaneLast: index === lastIdx,
+      continuesBelow,
+      index,
+      isClosedHead: !!event.branch.isClosed,
+    };
+  });
 
   return { rows, numLanes: maxLane + 1 };
 }
@@ -280,15 +330,14 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
   const isClosed = row.branch.isClosed ?? false;
   const isMerged = row.branch.mergedToParent ?? false;
   const parentX = laneX(row.parentLane ?? 0);
-  const isLast = row.isLaneLast;
 
   const nodeColor = isClosed ? "#64748b" : laneColor(lane);
-  const mainColor = laneColor(0);
 
-  // Main vertical line: starts at cy for the main-head row, from 0 for thread rows;
-  // ends at cy on the final row, continues to h on all others.
-  const mainY1 = isMain ? cy : 0;
-  const mainY2 = isLast ? cy : h;
+  // Own lane vertical line: starts at the node (cy) and continues down to the
+  // bottom of the row when the thread is still open or has a child branching
+  // off below; otherwise it stops at the node.
+  const ownY1 = cy;
+  const ownY2 = row.continuesBelow ? h : cy;
 
   return (
     <div className="tbp__graph-cell" style={{ width: svgW, minWidth: svgW }}>
@@ -299,20 +348,34 @@ function GraphSvg({ row, numLanes }: GraphSvgProps) {
         aria-hidden
         className="tbp__graph-svg"
       >
-        {/* 1. Main lane vertical line — always drawn */}
-        {mainY1 !== mainY2 && (
+        {/* 1. Pass-through vertical lines for other lanes traversing this row */}
+        {row.activeLanes.map((l) => (
           <line
-            x1={mainX}
-            y1={mainY1}
-            x2={mainX}
-            y2={mainY2}
-            stroke={mainColor}
+            key={`pass-${l}`}
+            x1={laneX(l)}
+            y1={0}
+            x2={laneX(l)}
+            y2={h}
+            stroke={laneColor(l)}
+            strokeWidth={2}
+            opacity={0.4}
+          />
+        ))}
+
+        {/* 2. Own lane vertical line */}
+        {ownY1 !== ownY2 && (
+          <line
+            x1={cx}
+            y1={ownY1}
+            x2={cx}
+            y2={ownY2}
+            stroke={nodeColor}
             strokeWidth={2}
             opacity={0.4}
           />
         )}
 
-        {/* 2. Fork connector: cubic bezier from parent lane top → thread node */}
+        {/* 3. Fork connector: cubic bezier from parent lane top → thread node */}
         {!isMain && (
           <path
             d={`M ${parentX},0 C ${parentX},${cy} ${parentX},${cy} ${cx},${cy}`}
