@@ -3,8 +3,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--accent, #4a8cf7) 8%, var(--bg-secondary, #1e1e1e));
-  border-bottom: 1px solid color-mix(in srgb, var(--accent, #4a8cf7) 20%, var(--border, #333));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
   flex-shrink: 0;
 }
 
@@ -15,25 +15,25 @@
 }
 
 .sim-banner-icon {
-  color: var(--accent, #4a8cf7);
+  color: var(--accent);
   flex-shrink: 0;
   margin-top: 1px;
 }
 
 .sim-banner-icon-muted {
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
 }
 
 .sim-banner-goal {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
   line-height: 1.4;
 }
 
 .sim-banner-chars {
   font-size: 11px;
-  color: var(--text-secondary, #aaa);
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -46,13 +46,13 @@
 
 .sim-banner-meta-item {
   font-size: 10px;
-  color: var(--text-muted, #555);
+  color: var(--text-muted);
 }
 
 .sim-banner-meta-item code {
-  background: var(--bg-tertiary, #161616);
+  background: var(--bg-tertiary);
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 10px;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
 }
