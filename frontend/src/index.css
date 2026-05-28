@@ -5673,7 +5673,7 @@ body.file-tree-native-dragging {
     border-radius: 8px;
     color: var(--text-primary);
     font-family: inherit;
-    font-size: 13px;
+    font-size: var(--pref-chat-font-size, 14px);
     line-height: 1.4;
     resize: none;
     outline: none;
@@ -5832,7 +5832,7 @@ body.file-tree-native-dragging {
     border: none;
     color: var(--text-primary);
     font-family: inherit;
-    font-size: 14px;
+    font-size: var(--pref-chat-font-size, 14px);
     line-height: 1.55;
     resize: none;
     outline: none;
