@@ -6,6 +6,7 @@ import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../../types.ts';
 import { stripPlanFencesForDisplay } from './planFenceUtils.ts';
 import { parseThinkSegments } from './thinkSegmentUtils.ts';
+import { ArtifactCard } from './ArtifactCard.tsx';
 
 interface ChatMessageMarkdownProps {
   content: string;
@@ -370,12 +371,14 @@ export function ChatMessageMarkdown({
       const isGuidedThreadOfferBlock = className === 'language-guided_thread_offer';
       const isFieldUpdateBlock = className === 'language-field-update';
       const isPlanBlock = className === 'language-plan';
+      const isArtifactBlock = className === 'language-artifact';
       const isCodeBlock =
         !isReplaceBlock &&
         !isClarificationBlock &&
         !isGuidedThreadOfferBlock &&
         !isFieldUpdateBlock &&
         !isPlanBlock &&
+        !isArtifactBlock &&
         /language-/.test(className ?? '');
 
       if (isPlanBlock) {
@@ -491,6 +494,11 @@ export function ChatMessageMarkdown({
       if (isGuidedThreadOfferBlock) {
         const raw = String(children ?? '').trim();
         return <GuidedThreadOfferCompactHint raw={raw} />;
+      }
+
+      if (isArtifactBlock) {
+        const raw = String(children ?? '').trim();
+        return <ArtifactCard raw={raw} />;
       }
 
       if (!isCodeBlock) {

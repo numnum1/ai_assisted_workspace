@@ -11,6 +11,9 @@ const PLAN_OPEN_RE = /```plan\b/;
 const THREAD_RESULT_FENCE_RE_GLOBAL = /```thread_result\s*\n[\s\S]*?\n```/g;
 const THREAD_RESULT_OPEN_RE = /```thread_result\b/;
 
+/** Opening fence for an artifact working-note block. */
+const ARTIFACT_OPEN_RE = /```artifact\b/;
+
 /**
  * Removes ```plan … ``` from markdown shown in the chat bubble (plan is shown in the Arbeitsplan panel).
  * When streaming, truncates from an opening ```plan if the closing fence has not arrived yet.
@@ -27,6 +30,10 @@ export function stripPlanFencesForDisplay(content: string, streaming: boolean): 
     const resultOpen = s.match(THREAD_RESULT_OPEN_RE);
     if (resultOpen?.index !== undefined) {
       s = s.slice(0, resultOpen.index).replace(/\s+$/, '');
+    }
+    const artifactOpen = s.match(ARTIFACT_OPEN_RE);
+    if (artifactOpen?.index !== undefined) {
+      s = s.slice(0, artifactOpen.index).replace(/\s+$/, '');
     }
   }
   return s;

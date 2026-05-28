@@ -21,6 +21,11 @@ import {
   TOOLKIT_TOOL_DEFINITIONS,
 } from "./conversation/systemPrompt.js";
 import { semanticSearch, type EmbeddingConfig } from "./vectorService.js";
+import { appendJournalEntry, appendConflict } from "./journalService.js";
+import {
+  writeWikiFile,
+  patchWikiFile,
+} from "./wikiService.js";
 import {
   resolveEmbeddingCredentials,
   type AiProvider,
@@ -605,6 +610,11 @@ function describeStreamingToolCall(toolCall: ToolCall): string {
   if (name === "ask_clarification") return "Stelle Rückfrage";
   if (name === "propose_guided_thread") return "Biete Guided Thread an";
   if (name === "report_thread_result") return "Übermittle Thread-Ergebnis";
+  if (name === "create_artifact") return "Erstelle Arbeitsnotiz";
+  if (name === "journal_log") return "Notiere ins Journal";
+  if (name === "wiki_write") return "Schreibe Wiki-Eintrag";
+  if (name === "wiki_patch") return "Aktualisiere Wiki-Eintrag";
+  if (name === "flag_conflict") return "Markiere Widerspruch";
   return `Tool: ${name}`;
 }
 
@@ -685,6 +695,31 @@ async function executeToolCall(
       throw new Error("report_thread_result requires a non-empty summary.");
     }
     result = fence;
+  } else if (name === "create_artifact") {
+    const title = normalizeText(String(args.title ?? "Arbeitsnotiz"));
+    const content = typeof args.content === "string" ? args.content : "";
+    const id = typeof args.id === "string" && args.id ? args.id : undefined;
+    const meta: Record<string, string> = { title };
+    if (id) meta.id = id;
+    result = `\`\`\`artifact\n${JSON.stringify(meta)}\n\n${content}\n\`\`\``;
+  } else if (name === "journal_log") {
+    const type = normalizeText(String(args.type ?? "KANON"));
+    const text = typeof args.text === "string" ? args.text : String(args.text ?? "");
+    result = await appendJournalEntry(projectPath, type, text);
+  } else if (name === "wiki_write") {
+    const filePath = normalizeText(String(args.path ?? ""));
+    const content = typeof args.content === "string" ? args.content : "";
+    const writeResult = await writeWikiFile(projectPath, filePath, content);
+    result = `wiki_write:success:${writeResult.created ? "new" : "modified"}:${writeResult.path}`;
+  } else if (name === "wiki_patch") {
+    const filePath = normalizeText(String(args.path ?? ""));
+    const oldString = typeof args.old === "string" ? args.old : "";
+    const newString = typeof args.new === "string" ? args.new : "";
+    const patchResult = await patchWikiFile(projectPath, filePath, oldString, newString);
+    result = `wiki_patch:success:${patchResult.path}`;
+  } else if (name === "flag_conflict") {
+    const description = typeof args.description === "string" ? args.description : String(args.description ?? "");
+    result = await appendConflict(projectPath, description);
   } else {
     throw new Error(`Unknown tool: ${name}`);
   }

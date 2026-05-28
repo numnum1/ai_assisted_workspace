@@ -3809,6 +3809,55 @@ body.file-tree-native-dragging {
     color: var(--accent);
 }
 
+/* ─── Artifact Card (inline working note) ───────────────────── */
+
+.artifact-card {
+    margin: 0.5em 0;
+    border: 1px solid #b4530966;
+    border-radius: 6px;
+    overflow: hidden;
+    background: color-mix(in srgb, #b45309 8%, var(--bg-secondary));
+}
+
+.artifact-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: color-mix(in srgb, #b45309 14%, var(--bg-secondary));
+    border-bottom: 1px solid #b4530966;
+    font-size: 12px;
+    font-weight: 600;
+    color: #d97706;
+}
+
+.artifact-card-header svg {
+    flex-shrink: 0;
+    color: #d97706;
+}
+
+.artifact-card-title {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.artifact-card-body {
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.artifact-card-body > * {
+    margin-bottom: 0.4em;
+}
+
+.artifact-card-body > *:last-child {
+    margin-bottom: 0;
+}
+
 .guided-thread-offer-card {
     display: flex;
     flex-direction: column;

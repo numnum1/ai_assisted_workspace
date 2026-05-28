@@ -17,7 +17,11 @@
       "PowerShell(Get-ChildItem -Recurse -Path 'C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\backend\\\\src' | Select-Object -First 30 | ForEach-Object { $_.FullName })",
       "Bash(findstr /r /c:\"onForkFromMessage\\\\|onDeleteMessages\\\\|onStartThreadFromMessage\" C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\\\\src\\\\components\\\\chat\\\\ChatPanel.tsx)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\" -Directory)",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Recurse -Directory -ErrorAction SilentlyContinue | Where-Object {$_.Name -match 'settings|config' -or $_.Name -eq 'electron'} | Select-Object -ExpandProperty FullName | Sort-Object)"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\marcm\\\\IdeaProjects\\\\markdown_project\\\\frontend\" -Recurse -Directory -ErrorAction SilentlyContinue | Where-Object {$_.Name -match 'settings|config' -or $_.Name -eq 'electron'} | Select-Object -ExpandProperty FullName | Sort-Object)",
+      "Bash(cd \"M:\\\\Benutzer\\\\marcm\\\\Projekte\\\\OL\")",
+      "Bash(dir /b)",
+      "Bash(find \"M:\\\\projects\\\\markdown_editor\\\\markdown_project\" -name \"agents.json\" -o -name \".assistant\" -type d 2>/dev/null | head -20)",
+      "Bash(findstr /s \"buildPreviewContext\\\\|readGlossaryContent\\\\|buildFileTreeListing\" electron\\\\services\\\\*.ts)"
     ]
   }
 }

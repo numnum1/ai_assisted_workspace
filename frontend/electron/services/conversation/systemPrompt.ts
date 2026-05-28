@@ -99,6 +99,138 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
       },
     },
   ],
+  chronist: [
+    {
+      type: "function",
+      function: {
+        name: "journal_log",
+        description:
+          "Record a canonical story fact immediately and without asking the user. " +
+          "Use type KANON for confirmed decisions, NEU for newly mentioned entities (characters, places, items), " +
+          "WIDERSPRUCH for contradictions with existing wiki content, IDEE for speculative ideas that are NOT canon yet. " +
+          "Call this proactively whenever a durable fact emerges in the conversation.",
+        parameters: {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["KANON", "NEU", "WIDERSPRUCH", "IDEE"],
+              description: "Category of the journal entry.",
+            },
+            text: {
+              type: "string",
+              description: "Short, precise description of the fact or entity.",
+            },
+          },
+          required: ["type", "text"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "wiki_write",
+        description:
+          "Create or overwrite a wiki markdown file. Path is relative to the wiki/ root. " +
+          "Use for new stubs (previously unrecorded entities) or full rewrites. " +
+          "For targeted changes to existing files, prefer wiki_patch instead.",
+        parameters: {
+          type: "object",
+          properties: {
+            path: {
+              type: "string",
+              description: "Relative path inside wiki/ (e.g. 'charakter/lyra.md').",
+            },
+            content: {
+              type: "string",
+              description: "Full markdown content of the file.",
+            },
+          },
+          required: ["path", "content"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "wiki_patch",
+        description:
+          "Replace an exact string inside an existing wiki markdown file. " +
+          "Safer than wiki_write for targeted updates — only changes what you specify. " +
+          "oldString must appear EXACTLY ONCE in the file (copy verbatim from wiki_read output). " +
+          "If it appears zero or multiple times the tool returns an error with guidance.",
+        parameters: {
+          type: "object",
+          properties: {
+            path: {
+              type: "string",
+              description: "Relative path inside wiki/ (e.g. 'charakter/lyra.md').",
+            },
+            old: {
+              type: "string",
+              description: "Exact string to replace (must be unique in the file).",
+            },
+            new: {
+              type: "string",
+              description: "Replacement string.",
+            },
+          },
+          required: ["path", "old", "new"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "flag_conflict",
+        description:
+          "Flag a contradiction between a new fact and the existing wiki. " +
+          "Writes the conflict to .assistant/journal/_conflicts.md WITHOUT modifying the wiki. " +
+          "Always call this instead of silently overwriting canon when facts disagree.",
+        parameters: {
+          type: "object",
+          properties: {
+            description: {
+              type: "string",
+              description: "Clear description of the conflict (what differs and where).",
+            },
+          },
+          required: ["description"],
+        },
+      },
+    },
+  ],
+  artifacts: [
+    {
+      type: "function",
+      function: {
+        name: "create_artifact",
+        description:
+          "Create a temporary working note that appears as an inline card in the chat. " +
+          "Use for structured analysis (character motivations, scene breakdowns, comparisons) " +
+          "that is NOT canon and should NOT go to the wiki. " +
+          "Lives in the conversation history, not on disk.",
+        parameters: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "Short title shown in the card header.",
+            },
+            content: {
+              type: "string",
+              description: "Full markdown content of the working note.",
+            },
+            id: {
+              type: "string",
+              description: "Optional stable identifier in kebab-case (e.g. 'motivations-shalltear').",
+            },
+          },
+          required: ["title", "content"],
+        },
+      },
+    },
+  ],
   assistant: [
     {
       type: "function",
