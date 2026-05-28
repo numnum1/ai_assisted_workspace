@@ -685,9 +685,13 @@ function App() {
         console.trace(
           `[App] summarizeToParent: parentId=${parentId}, focus=${focusNorm ? "yes" : "no (default)"}`,
         );
+        const currentParentForSummary = history.conversations.find(
+          (c) => c.id === parentId,
+        );
         const summaryText = await chatApi.summarizeThread(
           chat.messages,
           focusNorm,
+          currentParentForSummary?.messages,
         );
         console.trace(
           `[App] summarizeToParent: received summary, length=${summaryText.length}`,

@@ -803,18 +803,20 @@ export const chatApi = {
   summarizeThread: async (
     messages: ChatMessage[],
     focusInstructions?: string | null,
+    parentMessages?: ChatMessage[],
   ): Promise<string> => {
     const focusTrimmed =
       typeof focusInstructions === "string" ? focusInstructions.trim() : "";
     const focusPayload = focusTrimmed.length > 0 ? focusTrimmed : undefined;
     console.trace(
-      `[api] summarizeThread: messages=${messages.length}, focus=${focusPayload ? "yes" : "no (default)"}`,
+      `[api] summarizeThread: messages=${messages.length}, parentMessages=${parentMessages?.length ?? 0}, focus=${focusPayload ? "yes" : "no (default)"}`,
     );
     const bridge = getAppBridge();
     if (bridge?.chat) {
       const out = await bridge.chat.summarizeThread({
         messages,
         focusInstructions: focusPayload,
+        parentMessages,
       });
       console.trace(`[api] summarizeThread finished, length=${out.length}`);
       return out;

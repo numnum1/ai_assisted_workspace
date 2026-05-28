@@ -195,6 +195,7 @@ function registerIpcHandlers(): void {
       body: {
         messages: Parameters<typeof generateThreadSummary>[0];
         focusInstructions?: string | null;
+        parentMessages?: Parameters<typeof generateThreadSummary>[0];
       },
     ) => {
       const focusNorm =
@@ -203,6 +204,7 @@ function registerIpcHandlers(): void {
           : undefined;
       console.trace(
         `[main] chat:summarizeThread: messages=${body.messages.length}, ` +
+          `parentMessages=${body.parentMessages?.length ?? 0}, ` +
           `focusInstructions=${focusNorm ? "yes" : "no (default)"}`,
       );
       const config = await getProjectConfig(getCurrentProjectPath());
@@ -210,6 +212,7 @@ function registerIpcHandlers(): void {
         body.messages,
         config.threadSummaryLlmId ?? null,
         focusNorm,
+        body.parentMessages,
       );
       console.trace(`[main] chat:summarizeThread finished`);
       return result;

@@ -230,6 +230,7 @@ export interface AppBridge {
     summarizeThread: (body: {
       messages: import('../types.ts').ChatMessage[];
       focusInstructions?: string | null;
+      parentMessages?: import('../types.ts').ChatMessage[];
     }) => Promise<string>;
     onStreamEvent: (
       streamId: string,

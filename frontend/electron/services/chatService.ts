@@ -1504,42 +1504,51 @@ async function runChatStream(
  * Uses a non-streaming completion request.
  */
 export async function generateThreadSummary(
-  messages: ChatMessage[],
+  threadMessages: ChatMessage[],
   llmId: string | null | undefined,
   focusInstructions?: string | null,
+  parentMessages?: ChatMessage[],
 ): Promise<string> {
   const focus =
     typeof focusInstructions === "string" && focusInstructions.trim().length > 0
       ? focusInstructions.trim()
       : "";
   console.trace(
-    `[chat] generateThreadSummary: llmId=${llmId ?? "(default)"}, messages=${messages.length}, ` +
+    `[chat] generateThreadSummary: llmId=${llmId ?? "(default)"}, threadMessages=${threadMessages.length}, ` +
+      `parentMessages=${parentMessages?.length ?? 0}, ` +
       `focusInstructions=${focus ? `"${focus.slice(0, 80)}${focus.length > 80 ? "…" : ""}"` : "(none)"}`,
   );
 
   const provider = await resolveAiProvider(llmId);
   const endpoint = resolveProviderEndpoint(provider, false);
 
-  const visibleMessages = messages.filter(
-    (m) => !m.hidden && m.role !== "system",
-  );
-  const transcript = visibleMessages
-    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-    .join("\n\n");
+  const toTranscript = (msgs: ChatMessage[]) =>
+    msgs
+      .filter((m) => !m.hidden && m.role !== "system")
+      .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n\n");
+
+  const visibleParent = parentMessages ? toTranscript(parentMessages) : "";
+  const threadTranscript = toTranscript(threadMessages);
+
+  const contextSection = visibleParent.trim()
+    ? `=== Parent-Chat ===\n\n${visibleParent}\n\n=== Thread ===\n\n${threadTranscript}`
+    : `=== Thread ===\n\n${threadTranscript}`;
 
   const systemBase =
-    "Du bist ein präziser Assistent. Fasse den folgenden Chat-Thread knapp und sachlich zusammen. ";
+    "Du bist ein präziser Assistent. Du erhältst den vollständigen Kontext: den Parent-Chat und einen daraus verzweigten Thread. " +
+    "Deine Aufgabe ist es, das Ergebnis des Threads knapp und sachlich aufzuschreiben — so, dass es als Beitrag im Parent-Chat sinnvoll ist. " +
+    "Fasse nicht den gesamten Thread nach; schreibe nur, was der Thread erbracht hat (Erkenntnisse, Entscheidungen, Ergebnisse). ";
   const systemFocus = focus
-    ? "Der Nutzer gibt unten explizit an, welche Informationen für den Parent-Chat relevant sind — " +
-      "berücksichtige nur diese Aspekte aus dem Thread; lasse alles andere weg, sofern es nicht nötig ist, " +
-      "diese Punkte zu verstehen. "
-    : "Beschreibe, was besprochen wurde und welche Ergebnisse oder Entscheidungen erzielt wurden. ";
+    ? "Der Nutzer gibt unten explizit an, welche Aspekte für den Parent-Chat relevant sind — " +
+      "berücksichtige nur diese; lasse alles andere weg, sofern es nicht nötig ist, diese Punkte zu verstehen. "
+    : "";
   const systemTail =
-    "Antworte ausschließlich mit der Zusammenfassung, ohne Einleitung oder Metakommentar.";
+    "Antworte ausschließlich mit dem Ergebnis-Text, ohne Einleitung oder Metakommentar.";
 
   const userLead = focus
-    ? `Bitte fasse den Thread zusammen und halte dich strikt an diese Vorgaben des Nutzers:\n\n${focus}\n\n---\n\nThread:\n\n`
-    : "Bitte fasse diesen Thread zusammen:\n\n";
+    ? `Relevante Aspekte laut Nutzer:\n\n${focus}\n\n---\n\n`
+    : "";
 
   const requestMessages = [
     {
@@ -1548,7 +1557,7 @@ export async function generateThreadSummary(
     },
     {
       role: "user" as const,
-      content: `${userLead}${transcript}`,
+      content: `${userLead}${contextSection}`,
     },
   ];
 
