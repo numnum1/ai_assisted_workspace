@@ -70,6 +70,11 @@ import {
   getTypedFileContent,
   saveTypedFileContent,
 } from "./services/typedFilesService.js";
+import {
+  writeSimulationResult,
+  readSimulationResult,
+  listSimulationResults,
+} from "./services/simulationService.js";
 import { searchProjectContent } from "./services/searchService.js";
 import { indexProject, getIndexStatus } from "./services/vectorService.js";
 import { listProviders, resolveEmbeddingCredentials } from "./services/aiProviderService.js";
@@ -563,6 +568,18 @@ function registerIpcHandlers(): void {
       );
       return { status: "updated" };
     },
+  );
+
+  ipcMain.handle(
+    "simulation:writeResult",
+    (_event, name: string, content: string) =>
+      writeSimulationResult(getCurrentProjectPath(), name, content),
+  );
+  ipcMain.handle("simulation:readResult", (_event, name: string) =>
+    readSimulationResult(getCurrentProjectPath(), name),
+  );
+  ipcMain.handle("simulation:listResults", () =>
+    listSimulationResults(getCurrentProjectPath()),
   );
 
   ipcMain.handle("typedFiles:fill", (_event, filePath: string) =>

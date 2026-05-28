@@ -28,6 +28,7 @@ import { MarkdownFileEditor } from "./components/editor/MarkdownFileEditor.tsx";
 import { SubprojectTypeDialog } from "./components/settings/SubprojectTypeDialog.tsx";
 import { MetaPanel } from "./components/meta/MetaPanel.tsx";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
+import { SimulationSetupModal, type SimulationSetupResult } from "./components/simulation/SimulationSetupModal.tsx";
 import { ThreadWorkspacePanel } from "./components/chat/ThreadWorkspacePanel.tsx";
 import { ChatThreadsRail } from "./components/chat/ChatThreadsRail.tsx";
 import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
@@ -51,6 +52,7 @@ import type {
   AltVersionSession,
   LlmPublic,
   ChatSessionKind,
+  SimulationConfig,
 } from "./types.ts";
 import type { NewChatConfirmPayload } from "./components/chat/NewChatDialog.tsx";
 import { CHAT_TOOLKIT_IDS } from "./types.ts";
@@ -328,6 +330,7 @@ function App() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [modes, setModes] = useState<Mode[]>([]);
   const [agentPresets, setAgentPresets] = useState<AgentPreset[]>([]);
+  const [simulationSetupOpen, setSimulationSetupOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState("review");
   const [useReasoning, setUseReasoning] = useState(false);
   const [quickChatOpen, setQuickChatOpen] = useState(false);
@@ -2003,6 +2006,37 @@ function App() {
     ],
   );
 
+  const handleCreateSimulation = useCallback(
+    async (result: SimulationSetupResult) => {
+      setSimulationSetupOpen(false);
+      const { title, simulationConfig } = result;
+      const newConv = history.createConversation(selectedMode, undefined, title, "standard");
+      history.patchConversation(newConv.id, { simulationConfig });
+      // Create the result file with a template header
+      const bridge = getAppBridge();
+      if (bridge?.simulation) {
+        const header = [
+          `# ${title}`,
+          ``,
+          `**Ziel:** ${simulationConfig.goal}`,
+          ``,
+          simulationConfig.characters.length > 0
+            ? `**Charaktere:** ${simulationConfig.characters.map((c) => c.name).join(", ")}`
+            : "",
+          ``,
+          `---`,
+          ``,
+          `## Ergebnis`,
+          ``,
+          `_(Hier das Ergebnis der Simulation eintragen)_`,
+          ``,
+        ].filter((l) => l !== undefined).join("\n");
+        await bridge.simulation.writeResult(simulationConfig.resultFile, header).catch(() => {});
+      }
+    },
+    [history, selectedMode],
+  );
+
   const handleDiscardCurrentChat = useCallback(
     (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => {
       if (isNewChatConfirmPayload(kindOrPayload)) {
@@ -2719,6 +2753,8 @@ function App() {
                 }
                 naviStateId={history.activeConversation?.naviStateId ?? null}
                 steeringPlan={history.activeConversation?.steeringPlan ?? ""}
+                simulationConfig={history.activeConversation?.simulationConfig}
+                onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
                 activeIsThread={history.activeConversation?.isThread === true}
                 onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
                 onSwitchChat={handleSwitchChat}
@@ -2942,6 +2978,13 @@ function App() {
           preferences={preferences}
           onUpdate={updatePreferences}
           onClose={() => setAppearanceOpen(false)}
+        />
+      )}
+
+      {simulationSetupOpen && (
+        <SimulationSetupModal
+          onConfirm={handleCreateSimulation}
+          onCancel={() => setSimulationSetupOpen(false)}
         />
       )}
 

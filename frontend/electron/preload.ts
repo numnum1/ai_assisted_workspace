@@ -222,6 +222,13 @@ contextBridge.exposeInMainWorld("appBridge", {
     saveContent: (filePath: string, data: unknown) =>
       ipcRenderer.invoke("typedFiles:saveContent", filePath, data),
   },
+  simulation: {
+    writeResult: (name: string, content: string) =>
+      ipcRenderer.invoke("simulation:writeResult", name, content),
+    readResult: (name: string) =>
+      ipcRenderer.invoke("simulation:readResult", name),
+    listResults: () => ipcRenderer.invoke("simulation:listResults"),
+  },
   snapshots: {
     get: (id: string) => ipcRenderer.invoke("snapshots:get", id),
     apply: (id: string) => ipcRenderer.invoke("snapshots:apply", id),

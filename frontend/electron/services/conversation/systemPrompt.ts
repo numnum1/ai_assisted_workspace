@@ -448,5 +448,26 @@ export function buildSystemPrompt(
     );
   }
 
+  // 7. Simulation context
+  if (request.simulationConfig) {
+    const sim = request.simulationConfig;
+    const lines: string[] = ["Simulations-Umgebung:"];
+    lines.push(`Ziel: ${sim.goal}`);
+    if (sim.baseFileLabel || sim.baseFilePath) {
+      lines.push(`Basis: ${sim.baseFileLabel ?? sim.baseFilePath}`);
+    }
+    if (sim.characters.length > 0) {
+      const charList = sim.characters
+        .map((c) => `- ${c.name} (${c.wikiPath})`)
+        .join("\n");
+      lines.push(`Charaktere in dieser Umgebung:\n${charList}`);
+      lines.push(
+        "Du kannst diese Charaktere befragen, indem du ihre Perspektive und Motivation aus ihren Wiki-Einträgen ableitest. " +
+        "Nutze wiki_read um den vollständigen Eintrag zu lesen, wenn nötig.",
+      );
+    }
+    sections.push(lines.join("\n"));
+  }
+
   return sections.join("\n\n");
 }

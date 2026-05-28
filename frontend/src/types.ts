@@ -1,6 +1,28 @@
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
 export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant', 'glossary'] as const;
 
+/** A character entry in a simulation environment. */
+export interface SimulationCharacter {
+  /** Relative wiki path, e.g. `wiki/characters/char-a.md` */
+  wikiPath: string;
+  /** Display name derived from the wiki path or overridden by the user. */
+  name: string;
+}
+
+/** Configuration for a simulation session (goal + cast derived from a base file). */
+export interface SimulationConfig {
+  /** The "dramatische Leitfrage": what the user wants to work out. */
+  goal: string;
+  /** Relative path to the base file (scene/chapter/book JSON). */
+  baseFilePath: string;
+  /** Human-readable label for the base file. */
+  baseFileLabel?: string;
+  /** Selected characters for this simulation. */
+  characters: SimulationCharacter[];
+  /** Result file name slug (maps to `.assistant/simulations/<resultFile>.md`). */
+  resultFile: string;
+}
+
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
 export type ChatSessionKind = 'standard' | 'guided' | 'navi';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
@@ -126,6 +148,8 @@ export interface ChatRequest {
   rulesDisabled?: boolean;
   /** Current state id for navi sessions; sent each request. */
   naviStateId?: string | null;
+  /** When set, injects simulation context (goal + cast) into the system prompt. */
+  simulationConfig?: SimulationConfig;
 }
 
 export interface ContextInfo {
@@ -198,6 +222,8 @@ export interface Conversation {
   writeFileSettled?: Record<string, 'applied' | 'reverted'>;
   /** Current navi state id; persisted for navi sessions and sent with each request. */
   naviStateId?: string | null;
+  /** When set, this conversation is a simulation session with a goal and cast. */
+  simulationConfig?: SimulationConfig;
 }
 
 /** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */

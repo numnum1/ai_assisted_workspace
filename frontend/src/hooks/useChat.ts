@@ -5,6 +5,7 @@ import type {
   ChatSessionKind,
   ContextInfo,
   SelectionContext,
+  SimulationConfig,
 } from '../types.ts';
 import { buildHistoryPayload } from './chatHistoryPayload.ts';
 import { attachAssistantStream, type StreamCallbacks } from './assistantStream.ts';
@@ -34,6 +35,7 @@ export interface ChatStreamSessionMeta {
   steeringPlan?: string;
   isThread?: boolean;
   naviStateId?: string | null;
+  simulationConfig?: SimulationConfig;
 }
 
 /** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. guided preset bootstrap). */
@@ -62,20 +64,23 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
     return { sessionKind: 'standard' };
   }
   const sk = meta.sessionKind ?? 'standard';
+  const simPart = meta.simulationConfig ? { simulationConfig: meta.simulationConfig } : {};
   if (sk === 'guided') {
     return {
       sessionKind: 'guided',
       steeringPlan: meta.steeringPlan ?? null,
       ...(meta.isThread ? { isThread: true } : {}),
+      ...simPart,
     };
   }
   if (sk === 'navi') {
     return {
       sessionKind: 'navi',
       naviStateId: meta.naviStateId ?? null,
+      ...simPart,
     };
   }
-  return { sessionKind: 'standard' };
+  return { sessionKind: 'standard', ...simPart };
 }
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, options?: UseChatOptions) {

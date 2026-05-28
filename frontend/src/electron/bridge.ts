@@ -393,6 +393,11 @@ export interface AppBridge {
     ) => Promise<{ status: string }>;
     fill: (path: string) => Promise<TypedFileFillResult>;
   };
+  simulation?: {
+    writeResult: (name: string, content: string) => Promise<{ path: string }>;
+    readResult: (name: string) => Promise<{ content: string; exists: boolean }>;
+    listResults: () => Promise<string[]>;
+  };
   preferences?: {
     get: () => Promise<AppPreferences>;
     set: (patch: Partial<AppPreferences>) => Promise<AppPreferences>;

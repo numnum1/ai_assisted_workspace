@@ -1,0 +1,58 @@
+.sim-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--accent, #4a8cf7) 8%, var(--bg-secondary, #1e1e1e));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent, #4a8cf7) 20%, var(--border, #333));
+  flex-shrink: 0;
+}
+
+.sim-banner-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sim-banner-icon {
+  color: var(--accent, #4a8cf7);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.sim-banner-icon-muted {
+  color: var(--text-muted, #666);
+}
+
+.sim-banner-goal {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary, #e0e0e0);
+  line-height: 1.4;
+}
+
+.sim-banner-chars {
+  font-size: 11px;
+  color: var(--text-secondary, #aaa);
+  line-height: 1.4;
+}
+
+.sim-banner-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.sim-banner-meta-item {
+  font-size: 10px;
+  color: var(--text-muted, #555);
+}
+
+.sim-banner-meta-item code {
+  background: var(--bg-tertiary, #161616);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--text-muted, #666);
+}

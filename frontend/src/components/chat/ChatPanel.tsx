@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Wand2, Pencil, Maximize2, Minimize2 } from "lucide-react";
+import { History, Wand2, Pencil, Maximize2, Minimize2, FlaskConical } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -9,6 +9,7 @@ import type {
   LlmPublic,
   ChatSessionKind,
   ContextInfo,
+  SimulationConfig,
 } from "../../types.ts";
 import { ModeSelector } from "./ModeSelector.tsx";
 import { ChatHistory } from "./ChatHistory.tsx";
@@ -110,6 +111,8 @@ interface ChatPanelProps {
   systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
   naviStateId?: string | null;
+  simulationConfig?: SimulationConfig;
+  onOpenSimulationSetup?: () => void;
 }
 
 export function ChatPanel({
@@ -180,6 +183,8 @@ export function ChatPanel({
   systemPromptPreview,
   onFetchContextBlocks,
   naviStateId,
+  simulationConfig,
+  onOpenSimulationSetup,
 }: ChatPanelProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -344,6 +349,16 @@ export function ChatPanel({
           >
             <History size={14} />
           </button>
+          {onOpenSimulationSetup && (
+            <button
+              type="button"
+              className="chat-history-btn"
+              onClick={onOpenSimulationSetup}
+              title="Neue Simulation"
+            >
+              <FlaskConical size={14} />
+            </button>
+          )}
           <NewChatButton onClick={handleNewChatClick} />
         </div>
         <div className="chat-header-title-row">
@@ -438,6 +453,7 @@ export function ChatPanel({
           activeSessionKind={activeSessionKind}
           steeringPlan={steeringPlan}
           onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
+          simulationConfig={simulationConfig}
           onFileChanged={onFileChanged}
           writeFileSettled={writeFileSettled}
           onSettleSnapshots={onSettleSnapshots}

@@ -11,7 +11,9 @@ import type {
   SelectionContext,
   ChatSessionKind,
   ContextInfo,
+  SimulationConfig,
 } from "../../types.ts";
+import { SimulationContextBanner } from "../simulation/SimulationContextBanner.tsx";
 import { glossaryApi } from "../../api.ts";
 import { ChatInput } from "./ChatInput.tsx";
 import { ChatComposerCard } from "./ChatComposerCard.tsx";
@@ -158,6 +160,7 @@ export interface ChatPaneProps {
   activeSessionKind?: ChatSessionKind;
   steeringPlan?: string;
   onMarkSteeringPlanComplete?: () => void;
+  simulationConfig?: SimulationConfig;
 
   onFileChanged?: (path: string) => void;
   /** Persisted settled state for write_file snapshots (from Conversation.writeFileSettled). */
@@ -219,6 +222,7 @@ export function ChatPane({
   activeSessionKind = "standard",
   steeringPlan = "",
   onMarkSteeringPlanComplete,
+  simulationConfig,
   onFileChanged,
   writeFileSettled,
   onSettleSnapshots,
@@ -636,6 +640,10 @@ export function ChatPane({
           theme={theme}
           parentLastMessage={parentLastMessage}
         />
+
+        {simulationConfig && (
+          <SimulationContextBanner simulationConfig={simulationConfig} />
+        )}
 
         {activeSessionKind === "guided" && (
           <SteeringPlanSection
