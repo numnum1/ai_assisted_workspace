@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Search, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { X, Loader2 } from "lucide-react";
 import type { SimulationConfig, SimulationCharacter } from "../../types.ts";
 import { getAppBridge } from "../../electron/bridge.ts";
 import "./SimulationSetupModal.css";
@@ -14,6 +14,12 @@ interface SimulationSetupModalProps {
   onCancel: () => void;
 }
 
+interface BookEntry {
+  structureRoot: string | null;
+  label: string;
+  characters: SimulationCharacter[];
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -22,80 +28,52 @@ function slugify(text: string): string {
     .slice(0, 60);
 }
 
-function nameFromWikiPath(wikiPath: string): string {
-  const base = wikiPath.split("/").pop() ?? wikiPath;
-  return base.replace(/\.md$/, "").replace(/[-_]/g, " ");
-}
-
 export function SimulationSetupModal({
   onConfirm,
   onCancel,
 }: SimulationSetupModalProps) {
-  const [filePath, setFilePath] = useState("");
-  const [loadedChars, setLoadedChars] = useState<SimulationCharacter[]>([]);
+  const [books, setBooks] = useState<BookEntry[]>([]);
+  const [booksLoading, setBooksLoading] = useState(true);
+  const [booksError, setBooksError] = useState<string | null>(null);
+
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const [selectedChars, setSelectedChars] = useState<Set<string>>(new Set());
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fileLoaded, setFileLoaded] = useState(false);
 
   const [goal, setGoal] = useState("");
   const [title, setTitle] = useState("");
 
   const goalRef = useRef<HTMLTextAreaElement>(null);
-  const filePathRef = useRef<HTMLInputElement>(null);
 
+  // Load books on mount
   useEffect(() => {
-    filePathRef.current?.focus();
+    const bridge = getAppBridge();
+    if (!bridge?.simulation?.listBooks) {
+      setBooksError("Simulation-Zugriff nicht verfügbar.");
+      setBooksLoading(false);
+      return;
+    }
+    bridge.simulation
+      .listBooks()
+      .then((entries) => {
+        setBooks(entries);
+        if (entries.length > 0) {
+          setSelectedIdx(0);
+          setSelectedChars(new Set(entries[0].characters.map((c) => c.wikiPath)));
+        }
+      })
+      .catch((err: unknown) => {
+        setBooksError(`Fehler: ${String(err)}`);
+      })
+      .finally(() => setBooksLoading(false));
   }, []);
 
-  const loadFile = useCallback(async () => {
-    const path = filePath.trim();
-    if (!path) return;
-    setLoading(true);
-    setLoadError(null);
-    setFileLoaded(false);
-    setLoadedChars([]);
-    setSelectedChars(new Set());
-    try {
-      const bridge = getAppBridge();
-      if (!bridge?.typedFiles) {
-        setLoadError("Datei-Zugriff nicht verfügbar.");
-        return;
-      }
-      const result = await bridge.typedFiles.getContent(path);
-      const data = result.data as Record<string, unknown>;
-
-      // Support both "Charactere" and "characters" field names
-      const rawChars =
-        (data["Charactere"] as unknown) ??
-        (data["characters"] as unknown) ??
-        (data["Characters"] as unknown);
-
-      if (!Array.isArray(rawChars) || rawChars.length === 0) {
-        setLoadError(
-          'Kein "Charactere"-Feld gefunden oder leer. Stelle sicher, dass die Datei ein "Charactere"-Array mit Wiki-Pfaden enthält.',
-        );
-        setFileLoaded(true);
-        return;
-      }
-
-      const chars: SimulationCharacter[] = (rawChars as unknown[])
-        .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
-        .map((wikiPath) => ({
-          wikiPath: wikiPath.trim(),
-          name: nameFromWikiPath(wikiPath.trim()),
-        }));
-
-      setLoadedChars(chars);
-      setSelectedChars(new Set(chars.map((c) => c.wikiPath)));
-      setFileLoaded(true);
-    } catch (err) {
-      setLoadError(`Fehler beim Laden: ${String(err)}`);
-      setFileLoaded(true);
-    } finally {
-      setLoading(false);
+  // Update selected characters when book selection changes
+  const handleBookChange = (idx: number) => {
+    setSelectedIdx(idx);
+    if (books[idx]) {
+      setSelectedChars(new Set(books[idx].characters.map((c) => c.wikiPath)));
     }
-  }, [filePath]);
+  };
 
   const toggleChar = (wikiPath: string) => {
     setSelectedChars((prev) => {
@@ -106,22 +84,26 @@ export function SimulationSetupModal({
     });
   };
 
+  const selectedBook = books[selectedIdx] ?? null;
+
   const handleConfirm = () => {
     const trimGoal = goal.trim();
     if (!trimGoal) return;
-    const trimPath = filePath.trim();
-    const characters = loadedChars.filter((c) =>
+
+    const characters = (selectedBook?.characters ?? []).filter((c) =>
       selectedChars.has(c.wikiPath),
     );
     const slug = slugify(trimGoal);
     const ts = Date.now().toString(36);
     const resultFile = `${slug}_${ts}`;
-    const labelParts = trimPath.split("/");
-    const baseFileLabel = labelParts[labelParts.length - 1] ?? trimPath;
+
+    const structureRoot = selectedBook?.structureRoot ?? null;
+    const baseFilePath = structureRoot ? `${structureRoot}/.project/book.json` : ".project/book.json";
+    const baseFileLabel = selectedBook?.label ?? "Projekt";
 
     const simulationConfig: SimulationConfig = {
       goal: trimGoal,
-      baseFilePath: trimPath,
+      baseFilePath,
       baseFileLabel,
       characters,
       resultFile,
@@ -167,52 +149,51 @@ export function SimulationSetupModal({
         </div>
 
         <div className="sim-modal-body">
-          {/* Base file */}
-          <label className="sim-modal-label" htmlFor="sim-base-file">
-            Basis-Datei <span className="sim-modal-hint-inline">(relativer Pfad, z.B. chapters/kap-01/szene-01.scene.json)</span>
+          {/* Book selection */}
+          <label className="sim-modal-label" htmlFor="sim-base-book">
+            Buch / Projekt
           </label>
-          <div className="sim-modal-file-row">
-            <input
-              ref={filePathRef}
-              id="sim-base-file"
-              className="sim-modal-input"
-              value={filePath}
-              onChange={(e) => {
-                setFilePath(e.target.value);
-                setFileLoaded(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") loadFile();
-                if (e.key === "Escape") onCancel();
-              }}
-              placeholder="chapters/…/szene.scene.json"
-            />
-            <button
-              type="button"
-              className="sim-modal-load-btn"
-              onClick={loadFile}
-              disabled={!filePath.trim() || loading}
-              title="Charaktere laden"
+          {booksLoading ? (
+            <div className="sim-modal-loading-row">
+              <Loader2 size={14} className="spin" />
+              <span className="sim-modal-hint">Wird geladen…</span>
+            </div>
+          ) : booksError ? (
+            <p className="sim-modal-error">{booksError}</p>
+          ) : books.length === 0 ? (
+            <p className="sim-modal-hint">Kein Projekt gefunden.</p>
+          ) : (
+            <select
+              id="sim-base-book"
+              className="sim-modal-select"
+              value={selectedIdx}
+              onChange={(e) => handleBookChange(Number(e.target.value))}
             >
-              {loading ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
-              Laden
-            </button>
-          </div>
+              {books.map((b, i) => (
+                <option key={i} value={i}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          )}
 
           {/* Characters */}
-          {fileLoaded && (
+          {selectedBook && (
             <div className="sim-modal-chars-section">
-              {loadError ? (
-                <p className="sim-modal-error">{loadError}</p>
-              ) : loadedChars.length === 0 ? (
-                <p className="sim-modal-hint">Keine Charaktere gefunden.</p>
+              {selectedBook.characters.length === 0 ? (
+                <p className="sim-modal-hint">
+                  Keine Charaktere eingetragen. Trage Charaktere im Buch-MetaPanel ein.
+                </p>
               ) : (
                 <>
                   <p className="sim-modal-label">
-                    Charaktere <span className="sim-modal-hint-inline">({loadedChars.length} gefunden)</span>
+                    Charaktere{" "}
+                    <span className="sim-modal-hint-inline">
+                      ({selectedBook.characters.length} gefunden)
+                    </span>
                   </p>
                   <div className="sim-modal-chars-list">
-                    {loadedChars.map((c) => (
+                    {selectedBook.characters.map((c) => (
                       <label key={c.wikiPath} className="sim-modal-char-row">
                         <input
                           type="checkbox"
@@ -248,7 +229,8 @@ export function SimulationSetupModal({
 
           {/* Title */}
           <label className="sim-modal-label" htmlFor="sim-title">
-            Titel des Chats <span className="sim-modal-hint-inline">(optional)</span>
+            Titel des Chats{" "}
+            <span className="sim-modal-hint-inline">(optional)</span>
           </label>
           <input
             id="sim-title"
@@ -262,7 +244,8 @@ export function SimulationSetupModal({
           />
 
           <p className="sim-modal-result-hint">
-            Das Ergebnis wird unter <code>.assistant/simulations/</code> gespeichert.
+            Das Ergebnis wird unter{" "}
+            <code>.assistant/simulations/</code> gespeichert.
           </p>
         </div>
 

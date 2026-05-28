@@ -216,6 +216,7 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("book:updateMeta", meta, structureRoot ?? null),
   },
   typedFiles: {
+    list: () => ipcRenderer.invoke("typedFiles:list"),
     fill: (filePath: string) => ipcRenderer.invoke("typedFiles:fill", filePath),
     getContent: (filePath: string) =>
       ipcRenderer.invoke("typedFiles:getContent", filePath),
@@ -223,6 +224,7 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("typedFiles:saveContent", filePath, data),
   },
   simulation: {
+    listBooks: () => ipcRenderer.invoke("simulation:listBooks"),
     writeResult: (name: string, content: string) =>
       ipcRenderer.invoke("simulation:writeResult", name, content),
     readResult: (name: string) =>

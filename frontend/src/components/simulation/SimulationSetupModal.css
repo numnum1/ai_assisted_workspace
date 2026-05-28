@@ -107,6 +107,30 @@
   border-color: var(--accent);
 }
 
+.sim-modal-select {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.sim-modal-select:focus {
+  border-color: var(--accent);
+}
+
+.sim-modal-loading-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .sim-modal-file-row {
   display: flex;
   gap: 8px;

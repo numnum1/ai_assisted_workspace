@@ -8,5 +8,6 @@ export const buchSchema: MetaTypeSchema = {
     { key: 'synopsis', label: 'Synopsis (für KI)', type: 'largetextarea', placeholder: 'Gesamte Story zusammenfassen...', defaultValue: '' },
 
     { key: 'tone', label: 'Ton', type: 'input', placeholder: 'Ernst, bedrückend, ...', defaultValue: '' },
+    { key: 'Charactere', label: 'Charaktere', type: 'wikiinput', placeholder: 'Charaktere verlinken...', defaultValue: '' },
   ],
 };

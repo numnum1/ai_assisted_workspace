@@ -386,6 +386,7 @@ export interface AppBridge {
     ) => Promise<{ status: string }>;
   };
   typedFiles?: {
+    list: () => Promise<Array<{ relativePath: string; label: string }>>;
     getContent: (path: string) => Promise<TypedFileContentResult>;
     saveContent: (
       path: string,
@@ -394,6 +395,11 @@ export interface AppBridge {
     fill: (path: string) => Promise<TypedFileFillResult>;
   };
   simulation?: {
+    listBooks: () => Promise<Array<{
+      structureRoot: string | null;
+      label: string;
+      characters: Array<{ wikiPath: string; name: string }>;
+    }>>;
     writeResult: (name: string, content: string) => Promise<{ path: string }>;
     readResult: (name: string) => Promise<{ content: string; exists: boolean }>;
     listResults: () => Promise<string[]>;

@@ -202,6 +202,86 @@ export async function saveTypedFileContent(
   };
 }
 
+// Directories never scanned
+const EXCLUDED_DIRS = new Set([".project", ".assistant", "node_modules", ".git", "wiki"]);
+// JSON files that are clearly not typed content files
+const EXCLUDED_FILENAMES = new Set([
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+]);
+
+export interface TypedFileEntry {
+  relativePath: string;
+  label: string;
+}
+
+/** Returns true if the parsed JSON looks like a content file (not a system/config file). */
+function isTypedFile(raw: unknown): boolean {
+  // Must be a non-empty object (not array, not scalar)
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  return Object.keys(raw as object).length > 0;
+}
+
+async function walkForTypedFiles(
+  dir: string,
+  root: string,
+  results: TypedFileEntry[],
+): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    const abs = path.join(dir, name);
+    let stat: Awaited<ReturnType<typeof fs.stat>>;
+    try {
+      stat = await fs.stat(abs);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      if (!EXCLUDED_DIRS.has(name) && !name.startsWith(".")) {
+        await walkForTypedFiles(abs, root, results);
+      }
+    } else if (stat.isFile() && name.endsWith(".json") && !EXCLUDED_FILENAMES.has(name) && !name.startsWith(".")) {
+      const rel = path.relative(root, abs).replace(/\\/g, "/");
+      let label = rel;
+      try {
+        const raw = await readJsonFile(abs);
+        if (!isTypedFile(raw)) continue;
+        const obj = raw as Record<string, unknown>;
+        const data = (obj["data"] as Record<string, unknown>) ?? obj;
+        const title = data["title"] ?? data["Titel"] ?? data["name"];
+        if (typeof title === "string" && title.trim()) {
+          label = `${title.trim()} (${rel})`;
+        }
+      } catch {
+        continue;
+      }
+      results.push({ relativePath: rel, label });
+    }
+  }
+}
+
+export async function listTypedFiles(
+  projectRoot: string | null,
+): Promise<TypedFileEntry[]> {
+  const root = ensureProjectRoot(projectRoot);
+  const results: TypedFileEntry[] = [];
+  await walkForTypedFiles(root, root, results);
+  // Sort: book.json first, then alphabetically
+  results.sort((a, b) => {
+    const aIsBook = a.relativePath === "book.json" ? 0 : 1;
+    const bIsBook = b.relativePath === "book.json" ? 0 : 1;
+    if (aIsBook !== bIsBook) return aIsBook - bIsBook;
+    return a.relativePath.localeCompare(b.relativePath);
+  });
+  return results;
+}
+
 export async function fillTypedFile(
   projectRoot: string | null,
   relativePath: string,
