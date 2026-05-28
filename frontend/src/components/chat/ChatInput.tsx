@@ -272,6 +272,11 @@ export function ChatInput({
     }
   }, [text, onDraftChange, activeSelection]);
 
+  // Focus textarea on mount (triggered by key={conversationId} in ChatPane on thread switch)
+  useEffect(() => {
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
+
   // Register focus trigger so App can focus the textarea on Ctrl+L
   useEffect(() => {
     if (!focusTriggerRef) return;
