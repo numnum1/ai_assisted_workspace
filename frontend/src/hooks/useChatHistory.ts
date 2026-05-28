@@ -457,12 +457,11 @@ export function useChatHistory(currentMode: string, projectPath: string) {
         const target = prev.find((c) => c.id === id);
         if (!target) return prev;
 
-        // Soft-delete for threads: mark as closed so they stay visible in the branch graph
+        // Soft-delete for threads: mark as closed so they stay visible in the branch graph.
+        // Exception: if no user messages were ever sent, hard-delete the thread entirely.
         if (target.isThread) {
-          const next = prev.map((c) =>
-            c.id === id
-              ? { ...c, isClosed: true as const, updatedAt: Date.now() }
-              : c,
+          const hasUserMessages = target.messages.some(
+            (m) => m.role === 'user' && !m.hidden,
           );
           if (activeId === id) {
             const fallback =
@@ -470,7 +469,14 @@ export function useChatHistory(currentMode: string, projectPath: string) {
               prev.find((c) => !c.isThread && !c.isClosed)?.id;
             if (fallback) setActiveId(fallback);
           }
-          return next;
+          if (!hasUserMessages) {
+            return prev.filter((c) => c.id !== id);
+          }
+          return prev.map((c) =>
+            c.id === id
+              ? { ...c, isClosed: true as const, updatedAt: Date.now() }
+              : c,
+          );
         }
 
         // Hard-delete for root conversations (also removes their child threads)
