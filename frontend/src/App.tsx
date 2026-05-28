@@ -688,21 +688,25 @@ function App() {
         const currentParentForSummary = history.conversations.find(
           (c) => c.id === parentId,
         );
-        const summaryText = await chatApi.summarizeThread(
+        const { summary, title: generatedTitle } = await chatApi.summarizeThread(
           chat.messages,
           focusNorm,
           currentParentForSummary?.messages,
         );
         console.trace(
-          `[App] summarizeToParent: received summary, length=${summaryText.length}`,
+          `[App] summarizeToParent: received summary, length=${summary.length}, title="${generatedTitle}"`,
         );
+        // Apply generated title to thread if the LLM returned one
+        if (generatedTitle) {
+          history.renameConversation(history.activeId, generatedTitle);
+        }
         const summaryMessage = {
           role: "assistant" as const,
-          content: summaryText,
+          content: summary,
           kind: "thread-summary" as const,
           threadSummaryMeta: {
             fromThreadId: history.activeId,
-            fromThreadTitle: threadTitle,
+            fromThreadTitle: generatedTitle || threadTitle,
           },
         };
         // Build updated parent messages before the async state update lands
@@ -810,9 +814,14 @@ function App() {
     if (!rootConv) return null;
     const threads = listAllDescendants(history.conversations, rootId);
     if (threads.length === 0) return null;
-    // Compute which threads have already been merged into the parent chat
+    // Compute which threads have already been merged.
+    // Scan the entire tree (root + all descendants) so that merges into
+    // intermediate nodes (threads-of-threads) are also detected.
+    const treeConvIds = new Set([rootId, ...threads.map((t) => t.id)]);
     const mergedThreadIds = new Set(
-      rootConv.messages
+      history.conversations
+        .filter((c) => treeConvIds.has(c.id))
+        .flatMap((c) => c.messages)
         .filter(
           (m) =>
             m.kind === "thread-summary" && m.threadSummaryMeta?.fromThreadId,

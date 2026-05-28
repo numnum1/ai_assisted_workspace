@@ -231,7 +231,7 @@ export interface AppBridge {
       messages: import('../types.ts').ChatMessage[];
       focusInstructions?: string | null;
       parentMessages?: import('../types.ts').ChatMessage[];
-    }) => Promise<string>;
+    }) => Promise<{ summary: string; title: string }>;
     onStreamEvent: (
       streamId: string,
       listener: (event: ChatStreamEvent) => void,

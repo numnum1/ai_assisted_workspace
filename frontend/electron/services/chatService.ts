@@ -1503,12 +1503,17 @@ async function runChatStream(
  * Generates a concise summary of a thread's messages using a (potentially different) LLM.
  * Uses a non-streaming completion request.
  */
+export interface ThreadSummaryResult {
+  summary: string;
+  title: string;
+}
+
 export async function generateThreadSummary(
   threadMessages: ChatMessage[],
   llmId: string | null | undefined,
   focusInstructions?: string | null,
   parentMessages?: ChatMessage[],
-): Promise<string> {
+): Promise<ThreadSummaryResult> {
   const focus =
     typeof focusInstructions === "string" && focusInstructions.trim().length > 0
       ? focusInstructions.trim()
@@ -1544,7 +1549,8 @@ export async function generateThreadSummary(
       "berücksichtige nur diese; lasse alles andere weg, sofern es nicht nötig ist, diese Punkte zu verstehen. "
     : "";
   const systemTail =
-    "Antworte ausschließlich mit dem Ergebnis-Text, ohne Einleitung oder Metakommentar.";
+    'Antworte ausschließlich mit einem JSON-Objekt in exakt diesem Format (kein Markdown, kein Code-Block, kein Kommentar davor oder danach):\n' +
+    '{"title":"<prägnanter Titel für den Thread, max. 6 Wörter>","summary":"<Ergebnis-Text für den Parent-Chat>"}';
 
   const userLead = focus
     ? `Relevante Aspekte laut Nutzer:\n\n${focus}\n\n---\n\n`
@@ -1588,9 +1594,25 @@ export async function generateThreadSummary(
   const json = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
-  const text = json?.choices?.[0]?.message?.content?.trim() ?? "";
+  const raw = json?.choices?.[0]?.message?.content?.trim() ?? "";
+
+  // Strip optional markdown code fence the LLM might add despite instructions
+  const jsonText = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+  let parsed: { title?: unknown; summary?: unknown };
+  try {
+    parsed = JSON.parse(jsonText) as { title?: unknown; summary?: unknown };
+  } catch {
+    // Graceful fallback: treat the whole response as summary, leave title empty
+    console.warn("[chat] generateThreadSummary: failed to parse JSON, falling back", jsonText.slice(0, 200));
+    parsed = { summary: raw, title: "" };
+  }
+
+  const summary = typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+  const title   = typeof parsed.title   === "string" ? parsed.title.trim()   : "";
+
   console.trace(
-    `[chat] generateThreadSummary finished, summary length=${text.length}`,
+    `[chat] generateThreadSummary finished, summary length=${summary.length}, title="${title}"`,
   );
-  return text;
+  return { summary, title };
 }

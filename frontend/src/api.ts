@@ -804,7 +804,7 @@ export const chatApi = {
     messages: ChatMessage[],
     focusInstructions?: string | null,
     parentMessages?: ChatMessage[],
-  ): Promise<string> => {
+  ): Promise<{ summary: string; title: string }> => {
     const focusTrimmed =
       typeof focusInstructions === "string" ? focusInstructions.trim() : "";
     const focusPayload = focusTrimmed.length > 0 ? focusTrimmed : undefined;
@@ -818,7 +818,7 @@ export const chatApi = {
         focusInstructions: focusPayload,
         parentMessages,
       });
-      console.trace(`[api] summarizeThread finished, length=${out.length}`);
+      console.trace(`[api] summarizeThread finished, summaryLength=${out.summary.length}, title="${out.title}"`);
       return out;
     }
     throw new Error(
