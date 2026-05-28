@@ -490,17 +490,26 @@ async function readWikiFile(
   const projectRoot = ensureProjectPath(projectPath);
   const wikiRoot = await getWikiRoot(projectPath);
   const normalized = normalizeText(relativePath).replace(/\\/g, "/");
-  // Resolve relative to project root so that both project-root-relative paths
-  // (e.g. "wiki/gruppen/file.md" from the file tree) and wiki-root-relative
-  // paths (e.g. "gruppen/file.md" when wikiRoot == projectRoot) work correctly.
-  const targetPath = path.resolve(
-    projectRoot,
-    ...normalized.split("/").filter(Boolean),
-  );
+  const segments = normalized.split("/").filter(Boolean);
+
+  // First try resolving relative to project root (handles "wiki/story-arcs/..." paths
+  // from the file tree). If that lands outside the wiki root, fall back to resolving
+  // relative to the wiki root itself (handles "story-arcs/..." paths sent by the AI).
+  let targetPath = path.resolve(projectRoot, ...segments);
+  let relativeToWikiRoot = path.relative(wikiRoot, targetPath);
+
+  if (relativeToWikiRoot.startsWith("..") || path.isAbsolute(relativeToWikiRoot)) {
+    const fromWikiRoot = path.resolve(wikiRoot, ...segments);
+    const relFromWiki = path.relative(wikiRoot, fromWikiRoot);
+    if (!relFromWiki.startsWith("..") && !path.isAbsolute(relFromWiki)) {
+      targetPath = fromWikiRoot;
+      relativeToWikiRoot = relFromWiki;
+    }
+  }
+
   console.debug(
     `[chat] wiki_read: relativePath="${relativePath}" projectRoot="${projectRoot}" wikiRoot="${wikiRoot}" → targetPath="${targetPath}"`,
   );
-  const relativeToWikiRoot = path.relative(wikiRoot, targetPath);
   if (
     relativeToWikiRoot.startsWith("..") ||
     path.isAbsolute(relativeToWikiRoot)
