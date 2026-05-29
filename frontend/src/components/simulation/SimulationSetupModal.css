@@ -131,6 +131,85 @@
   font-size: 12px;
 }
 
+.sim-modal-wip-section {
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  padding: 10px;
+}
+
+.sim-modal-wip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.sim-modal-wip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+}
+
+.sim-modal-wip-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+.sim-modal-wip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+.sim-modal-wip-remove:hover {
+  color: var(--red);
+  background: var(--bg-hover);
+}
+
+.sim-modal-wip-add-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.sim-modal-wip-add-row .sim-modal-input {
+  flex: 1;
+}
+
+.sim-modal-wip-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  padding: 7px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sim-modal-wip-add-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sim-modal-wip-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .sim-modal-file-row {
   display: flex;
   gap: 8px;

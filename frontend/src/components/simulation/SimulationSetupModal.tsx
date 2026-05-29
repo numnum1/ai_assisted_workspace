@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Plus, Trash2 } from "lucide-react";
 import type { SimulationConfig, SimulationCharacter } from "../../types.ts";
 import { getAppBridge } from "../../electron/bridge.ts";
 import "./SimulationSetupModal.css";
@@ -20,6 +20,13 @@ interface BookEntry {
   characters: SimulationCharacter[];
 }
 
+interface WipCharacter {
+  id: number;
+  name: string;
+}
+
+let wipIdCounter = 0;
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -39,10 +46,15 @@ export function SimulationSetupModal({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [selectedChars, setSelectedChars] = useState<Set<string>>(new Set());
 
+  // WIP characters — names only, no wiki path required
+  const [wipChars, setWipChars] = useState<WipCharacter[]>([]);
+  const [wipInput, setWipInput] = useState("");
+
   const [goal, setGoal] = useState("");
   const [title, setTitle] = useState("");
 
   const goalRef = useRef<HTMLTextAreaElement>(null);
+  const wipInputRef = useRef<HTMLInputElement>(null);
 
   // Load books on mount
   useEffect(() => {
@@ -67,7 +79,6 @@ export function SimulationSetupModal({
       .finally(() => setBooksLoading(false));
   }, []);
 
-  // Update selected characters when book selection changes
   const handleBookChange = (idx: number) => {
     setSelectedIdx(idx);
     if (books[idx]) {
@@ -84,21 +95,41 @@ export function SimulationSetupModal({
     });
   };
 
+  const addWipChar = () => {
+    const name = wipInput.trim();
+    if (!name) return;
+    setWipChars((prev) => [...prev, { id: ++wipIdCounter, name }]);
+    setWipInput("");
+    wipInputRef.current?.focus();
+  };
+
+  const removeWipChar = (id: number) => {
+    setWipChars((prev) => prev.filter((c) => c.id !== id));
+  };
+
   const selectedBook = books[selectedIdx] ?? null;
 
   const handleConfirm = () => {
     const trimGoal = goal.trim();
     if (!trimGoal) return;
 
-    const characters = (selectedBook?.characters ?? []).filter((c) =>
+    const confirmedChars = (selectedBook?.characters ?? []).filter((c) =>
       selectedChars.has(c.wikiPath),
     );
+    const wipAsChars: SimulationCharacter[] = wipChars
+      .filter((c) => c.name.trim())
+      .map((c) => ({ name: c.name.trim(), wikiPath: "" }));
+
+    const characters = [...confirmedChars, ...wipAsChars];
+
     const slug = slugify(trimGoal);
     const ts = Date.now().toString(36);
     const resultFile = `${slug}_${ts}`;
 
     const structureRoot = selectedBook?.structureRoot ?? null;
-    const baseFilePath = structureRoot ? `${structureRoot}/.project/book.json` : ".project/book.json";
+    const baseFilePath = structureRoot
+      ? `${structureRoot}/.project/book.json`
+      : ".project/book.json";
     const baseFileLabel = selectedBook?.label ?? "Projekt";
 
     const simulationConfig: SimulationConfig = {
@@ -177,7 +208,7 @@ export function SimulationSetupModal({
             </select>
           )}
 
-          {/* Characters */}
+          {/* Confirmed characters from book meta */}
           {selectedBook && (
             <div className="sim-modal-chars-section">
               {selectedBook.characters.length === 0 ? (
@@ -187,9 +218,9 @@ export function SimulationSetupModal({
               ) : (
                 <>
                   <p className="sim-modal-label">
-                    Charaktere{" "}
+                    Charaktere aus dem Buch{" "}
                     <span className="sim-modal-hint-inline">
-                      ({selectedBook.characters.length} gefunden)
+                      ({selectedBook.characters.length})
                     </span>
                   </p>
                   <div className="sim-modal-chars-list">
@@ -209,6 +240,56 @@ export function SimulationSetupModal({
               )}
             </div>
           )}
+
+          {/* WIP characters */}
+          <div className="sim-modal-wip-section">
+            <p className="sim-modal-label">
+              Unklar / In Bearbeitung{" "}
+              <span className="sim-modal-hint-inline">
+                — Charaktere, die vielleicht vorkommen
+              </span>
+            </p>
+            {wipChars.length > 0 && (
+              <div className="sim-modal-wip-list">
+                {wipChars.map((c) => (
+                  <div key={c.id} className="sim-modal-wip-row">
+                    <span className="sim-modal-wip-tag">?</span>
+                    <span className="sim-modal-char-name">{c.name}</span>
+                    <button
+                      type="button"
+                      className="sim-modal-wip-remove"
+                      onClick={() => removeWipChar(c.id)}
+                      title="Entfernen"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="sim-modal-wip-add-row">
+              <input
+                ref={wipInputRef}
+                className="sim-modal-input"
+                value={wipInput}
+                onChange={(e) => setWipInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); addWipChar(); }
+                  if (e.key === "Escape") onCancel();
+                }}
+                placeholder="Name eines unsicheren Charakters…"
+              />
+              <button
+                type="button"
+                className="sim-modal-wip-add-btn"
+                onClick={addWipChar}
+                disabled={!wipInput.trim()}
+                title="Hinzufügen"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
 
           {/* Goal */}
           <label className="sim-modal-label" htmlFor="sim-goal">

@@ -457,13 +457,22 @@ export function buildSystemPrompt(
       lines.push(`Basis: ${sim.baseFileLabel ?? sim.baseFilePath}`);
     }
     if (sim.characters.length > 0) {
-      const charList = sim.characters
-        .map((c) => `- ${c.name} (${c.wikiPath})`)
-        .join("\n");
-      lines.push(`Charaktere in dieser Umgebung:\n${charList}`);
+      const confirmed = sim.characters.filter((c) => c.wikiPath);
+      const wip = sim.characters.filter((c) => !c.wikiPath);
+      const charLines: string[] = [];
+      if (confirmed.length > 0) {
+        charLines.push("Bestätigte Charaktere:");
+        confirmed.forEach((c) => charLines.push(`- ${c.name} (${c.wikiPath})`));
+      }
+      if (wip.length > 0) {
+        charLines.push("Mögliche / in Bearbeitung:");
+        wip.forEach((c) => charLines.push(`- ${c.name} (noch kein Wiki-Eintrag)`));
+      }
+      lines.push(`Charaktere in dieser Umgebung:\n${charLines.join("\n")}`);
       lines.push(
         "Du kannst diese Charaktere befragen, indem du ihre Perspektive und Motivation aus ihren Wiki-Einträgen ableitest. " +
-        "Nutze wiki_read um den vollständigen Eintrag zu lesen, wenn nötig.",
+        "Nutze wiki_read um den vollständigen Eintrag zu lesen, wenn nötig. " +
+        "Charaktere ohne Wiki-Eintrag sind noch in Entwicklung — behandle sie explorativ.",
       );
     }
     sections.push(lines.join("\n"));
