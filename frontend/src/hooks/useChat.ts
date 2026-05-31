@@ -35,6 +35,7 @@ export interface ChatStreamSessionMeta {
   steeringPlan?: string;
   isThread?: boolean;
   naviStateId?: string | null;
+  naviResults?: Record<string, string>;
   simulationConfig?: SimulationConfig;
 }
 
@@ -56,7 +57,7 @@ export interface UseChatOptions {
     fullText: string,
     meta: { conversationId: string; sessionKind: ChatSessionKind },
   ) => void;
-  onNaviStateTransition?: (stateId: string, conversationId: string) => void;
+  onNaviStateTransition?: (stateId: string, conversationId: string, completedStateId?: string, summary?: string) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -77,6 +78,9 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
     return {
       sessionKind: 'navi',
       naviStateId: meta.naviStateId ?? null,
+      ...(meta.naviResults && Object.keys(meta.naviResults).length > 0
+        ? { naviResults: meta.naviResults }
+        : {}),
       ...simPart,
     };
   }
@@ -185,7 +189,8 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       const naviConversationId = streamSession?.conversationId ?? '';
       const onNaviState =
         streamSession?.sessionKind === 'navi' && onNaviStateTransitionRef.current
-          ? (stateId: string) => onNaviStateTransitionRef.current!(stateId, naviConversationId)
+          ? (stateId: string, completedStateId?: string, summary?: string) =>
+              onNaviStateTransitionRef.current!(stateId, naviConversationId, completedStateId, summary)
           : undefined;
 
       const streamCbs: StreamCallbacks = onNaviState

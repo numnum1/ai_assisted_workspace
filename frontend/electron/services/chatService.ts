@@ -33,6 +33,7 @@ import {
 import {
   getNaviState,
   buildClassificationPrompt,
+  buildStateSummaryPrompt,
 } from "./naviStateMachine.js";
 import { buildNaviKnowledgePrompt } from "./naviKnowledgeBase.js";
 import { getProjectConfig } from "./projectConfigService.js";
@@ -63,7 +64,7 @@ export type ChatStreamEvent =
   | { type: "context_update"; data: { estimatedTokens: number } }
   | { type: "done"; data: { fullAssistantText: string } }
   | { type: "error"; data: { message: string } }
-  | { type: "navi_state"; data: { stateId: string } };
+  | { type: "navi_state"; data: { stateId: string; completedStateId?: string; summary?: string } };
 
 export interface ChatStreamStartResult {
   streamId: string;
@@ -905,6 +906,7 @@ async function runNaviChatStream(
         currentStateId,
         userMessage,
         currentState.transitions,
+        currentState.workPlan,
       );
 
       try {
@@ -949,7 +951,69 @@ async function runNaviChatStream(
     }
 
     if (!isStreamActive(streamId)) return;
-    emit({ type: "navi_state", data: { stateId: newStateId } });
+
+    // Call 2 (only on state transition): extract a compact summary of the completed state.
+    // This summary is stored in naviResults and injected as context in subsequent states.
+    let stateSummary: string | undefined;
+    if (newStateId !== currentStateId && currentState.workPlan.length > 0) {
+      try {
+        const history = Array.isArray(request.history) ? request.history : [];
+        const excerptLines: string[] = [];
+        for (const msg of history) {
+          if (msg.hidden) continue;
+          const content = normalizeText(typeof msg.content === "string" ? msg.content : "");
+          if (!content) continue;
+          if (msg.role === "assistant") excerptLines.push(`Navi: ${content}`);
+          else if (msg.role === "user") excerptLines.push(`Händler: ${content}`);
+        }
+        if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
+        const excerpt = excerptLines.slice(-20).join("\n"); // last 20 lines is enough context
+
+        const summaryPrompt = buildStateSummaryPrompt(
+          currentStateId,
+          currentState.workPlan,
+          excerpt,
+        );
+        const summaryResponse = await fetch(
+          ensureChatCompletionsUrl(endpoint.apiUrl),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${endpoint.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: endpoint.model,
+              stream: false,
+              max_tokens: 200,
+              temperature: 0.1,
+              messages: [{ role: "user", content: summaryPrompt }],
+            }),
+          },
+        );
+        if (summaryResponse.ok) {
+          const summaryJson = (await summaryResponse.json()) as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          stateSummary = normalizeText(
+            summaryJson?.choices?.[0]?.message?.content ?? "",
+          ) || undefined;
+        }
+      } catch {
+        // Summary extraction failed — non-fatal, continue without it
+      }
+    }
+
+    emit({
+      type: "navi_state",
+      data: {
+        stateId: newStateId,
+        ...(newStateId !== currentStateId
+          ? { completedStateId: currentStateId }
+          : {}),
+        ...(stateSummary ? { summary: stateSummary } : {}),
+      },
+    });
 
     const newState = getNaviState(newStateId) ?? currentState;
 
@@ -966,6 +1030,17 @@ async function runNaviChatStream(
 
     const knowledgePrompt = buildNaviKnowledgePrompt(newStateId);
 
+    // Build context block from accumulated state summaries (from previous states).
+    const naviResults = request.naviResults ?? {};
+    const resultEntries = Object.entries(naviResults).filter(([, v]) => v?.trim());
+    const naviResultsContext =
+      resultEntries.length > 0
+        ? [
+            "Bisher herausgefundene Fakten aus früheren Gesprächsphasen:",
+            ...resultEntries.map(([stateId, summary]) => `[${stateId}]\n${summary}`),
+          ].join("\n\n")
+        : "";
+
     const naviSystemPrompt = [
       "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler.",
       "Deine Nutzer sind Händler – meist ohne KI-Vorkenntnisse. Sprich auf Augenhöhe, kein Fachjargon.",
@@ -974,6 +1049,7 @@ async function runNaviChatStream(
       "Maximal eine Frage pro Antwort.",
       "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
       "\"Hier hilft KI aktuell nicht\" ist eine vollwertige und wertvolle Antwort.",
+      ...(naviResultsContext ? [naviResultsContext] : []),
       `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
       ...(knowledgePrompt ? [knowledgePrompt] : []),
     ].join("\n\n");

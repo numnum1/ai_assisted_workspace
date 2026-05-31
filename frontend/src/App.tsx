@@ -513,8 +513,13 @@ function App() {
 
   const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages, {
-    onNaviStateTransition: (stateId, conversationId) => {
-      history.patchConversation(conversationId, { naviStateId: stateId });
+    onNaviStateTransition: (stateId, conversationId, completedStateId, summary) => {
+      const patch: Partial<import("./types.ts").Conversation> = { naviStateId: stateId };
+      if (completedStateId && summary) {
+        const conv = history.conversations.find((c) => c.id === conversationId);
+        patch.naviResults = { ...(conv?.naviResults ?? {}), [completedStateId]: summary };
+      }
+      history.patchConversation(conversationId, patch);
     },
     onAssistantResponseComplete: (fullText, meta) => {
       // Simulation auto-runner: after Navi finished a turn in a simulation,
@@ -1855,6 +1860,7 @@ function App() {
         conversationId: conv.id,
         sessionKind: "navi",
         naviStateId: conv.naviStateId ?? "greeting",
+        naviResults: conv.naviResults,
       },
       { userHidden: true, rulesDisabled: !rulesEnabled },
     );
@@ -1934,6 +1940,7 @@ function App() {
             conversationId: conv.id,
             sessionKind: "navi",
             naviStateId: conv.naviStateId ?? "greeting",
+            naviResults: conv.naviResults,
             simulationConfig: sim,
           },
           { rulesDisabled: !rulesEnabled },

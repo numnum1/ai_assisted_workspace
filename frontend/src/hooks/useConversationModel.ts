@@ -197,6 +197,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         steeringPlan: c?.steeringPlan,
         isThread: c?.isThread ?? false,
         naviStateId: c?.naviStateId ?? null,
+        ...(c?.naviResults ? { naviResults: c.naviResults } : {}),
         ...(c?.simulationConfig ? { simulationConfig: c.simulationConfig } : {}),
       };
       chat.sendMessage(

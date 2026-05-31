@@ -23,7 +23,7 @@ export type StreamCallbacks = {
   setContextInfo: Dispatch<SetStateAction<ContextInfo | null>>;
   currentBaseRef: MutableRefObject<ChatMessage[]>;
   turnId?: string;
-  onNaviState?: (stateId: string) => void;
+  onNaviState?: (stateId: string, completedStateId?: string, summary?: string) => void;
 };
 
 function assistantMessage(

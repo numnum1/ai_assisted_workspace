@@ -24,46 +24,54 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
   {
     id: "clarify_problem",
     label: "Problem klären",
-    description: "Navi fragt nach bisherigen Maßnahmen.",
-    transitions: [{ to: "assess_situation", label: "Maßnahmen beschrieben" }],
-  },
-  {
-    id: "assess_situation",
-    label: "Situation einschätzen",
-    description: "Navi bewertet, ob Software sinnvoll helfen kann.",
+    description: "Navi fragt gezielt nach, bis Problem, Ausmaß, bisheriger Umgang und Ziel bekannt sind.",
     transitions: [
-      { to: "explore_software_stack", label: "Interesse bestätigt" },
-      { to: "closing", label: "Kein Bedarf" },
+      { to: "explore_software_stack", label: "Arbeitsplan vollständig" },
+      { to: "ask_problem", label: "Missverständnis – neues Problem" },
     ],
   },
   {
     id: "explore_software_stack",
     label: "Software-Stack",
-    description: "Navi erfragt genutzte Tools und Abläufe.",
-    transitions: [{ to: "give_recommendation", label: "Stack beschrieben" }],
+    description: "Navi erfragt genutzte Tools und Abläufe für den relevanten Bereich.",
+    transitions: [
+      { to: "assess_situation", label: "Stack bekannt" },
+      { to: "clarify_problem", label: "Neuer Problem-Aspekt aufgetaucht" },
+    ],
+  },
+  {
+    id: "assess_situation",
+    label: "Situation einschätzen",
+    description: "Navi bewertet ehrlich, ob KI hier sinnvoll helfen kann.",
+    transitions: [
+      { to: "give_recommendation", label: "Händler möchte Vorschlag" },
+      { to: "explore_software_stack", label: "Stack-Info unvollständig" },
+      { to: "closing", label: "Kein Bedarf" },
+    ],
   },
   {
     id: "give_recommendation",
     label: "Empfehlung",
-    description: "Navi macht einen konkreten Lösungsvorschlag.",
+    description: "Navi macht einen konkreten, realistischen Lösungsvorschlag.",
     transitions: [
+      { to: "refine_recommendation", label: "Einwände / Fragen" },
       { to: "closing", label: "Zufrieden" },
-      { to: "refine_recommendation", label: "Einwände" },
     ],
   },
   {
     id: "refine_recommendation",
     label: "Anpassen",
-    description: "Navi passt den Vorschlag basierend auf Feedback an.",
+    description: "Navi passt den Vorschlag an oder bietet eine Alternative.",
     transitions: [
-      { to: "closing", label: "Zufrieden" },
       { to: "refine_recommendation", label: "Weitere Einwände" },
+      { to: "give_recommendation", label: "Komplett neuer Ansatz nötig" },
+      { to: "closing", label: "Zufrieden" },
     ],
   },
   {
     id: "closing",
     label: "Abschluss",
-    description: "Navi fasst zusammen und fragt, ob das alles war (beendet nie von selbst).",
+    description: "Navi fasst zusammen und wartet – der Händler entscheidet wann Schluss ist.",
     transitions: [{ to: "clarify_problem", label: "Weiteres Anliegen" }],
   },
 ];

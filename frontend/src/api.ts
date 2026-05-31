@@ -895,7 +895,7 @@ export function streamChat(
   onContextUpdate?: (estimatedTokens: number) => void,
   onToolHistory?: (messages: import("./types.ts").ChatMessage[]) => void,
   onResolvedUserMessage?: (content: string) => void,
-  onNaviState?: (stateId: string) => void,
+  onNaviState?: (stateId: string, completedStateId?: string, summary?: string) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -953,7 +953,11 @@ export function streamChat(
       } else if (chatEvent.type === "context_update") {
         onContextUpdate?.(chatEvent.payload.estimatedTokens);
       } else if (chatEvent.type === "navi_state") {
-        onNaviState?.(chatEvent.payload.stateId);
+        onNaviState?.(
+          chatEvent.payload.stateId,
+          chatEvent.payload.completedStateId,
+          chatEvent.payload.summary,
+        );
       } else if (chatEvent.type === "token") {
         tokenCount++;
         const unescaped = decodeElectronStreamData(chatEvent.payload);

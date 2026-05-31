@@ -164,6 +164,12 @@ export interface ChatRequest {
   rulesDisabled?: boolean;
   /** Current state id for navi sessions; sent each request. */
   naviStateId?: string | null;
+  /**
+   * Accumulated compact summaries from completed navi states.
+   * Key = state id (e.g. "clarify_problem"), value = 2–5 bullet summary of what was learned.
+   * Injected as context into subsequent state prompts so Navi doesn't lose earlier findings.
+   */
+  naviResults?: Record<string, string>;
   /** When set, injects simulation context (goal + cast) into the system prompt. */
   simulationConfig?: SimulationConfig;
 }
@@ -238,6 +244,11 @@ export interface Conversation {
   writeFileSettled?: Record<string, 'applied' | 'reverted'>;
   /** Current navi state id; persisted for navi sessions and sent with each request. */
   naviStateId?: string | null;
+  /**
+   * Accumulated compact summaries from completed navi states (persisted per conversation).
+   * Key = state id, value = short summary of what was learned in that state.
+   */
+  naviResults?: Record<string, string>;
   /** When set, this conversation is a simulation session with a goal and cast. */
   simulationConfig?: SimulationConfig;
 }
