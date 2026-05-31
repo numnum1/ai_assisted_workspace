@@ -63,8 +63,8 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
   {
     id: "closing",
     label: "Abschluss",
-    description: "Navi fasst zusammen und verabschiedet sich.",
-    transitions: [],
+    description: "Navi fasst zusammen und fragt, ob das alles war (beendet nie von selbst).",
+    transitions: [{ to: "clarify_problem", label: "Weiteres Anliegen" }],
   },
 ];
 

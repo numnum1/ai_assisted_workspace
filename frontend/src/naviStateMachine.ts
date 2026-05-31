@@ -107,9 +107,14 @@ Wenn nichts Passendes existiert, sag das klar – das ist hilfreicher als ein ha
   },
   {
     id: "closing",
-    instruction: `Fasse in 2–3 Sätzen zusammen, was besprochen wurde.
-Nenne den nächsten sinnvollen Schritt für den Händler – konkret und umsetzbar.
-Verabschiede dich freundlich.`,
-    transitions: [],
+    instruction: `Fasse in 1–2 Sätzen zusammen, was besprochen wurde, und nenne den nächsten sinnvollen Schritt für den Händler – konkret und umsetzbar.
+Frage danach freundlich, ob das alles war oder ob du noch bei etwas anderem helfen kannst.
+WICHTIG: Beende das Gespräch niemals von dir aus und verabschiede dich nicht. Warte immer auf die Antwort des Händlers – er entscheidet, wann Schluss ist.`,
+    transitions: [
+      {
+        condition: "Nutzer nennt ein weiteres Problem, einen Wunsch oder eine neue Frage",
+        to: "clarify_problem",
+      },
+    ],
   },
 ];
