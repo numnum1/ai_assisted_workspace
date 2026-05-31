@@ -1,0 +1,34 @@
+export interface NaviUseCase {
+  name: string;
+  /** One sentence: what kind of problem this use case addresses. Used for matching. */
+  description: string;
+  categories: string[];
+}
+
+export const NAVI_USE_CASES: NaviUseCase[] = [
+  {
+    name: "Increase Online Visibility",
+    description: "Händler wird online kaum gefunden – bei Google, lokaler Suche oder Social Media.",
+    categories: ["seo", "social_media", "local_listings"],
+  },
+  {
+    name: "Automate FAQ & Customer Support",
+    description: "Viele wiederkehrende Standardfragen zu Öffnungszeiten, Produkten, Preisen oder Rückgaben.",
+    categories: ["chatbot", "knowledge_base"],
+  },
+  {
+    name: "Streamline Customer Communication",
+    description: "Aufwändige manuelle Kommunikation mit Kunden per E-Mail oder Messaging.",
+    categories: ["email_automation", "messaging"],
+  },
+  {
+    name: "Simplify Bookkeeping",
+    description: "Buchhaltung, Belege oder Rechnungen kosten unverhältnismäßig viel Zeit.",
+    categories: ["accounting", "document_processing"],
+  },
+  {
+    name: "Manage Inventory & Orders",
+    description: "Bestandsverwaltung, Nachbestellungen oder Lieferantenabstimmung laufen manuell und fehleranfällig.",
+    categories: ["inventory_management", "ordering"],
+  },
+];

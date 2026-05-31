@@ -34,6 +34,7 @@ import {
   getNaviState,
   buildClassificationPrompt,
 } from "./naviStateMachine.js";
+import { buildNaviKnowledgePrompt } from "./naviKnowledgeBase.js";
 import { getProjectConfig } from "./projectConfigService.js";
 
 export type { ContextBlock };
@@ -963,6 +964,8 @@ async function runNaviChatStream(
       // Config read failure: silently fall back to default instruction
     }
 
+    const knowledgePrompt = buildNaviKnowledgePrompt(newStateId);
+
     const naviSystemPrompt = [
       "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler.",
       "Deine Nutzer sind Händler – meist ohne KI-Vorkenntnisse. Sprich auf Augenhöhe, kein Fachjargon.",
@@ -972,7 +975,8 @@ async function runNaviChatStream(
       "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
       "\"Hier hilft KI aktuell nicht\" ist eine vollwertige und wertvolle Antwort.",
       `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
-    ].join("\n");
+      ...(knowledgePrompt ? [knowledgePrompt] : []),
+    ].join("\n\n");
 
     const conversationMessages: OpenAiMessage[] = [
       { role: "system", content: naviSystemPrompt },

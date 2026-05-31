@@ -1,0 +1,13 @@
+[
+  { "name": "RankHelfer",     "category": "seo",                 "beschreibung": "SEO-Vorschläge und Keyword-Optimierung für Produktseiten." },
+  { "name": "PostPilot",      "category": "social_media",        "beschreibung": "Generiert Social-Media-Posts aus Produktfotos oder Stichworten." },
+  { "name": "SichtbarLokal",  "category": "local_listings",      "beschreibung": "Pflegt Google-Business-Einträge und Öffnungszeiten automatisch." },
+  { "name": "FAQ-Bot Alpha",  "category": "chatbot",             "beschreibung": "Beantwortet Standardfragen auf der Website rund um die Uhr." },
+  { "name": "WissensHub",     "category": "knowledge_base",      "beschreibung": "Strukturiert Produktwissen und macht es für Chatbots abrufbar." },
+  { "name": "MailPilot",      "category": "email_automation",    "beschreibung": "Automatisiert wiederkehrende E-Mails wie Bestellbestätigungen." },
+  { "name": "ChatConnect",    "category": "messaging",           "beschreibung": "Verbindet WhatsApp/Instagram-DMs mit automatischen Antwortvorlagen." },
+  { "name": "BuchhalterKI",   "category": "accounting",          "beschreibung": "Kategorisiert Ausgaben und bereitet den Steuerberater-Export vor." },
+  { "name": "BelegScanner",   "category": "document_processing", "beschreibung": "Scannt Papierbelege und überträgt sie digital ins System." },
+  { "name": "LagerCheck",     "category": "inventory_management","beschreibung": "Meldet Engpässe und schlägt Nachbestellmengen vor." },
+  { "name": "BestellBot",     "category": "ordering",            "beschreibung": "Erstellt Bestellvorschläge und sendet sie an Lieferanten." }
+]
