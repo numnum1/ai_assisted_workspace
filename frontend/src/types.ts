@@ -9,6 +9,16 @@ export interface SimulationCharacter {
   name: string;
 }
 
+/** A reusable simulated-user persona stored in `.assistant/personas/<id>.md`. */
+export interface Persona {
+  /** Slug derived from the name; matches the markdown filename. */
+  id: string;
+  /** Display name, e.g. "Technikscheuer Bäcker". */
+  name: string;
+  /** Full description fed to the simulated user (shop, tech level, budget, pain points). */
+  description: string;
+}
+
 /** Configuration for a simulation session (goal + cast derived from a base file). */
 export interface SimulationConfig {
   /** The "dramatische Leitfrage": what the user wants to work out. */
@@ -21,6 +31,12 @@ export interface SimulationConfig {
   characters: SimulationCharacter[];
   /** Result file name slug (maps to `.assistant/simulations/<resultFile>.md`). */
   resultFile: string;
+  /** Id of the selected persona library entry, if any. */
+  personaId?: string;
+  /** Display name of the selected persona. */
+  personaName?: string;
+  /** Full persona description driving the simulated user (overrides goal for the merchant). */
+  personaPrompt?: string;
 }
 
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */

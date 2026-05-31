@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Loader2, Plus, Trash2 } from "lucide-react";
-import type { SimulationConfig, SimulationCharacter } from "../../types.ts";
+import { X, Loader2, Plus, Trash2, UserPlus, Save } from "lucide-react";
+import type {
+  SimulationConfig,
+  SimulationCharacter,
+  Persona,
+} from "../../types.ts";
 import { getAppBridge } from "../../electron/bridge.ts";
 import "./SimulationSetupModal.css";
 
@@ -53,6 +57,15 @@ export function SimulationSetupModal({
   const [goal, setGoal] = useState("");
   const [title, setTitle] = useState("");
 
+  // Persona library
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [personasLoading, setPersonasLoading] = useState(true);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>("");
+  const [creatingPersona, setCreatingPersona] = useState(false);
+  const [newPersonaName, setNewPersonaName] = useState("");
+  const [newPersonaDesc, setNewPersonaDesc] = useState("");
+  const [savingPersona, setSavingPersona] = useState(false);
+
   const goalRef = useRef<HTMLTextAreaElement>(null);
   const wipInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,6 +91,49 @@ export function SimulationSetupModal({
       })
       .finally(() => setBooksLoading(false));
   }, []);
+
+  // Load personas on mount
+  useEffect(() => {
+    const bridge = getAppBridge();
+    if (!bridge?.persona?.list) {
+      setPersonasLoading(false);
+      return;
+    }
+    bridge.persona
+      .list()
+      .then((list) => setPersonas(list))
+      .catch(() => {})
+      .finally(() => setPersonasLoading(false));
+  }, []);
+
+  const selectedPersona =
+    personas.find((p) => p.id === selectedPersonaId) ?? null;
+
+  const handleSavePersona = async () => {
+    const name = newPersonaName.trim();
+    const desc = newPersonaDesc.trim();
+    if (!name || !desc) return;
+    const bridge = getAppBridge();
+    if (!bridge?.persona?.write) return;
+    setSavingPersona(true);
+    try {
+      const { persona } = await bridge.persona.write(name, desc);
+      setPersonas((prev) => {
+        const without = prev.filter((p) => p.id !== persona.id);
+        return [...without, persona].sort((a, b) =>
+          a.name.localeCompare(b.name, "de"),
+        );
+      });
+      setSelectedPersonaId(persona.id);
+      setCreatingPersona(false);
+      setNewPersonaName("");
+      setNewPersonaDesc("");
+    } catch {
+      /* ignore */
+    } finally {
+      setSavingPersona(false);
+    }
+  };
 
   const handleBookChange = (idx: number) => {
     setSelectedIdx(idx);
@@ -111,7 +167,8 @@ export function SimulationSetupModal({
 
   const handleConfirm = () => {
     const trimGoal = goal.trim();
-    if (!trimGoal) return;
+    // A persona alone is enough; otherwise a goal is required.
+    if (!trimGoal && !selectedPersona) return;
 
     const confirmedChars = (selectedBook?.characters ?? []).filter((c) =>
       selectedChars.has(c.wikiPath),
@@ -122,7 +179,9 @@ export function SimulationSetupModal({
 
     const characters = [...confirmedChars, ...wipAsChars];
 
-    const slug = slugify(trimGoal);
+    // Slug/title fall back to the persona name when no explicit goal is given.
+    const slugSource = trimGoal || selectedPersona?.name || "simulation";
+    const slug = slugify(slugSource);
     const ts = Date.now().toString(36);
     const resultFile = `${slug}_${ts}`;
 
@@ -138,9 +197,20 @@ export function SimulationSetupModal({
       baseFileLabel,
       characters,
       resultFile,
+      ...(selectedPersona
+        ? {
+            personaId: selectedPersona.id,
+            personaName: selectedPersona.name,
+            personaPrompt: selectedPersona.description,
+          }
+        : {}),
     };
+
+    const defaultTitle = selectedPersona
+      ? `Simulation: ${selectedPersona.name}`
+      : `Simulation: ${trimGoal.slice(0, 50)}`;
     onConfirm({
-      title: title.trim() || `Simulation: ${trimGoal.slice(0, 50)}`,
+      title: title.trim() || defaultTitle,
       simulationConfig,
     });
   };
@@ -149,7 +219,7 @@ export function SimulationSetupModal({
     if (e.key === "Escape") onCancel();
   };
 
-  const canConfirm = goal.trim().length > 0;
+  const canConfirm = goal.trim().length > 0 || selectedPersona !== null;
 
   return (
     <div
@@ -180,6 +250,96 @@ export function SimulationSetupModal({
         </div>
 
         <div className="sim-modal-body">
+          {/* Persona library */}
+          <label className="sim-modal-label" htmlFor="sim-persona">
+            Persona{" "}
+            <span className="sim-modal-hint-inline">
+              — wen soll die KI als Nutzer spielen?
+            </span>
+          </label>
+          {personasLoading ? (
+            <div className="sim-modal-loading-row">
+              <Loader2 size={14} className="spin" />
+              <span className="sim-modal-hint">Wird geladen…</span>
+            </div>
+          ) : (
+            <>
+              <div className="sim-modal-persona-row">
+                <select
+                  id="sim-persona"
+                  className="sim-modal-select"
+                  value={selectedPersonaId}
+                  onChange={(e) => setSelectedPersonaId(e.target.value)}
+                >
+                  <option value="">— keine Persona —</option>
+                  {personas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="sim-modal-wip-add-btn"
+                  onClick={() => setCreatingPersona((v) => !v)}
+                  title="Neue Persona anlegen"
+                >
+                  <UserPlus size={14} />
+                </button>
+              </div>
+
+              {selectedPersona && !creatingPersona && (
+                <p className="sim-modal-persona-preview">
+                  {selectedPersona.description}
+                </p>
+              )}
+
+              {creatingPersona && (
+                <div className="sim-modal-persona-form">
+                  <input
+                    className="sim-modal-input"
+                    value={newPersonaName}
+                    onChange={(e) => setNewPersonaName(e.target.value)}
+                    placeholder="Name, z.B. »Technikscheuer Bäcker«"
+                  />
+                  <textarea
+                    className="sim-modal-textarea"
+                    value={newPersonaDesc}
+                    onChange={(e) => setNewPersonaDesc(e.target.value)}
+                    placeholder="Beschreibung: Laden, Technik-Affinität, Budget, Probleme … z.B. »Bäckerei in Köln, 55 Jahre, nutzt nur Excel und Papier, verliert den Überblick bei Bestellungen, kleines Budget, skeptisch gegenüber Software.«"
+                    rows={4}
+                  />
+                  <div className="sim-modal-persona-form-actions">
+                    <button
+                      type="button"
+                      className="sim-modal-btn-secondary"
+                      onClick={() => setCreatingPersona(false)}
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      type="button"
+                      className="sim-modal-btn-primary"
+                      onClick={handleSavePersona}
+                      disabled={
+                        !newPersonaName.trim() ||
+                        !newPersonaDesc.trim() ||
+                        savingPersona
+                      }
+                    >
+                      {savingPersona ? (
+                        <Loader2 size={13} className="spin" />
+                      ) : (
+                        <Save size={13} />
+                      )}
+                      Persona speichern
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Book selection */}
           <label className="sim-modal-label" htmlFor="sim-base-book">
             Buch / Projekt
@@ -293,7 +453,14 @@ export function SimulationSetupModal({
 
           {/* Goal */}
           <label className="sim-modal-label" htmlFor="sim-goal">
-            Ziel <span className="sim-modal-required">*</span>
+            Ziel{" "}
+            {selectedPersona ? (
+              <span className="sim-modal-hint-inline">
+                (optional — Testfokus für diesen Lauf)
+              </span>
+            ) : (
+              <span className="sim-modal-required">*</span>
+            )}
           </label>
           <textarea
             ref={goalRef}
@@ -304,7 +471,11 @@ export function SimulationSetupModal({
             onKeyDown={(e) => {
               if (e.key === "Escape") onCancel();
             }}
-            placeholder="Was möchtest du in dieser Sitzung herausarbeiten? z.B. »Den Charakter-Arc zwischen A und B ausarbeiten«"
+            placeholder={
+              selectedPersona
+                ? "Optional: worauf willst du in diesem Lauf besonders achten?"
+                : "Was möchtest du in dieser Sitzung herausarbeiten? z.B. »Den Charakter-Arc zwischen A und B ausarbeiten«"
+            }
             rows={3}
           />
 

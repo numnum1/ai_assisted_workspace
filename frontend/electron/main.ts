@@ -79,6 +79,12 @@ import {
   listSimulationResults,
   listSimulationBooks,
 } from "./services/simulationService.js";
+import {
+  listPersonas,
+  readPersona,
+  writePersona,
+  deletePersona,
+} from "./services/personaService.js";
 import { searchProjectContent } from "./services/searchService.js";
 import { indexProject, getIndexStatus } from "./services/vectorService.js";
 import { listProviders, resolveEmbeddingCredentials } from "./services/aiProviderService.js";
@@ -593,6 +599,15 @@ function registerIpcHandlers(): void {
     (_event, req: SimulatedUserReplyRequest) =>
       generateSimulatedUserReply(req),
   );
+
+  ipcMain.handle("persona:list", () => listPersonas());
+  ipcMain.handle("persona:read", (_event, id: string) => readPersona(id));
+  ipcMain.handle(
+    "persona:write",
+    (_event, name: string, description: string) =>
+      writePersona(name, description),
+  );
+  ipcMain.handle("persona:delete", (_event, id: string) => deletePersona(id));
 
   ipcMain.handle("typedFiles:list", () =>
     listTypedFiles(getCurrentProjectPath()),

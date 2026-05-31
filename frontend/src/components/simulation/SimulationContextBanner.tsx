@@ -9,15 +9,23 @@ interface SimulationContextBannerProps {
 export function SimulationContextBanner({
   simulationConfig,
 }: SimulationContextBannerProps) {
-  const { goal, baseFileLabel, baseFilePath, characters, resultFile } =
+  const { goal, baseFileLabel, baseFilePath, characters, resultFile, personaName } =
     simulationConfig;
 
   return (
     <div className="sim-banner">
-      <div className="sim-banner-row">
-        <Target size={13} className="sim-banner-icon" />
-        <span className="sim-banner-goal">{goal}</span>
-      </div>
+      {personaName && (
+        <div className="sim-banner-row">
+          <Users size={13} className="sim-banner-icon" />
+          <span className="sim-banner-goal">Persona: {personaName}</span>
+        </div>
+      )}
+      {goal && (
+        <div className="sim-banner-row">
+          <Target size={13} className="sim-banner-icon" />
+          <span className="sim-banner-goal">{goal}</span>
+        </div>
+      )}
 
       {characters.length > 0 && (
         <div className="sim-banner-row">

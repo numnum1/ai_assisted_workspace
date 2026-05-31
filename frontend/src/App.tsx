@@ -1903,9 +1903,13 @@ function App() {
           disabledToolkits,
         });
 
+        // The persona description (if any) drives the simulated user; goal is a fallback.
+        const personaText = sim.personaPrompt?.trim() || sim.goal;
         const result = await bridge?.simulation?.generateUserReply?.({
-          goal: sim.goal,
-          characterNames: sim.characters.map((c) => c.name),
+          goal: personaText,
+          characterNames: sim.personaName
+            ? [sim.personaName]
+            : sim.characters.map((c) => c.name),
           transcript,
           llmId: exec.llmId,
         });
@@ -1974,7 +1978,8 @@ function App() {
     const body = [
       `# ${conv.title ?? "Simulation"}`,
       ``,
-      `**Ziel:** ${sim.goal}`,
+      sim.personaName ? `**Persona:** ${sim.personaName}` : undefined,
+      sim.goal ? `**Ziel:** ${sim.goal}` : undefined,
       sim.characters.length > 0
         ? `**Charaktere:** ${sim.characters.map((c) => c.name).join(", ")}`
         : undefined,
@@ -2191,11 +2196,16 @@ function App() {
         const header = [
           `# ${title}`,
           ``,
-          `**Ziel:** ${simulationConfig.goal}`,
+          simulationConfig.personaName
+            ? `**Persona:** ${simulationConfig.personaName}`
+            : undefined,
+          simulationConfig.goal
+            ? `**Ziel:** ${simulationConfig.goal}`
+            : undefined,
           ``,
           simulationConfig.characters.length > 0
             ? `**Charaktere:** ${simulationConfig.characters.map((c) => c.name).join(", ")}`
-            : "",
+            : undefined,
           ``,
           `---`,
           ``,

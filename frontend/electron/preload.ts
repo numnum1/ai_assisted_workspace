@@ -233,6 +233,13 @@ contextBridge.exposeInMainWorld("appBridge", {
     generateUserReply: (req: unknown) =>
       ipcRenderer.invoke("simulation:generateUserReply", req),
   },
+  persona: {
+    list: () => ipcRenderer.invoke("persona:list"),
+    read: (id: string) => ipcRenderer.invoke("persona:read", id),
+    write: (name: string, description: string) =>
+      ipcRenderer.invoke("persona:write", name, description),
+    delete: (id: string) => ipcRenderer.invoke("persona:delete", id),
+  },
   snapshots: {
     get: (id: string) => ipcRenderer.invoke("snapshots:get", id),
     apply: (id: string) => ipcRenderer.invoke("snapshots:apply", id),

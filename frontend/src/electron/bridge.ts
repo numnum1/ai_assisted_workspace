@@ -14,6 +14,7 @@ import type {
   LlmPublic,
   Mode,
   NodeMeta,
+  Persona,
   ProjectConfig,
   SceneNode,
   WorkspaceModeInfo,
@@ -409,6 +410,12 @@ export interface AppBridge {
       transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
       llmId?: string | null;
     }) => Promise<{ reply: string }>;
+  };
+  persona?: {
+    list: () => Promise<Persona[]>;
+    read: (id: string) => Promise<{ persona: Persona | null }>;
+    write: (name: string, description: string) => Promise<{ persona: Persona }>;
+    delete: (id: string) => Promise<{ deleted: boolean }>;
   };
   preferences?: {
     get: () => Promise<AppPreferences>;
