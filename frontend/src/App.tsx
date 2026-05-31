@@ -2010,8 +2010,9 @@ function App() {
     async (result: SimulationSetupResult) => {
       setSimulationSetupOpen(false);
       const { title, simulationConfig } = result;
-      const newConv = history.createConversation(selectedMode, undefined, title, "standard");
-      history.patchConversation(newConv.id, { simulationConfig });
+      const newConv = history.createConversation(selectedMode, undefined, title, "navi");
+      history.patchConversation(newConv.id, { simulationConfig, naviStateId: "greeting" });
+      scheduleNaviGreetingKickoff(newConv.id);
       // Create the result file with a template header
       const bridge = getAppBridge();
       if (bridge?.simulation) {
