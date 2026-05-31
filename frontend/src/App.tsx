@@ -2230,9 +2230,10 @@ function App() {
       const newConv = history.createConversation(selectedMode, undefined, title, "navi");
       history.patchConversation(newConv.id, { simulationConfig, naviStateId: "greeting" });
       scheduleNaviGreetingKickoff(newConv.id);
-      // Create the result file with a template header
+      // Create the result file with a placeholder — will be overwritten with the full
+      // transcript + evaluation once the simulation finishes.
       const bridge = getAppBridge();
-      if (bridge?.simulation) {
+      if (bridge?.simulation?.writeResult) {
         const header = [
           `# ${title}`,
           ``,
@@ -2240,18 +2241,10 @@ function App() {
             ? `**Persona:** ${simulationConfig.personaName}`
             : undefined,
           simulationConfig.goal
-            ? `**Ziel:** ${simulationConfig.goal}`
+            ? `**Testfokus:** ${simulationConfig.goal}`
             : undefined,
           ``,
-          simulationConfig.characters.length > 0
-            ? `**Charaktere:** ${simulationConfig.characters.map((c) => c.name).join(", ")}`
-            : undefined,
-          ``,
-          `---`,
-          ``,
-          `## Ergebnis`,
-          ``,
-          `_(Hier das Ergebnis der Simulation eintragen)_`,
+          `_Simulation läuft…_`,
           ``,
         ].filter((l) => l !== undefined).join("\n");
         await bridge.simulation.writeResult(simulationConfig.resultFile, header).catch(() => {});
