@@ -2034,8 +2034,15 @@ function App() {
       .filter((l) => l !== undefined)
       .join("\n");
 
-    await bridge.simulation.writeResult(sim.resultFile, body).catch(() => {});
-  }, [modeLlmId, useReasoning, disabledToolkits]);
+    const writeResult = await bridge.simulation
+      .writeResult(sim.resultFile, body)
+      .catch(() => null);
+
+    // Open the result file as a tab in the editor so the user can read it immediately.
+    if (writeResult?.path) {
+      void fileEditor.openFile(writeResult.path);
+    }
+  }, [modeLlmId, useReasoning, disabledToolkits, fileEditor.openFile]);
 
   // Simulation runner: after Navi answered, fire the queued merchant reply (until closing).
   useEffect(() => {
