@@ -84,10 +84,16 @@
 }
 
 .navi-state-step {
-    display: flex;
+    display: grid;
+    grid-template-columns: 7px 1fr auto;
     align-items: center;
     gap: 7px;
     font-size: 12px;
+}
+
+/* result box spans all columns */
+.navi-state-result-box {
+    grid-column: 2 / -1;
 }
 
 .navi-state-step-dot {
@@ -119,6 +125,107 @@
 .navi-state-step--upcoming .navi-state-step-label {
     color: var(--text-muted, #6c7086);
     opacity: 0.6;
+}
+
+/* Results badge in header */
+.navi-state-results-badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--green, #a6e3a1);
+  background: color-mix(in srgb, var(--green, #a6e3a1) 12%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+/* Section label (Arbeitsplan etc.) */
+.navi-state-section-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #6c7086);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+/* Work plan */
+.navi-state-workplan {
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--accent, #89b4fa) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #89b4fa) 20%, transparent);
+  border-radius: 4px;
+}
+
+.navi-state-workplan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.navi-state-workplan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary, #a6adc8);
+  line-height: 1.4;
+}
+
+.navi-state-workplan-dot {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent, #89b4fa);
+  opacity: 0.7;
+}
+
+/* Result toggle button on step */
+.navi-state-result-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--green, #a6e3a1);
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+.navi-state-result-toggle:hover {
+  opacity: 1;
+}
+
+/* Result popup box */
+.navi-state-result-box {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--green, #a6e3a1) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green, #a6e3a1) 20%, transparent);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navi-state-result-line {
+  font-size: 11px;
+  color: var(--text-secondary, #a6adc8);
+  line-height: 1.4;
+  padding-left: 8px;
+  position: relative;
+}
+.navi-state-result-line::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: var(--green, #a6e3a1);
+  opacity: 0.7;
 }
 
 /* Transitions */

@@ -2982,6 +2982,7 @@ function App() {
                   history.activeConversation?.sessionKind ?? "standard"
                 }
                 naviStateId={history.activeConversation?.naviStateId ?? null}
+                naviResults={history.activeConversation?.naviResults}
                 steeringPlan={history.activeConversation?.steeringPlan ?? ""}
                 simulationConfig={history.activeConversation?.simulationConfig}
                 onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
@@ -3101,6 +3102,7 @@ function App() {
                       history.activeConversation?.sessionKind ?? "standard"
                     }
                     naviStateId={history.activeConversation?.naviStateId ?? null}
+                    naviResults={history.activeConversation?.naviResults}
                     steeringPlan={
                       history.activeConversation?.steeringPlan ?? ""
                     }

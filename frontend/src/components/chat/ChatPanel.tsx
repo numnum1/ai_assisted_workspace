@@ -111,6 +111,7 @@ interface ChatPanelProps {
   systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
   naviStateId?: string | null;
+  naviResults?: Record<string, string>;
   simulationConfig?: SimulationConfig;
   onOpenSimulationSetup?: () => void;
 }
@@ -183,6 +184,7 @@ export function ChatPanel({
   systemPromptPreview,
   onFetchContextBlocks,
   naviStateId,
+  naviResults,
   simulationConfig,
   onOpenSimulationSetup,
 }: ChatPanelProps) {
@@ -415,7 +417,7 @@ export function ChatPanel({
       )}
 
       {activeSessionKind === "navi" && (
-        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} />
+        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} naviResults={naviResults} />
       )}
 
       <div className="chat-panel-body">
