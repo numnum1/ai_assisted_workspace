@@ -48,6 +48,8 @@ import {
   startChatStream,
   stopChatStream,
   generateThreadSummary,
+  generateSimulatedUserReply,
+  type SimulatedUserReplyRequest,
 } from "./services/chatService.js";
 import {
   addGlossaryEntry,
@@ -585,6 +587,11 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("simulation:listResults", () =>
     listSimulationResults(getCurrentProjectPath()),
+  );
+  ipcMain.handle(
+    "simulation:generateUserReply",
+    (_event, req: SimulatedUserReplyRequest) =>
+      generateSimulatedUserReply(req),
   );
 
   ipcMain.handle("typedFiles:list", () =>

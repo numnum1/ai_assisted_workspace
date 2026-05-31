@@ -230,6 +230,8 @@ contextBridge.exposeInMainWorld("appBridge", {
     readResult: (name: string) =>
       ipcRenderer.invoke("simulation:readResult", name),
     listResults: () => ipcRenderer.invoke("simulation:listResults"),
+    generateUserReply: (req: unknown) =>
+      ipcRenderer.invoke("simulation:generateUserReply", req),
   },
   snapshots: {
     get: (id: string) => ipcRenderer.invoke("snapshots:get", id),

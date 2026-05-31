@@ -1620,3 +1620,101 @@ export async function generateThreadSummary(
   );
   return { summary, title };
 }
+
+/** One transcript line of a simulation: who said it and what. */
+export interface SimulationTranscriptLine {
+  /** `"navi"` = the Navi advisor, `"merchant"` = the simulated user. */
+  speaker: "navi" | "merchant";
+  content: string;
+}
+
+export interface SimulatedUserReplyRequest {
+  /** The persona/goal of the simulated merchant (from SimulationConfig.goal). */
+  goal: string;
+  /** Optional persona names to give the merchant a concrete identity. */
+  characterNames?: string[];
+  /** Visible conversation so far, in order. */
+  transcript: SimulationTranscriptLine[];
+  /** Provider to use; falls back to the default provider. */
+  llmId?: string | null;
+}
+
+/**
+ * Generates the next reply of a *simulated merchant* reacting to Navi.
+ *
+ * The merchant plays the user side of a Navi advisory chat so the Navi flow can
+ * be exercised end-to-end without a human typing. Roles are flipped for the LLM:
+ * Navi's lines become `user` (it is talking *to* the merchant) and the merchant's
+ * own past lines become `assistant`.
+ */
+export async function generateSimulatedUserReply(
+  req: SimulatedUserReplyRequest,
+): Promise<{ reply: string }> {
+  const provider = await resolveAiProvider(req.llmId);
+  const endpoint = resolveProviderEndpoint(provider, false);
+
+  const persona = normalizeText(req.goal) || "Ein typischer kleiner Händler.";
+  const names = (req.characterNames ?? [])
+    .map((n) => normalizeText(n))
+    .filter(Boolean);
+  const nameHint =
+    names.length > 0 ? `Dein Name / deine Rolle: ${names.join(", ")}.` : "";
+
+  const systemPrompt = [
+    "Du spielst einen Händler/Ladenbesitzer in einem simulierten Beratungsgespräch.",
+    "Dein Gegenüber ist 'Navi', ein KI-Berater, der dir Fragen stellt.",
+    "Antworte AUSSCHLIESSLICH aus der Perspektive des Händlers – kurz, natürlich, umgangssprachlich, 1–3 Sätze.",
+    "Erfinde plausible, konsistente Details (Laden, Probleme, genutzte Tools, Budget), die zum Profil passen.",
+    "Du bist der Kunde: stelle selbst keine Beratungsfragen, gib keine Meta-Kommentare, keine Anführungszeichen, kein Rollen-Präfix.",
+    nameHint,
+    `Profil/Ziel dieser Simulation: ${persona}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const messages: OpenAiMessage[] = [{ role: "system", content: systemPrompt }];
+  for (const line of req.transcript) {
+    const content = normalizeText(line.content);
+    if (!content) continue;
+    messages.push({
+      role: line.speaker === "navi" ? "user" : "assistant",
+      content,
+    });
+  }
+  // Nothing from Navi yet (shouldn't normally happen): nudge the merchant to open.
+  if (messages.length === 1) {
+    messages.push({ role: "user", content: "(Das Gespräch beginnt.)" });
+  }
+
+  const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${endpoint.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: endpoint.model,
+      stream: false,
+      max_tokens: 200,
+      temperature: 0.9,
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    let detail = `Simulated user reply error: ${response.status}`;
+    try {
+      const body = await response.text();
+      if (body) detail += ` — ${body}`;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+
+  const json = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const reply = normalizeText(json?.choices?.[0]?.message?.content ?? "");
+  return { reply };
+}

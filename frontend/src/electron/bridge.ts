@@ -403,6 +403,12 @@ export interface AppBridge {
     writeResult: (name: string, content: string) => Promise<{ path: string }>;
     readResult: (name: string) => Promise<{ content: string; exists: boolean }>;
     listResults: () => Promise<string[]>;
+    generateUserReply: (req: {
+      goal: string;
+      characterNames?: string[];
+      transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
+      llmId?: string | null;
+    }) => Promise<{ reply: string }>;
   };
   preferences?: {
     get: () => Promise<AppPreferences>;

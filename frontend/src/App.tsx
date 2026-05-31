@@ -136,7 +136,17 @@ import {
   scheduleNaviGreetingKickoff,
   tryMarkNaviGreetingKickoffStarted,
 } from "./components/chat/naviGreetingKickoff.ts";
+import {
+  scheduleSimulationReply,
+  hasPendingSimulationReply,
+  tryStartSimulationReply,
+  finishSimulationReply,
+  clearSimulationReply,
+} from "./components/chat/simulationReplyKickoff.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
+
+/** Safety cap on simulated-merchant turns so a looping Navi state cannot run forever. */
+const SIMULATION_MAX_TURNS = 12;
 
 /** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
 function standardChatModes(mds: Mode[]): Mode[] {
@@ -507,6 +517,18 @@ function App() {
       history.patchConversation(conversationId, { naviStateId: stateId });
     },
     onAssistantResponseComplete: (fullText, meta) => {
+      // Simulation auto-runner: after Navi finished a turn in a simulation,
+      // queue the next simulated-merchant reply (the effect below sends it).
+      if (meta.sessionKind === "navi") {
+        const conv = history.conversations.find(
+          (c) => c.id === meta.conversationId,
+        );
+        if (conv?.simulationConfig) {
+          scheduleSimulationReply(meta.conversationId);
+        }
+        return;
+      }
+
       if (meta.sessionKind !== "guided") return;
 
       const parsed = parseSteeringPlanFromAssistant(fullText);
@@ -1847,6 +1869,156 @@ function App() {
     useReasoning,
     disabledToolkits,
     rulesEnabled,
+  ]);
+
+  // Simulation runner: generate the next simulated-merchant reply and send it to Navi.
+  const performSimulationReply = useCallback(
+    async (conv: Conversation) => {
+      const sim = conv.simulationConfig;
+      if (!sim) {
+        finishSimulationReply(conv.id);
+        return;
+      }
+      const bridge = getAppBridge();
+      try {
+        const transcript = conv.messages
+          .filter(
+            (m) =>
+              !m.hidden &&
+              (m.role === "user" || m.role === "assistant") &&
+              m.content.trim().length > 0,
+          )
+          .map((m) => ({
+            speaker: (m.role === "assistant" ? "navi" : "merchant") as
+              | "navi"
+              | "merchant",
+            content: m.content,
+          }));
+
+        const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
+        const mode = modes.find((m) => m.id === modeId);
+        const exec = getEffectiveChatExecution(conv, {
+          llmId: modeLlmId,
+          useReasoning,
+          disabledToolkits,
+        });
+
+        const result = await bridge?.simulation?.generateUserReply?.({
+          goal: sim.goal,
+          characterNames: sim.characters.map((c) => c.name),
+          transcript,
+          llmId: exec.llmId,
+        });
+        const reply = result?.reply?.trim();
+        if (!reply) {
+          finishSimulationReply(conv.id);
+          return;
+        }
+
+        chat.sendMessage(
+          reply,
+          modeId,
+          [],
+          mode?.name,
+          mode?.color,
+          exec.useReasoning,
+          exec.llmId,
+          undefined,
+          null,
+          exec.disabledToolkits,
+          {
+            conversationId: conv.id,
+            sessionKind: "navi",
+            naviStateId: conv.naviStateId ?? "greeting",
+            simulationConfig: sim,
+          },
+          { rulesDisabled: !rulesEnabled },
+        );
+      } catch (err) {
+        console.error("[simulation] merchant reply failed", err);
+      } finally {
+        finishSimulationReply(conv.id);
+      }
+    },
+    [
+      chat.sendMessage,
+      selectedMode,
+      modes,
+      modeLlmId,
+      useReasoning,
+      disabledToolkits,
+      rulesEnabled,
+    ],
+  );
+
+  // Persist the full Navi ↔ merchant transcript to the simulation result file.
+  const persistSimulationTranscript = useCallback(async (conv: Conversation) => {
+    const sim = conv.simulationConfig;
+    if (!sim) return;
+    const bridge = getAppBridge();
+    if (!bridge?.simulation?.writeResult) return;
+
+    const lines = conv.messages
+      .filter(
+        (m) =>
+          !m.hidden &&
+          (m.role === "user" || m.role === "assistant") &&
+          m.content.trim().length > 0,
+      )
+      .map((m) =>
+        m.role === "assistant"
+          ? `**Navi:** ${m.content.trim()}`
+          : `**Händler:** ${m.content.trim()}`,
+      );
+
+    const body = [
+      `# ${conv.title ?? "Simulation"}`,
+      ``,
+      `**Ziel:** ${sim.goal}`,
+      sim.characters.length > 0
+        ? `**Charaktere:** ${sim.characters.map((c) => c.name).join(", ")}`
+        : undefined,
+      ``,
+      `---`,
+      ``,
+      `## Gesprächsverlauf`,
+      ``,
+      lines.join("\n\n"),
+      ``,
+    ]
+      .filter((l) => l !== undefined)
+      .join("\n");
+
+    await bridge.simulation.writeResult(sim.resultFile, body).catch(() => {});
+  }, []);
+
+  // Simulation runner: after Navi answered, fire the queued merchant reply (until closing).
+  useEffect(() => {
+    const conv = history.activeConversation;
+    if (!conv) return;
+    if (conv.sessionKind !== "navi" || !conv.simulationConfig) return;
+    if (!hasPendingSimulationReply(conv.id)) return;
+    if (chat.streaming) return;
+    if (chat.messages.length !== conv.messages.length) return;
+
+    // Stop the auto-run at closing, or after a safety cap (refine_recommendation can loop).
+    const reachedClosing = (conv.naviStateId ?? "greeting") === "closing";
+    const merchantTurns = conv.messages.filter(
+      (m) => !m.hidden && m.role === "user",
+    ).length;
+    if (reachedClosing || merchantTurns >= SIMULATION_MAX_TURNS) {
+      clearSimulationReply(conv.id);
+      void persistSimulationTranscript(conv);
+      return;
+    }
+    if (!tryStartSimulationReply(conv.id)) return;
+    void performSimulationReply(conv);
+  }, [
+    history.activeConversation,
+    chat.messages,
+    chat.streaming,
+    performSimulationReply,
+    persistSimulationTranscript,
   ]);
 
   // Subthread result: when the parent becomes active and has a pending result kickoff, integrate it.
