@@ -410,6 +410,12 @@ export interface AppBridge {
       transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
       llmId?: string | null;
     }) => Promise<{ reply: string }>;
+    evaluateRun: (req: {
+      persona: string;
+      personaName?: string;
+      transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
+      llmId?: string | null;
+    }) => Promise<{ score: number; report: string }>;
   };
   persona?: {
     list: () => Promise<Persona[]>;

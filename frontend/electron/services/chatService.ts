@@ -1718,3 +1718,167 @@ export async function generateSimulatedUserReply(
   const reply = normalizeText(json?.choices?.[0]?.message?.content ?? "");
   return { reply };
 }
+
+export interface EvaluateNaviSimulationRequest {
+  /** Persona description / goal the merchant was playing. */
+  persona: string;
+  /** Optional persona name for context. */
+  personaName?: string;
+  /** Full Navi ↔ merchant transcript, in order. */
+  transcript: SimulationTranscriptLine[];
+  /** Provider to use; falls back to the default provider. */
+  llmId?: string | null;
+}
+
+export interface EvaluateNaviSimulationResult {
+  /** Overall score from 0–100 (best effort; -1 if not parseable). */
+  score: number;
+  /** Markdown analysis of how well Navi performed. */
+  report: string;
+}
+
+/**
+ * Evaluates how well the Navi advisor handled a finished simulation run.
+ *
+ * A separate "reviewer" LLM reads the full transcript (Navi vs. simulated
+ * merchant) and judges Navi's performance: did it understand the problem, ask
+ * good questions, give a fitting recommendation, stay on track? Returns a score
+ * plus a structured markdown report.
+ */
+export async function evaluateNaviSimulation(
+  req: EvaluateNaviSimulationRequest,
+): Promise<EvaluateNaviSimulationResult> {
+  const provider = await resolveAiProvider(req.llmId);
+  const endpoint = resolveProviderEndpoint(provider, false);
+
+  const persona = normalizeText(req.persona) || "Ein typischer kleiner Händler.";
+  const personaName = normalizeText(req.personaName ?? "");
+
+  const transcriptText = req.transcript
+    .map((line) => {
+      const content = normalizeText(line.content);
+      if (!content) return "";
+      const speaker = line.speaker === "navi" ? "Navi" : "Händler";
+      return `${speaker}: ${content}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  const systemPrompt = [
+    "Du bist ein strenger, fairer Qualitätsprüfer für 'Navi', einen KI-Berater, der kleinen Händlern hilft herauszufinden, ob und welche KI-/Software-Tools ihnen nützen.",
+    "Du bekommst das Profil eines simulierten Händlers und das vollständige Gesprächsprotokoll zwischen Navi und diesem Händler.",
+    "Bewerte AUSSCHLIESSLICH die Leistung von Navi (nicht die des Händlers).",
+    "Achte auf: Hat Navi das Problem des Händlers richtig verstanden? Wurden gute, gezielte Rückfragen gestellt? War die Empfehlung passend, konkret und auf das Profil zugeschnitten? Blieb Navi im roten Faden, ohne sich zu wiederholen oder abzuschweifen? War der Ton angemessen?",
+    "Sei ehrlich und konkret – belege Stärken und Schwächen mit Bezug auf das Gespräch.",
+    "Antworte als gültiges JSON-Objekt mit genau diesen Feldern:",
+    '{ "score": <Zahl 0-100>, "summary": "<1-2 Sätze Gesamturteil>", "strengths": ["..."], "weaknesses": ["..."], "suggestions": ["..."] }',
+    "Antworte NUR mit dem JSON, ohne Markdown-Codeblock, ohne weiteren Text.",
+  ].join("\n");
+
+  const userPrompt = [
+    personaName ? `Persona-Name: ${personaName}` : "",
+    `Persona/Profil des Händlers:\n${persona}`,
+    "",
+    "Gesprächsprotokoll:",
+    transcriptText || "(Kein Gesprächsverlauf vorhanden.)",
+  ]
+    .filter((l) => l !== "")
+    .join("\n");
+
+  const messages: OpenAiMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ];
+
+  const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${endpoint.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: endpoint.model,
+      stream: false,
+      max_tokens: 800,
+      temperature: 0.3,
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    let detail = `Navi evaluation error: ${response.status}`;
+    try {
+      const body = await response.text();
+      if (body) detail += ` — ${body}`;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+
+  const json = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const raw = normalizeText(json?.choices?.[0]?.message?.content ?? "");
+
+  // Tolerant JSON extraction (model may wrap in a code fence despite instructions).
+  let parsed: {
+    score?: unknown;
+    summary?: unknown;
+    strengths?: unknown;
+    weaknesses?: unknown;
+    suggestions?: unknown;
+  } | null = null;
+  try {
+    const jsonText = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    const start = jsonText.indexOf("{");
+    const end = jsonText.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      parsed = JSON.parse(jsonText.slice(start, end + 1));
+    }
+  } catch {
+    parsed = null;
+  }
+
+  if (!parsed) {
+    // Fall back to the raw text as the report if JSON parsing failed.
+    return { score: -1, report: raw || "_Keine Bewertung verfügbar._" };
+  }
+
+  const scoreNum = Number(parsed.score);
+  const score =
+    Number.isFinite(scoreNum) && scoreNum >= 0 && scoreNum <= 100
+      ? Math.round(scoreNum)
+      : -1;
+  const summary = normalizeText(String(parsed.summary ?? ""));
+  const toList = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.map((v) => normalizeText(String(v))).filter(Boolean)
+      : [];
+  const strengths = toList(parsed.strengths);
+  const weaknesses = toList(parsed.weaknesses);
+  const suggestions = toList(parsed.suggestions);
+
+  const reportLines: string[] = [];
+  reportLines.push(
+    `**Gesamtbewertung:** ${score >= 0 ? `${score}/100` : "—"}`,
+  );
+  if (summary) {
+    reportLines.push("", summary);
+  }
+  if (strengths.length > 0) {
+    reportLines.push("", "**Stärken**", ...strengths.map((s) => `- ${s}`));
+  }
+  if (weaknesses.length > 0) {
+    reportLines.push("", "**Schwächen**", ...weaknesses.map((s) => `- ${s}`));
+  }
+  if (suggestions.length > 0) {
+    reportLines.push(
+      "",
+      "**Verbesserungsvorschläge**",
+      ...suggestions.map((s) => `- ${s}`),
+    );
+  }
+
+  return { score, report: reportLines.join("\n") };
+}

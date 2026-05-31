@@ -232,6 +232,8 @@ contextBridge.exposeInMainWorld("appBridge", {
     listResults: () => ipcRenderer.invoke("simulation:listResults"),
     generateUserReply: (req: unknown) =>
       ipcRenderer.invoke("simulation:generateUserReply", req),
+    evaluateRun: (req: unknown) =>
+      ipcRenderer.invoke("simulation:evaluateRun", req),
   },
   persona: {
     list: () => ipcRenderer.invoke("persona:list"),

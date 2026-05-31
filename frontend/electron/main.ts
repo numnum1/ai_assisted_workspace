@@ -50,6 +50,8 @@ import {
   generateThreadSummary,
   generateSimulatedUserReply,
   type SimulatedUserReplyRequest,
+  evaluateNaviSimulation,
+  type EvaluateNaviSimulationRequest,
 } from "./services/chatService.js";
 import {
   addGlossaryEntry,
@@ -598,6 +600,11 @@ function registerIpcHandlers(): void {
     "simulation:generateUserReply",
     (_event, req: SimulatedUserReplyRequest) =>
       generateSimulatedUserReply(req),
+  );
+  ipcMain.handle(
+    "simulation:evaluateRun",
+    (_event, req: EvaluateNaviSimulationRequest) =>
+      evaluateNaviSimulation(req),
   );
 
   ipcMain.handle("persona:list", () => listPersonas());

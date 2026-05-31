@@ -1955,25 +1955,64 @@ function App() {
     ],
   );
 
-  // Persist the full Navi ↔ merchant transcript to the simulation result file.
+  // Persist the full Navi ↔ merchant transcript to the simulation result file,
+  // then have a reviewer AI evaluate how well Navi performed and append its report.
   const persistSimulationTranscript = useCallback(async (conv: Conversation) => {
     const sim = conv.simulationConfig;
     if (!sim) return;
     const bridge = getAppBridge();
     if (!bridge?.simulation?.writeResult) return;
 
-    const lines = conv.messages
-      .filter(
-        (m) =>
-          !m.hidden &&
-          (m.role === "user" || m.role === "assistant") &&
-          m.content.trim().length > 0,
-      )
-      .map((m) =>
-        m.role === "assistant"
-          ? `**Navi:** ${m.content.trim()}`
-          : `**Händler:** ${m.content.trim()}`,
-      );
+    const visibleMessages = conv.messages.filter(
+      (m) =>
+        !m.hidden &&
+        (m.role === "user" || m.role === "assistant") &&
+        m.content.trim().length > 0,
+    );
+
+    const lines = visibleMessages.map((m) =>
+      m.role === "assistant"
+        ? `**Navi:** ${m.content.trim()}`
+        : `**Händler:** ${m.content.trim()}`,
+    );
+
+    const transcript = visibleMessages.map((m) => ({
+      speaker: (m.role === "assistant" ? "navi" : "merchant") as
+        | "navi"
+        | "merchant",
+      content: m.content,
+    }));
+
+    // Ask the reviewer AI to judge Navi's performance (best-effort; non-fatal).
+    let evaluationSection: string[] = [];
+    if (bridge.simulation.evaluateRun) {
+      try {
+        const exec = getEffectiveChatExecution(conv, {
+          llmId: modeLlmId,
+          useReasoning,
+          disabledToolkits,
+        });
+        const evaluation = await bridge.simulation.evaluateRun({
+          persona: sim.personaPrompt?.trim() || sim.goal,
+          personaName: sim.personaName,
+          transcript,
+          llmId: exec.llmId,
+        });
+        if (evaluation?.report) {
+          evaluationSection = [
+            ``,
+            `---`,
+            ``,
+            `## KI-Bewertung des Navi`,
+            ``,
+            evaluation.report,
+            ``,
+          ];
+        }
+      } catch (err) {
+        console.error("[simulation] navi evaluation failed", err);
+      }
+    }
 
     const body = [
       `# ${conv.title ?? "Simulation"}`,
@@ -1990,12 +2029,13 @@ function App() {
       ``,
       lines.join("\n\n"),
       ``,
+      ...evaluationSection,
     ]
       .filter((l) => l !== undefined)
       .join("\n");
 
     await bridge.simulation.writeResult(sim.resultFile, body).catch(() => {});
-  }, []);
+  }, [modeLlmId, useReasoning, disabledToolkits]);
 
   // Simulation runner: after Navi answered, fire the queued merchant reply (until closing).
   useEffect(() => {
