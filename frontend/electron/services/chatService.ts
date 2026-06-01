@@ -1052,7 +1052,7 @@ async function runNaviChatStream(
       "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
       "Maximal eine Frage pro Antwort.",
       "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
-      "\"Hier hilft KI aktuell nicht\" ist eine vollwertige und wertvolle Antwort.",
+      "Bewerte NICHT, ob KI dem Händler helfen kann oder nicht, außer deine aktuelle Aufgabe verlangt das ausdrücklich.",
       ...(naviResultsContext ? [naviResultsContext] : []),
       `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
       ...(knowledgePrompt ? [knowledgePrompt] : []),
