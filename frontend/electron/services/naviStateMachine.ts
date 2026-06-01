@@ -16,6 +16,7 @@ export function buildClassificationPrompt(
   userMessage: string,
   transitions: NaviTransition[],
   workPlan: string[],
+  conversationHistory?: Array<{ role: string; content: string; hidden?: boolean }>,
 ): string {
   const transitionList = transitions
     .map((t, i) => `${i + 1}. ${t.condition} → ${t.to}`)
@@ -30,11 +31,25 @@ export function buildClassificationPrompt(
         ].join("\n")
       : "";
 
+  const historySection = conversationHistory && conversationHistory.length > 0
+    ? [
+        "Bisheriges Gespräch:",
+        conversationHistory
+          .filter((m) => !m.hidden && normalizeContent(m.content))
+          .map((m) => {
+            const label = m.role === "assistant" ? "Navi" : "Händler";
+            return `${label}: ${normalizeContent(m.content)}`;
+          })
+          .join("\n"),
+      ].join("\n")
+    : "";
+
   return [
-    'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.',
+    'Du analysierst ein Gespräch und entscheidest, welche Transition nach der letzten Händler-Nachricht zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.',
     `Aktueller State: ${currentStateId}`,
     workPlanSection,
-    `Nutzer-Nachricht: "${userMessage}"`,
+    historySection,
+    `Letzte Händler-Nachricht: "${userMessage}"`,
     `Mögliche Transitions:\n${transitionList}`,
     [
       "WICHTIGE REGEL – Sei konservativ:",
@@ -45,6 +60,11 @@ export function buildClassificationPrompt(
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function normalizeContent(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  return "";
 }
 
 /**

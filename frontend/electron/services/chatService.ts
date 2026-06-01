@@ -902,11 +902,15 @@ async function runNaviChatStream(
     if (userMessage && currentState.transitions.length > 0) {
       const classificationSystemPrompt =
         'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.';
+      const classificationHistory = Array.isArray(request.history)
+        ? request.history
+        : [];
       const classificationUserPrompt = buildClassificationPrompt(
         currentStateId,
         userMessage,
         currentState.transitions,
         currentState.workPlan,
+        classificationHistory,
       );
 
       try {
