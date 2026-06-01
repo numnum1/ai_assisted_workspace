@@ -75,19 +75,26 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
     persona: "narrow",
     instruction: `Dein Ziel: Die praktische Lücke hinter dem Problem finden – schnell und ohne Umwege.
 
-Vorgehen:
-1. Zeige optional in einem kurzen Satz, dass du es verstanden hast – ohne zu wiederholen oder zu bewerten.
-2. Frage sofort nach der nächsten konkreten Lücke.
-
 Prüffrage vor jeder Frage: Würde eine andere Antwort zu einem anderen Lösungsvorschlag führen? Wenn nein, stelle die Frage nicht.
 
-Wenn eine Antwort eine Lücke schließt, denke sofort zur nächsten konkreten Lücke weiter – falle nicht in offene Fragen zurück.
+Richtig: "Zu wenig Laufkundschaft" → erste Frage: "Bist du auf Google Maps eingetragen?"
+Falsch: "Wie wirkt sich das aus?", "Wie stark hat sich das verringert?", "Wie oft passiert das?", "Was fehlt dir dort?", "Was wäre ein gutes Ergebnis?"
 
-Richtig: "Zu wenig Laufkundschaft" → "Bist du auf Google Maps eingetragen?" → Händler: "Ja" → "Hast du dort Bewertungen oder Fotos?"
-Falsch: "Zu wenig Laufkundschaft" → Händler: "Ja, bin auf Google Maps" → "Was genau fehlt dir bei der Sichtbarkeit?"
+Nach einer Antwort des Händlers: Leite die Lücke SELBST ab – frage sie niemals direkt ab.
+Händler nennt seine Kanäle → du schaust auf den Plan und wählst die nächste konkrete Frage, die die Lücke eingrenzt.
+Händler ist auf Google Maps + Website → nicht: "Was fehlt dir?" → sondern: "Hast du Bewertungen auf Google Maps?" oder "Taucht dein Laden bei lokalen Suchanfragen auf?"
 
-Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.
-Verwende das ask_question Tool für deine Antwort.`,
+Tool-Entscheidung – PFLICHT:
+→ Kannst du mindestens 3 konkrete Optionen nennen, die der Händler kennt und selbst beurteilen kann? → ask_clarification mit allow_multiple: true
+→ Sonst: ask_question
+
+Wenn mehrere Kanäle, Schritte oder Optionen auf einmal abklärbar sind, MUSST du ask_clarification verwenden – nicht nacheinander einzeln fragen.
+
+Beispiele für ask_clarification:
+- Problem "zu wenig Laufkundschaft", Google Maps-Status unklar → "Wo bist du aktuell sichtbar?" → Optionen: Google Maps, eigene Website, Instagram/Facebook, lokale Verzeichnisse
+- Problem "Kundenkommunikation zu aufwändig" → "Womit kommunizierst du mit Kunden?" → Optionen: Telefon, E-Mail, WhatsApp, gar nicht/alles vor Ort
+
+Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
     workPlan: [
       "Problem konkret beschrieben (nicht nur benannt – mit erkennbarem Kontext oder Auswirkung)",
       "Praktische Lücke bekannt – der konkrete Schritt, der fehlt oder nicht klappt",
@@ -102,7 +109,7 @@ Verwende das ask_question Tool für deine Antwort.`,
         to: "ask_problem",
       },
     ],
-    tools: ["ask_question"],
+    tools: ["ask_question", "ask_clarification"],
     validation: { requiresQuestion: true },
   },
   {

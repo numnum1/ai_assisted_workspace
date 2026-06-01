@@ -521,6 +521,15 @@ function App() {
       }
       history.patchConversation(conversationId, patch);
     },
+    onNaviPlan: (plan, conversationId) => {
+      history.patchConversation(conversationId, { naviPlan: plan });
+    },
+    onNaviTipsCovered: (coveredIds, conversationId) => {
+      const conv = history.conversations.find((c) => c.id === conversationId);
+      const existing = conv?.naviCoveredTips ?? [];
+      const merged = [...new Set([...existing, ...coveredIds])];
+      history.patchConversation(conversationId, { naviCoveredTips: merged });
+    },
     onAssistantResponseComplete: (fullText, meta) => {
       // Simulation auto-runner: after Navi finished a turn in a simulation,
       // queue the next simulated-merchant reply (the effect below sends it).
@@ -1861,6 +1870,8 @@ function App() {
         sessionKind: "navi",
         naviStateId: conv.naviStateId ?? "greeting",
         naviResults: conv.naviResults,
+        naviPlan: conv.naviPlan,
+        naviCoveredTips: conv.naviCoveredTips,
       },
       { userHidden: true, rulesDisabled: !rulesEnabled },
     );
@@ -1941,6 +1952,8 @@ function App() {
             sessionKind: "navi",
             naviStateId: conv.naviStateId ?? "greeting",
             naviResults: conv.naviResults,
+            naviPlan: conv.naviPlan,
+            naviCoveredTips: conv.naviCoveredTips,
             simulationConfig: sim,
           },
           { rulesDisabled: !rulesEnabled },
@@ -2983,6 +2996,8 @@ function App() {
                 }
                 naviStateId={history.activeConversation?.naviStateId ?? null}
                 naviResults={history.activeConversation?.naviResults}
+                naviPlan={history.activeConversation?.naviPlan}
+                naviCoveredTips={history.activeConversation?.naviCoveredTips}
                 steeringPlan={history.activeConversation?.steeringPlan ?? ""}
                 simulationConfig={history.activeConversation?.simulationConfig}
                 onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
@@ -3103,6 +3118,8 @@ function App() {
                     }
                     naviStateId={history.activeConversation?.naviStateId ?? null}
                     naviResults={history.activeConversation?.naviResults}
+                    naviPlan={history.activeConversation?.naviPlan}
+                    naviCoveredTips={history.activeConversation?.naviCoveredTips}
                     steeringPlan={
                       history.activeConversation?.steeringPlan ?? ""
                     }

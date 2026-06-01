@@ -170,6 +170,10 @@ export interface ChatRequest {
    * Injected as context into subsequent state prompts so Navi doesn't lose earlier findings.
    */
   naviResults?: Record<string, string>;
+  /** When set, the generated question plan for the clarify_problem state is re-sent each turn. */
+  naviPlan?: string | null;
+  /** Ids of tips that have already been covered in this session; excluded from subsequent prompts. */
+  naviCoveredTips?: string[];
   /** When set, injects simulation context (goal + cast) into the system prompt. */
   simulationConfig?: SimulationConfig;
 }
@@ -249,6 +253,10 @@ export interface Conversation {
    * Key = state id, value = short summary of what was learned in that state.
    */
   naviResults?: Record<string, string>;
+  /** Generated question plan for the clarify_problem state; persisted and re-sent each turn. */
+  naviPlan?: string | null;
+  /** Ids of tips already covered in this conversation; excluded from subsequent prompts. */
+  naviCoveredTips?: string[];
   /** When set, this conversation is a simulation session with a goal and cast. */
   simulationConfig?: SimulationConfig;
 }

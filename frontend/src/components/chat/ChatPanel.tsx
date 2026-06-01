@@ -112,6 +112,8 @@ interface ChatPanelProps {
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
   naviStateId?: string | null;
   naviResults?: Record<string, string>;
+  naviPlan?: string | null;
+  naviCoveredTips?: string[];
   simulationConfig?: SimulationConfig;
   onOpenSimulationSetup?: () => void;
 }
@@ -185,6 +187,8 @@ export function ChatPanel({
   onFetchContextBlocks,
   naviStateId,
   naviResults,
+  naviPlan,
+  naviCoveredTips,
   simulationConfig,
   onOpenSimulationSetup,
 }: ChatPanelProps) {
@@ -417,7 +421,7 @@ export function ChatPanel({
       )}
 
       {activeSessionKind === "navi" && (
-        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} naviResults={naviResults} />
+        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} naviResults={naviResults} naviPlan={naviPlan} naviCoveredTips={naviCoveredTips} />
       )}
 
       <div className="chat-panel-body">

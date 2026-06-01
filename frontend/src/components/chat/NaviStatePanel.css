@@ -157,6 +157,31 @@
   opacity: 0.6;
 }
 
+/* ── Plan ─────────────────────────────────────────────────── */
+.navi-plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navi-plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary, #cdd6f4);
+  line-height: 1.4;
+}
+
+.navi-plan-dot {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: #f9e2af;
+}
+
 /* ── Transitions ──────────────────────────────────────────── */
 .navi-transitions {
   display: flex;
@@ -357,4 +382,37 @@
   left: 0;
   color: var(--green, #a6e3a1);
   opacity: 0.5;
+}
+
+/* ── Tips ─────────────────────────────────────────────── */
+.navi-tips-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navi-tip-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary, #cdd6f4);
+  line-height: 1.4;
+}
+
+.navi-tip-item--covered {
+  color: var(--text-muted, #6c7086);
+  text-decoration: line-through;
+}
+
+.navi-tip-icon {
+  flex-shrink: 0;
+  color: #f9e2af;
+}
+
+.navi-tip-icon--covered {
+  color: #a6e3a1;
 }

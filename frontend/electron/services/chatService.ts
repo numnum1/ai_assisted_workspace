@@ -38,6 +38,7 @@ import {
   type NaviState,
 } from "./naviStateMachine.js";
 import { buildNaviKnowledgePrompt } from "./naviKnowledgeBase.js";
+import { NAVI_TIPS } from "../../src/naviTips.js";
 import { getProjectConfig } from "./projectConfigService.js";
 
 export type { ContextBlock };
@@ -66,7 +67,9 @@ export type ChatStreamEvent =
   | { type: "context_update"; data: { estimatedTokens: number } }
   | { type: "done"; data: { fullAssistantText: string } }
   | { type: "error"; data: { message: string } }
-  | { type: "navi_state"; data: { stateId: string; completedStateId?: string; summary?: string } };
+  | { type: "navi_state"; data: { stateId: string; completedStateId?: string; summary?: string } }
+  | { type: "navi_plan"; data: { plan: string } }
+  | { type: "navi_tips_covered"; data: { coveredIds: string[] } };
 
 export interface ChatStreamStartResult {
   streamId: string;
@@ -1064,6 +1067,66 @@ async function runNaviChatStream(
       }
     }
 
+    // Call 2b (only when entering clarify_problem for the first time): generate question plan.
+    let naviPlan: string | undefined = request.naviPlan ?? undefined;
+    if (newStateId === "clarify_problem" && !naviPlan) {
+      try {
+        const history = Array.isArray(request.history) ? request.history : [];
+        const excerptLines: string[] = [];
+        for (const msg of history) {
+          if (msg.hidden) continue;
+          const content = normalizeText(typeof msg.content === "string" ? msg.content : "");
+          if (!content) continue;
+          if (msg.role === "assistant") excerptLines.push(`Navi: ${content}`);
+          else if (msg.role === "user") excerptLines.push(`Händler: ${content}`);
+        }
+        if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
+        const excerpt = excerptLines.slice(-10).join("\n");
+
+        const planSystemPrompt = [
+          "Du analysierst das Gespräch zwischen Navi (KI-Berater) und einem Händler.",
+          "Deine Aufgabe: Erstelle eine kurze, priorisierte Liste der wichtigsten offenen Fragen, die Navi noch klären muss, um eine Empfehlung geben zu können.",
+          "Unterscheide dabei nach Händlertyp: Online-Handel (nur online), Vor-Ort-Handel (nur stationär), oder beides kombiniert.",
+          "Fokussiere auf praktische Lücken – nicht auf Hintergründe, Ausmaß oder Auswirkungen.",
+          "Fragen die bereits beantwortet wurden, NICHT aufnehmen.",
+          "Maximal 5 Fragen. Antwortformat: NUR eine Bullet-Liste mit '-', kein anderer Text.",
+        ].join("\n");
+
+        const planUserPrompt = `Gesprächsausschnitt:\n${excerpt}\n\nWelche offenen Fragen muss Navi noch klären?`;
+
+        const planResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${endpoint.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: endpoint.model,
+            stream: false,
+            max_tokens: 150,
+            temperature: 0.1,
+            messages: [
+              { role: "system", content: planSystemPrompt },
+              { role: "user", content: planUserPrompt },
+            ],
+          }),
+        });
+
+        if (planResponse.ok) {
+          const planJson = (await planResponse.json()) as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const rawPlan = normalizeText(planJson?.choices?.[0]?.message?.content ?? "");
+          if (rawPlan) {
+            naviPlan = rawPlan;
+            emit({ type: "navi_plan", data: { plan: naviPlan } });
+          }
+        }
+      } catch {
+        // Plan generation failed — non-fatal, continue without plan
+      }
+    }
+
     emit({
       type: "navi_state",
       data: {
@@ -1083,6 +1146,12 @@ async function runNaviChatStream(
       effectiveInstruction = instructionOverride;
     }
 
+    // Inject the question plan if we are in clarify_problem and have a plan.
+    const activePlan = naviPlan ?? (request.naviPlan ?? undefined);
+    if (newStateId === "clarify_problem" && activePlan) {
+      effectiveInstruction = `${effectiveInstruction}\n\nGesprächsplan für diesen Händler (abarbeiten, bereits beantwortete Punkte überspringen):\n${activePlan}`;
+    }
+
     const knowledgePrompt = buildNaviKnowledgePrompt(newStateId);
 
     // Build context block from accumulated state summaries (from previous states).
@@ -1097,11 +1166,22 @@ async function runNaviChatStream(
         : "";
 
     // Layer 1: narrow persona for info-gathering states, full for advisory states.
+    const coveredTips = new Set(request.naviCoveredTips ?? []);
+    const pendingTips = NAVI_TIPS.filter((t) => !coveredTips.has(t.id));
+    const tipsPromptSection =
+      pendingTips.length > 0
+        ? [
+            "Folgende Hinweise solltest du einmalig einbringen, sobald sie natürlich in das Gespräch passen – danach nicht wiederholen:",
+            ...pendingTips.map((t) => `- ${t.instruction}`),
+          ].join("\n")
+        : "";
+
     const naviSystemPrompt = newState.persona === "narrow"
       ? [
           "Du bist in einem direkten Gespräch. Dein Gegenüber sitzt vor dir und schreibt mit dir.",
           "Sprich ihn immer direkt an – immer 'du', niemals 'der Händler' oder dritte Person.",
           "Antworte auf Deutsch. Kurz und natürlich.",
+          "Du hast zwei Tools: ask_question für eine einzelne offene Frage, ask_clarification für Mehrfachauswahl. Die Aufgabe unten sagt dir wann welches Tool zu nutzen ist – halte dich exakt daran.",
           ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
         ].join("\n\n")
@@ -1114,6 +1194,7 @@ async function runNaviChatStream(
           "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
           ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
+          ...(tipsPromptSection ? [tipsPromptSection] : []),
           ...(knowledgePrompt ? [knowledgePrompt] : []),
         ].join("\n\n");
 
@@ -1339,6 +1420,58 @@ async function runNaviChatStream(
     }
 
     if (!isStreamActive(streamId)) return;
+
+    // Call N: Check which tips were covered in this response.
+    const coveredTipsSet = new Set(request.naviCoveredTips ?? []);
+    const stillPendingTips = NAVI_TIPS.filter((t) => !coveredTipsSet.has(t.id));
+    if (stillPendingTips.length > 0 && fullAssistantText.trim()) {
+      try {
+        const tipsCheckPrompt = [
+          "Du prüfst, ob eine Antwort bestimmte Themen angesprochen hat.",
+          "",
+          `Antwort:\n"${fullAssistantText.slice(0, 800)}"`,
+          "",
+          "Welche der folgenden Themen wurden in der Antwort angesprochen?",
+          ...stillPendingTips.map((t) => `- ${t.id}: ${t.coveredWhen}`),
+          "",
+          'Antworte NUR mit einer kommaseparierten Liste der IDs der angesprochenen Themen, oder "keine". Keine Erklärung.',
+        ].join("\n");
+
+        const tipsCheckResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${endpoint.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: endpoint.model,
+            stream: false,
+            max_tokens: 50,
+            temperature: 0,
+            messages: [{ role: "user", content: tipsCheckPrompt }],
+          }),
+        });
+
+        if (tipsCheckResponse.ok) {
+          const tipsCheckJson = (await tipsCheckResponse.json()) as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const raw = normalizeText(tipsCheckJson?.choices?.[0]?.message?.content ?? "");
+          if (raw && raw !== "keine") {
+            const coveredIds = raw
+              .split(",")
+              .map((s) => s.trim().toLowerCase())
+              .filter((id) => stillPendingTips.some((t) => t.id === id));
+            if (coveredIds.length > 0) {
+              emit({ type: "navi_tips_covered", data: { coveredIds } });
+            }
+          }
+        }
+      } catch {
+        // Tips classifier failed — non-fatal
+      }
+    }
+
     emit({ type: "done", data: { fullAssistantText } });
   } catch (error) {
     if (!isStreamActive(streamId)) return;

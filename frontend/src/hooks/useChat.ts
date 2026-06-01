@@ -36,6 +36,8 @@ export interface ChatStreamSessionMeta {
   isThread?: boolean;
   naviStateId?: string | null;
   naviResults?: Record<string, string>;
+  naviPlan?: string | null;
+  naviCoveredTips?: string[];
   simulationConfig?: SimulationConfig;
 }
 
@@ -58,6 +60,8 @@ export interface UseChatOptions {
     meta: { conversationId: string; sessionKind: ChatSessionKind },
   ) => void;
   onNaviStateTransition?: (stateId: string, conversationId: string, completedStateId?: string, summary?: string) => void;
+  onNaviPlan?: (plan: string, conversationId: string) => void;
+  onNaviTipsCovered?: (coveredIds: string[], conversationId: string) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -81,6 +85,8 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
       ...(meta.naviResults && Object.keys(meta.naviResults).length > 0
         ? { naviResults: meta.naviResults }
         : {}),
+      ...(meta.naviPlan ? { naviPlan: meta.naviPlan } : {}),
+      ...(meta.naviCoveredTips && meta.naviCoveredTips.length > 0 ? { naviCoveredTips: meta.naviCoveredTips } : {}),
       ...simPart,
     };
   }
@@ -105,6 +111,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   onAssistantResponseCompleteRef.current = options?.onAssistantResponseComplete;
   const onNaviStateTransitionRef = useRef(options?.onNaviStateTransition);
   onNaviStateTransitionRef.current = options?.onNaviStateTransition;
+  const onNaviPlanRef = useRef(options?.onNaviPlan);
+  onNaviPlanRef.current = options?.onNaviPlan;
+  const onNaviTipsCoveredRef = useRef(options?.onNaviTipsCovered);
+  onNaviTipsCoveredRef.current = options?.onNaviTipsCovered;
 
   // Tracks the evolving base message list during an active stream so that
   // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
@@ -193,9 +203,22 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
               onNaviStateTransitionRef.current!(stateId, naviConversationId, completedStateId, summary)
           : undefined;
 
-      const streamCbs: StreamCallbacks = onNaviState
-        ? { ...streamCbsBase, onNaviState }
-        : streamCbsBase;
+      const onNaviPlanCb =
+        streamSession?.sessionKind === 'navi' && onNaviPlanRef.current
+          ? (plan: string) => onNaviPlanRef.current!(plan, naviConversationId)
+          : undefined;
+
+      const onNaviTipsCoveredCb =
+        streamSession?.sessionKind === 'navi' && onNaviTipsCoveredRef.current
+          ? (coveredIds: string[]) => onNaviTipsCoveredRef.current!(coveredIds, naviConversationId)
+          : undefined;
+
+      const streamCbs: StreamCallbacks = {
+        ...streamCbsBase,
+        ...(onNaviState ? { onNaviState } : {}),
+        ...(onNaviPlanCb ? { onNaviPlan: onNaviPlanCb } : {}),
+        ...(onNaviTipsCoveredCb ? { onNaviTipsCovered: onNaviTipsCoveredCb } : {}),
+      };
 
       const request: ChatRequest = {
         message: text,

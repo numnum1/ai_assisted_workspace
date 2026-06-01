@@ -5,6 +5,8 @@ import {
   ClipboardList,
   ArrowRight,
   FileText,
+  ListChecks,
+  Lightbulb,
   SplitSquareHorizontal,
 } from "lucide-react";
 import {
@@ -12,14 +14,17 @@ import {
   getNaviClientState,
 } from "./naviStateMachineClient.ts";
 import { NAVI_STATES } from "../../naviStateMachine.ts";
+import { NAVI_TIPS } from "../../naviTips.ts";
 import "./NaviStatePanel.css";
 
 interface Props {
   naviStateId: string;
   naviResults?: Record<string, string>;
+  naviPlan?: string | null;
+  naviCoveredTips?: string[];
 }
 
-export function NaviStatePanel({ naviStateId, naviResults }: Props) {
+export function NaviStatePanel({ naviStateId, naviResults, naviPlan, naviCoveredTips }: Props) {
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
 
   const current = getNaviClientState(naviStateId);
@@ -80,6 +85,46 @@ export function NaviStatePanel({ naviStateId, naviResults }: Props) {
             </ul>
           </div>
         )}
+      </div>
+
+      {/* ── Section 1b: Frageplan ──────────────────────────── */}
+      {naviPlan && naviStateId === "clarify_problem" && (
+        <div className="navi-section">
+          <div className="navi-section-label">
+            <ListChecks size={11} />
+            Frageplan
+          </div>
+          <ul className="navi-plan-list">
+            {naviPlan
+              .split("\n")
+              .filter((l) => l.trim())
+              .map((line, i) => (
+                <li key={i} className="navi-plan-item">
+                  <Circle size={8} className="navi-plan-dot" />
+                  {line.replace(/^[-•]\s*/, "")}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ── Section: Tips ──────────────────────────────────── */}
+      <div className="navi-section">
+        <div className="navi-section-label">
+          <Lightbulb size={11} />
+          Hinweise
+        </div>
+        <ul className="navi-tips-list">
+          {NAVI_TIPS.map((tip) => {
+            const covered = naviCoveredTips?.includes(tip.id) ?? false;
+            return (
+              <li key={tip.id} className={`navi-tip-item${covered ? " navi-tip-item--covered" : ""}`}>
+                {covered ? <CheckCircle2 size={10} className="navi-tip-icon navi-tip-icon--covered" /> : <Circle size={10} className="navi-tip-icon" />}
+                {tip.label}
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
       {/* ── Section 2: Transitions ──────────────────────────── */}

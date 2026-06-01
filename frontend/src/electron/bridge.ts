@@ -103,7 +103,9 @@ export type ChatStreamEvent =
   | { type: "context_update"; payload: { estimatedTokens: number } }
   | { type: "done"; payload: { fullAssistantText: string } }
   | { type: "error"; payload: { message: string } }
-  | { type: "navi_state"; payload: { stateId: string; completedStateId?: string; summary?: string } };
+  | { type: "navi_state"; payload: { stateId: string; completedStateId?: string; summary?: string } }
+  | { type: "navi_plan"; payload: { plan: string } }
+  | { type: "navi_tips_covered"; payload: { coveredIds: string[] } };
 
 export interface ChatStreamStartResult {
   streamId: string;
