@@ -129,7 +129,7 @@ Ansonsten verwende ask_question.`,
     transitions: [
       {
         condition: "Alle vier Arbeitsplan-Punkte bekannt – Kassensystem, Online-Präsenz, Kommunikationsweg UND problemrelevanter Bereich",
-        to: "assess_situation",
+        to: "confirm_understanding",
       },
       {
         condition: "Im Gespräch taucht ein wesentlicher neuer Problem-Aspekt auf, der das ursprünglich verstandene Problem grundlegend verändert",
@@ -138,6 +138,33 @@ Ansonsten verwende ask_question.`,
     ],
     tools: ["ask_question", "ask_clarification"],
     validation: { requiresQuestion: true },
+  },
+  {
+    id: "confirm_understanding",
+    persona: "full",
+    instruction: `Fasse in 3–4 knappen Stichpunkten zusammen, was du bisher verstanden hast:
+- Laden und Kontext des Händlers
+- Das konkrete Problem und sein Ausmaß
+- Den Software-Stack (Kasse, Online-Präsenz, Kommunikation, relevanter Bereich)
+
+Formuliere die Stichpunkte als Fakten ("Du nutzt...", "Das Problem ist...", "Bisher hast du...").
+Frage danach kurz: "Habe ich das richtig verstanden?"
+Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einholen.`,
+    workPlan: [],
+    transitions: [
+      {
+        condition: "Händler bestätigt oder signalisiert, dass die Zusammenfassung stimmt (auch mit kurzer positiver Reaktion wie 'ja', 'genau', 'stimmt')",
+        to: "assess_situation",
+      },
+      {
+        condition: "Händler korrigiert etwas am Problem oder nennt neuen Problem-Aspekt",
+        to: "clarify_problem",
+      },
+      {
+        condition: "Händler korrigiert etwas am Stack oder ergänzt fehlende Stack-Information",
+        to: "explore_software_stack",
+      },
+    ],
   },
   {
     id: "assess_situation",

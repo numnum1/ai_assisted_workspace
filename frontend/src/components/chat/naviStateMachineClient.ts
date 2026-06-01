@@ -49,8 +49,19 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
       "Tool oder Ablauf für den problemrelevanten Bereich konkret benannt",
     ],
     transitions: [
-      { to: "assess_situation", label: "Vollständiger Stack bekannt" },
+      { to: "confirm_understanding", label: "Vollständiger Stack bekannt" },
       { to: "clarify_problem", label: "Neuer Problem-Aspekt aufgetaucht" },
+    ],
+  },
+  {
+    id: "confirm_understanding",
+    label: "Verständnis bestätigen",
+    description: "Navi fasst Problem und Stack zusammen und fragt ob alles stimmt.",
+    workPlan: [],
+    transitions: [
+      { to: "assess_situation", label: "Händler bestätigt" },
+      { to: "clarify_problem", label: "Problem-Korrektur" },
+      { to: "explore_software_stack", label: "Stack-Korrektur" },
     ],
   },
   {
