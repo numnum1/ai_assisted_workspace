@@ -19,6 +19,7 @@ import {
   getActiveToolDefinitions,
   resolveModeSystemPrompt,
   TOOLKIT_TOOL_DEFINITIONS,
+  type ToolDefinition,
 } from "./conversation/systemPrompt.js";
 import { semanticSearch, type EmbeddingConfig } from "./vectorService.js";
 import { appendJournalEntry, appendConflict } from "./journalService.js";
@@ -34,6 +35,7 @@ import {
   getNaviState,
   buildClassificationPrompt,
   buildStateSummaryPrompt,
+  type NaviState,
 } from "./naviStateMachine.js";
 import { buildNaviKnowledgePrompt } from "./naviKnowledgeBase.js";
 import { getProjectConfig } from "./projectConfigService.js";
@@ -865,6 +867,46 @@ export function stopChatStream(streamId: string): { status: string } {
   return { status: "ok" };
 }
 
+const ASK_QUESTION_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "ask_question",
+    description:
+      "Schreibe deine nächste Nachricht im Gespräch. Sprich dein Gegenüber direkt an (du/dich). Optional: ein kurzer Satz der zeigt, dass du es verstanden hast – dann genau eine Frage.",
+    parameters: {
+      type: "object",
+      properties: {
+        response: {
+          type: "string",
+          description: "Deine direkte Gesprächsnachricht. Immer 'du', nie 'der Händler'. Max. 2 Sätze.",
+        },
+      },
+      required: ["response"],
+    },
+  },
+};
+
+function buildNaviStateTools(state: NaviState): {
+  tools: ToolDefinition[];
+  toolChoice: "required" | undefined;
+} {
+  if (!state.tools || state.tools.length === 0) {
+    return { tools: [], toolChoice: undefined };
+  }
+  const tools: ToolDefinition[] = [];
+  for (const name of state.tools) {
+    if (name === "ask_question") {
+      tools.push(ASK_QUESTION_TOOL);
+    } else if (name === "ask_clarification") {
+      const t = TOOLKIT_TOOL_DEFINITIONS.assistant?.find(
+        (d) => d.function.name === "ask_clarification",
+      );
+      if (t) tools.push(t);
+    }
+  }
+  return { tools, toolChoice: tools.length > 0 ? "required" : undefined };
+}
+
 async function runNaviChatStream(
   streamId: string,
   projectPath: string | null,
@@ -1045,18 +1087,26 @@ async function runNaviChatStream(
           ].join("\n\n")
         : "";
 
-    const naviSystemPrompt = [
-      "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler.",
-      "Deine Nutzer sind Händler – meist ohne KI-Vorkenntnisse. Sprich auf Augenhöhe, kein Fachjargon.",
-      "Antworte immer auf Deutsch, kurz und direkt.",
-      "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
-      "Maximal eine Frage pro Antwort.",
-      "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
-      "Bewerte NICHT, ob KI dem Händler helfen kann oder nicht, außer deine aktuelle Aufgabe verlangt das ausdrücklich.",
-      ...(naviResultsContext ? [naviResultsContext] : []),
-      `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
-      ...(knowledgePrompt ? [knowledgePrompt] : []),
-    ].join("\n\n");
+    // Layer 1: narrow persona for info-gathering states, full for advisory states.
+    const naviSystemPrompt = newState.persona === "narrow"
+      ? [
+          "Du bist in einem direkten Gespräch. Dein Gegenüber sitzt vor dir und schreibt mit dir.",
+          "Sprich ihn immer direkt an – immer 'du', niemals 'der Händler' oder dritte Person.",
+          "Antworte auf Deutsch. Kurz und natürlich.",
+          ...(naviResultsContext ? [naviResultsContext] : []),
+          `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
+        ].join("\n\n")
+      : [
+          "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler.",
+          "Deine Nutzer sind Händler – meist ohne KI-Vorkenntnisse. Sprich auf Augenhöhe, kein Fachjargon.",
+          "Antworte immer auf Deutsch, kurz und direkt.",
+          "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
+          "Maximal eine Frage pro Antwort.",
+          "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
+          ...(naviResultsContext ? [naviResultsContext] : []),
+          `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
+          ...(knowledgePrompt ? [knowledgePrompt] : []),
+        ].join("\n\n");
 
     const conversationMessages: OpenAiMessage[] = [
       { role: "system", content: naviSystemPrompt },
@@ -1100,9 +1150,8 @@ async function runNaviChatStream(
       conversationMessages.push({ role: "user", content: userMessage });
     }
 
-    const naviTools = TOOLKIT_TOOL_DEFINITIONS.assistant.filter(
-      (t) => t.function.name === "ask_clarification",
-    );
+    // Layer 2: tool constraints per state — structurally limits what the LLM can output.
+    const { tools: naviTools, toolChoice } = buildNaviStateTools(newState);
 
     let tokenCount = 0;
     let fullAssistantText = "";
@@ -1123,6 +1172,7 @@ async function runNaviChatStream(
           stream: true,
           messages: conversationMessages,
           ...(naviTools.length > 0 ? { tools: naviTools } : {}),
+          ...(toolChoice ? { tool_choice: toolChoice } : {}),
         }),
       });
 
@@ -1204,6 +1254,30 @@ async function runNaviChatStream(
           emit({ type: "error", data: { message: "MODEL_EMPTY_RESPONSE" } });
           return;
         }
+        emit({ type: "done", data: { fullAssistantText } });
+        return;
+      }
+
+      // Layer 2+3: ask_question is a structural output constraint.
+      // Extract the response and stream it as plain text — no real tool execution.
+      const askQuestionCall = toolCalls.find((tc) => tc.function.name === "ask_question");
+      if (askQuestionCall) {
+        let response = "";
+        try {
+          const args = JSON.parse(askQuestionCall.function.arguments) as { response?: unknown };
+          response = typeof args.response === "string" ? args.response.trim() : "";
+        } catch {
+          response = askQuestionCall.function.arguments.trim();
+        }
+        // Layer 3: ensure question mark is present when required.
+        if (newState.validation?.requiresQuestion && response && !response.includes("?")) {
+          response += "?";
+        }
+        if (response) {
+          fullAssistantText = response;
+          emit({ type: "token", data: response });
+        }
+        if (!isStreamActive(streamId)) return;
         emit({ type: "done", data: { fullAssistantText } });
         return;
       }
