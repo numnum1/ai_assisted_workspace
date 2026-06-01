@@ -52,18 +52,16 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
   {
     id: "clarify_problem",
     instruction: `Dein Ziel in diesem State: Das Problem wirklich verstehen – nicht nur zur Kenntnis nehmen.
-Menschen schildern selten alles auf Anhieb. Frag gezielt nach, bis du ein klares Bild hast.
 
 Vorgehen:
 1. Bestätige kurz das Genannte (1 Satz), ohne es schon zu bewerten.
-2. Frage dann nach einem der noch unklaren Punkte – nur eine Frage pro Antwort:
-   - Wie oft tritt das Problem auf?
+2. Schau, welche der folgenden Punkte noch NICHT aus dem bisherigen Gespräch bekannt sind – und frage dann nach GENAU EINEM davon:
+   - Wie oft tritt das Problem auf / wie groß ist das Ausmaß?
    - Welche konkreten Auswirkungen hat es (Zeit, Geld, Stress)?
    - Was hat der Händler bisher versucht, um es zu lösen?
    - Was wäre für ihn ein gutes Ergebnis?
 
-Wechsle den State NICHT, solange noch Punkte im Arbeitsplan offen sind.
-Gehe erst weiter, wenn alle Arbeitsplan-Punkte bekannt sind.`,
+Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach – auch nicht zur Bestätigung.`,
     workPlan: [
       "Problem konkret beschrieben (nicht nur benannt)",
       "Häufigkeit oder Ausmaß des Problems bekannt",
@@ -93,7 +91,6 @@ Wenn die Antwort vage ist (z. B. "so Standardsachen" oder "weiß nicht genau"), 
 - "Nutzt du dafür Excel, eine App, Papier – oder läuft das gar nicht?"
 - "Machst du das manuell oder gibt es irgendeinen festen Ablauf?"
 
-Wechsle den State erst, wenn der Arbeitsplan vollständig ist.
 Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen aus dem bisherigen Gespräch ableitbar sind.`,
     workPlan: [
       "Genutztes Tool oder Ablauf für den problemrelevanten Bereich konkret benannt (auch 'kein Tool' oder 'nur Papier' ist eine gültige Antwort – vage Antworten wie 'verschiedene Sachen' nicht)",

@@ -35,7 +35,12 @@ export function buildClassificationPrompt(
     ? [
         "Bisheriges Gespräch:",
         conversationHistory
-          .filter((m) => !m.hidden && normalizeContent(m.content))
+          .filter(
+            (m) =>
+              !m.hidden &&
+              (m.role === "assistant" || m.role === "user") &&
+              normalizeContent(m.content),
+          )
           .map((m) => {
             const label = m.role === "assistant" ? "Navi" : "Händler";
             return `${label}: ${normalizeContent(m.content)}`;
@@ -52,10 +57,10 @@ export function buildClassificationPrompt(
     `Letzte Händler-Nachricht: "${userMessage}"`,
     `Mögliche Transitions:\n${transitionList}`,
     [
-      "WICHTIGE REGEL – Sei konservativ:",
-      "Menschen teilen selten alles auf einmal mit. Eine kurze, vage oder oberflächliche Antwort rechtfertigt KEINEN Übergang.",
-      "Wechsle NUR, wenn die Transition-Bedingung vollständig erfüllt ist und (bei Vorwärts-Transitions) alle Arbeitsplan-Punkte gedeckt sind.",
-      'Im Zweifel immer "0" zurückgeben.',
+      "WICHTIGE REGEL – Sei konservativ, aber fair:",
+      "Kurze, aber konkrete Antworten (z. B. 'von Hand', 'Excel', 'täglich', 'noch nichts versucht') sind ausreichend – 'konservativ' bedeutet: inhaltlich vage oder ausweichend, NICHT: kurz.",
+      "Wechsle NUR, wenn die Transition-Bedingung vollständig erfüllt ist und (bei Vorwärts-Transitions) alle Arbeitsplan-Punkte durch das Gespräch gedeckt sind.",
+      'Im Zweifel "0" zurückgeben.',
     ].join(" "),
   ]
     .filter(Boolean)
