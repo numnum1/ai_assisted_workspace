@@ -28,13 +28,13 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
   {
     id: "clarify_problem",
     label: "Problem klären",
-    description: "Navi fragt gezielt nach, bis Problem und Ausmaß konkret bekannt sind.",
+    description: "Navi fragt nach der praktischen Lücke – was konkret fehlt oder nicht klappt.",
     workPlan: [
       "Problem konkret beschrieben (nicht nur benannt – mit erkennbarem Kontext oder Auswirkung)",
-      "Häufigkeit oder Ausmaß des Problems bekannt",
+      "Praktische Lücke bekannt – der konkrete Schritt, der fehlt oder nicht klappt",
     ],
     transitions: [
-      { to: "explore_software_stack", label: "Problem + Ausmaß bekannt" },
+      { to: "explore_software_stack", label: "Problem + Lücke bekannt" },
       { to: "ask_problem", label: "Missverständnis – neues Problem" },
     ],
   },

@@ -1,9 +1,17 @@
 import { useState } from "react";
-import { ChevronRight, CheckCircle2, Circle, ClipboardList } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  ClipboardList,
+  ArrowRight,
+  FileText,
+  SplitSquareHorizontal,
+} from "lucide-react";
 import {
   NAVI_CLIENT_STATES,
   getNaviClientState,
 } from "./naviStateMachineClient.ts";
+import { NAVI_STATES } from "../../naviStateMachine.ts";
 import "./NaviStatePanel.css";
 
 interface Props {
@@ -12,115 +20,173 @@ interface Props {
 }
 
 export function NaviStatePanel({ naviStateId, naviResults }: Props) {
-  const [open, setOpen] = useState(false);
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
 
   const current = getNaviClientState(naviStateId);
+  const currentRaw = NAVI_STATES.find((s) => s.id === naviStateId);
 
-  // A state is "done" if it has an accumulated result — works for non-linear paths.
-  // The current active state is never "done" even if it has a result from a previous pass.
   const isDone = (stateId: string) =>
     stateId !== naviStateId && Boolean(naviResults?.[stateId]);
 
-  const completedCount = Object.keys(naviResults ?? {}).length;
+  const resultEntries = Object.entries(naviResults ?? {}).filter(([, v]) =>
+    v?.trim(),
+  );
 
   return (
-    <div className="navi-state-panel">
-      <button
-        className={`navi-state-header${open ? " navi-state-header--open" : ""}`}
-        onClick={() => setOpen((v) => !v)}
-        type="button"
-      >
-        <ChevronRight
-          size={12}
-          className={`navi-state-chevron${open ? " navi-state-chevron--open" : ""}`}
-        />
-        <span className="navi-state-chip">Navi</span>
-        <span className="navi-state-current-label">
-          {current?.label ?? naviStateId}
-        </span>
-        {completedCount > 0 && (
-          <span className="navi-state-results-badge">
-            {completedCount} Ergebnis{completedCount !== 1 ? "se" : ""}
-          </span>
-        )}
-      </button>
+    <div className="navi-panel">
+      {/* ── Section 1: Current State ────────────────────────── */}
+      <div className="navi-section">
+        <div className="navi-section-label">
+          <FileText size={11} />
+          State
+        </div>
 
-      {open && (
-        <div className="navi-state-body">
-          {current && (
-            <p className="navi-state-description">{current.description}</p>
+        <div className="navi-state-card">
+          <div className="navi-state-card-header">
+            <span className="navi-state-id-chip">{naviStateId}</span>
+            <span className="navi-state-card-title">
+              {current?.label ?? naviStateId}
+            </span>
+            <span
+              className={`navi-persona-chip navi-persona-chip--${currentRaw?.persona ?? "full"}`}
+            >
+              {currentRaw?.persona ?? "full"}
+            </span>
+          </div>
+
+          {current?.description && (
+            <p className="navi-state-card-description">{current.description}</p>
           )}
 
-          {/* Work plan for current state */}
-          {current && current.workPlan.length > 0 && (
-            <div className="navi-state-workplan">
-              <span className="navi-state-section-label">
-                <ClipboardList size={11} />
-                Arbeitsplan
-              </span>
-              <ul className="navi-state-workplan-list">
-                {current.workPlan.map((item, i) => (
-                  <li key={i} className="navi-state-workplan-item">
-                    <Circle size={9} className="navi-state-workplan-dot" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+          {currentRaw?.instruction && (
+            <pre className="navi-instruction">{currentRaw.instruction}</pre>
+          )}
+        </div>
+
+        {/* Work plan */}
+        {current && current.workPlan.length > 0 && (
+          <div className="navi-workplan">
+            <div className="navi-workplan-label">
+              <ClipboardList size={10} />
+              Arbeitsplan (Gate)
             </div>
-          )}
-
-          {/* State stepper */}
-          <ol className="navi-state-stepper">
-            {NAVI_CLIENT_STATES.map((s) => {
-              const done = isDone(s.id);
-              const active = s.id === naviStateId;
-              const status = done ? "done" : active ? "active" : "upcoming";
-              const result = naviResults?.[s.id];
-              return (
-                <li key={s.id} className={`navi-state-step navi-state-step--${status}`}>
-                  <span className="navi-state-step-dot" />
-                  <span className="navi-state-step-label">{s.label}</span>
-                  {result && (
-                    <button
-                      className="navi-state-result-toggle"
-                      onClick={() =>
-                        setExpandedResult(expandedResult === s.id ? null : s.id)
-                      }
-                      type="button"
-                      title="Ergebnis anzeigen"
-                    >
-                      <CheckCircle2 size={11} />
-                    </button>
-                  )}
-                  {expandedResult === s.id && result && (
-                    <div className="navi-state-result-box">
-                      {result
-                        .split("\n")
-                        .filter((l) => l.trim())
-                        .map((line, i) => (
-                          <div key={i} className="navi-state-result-line">
-                            {line.replace(/^-\s*/, "")}
-                          </div>
-                        ))}
-                    </div>
-                  )}
+            <ul className="navi-workplan-list">
+              {current.workPlan.map((item, i) => (
+                <li key={i} className="navi-workplan-item">
+                  <Circle size={8} className="navi-workplan-dot" />
+                  {item}
                 </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 2: Transitions ──────────────────────────── */}
+      {currentRaw && currentRaw.transitions.length > 0 && (
+        <div className="navi-section">
+          <div className="navi-section-label">
+            <ArrowRight size={11} />
+            Übergänge
+          </div>
+          <div className="navi-transitions">
+            {currentRaw.transitions.map((t, i) => {
+              const target = getNaviClientState(t.to);
+              return (
+                <div key={i} className="navi-transition-row">
+                  <div className="navi-transition-target">
+                    <ArrowRight size={9} />
+                    {target?.label ?? t.to}
+                    <span className="navi-transition-id">({t.to})</span>
+                  </div>
+                  <div className="navi-transition-condition">{t.condition}</div>
+                </div>
               );
             })}
-          </ol>
+          </div>
+        </div>
+      )}
 
-          {/* Possible transitions from current state */}
-          {current && current.transitions.length > 0 && (
-            <div className="navi-state-transitions">
-              <span className="navi-state-transitions-label">Weiter zu:</span>
-              {current.transitions.map((t) => (
-                <span key={`${t.to}-${t.label}`} className="navi-state-transition-chip">
-                  {t.label}
-                </span>
-              ))}
-            </div>
-          )}
+      {/* ── Section 3: State Flow ───────────────────────────── */}
+      <div className="navi-section">
+        <div className="navi-section-label">
+          <SplitSquareHorizontal size={11} />
+          Flow
+        </div>
+        <ol className="navi-stepper">
+          {NAVI_CLIENT_STATES.map((s) => {
+            const done = isDone(s.id);
+            const active = s.id === naviStateId;
+            const status = done ? "done" : active ? "active" : "upcoming";
+            const result = naviResults?.[s.id];
+            return (
+              <li key={s.id} className={`navi-step navi-step--${status}`}>
+                <span className="navi-step-dot" />
+                <span className="navi-step-label">{s.label}</span>
+                {result && (
+                  <button
+                    className="navi-step-result-btn"
+                    onClick={() =>
+                      setExpandedResult(
+                        expandedResult === s.id ? null : s.id,
+                      )
+                    }
+                    type="button"
+                    title="Ergebnis anzeigen"
+                  >
+                    <CheckCircle2 size={10} />
+                  </button>
+                )}
+                {expandedResult === s.id && result && (
+                  <div className="navi-step-result-box">
+                    {result
+                      .split("\n")
+                      .filter((l) => l.trim())
+                      .map((line, i) => (
+                        <div key={i} className="navi-step-result-line">
+                          {line.replace(/^[-•]\s*/, "")}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      {/* ── Section 4: Intermediate Results ────────────────── */}
+      {resultEntries.length > 0 && (
+        <div className="navi-section">
+          <div className="navi-section-label">
+            <CheckCircle2 size={11} />
+            Zwischenergebnisse
+          </div>
+          <div className="navi-results">
+            {resultEntries.map(([stateId, summary]) => {
+              const clientState = getNaviClientState(stateId);
+              return (
+                <div key={stateId} className="navi-result-entry">
+                  <div className="navi-result-entry-header">
+                    <span className="navi-result-entry-id">{stateId}</span>
+                    <span className="navi-result-entry-label">
+                      {clientState?.label ?? stateId}
+                    </span>
+                  </div>
+                  <div className="navi-result-entry-body">
+                    {summary
+                      .split("\n")
+                      .filter((l) => l.trim())
+                      .map((line, i) => (
+                        <div key={i} className="navi-result-entry-line">
+                          {line.replace(/^[-•]\s*/, "")}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

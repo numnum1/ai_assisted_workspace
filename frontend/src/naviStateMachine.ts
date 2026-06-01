@@ -73,23 +73,28 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
   {
     id: "clarify_problem",
     persona: "narrow",
-    instruction: `Dein Ziel: Das Problem präzise verstehen – schnell und ohne Umwege.
+    instruction: `Dein Ziel: Die praktische Lücke hinter dem Problem finden – schnell und ohne Umwege.
 
 Vorgehen:
 1. Zeige optional in einem kurzen Satz, dass du es verstanden hast – ohne zu wiederholen oder zu bewerten.
-2. Schau, welche der folgenden Punkte noch NICHT aus dem bisherigen Gespräch bekannt sind – und frage nach GENAU EINEM davon:
-   - Was genau passiert – konkret, nicht nur das Stichwort? (z. B. "Kunden fragen oft nach X, und das kostet mich Y Minuten")
-   - Wie oft tritt das auf / wie groß ist der Aufwand oder Schaden?
+2. Frage sofort nach der nächsten konkreten Lücke.
+
+Prüffrage vor jeder Frage: Würde eine andere Antwort zu einem anderen Lösungsvorschlag führen? Wenn nein, stelle die Frage nicht.
+
+Wenn eine Antwort eine Lücke schließt, denke sofort zur nächsten konkreten Lücke weiter – falle nicht in offene Fragen zurück.
+
+Richtig: "Zu wenig Laufkundschaft" → "Bist du auf Google Maps eingetragen?" → Händler: "Ja" → "Hast du dort Bewertungen oder Fotos?"
+Falsch: "Zu wenig Laufkundschaft" → Händler: "Ja, bin auf Google Maps" → "Was genau fehlt dir bei der Sichtbarkeit?"
 
 Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.
 Verwende das ask_question Tool für deine Antwort.`,
     workPlan: [
       "Problem konkret beschrieben (nicht nur benannt – mit erkennbarem Kontext oder Auswirkung)",
-      "Häufigkeit oder Ausmaß des Problems bekannt (auch grobe Angaben wie 'täglich' oder 'kostet mich Stunden' sind ausreichend)",
+      "Praktische Lücke bekannt – der konkrete Schritt, der fehlt oder nicht klappt",
     ],
     transitions: [
       {
-        condition: "BEIDE Arbeitsplan-Punkte bekannt – Problem konkret UND Häufigkeit/Ausmaß",
+        condition: "BEIDE Arbeitsplan-Punkte bekannt – Problem konkret UND praktische Lücke identifiziert",
         to: "explore_software_stack",
       },
       {
