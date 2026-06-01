@@ -938,6 +938,19 @@ async function runNaviChatStream(
     const currentState =
       getNaviState(currentStateId) ?? getNaviState("greeting")!;
 
+    // Load project config once — used for instruction and workPlan overrides throughout.
+    let projConfig: import("../../src/types.js").ProjectConfig | null = null;
+    try {
+      projConfig = await getProjectConfig(projectPath);
+    } catch {
+      // Non-fatal: fall back to defaults
+    }
+
+    const effectiveWorkPlan = (stateId: string, base: string[]): string[] => {
+      const override = projConfig?.naviWorkPlans?.[stateId];
+      return Array.isArray(override) && override.length > 0 ? override : base;
+    };
+
     let newStateId = currentStateId;
 
     // Call 1: Classification — skip if no user message or no transitions
@@ -951,7 +964,7 @@ async function runNaviChatStream(
         currentStateId,
         userMessage,
         currentState.transitions,
-        currentState.workPlan,
+        effectiveWorkPlan(currentStateId, currentState.workPlan),
         classificationHistory,
       );
 
@@ -1001,7 +1014,8 @@ async function runNaviChatStream(
     // Call 2 (only on state transition): extract a compact summary of the completed state.
     // This summary is stored in naviResults and injected as context in subsequent states.
     let stateSummary: string | undefined;
-    if (newStateId !== currentStateId && currentState.workPlan.length > 0) {
+    const currentEffectiveWorkPlan = effectiveWorkPlan(currentStateId, currentState.workPlan);
+    if (newStateId !== currentStateId && currentEffectiveWorkPlan.length > 0) {
       try {
         const history = Array.isArray(request.history) ? request.history : [];
         const excerptLines: string[] = [];
@@ -1017,7 +1031,7 @@ async function runNaviChatStream(
 
         const summaryPrompt = buildStateSummaryPrompt(
           currentStateId,
-          currentState.workPlan,
+          currentEffectiveWorkPlan,
           excerpt,
         );
         const summaryResponse = await fetch(
@@ -1064,14 +1078,9 @@ async function runNaviChatStream(
     const newState = getNaviState(newStateId) ?? currentState;
 
     let effectiveInstruction = newState.instruction;
-    try {
-      const projConfig = await getProjectConfig(projectPath);
-      const override = projConfig.naviInstructions?.[newStateId];
-      if (typeof override === "string" && override.trim()) {
-        effectiveInstruction = override;
-      }
-    } catch {
-      // Config read failure: silently fall back to default instruction
+    const instructionOverride = projConfig?.naviInstructions?.[newStateId];
+    if (typeof instructionOverride === "string" && instructionOverride.trim()) {
+      effectiveInstruction = instructionOverride;
     }
 
     const knowledgePrompt = buildNaviKnowledgePrompt(newStateId);

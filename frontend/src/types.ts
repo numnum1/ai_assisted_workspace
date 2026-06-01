@@ -283,6 +283,8 @@ export interface ProjectConfig {
   rules?: ProjectRule[];
   /** Per-state instruction overrides for Navi sessions. Key = state id, value = instruction text. */
   naviInstructions?: Record<string, string>;
+  /** Per-state workPlan overrides for Navi sessions. Key = state id, value = checklist items. */
+  naviWorkPlans?: Record<string, string[]>;
   extraFeatures?: ProjectExtraFeatures;
 }
 

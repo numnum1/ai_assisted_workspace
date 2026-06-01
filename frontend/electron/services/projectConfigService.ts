@@ -252,6 +252,17 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     }
   }
   const naviInstructions = Object.keys(naviInstructionsRaw).length > 0 ? naviInstructionsRaw : undefined;
+
+  const naviWorkPlansRaw: Record<string, string[]> = {};
+  if (input?.naviWorkPlans && typeof input.naviWorkPlans === "object") {
+    for (const [k, v] of Object.entries(input.naviWorkPlans)) {
+      if (typeof k === "string" && k.trim() && Array.isArray(v)) {
+        const items = v.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+        if (items.length > 0) naviWorkPlansRaw[k.trim()] = items;
+      }
+    }
+  }
+  const naviWorkPlans = Object.keys(naviWorkPlansRaw).length > 0 ? naviWorkPlansRaw : undefined;
   return {
     name: input?.name ?? "",
     description: input?.description ?? "",
@@ -265,6 +276,7 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     ...(maxToolRounds !== undefined ? { maxToolRounds } : {}),
     rules,
     ...(naviInstructions !== undefined ? { naviInstructions } : {}),
+    ...(naviWorkPlans !== undefined ? { naviWorkPlans } : {}),
     extraFeatures: input?.extraFeatures ?? {},
   };
 }

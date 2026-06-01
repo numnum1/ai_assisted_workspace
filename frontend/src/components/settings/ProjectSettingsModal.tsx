@@ -280,16 +280,47 @@ function RulesEditor({
 
 function NaviInstructionsEditor({
   states,
-  overrides,
-  onChange,
+  instructionOverrides,
+  workPlanOverrides,
+  onInstructionChange,
+  onWorkPlanChange,
 }: {
   states: NaviState[];
-  overrides: Record<string, string>;
-  onChange: (overrides: Record<string, string>) => void;
+  instructionOverrides: Record<string, string>;
+  workPlanOverrides: Record<string, string[]>;
+  onInstructionChange: (overrides: Record<string, string>) => void;
+  onWorkPlanChange: (overrides: Record<string, string[]>) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string>(states[0]?.id ?? "");
   const selected = states.find((s) => s.id === selectedId);
-  const isOverridden = Boolean(overrides[selectedId]?.trim());
+  const isInstructionOverridden = Boolean(instructionOverrides[selectedId]?.trim());
+  const isWorkPlanOverridden = Boolean(workPlanOverrides[selectedId]?.length);
+  const isAnyOverridden = isInstructionOverridden || isWorkPlanOverridden;
+
+  const workPlanItems: string[] = isWorkPlanOverridden
+    ? workPlanOverrides[selectedId]
+    : (selected?.workPlan ?? []);
+
+  const updateWorkPlanItem = (idx: number, value: string) => {
+    const next = [...workPlanItems];
+    next[idx] = value;
+    onWorkPlanChange({ ...workPlanOverrides, [selectedId]: next });
+  };
+
+  const addWorkPlanItem = () => {
+    onWorkPlanChange({ ...workPlanOverrides, [selectedId]: [...workPlanItems, ""] });
+  };
+
+  const removeWorkPlanItem = (idx: number) => {
+    const next = workPlanItems.filter((_, i) => i !== idx);
+    if (next.length === 0) {
+      const updated = { ...workPlanOverrides };
+      delete updated[selectedId];
+      onWorkPlanChange(updated);
+    } else {
+      onWorkPlanChange({ ...workPlanOverrides, [selectedId]: next });
+    }
+  };
 
   return (
     <div className="ps-rules-editor">
@@ -301,7 +332,7 @@ function NaviInstructionsEditor({
             onClick={() => setSelectedId(s.id)}
           >
             <span className="ps-rules-list-name">{s.id}</span>
-            {overrides[s.id]?.trim() && (
+            {(instructionOverrides[s.id]?.trim() || workPlanOverrides[s.id]?.length) && (
               <span title="Angepasst" style={{ color: "var(--accent)", fontSize: 10 }}>●</span>
             )}
           </div>
@@ -310,43 +341,90 @@ function NaviInstructionsEditor({
 
       {selected && (
         <div className="ps-rules-panel">
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <code style={{ fontSize: 11, opacity: 0.7 }}>{selected.id}</code>
-            {isOverridden && (
+            {isAnyOverridden && (
               <button
                 type="button"
                 className="ps-secondary-btn"
                 style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "2px 6px" }}
-                title="Auf Standard zurücksetzen"
+                title="Alle Overrides für diesen State zurücksetzen"
                 onClick={() => {
-                  const next = { ...overrides };
-                  delete next[selectedId];
-                  onChange(next);
+                  const nextI = { ...instructionOverrides };
+                  delete nextI[selectedId];
+                  onInstructionChange(nextI);
+                  const nextW = { ...workPlanOverrides };
+                  delete nextW[selectedId];
+                  onWorkPlanChange(nextW);
                 }}
               >
                 <RefreshCw size={11} /> Zurücksetzen
               </button>
             )}
           </div>
-          {!isOverridden && (
-            <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11 }}>
-              Standard-Anweisung (kein Override gesetzt) — klicke in das Textfeld zum Anpassen:
+
+          <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11 }}>Anweisung</p>
+          {!isInstructionOverridden && (
+            <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11, opacity: 0.6 }}>
+              Standard aktiv — klicke ins Textfeld zum Anpassen:
             </p>
           )}
           <textarea
             className="ps-textarea ps-textarea-tall"
-            value={isOverridden ? overrides[selectedId] : selected.instruction}
+            value={isInstructionOverridden ? instructionOverrides[selectedId] : selected.instruction}
             placeholder={selected.instruction}
-            rows={10}
+            rows={8}
             onChange={(e) => {
-              onChange({ ...overrides, [selectedId]: e.target.value });
+              onInstructionChange({ ...instructionOverrides, [selectedId]: e.target.value });
             }}
             onFocus={() => {
-              if (!isOverridden) {
-                onChange({ ...overrides, [selectedId]: selected.instruction });
+              if (!isInstructionOverridden) {
+                onInstructionChange({ ...instructionOverrides, [selectedId]: selected.instruction });
               }
             }}
           />
+
+          {(selected.workPlan.length > 0 || isWorkPlanOverridden) && (
+            <div style={{ marginTop: 12 }}>
+              <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11 }}>
+                Arbeitsplan{!isWorkPlanOverridden ? " (Standard aktiv)" : ""}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {workPlanItems.map((item, idx) => (
+                  <div key={idx} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      className="ps-input"
+                      style={{ flex: 1, fontSize: 12 }}
+                      value={item}
+                      placeholder="Arbeitsplan-Punkt…"
+                      onChange={(e) => updateWorkPlanItem(idx, e.target.value)}
+                      onFocus={() => {
+                        if (!isWorkPlanOverridden) {
+                          onWorkPlanChange({ ...workPlanOverrides, [selectedId]: [...selected.workPlan] });
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="ps-rules-list-delete"
+                      onClick={() => removeWorkPlanItem(idx)}
+                      title="Punkt entfernen"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="ps-rules-add-btn"
+                style={{ marginTop: 4 }}
+                onClick={addWorkPlanItem}
+              >
+                <Plus size={11} /> Punkt hinzufügen
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -384,6 +462,7 @@ export function ProjectSettingsModal({
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
   const [naviInstructionDraft, setNaviInstructionDraft] = useState<Record<string, string>>({});
+  const [naviWorkPlanDraft, setNaviWorkPlanDraft] = useState<Record<string, string[]>>({});
 
   // Modes
   const [modes, setModes] = useState<Mode[]>([]);
@@ -513,6 +592,7 @@ export function ProjectSettingsModal({
         ]);
         setConfig(cfg);
         setNaviInstructionDraft(cfg.naviInstructions ?? {});
+        setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
         setModes(mds);
         setAgents(agentList);
       } else {
@@ -546,6 +626,7 @@ export function ProjectSettingsModal({
       const cfg = await projectConfigApi.init();
       setConfig(cfg);
       setNaviInstructionDraft(cfg.naviInstructions ?? {});
+      setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -1866,13 +1947,14 @@ export function ProjectSettingsModal({
             {initialized && tab === "navi" && (
               <div className="ps-tab-content">
                 <p className="ps-hint">
-                  Passe die Anweisungen für jeden Navi-State an. Ohne Override gilt die Standard-Anweisung aus dem Code.
-                  Die State-Übergänge und Gesprächsstruktur bleiben unverändert.
+                  Passe Anweisungen und Arbeitsplan für jeden Navi-State an. Ohne Override gilt der Standard aus dem Code.
                 </p>
                 <NaviInstructionsEditor
                   states={NAVI_STATES}
-                  overrides={naviInstructionDraft}
-                  onChange={setNaviInstructionDraft}
+                  instructionOverrides={naviInstructionDraft}
+                  workPlanOverrides={naviWorkPlanDraft}
+                  onInstructionChange={setNaviInstructionDraft}
+                  onWorkPlanChange={setNaviWorkPlanDraft}
                 />
                 <div className="ps-actions">
                   <button
@@ -1883,9 +1965,10 @@ export function ProjectSettingsModal({
                       setSavingConfig(true);
                       setError(null);
                       try {
-                        const saved = await projectConfigApi.update({ ...config, naviInstructions: naviInstructionDraft });
+                        const saved = await projectConfigApi.update({ ...config, naviInstructions: naviInstructionDraft, naviWorkPlans: naviWorkPlanDraft });
                         setConfig(saved);
                         setNaviInstructionDraft(saved.naviInstructions ?? {});
+                        setNaviWorkPlanDraft(saved.naviWorkPlans ?? {});
                         setConfigSaved(true);
                         setTimeout(() => setConfigSaved(false), 2000);
                       } catch (err) {
