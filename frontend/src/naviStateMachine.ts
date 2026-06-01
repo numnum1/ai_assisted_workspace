@@ -115,32 +115,32 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
   {
     id: "explore_software_stack",
     persona: "narrow",
-    instruction: `Dein Ziel: Den kompletten Software-Stack des Händlers verstehen – nicht nur den Bereich des Problems, sondern das ganze Bild.
-Warum: KI-Tools müssen in bestehende Systeme integrieren. Ohne Stack-Überblick kann keine sinnvolle Empfehlung gemacht werden.
+    instruction: `Dein Ziel: Den Software-Stack des Händlers so weit verstehen, dass eine sinnvolle Empfehlung möglich ist.
 Frag einfach und ohne Fachbegriffe. Immer nur eine Frage pro Antwort.
 
-Bereiche, die du abdecken musst (in der Reihenfolge, die zum Gespräch passt):
-1. Kassensystem / Hauptverkaufstool (z. B. Lightspeed, Shopify POS, Zettle, Zettle, Excel, gar keins)
-2. Online-Präsenz (Online-Shop? Welche Plattform? Oder nur stationär?)
-3. Kundenkommunikation (E-Mail, WhatsApp, Telefon – womit hauptsächlich?)
-4. Tool oder Ablauf für den Bereich, in dem das Problem liegt (falls noch nicht bekannt)
+Pflichtbereiche – immer klären (falls noch nicht bekannt):
+1. Online-Präsenz (Online-Shop ja/nein, welche Plattform – oder nur stationär?)
+2. Kundenkommunikation (E-Mail, WhatsApp, Telefon – womit hauptsächlich?)
+3. Tool oder Ablauf für den Bereich, in dem das Problem liegt (falls noch nicht bekannt)
 
-Wenn die Antwort vage ist (z. B. "so Standardsachen" oder "weiß nicht genau"), hak nach:
-- "Nutzt du dafür eine App, Excel, Papier – oder läuft das gar nicht?"
-- "Machst du das manuell oder gibt es einen festen Ablauf?"
+Nur bei Bedarf – frag nach dem Kassensystem NUR wenn es für das Problem relevant sein könnte:
+- Relevant: Lager, Bestellungen, Buchhaltung, Kassenanbindung
+- Nicht relevant: Online-Sichtbarkeit, Laufkundschaft, Google Maps, Social Media
 
-Bereiche die bereits aus dem bisherigen Gespräch bekannt sind, NICHT nochmals erfragen.
-Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen aus dem bisherigen Gespräch ableitbar sind.
+Wenn die Antwort vage ist (z. B. "so Standardsachen"), hak nach:
+- "Nutzt du dafür eine App, Excel, Papier – oder gar nichts?"
+
+Bereiche die bereits bekannt sind, NICHT nochmals erfragen.
+Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen ableitbar sind.
 Ansonsten verwende ask_question.`,
     workPlan: [
-      "Kassensystem oder Hauptverkaufstool bekannt (auch 'keins' oder 'nur Kasse' ist gültig)",
       "Online-Präsenz bekannt (Online-Shop ja/nein, und falls ja welche Plattform – auch 'nur stationär' ist gültig)",
       "Kundenkommunikationsweg bekannt (z. B. E-Mail, WhatsApp, Telefon)",
       "Tool oder Ablauf für den problemrelevanten Bereich konkret benannt (auch 'kein Tool' oder 'nur Papier' ist gültig – vage Antworten wie 'verschiedene Sachen' nicht)",
     ],
     transitions: [
       {
-        condition: "Alle vier Arbeitsplan-Punkte bekannt – Kassensystem, Online-Präsenz, Kommunikationsweg UND problemrelevanter Bereich",
+        condition: "Alle drei Pflicht-Arbeitsplan-Punkte bekannt – Online-Präsenz, Kommunikationsweg UND problemrelevanter Bereich",
         to: "confirm_understanding",
       },
       {
