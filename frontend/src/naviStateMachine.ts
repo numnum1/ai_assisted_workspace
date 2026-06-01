@@ -73,27 +73,23 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
   {
     id: "clarify_problem",
     persona: "narrow",
-    instruction: `Dein Ziel: Das Problem wirklich verstehen – nicht mehr, nicht weniger.
+    instruction: `Dein Ziel: Das Problem präzise verstehen – schnell und ohne Umwege.
 
 Vorgehen:
 1. Zeige optional in einem kurzen Satz, dass du es verstanden hast – ohne zu wiederholen oder zu bewerten.
 2. Schau, welche der folgenden Punkte noch NICHT aus dem bisherigen Gespräch bekannt sind – und frage nach GENAU EINEM davon:
-   - Wie oft tritt das Problem auf / wie groß ist das Ausmaß?
-   - Welche konkreten Auswirkungen hat es (Zeit, Geld, Stress)?
-   - Was hat der Händler bisher versucht, um es zu lösen?
-   - Was wäre für ihn ein gutes Ergebnis?
+   - Was genau passiert – konkret, nicht nur das Stichwort? (z. B. "Kunden fragen oft nach X, und das kostet mich Y Minuten")
+   - Wie oft tritt das auf / wie groß ist der Aufwand oder Schaden?
 
 Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.
 Verwende das ask_question Tool für deine Antwort.`,
     workPlan: [
-      "Problem konkret beschrieben (nicht nur benannt)",
-      "Häufigkeit oder Ausmaß des Problems bekannt",
-      "Bisheriger Umgang oder Workaround bekannt",
-      "Gewünschtes Ergebnis oder Ziel des Händlers bekannt",
+      "Problem konkret beschrieben (nicht nur benannt – mit erkennbarem Kontext oder Auswirkung)",
+      "Häufigkeit oder Ausmaß des Problems bekannt (auch grobe Angaben wie 'täglich' oder 'kostet mich Stunden' sind ausreichend)",
     ],
     transitions: [
       {
-        condition: "ALLE Arbeitsplan-Punkte sind bekannt – Problem konkret, Häufigkeit/Ausmaß, bisheriger Umgang UND gewünschtes Ergebnis",
+        condition: "BEIDE Arbeitsplan-Punkte bekannt – Problem konkret UND Häufigkeit/Ausmaß",
         to: "explore_software_stack",
       },
       {
@@ -107,24 +103,32 @@ Verwende das ask_question Tool für deine Antwort.`,
   {
     id: "explore_software_stack",
     persona: "narrow",
-    instruction: `Dein Ziel: Verstehen, welche Tools und Abläufe der Händler aktuell nutzt – bezogen auf den Bereich, in dem das Problem liegt.
+    instruction: `Dein Ziel: Den kompletten Software-Stack des Händlers verstehen – nicht nur den Bereich des Problems, sondern das ganze Bild.
+Warum: KI-Tools müssen in bestehende Systeme integrieren. Ohne Stack-Überblick kann keine sinnvolle Empfehlung gemacht werden.
 Frag einfach und ohne Fachbegriffe. Immer nur eine Frage pro Antwort.
 
-Typische Bereiche, die relevant sein können: Kundenkommunikation, Terminplanung, Buchhaltung, Bestellungen, Lagerverwaltung, Marketing.
-Frag nur nach den Bereichen, die für das genannte Problem relevant sind.
+Bereiche, die du abdecken musst (in der Reihenfolge, die zum Gespräch passt):
+1. Kassensystem / Hauptverkaufstool (z. B. Lightspeed, Shopify POS, Zettle, Zettle, Excel, gar keins)
+2. Online-Präsenz (Online-Shop? Welche Plattform? Oder nur stationär?)
+3. Kundenkommunikation (E-Mail, WhatsApp, Telefon – womit hauptsächlich?)
+4. Tool oder Ablauf für den Bereich, in dem das Problem liegt (falls noch nicht bekannt)
 
 Wenn die Antwort vage ist (z. B. "so Standardsachen" oder "weiß nicht genau"), hak nach:
-- "Nutzt du dafür Excel, eine App, Papier – oder läuft das gar nicht?"
-- "Machst du das manuell oder gibt es irgendeinen festen Ablauf?"
+- "Nutzt du dafür eine App, Excel, Papier – oder läuft das gar nicht?"
+- "Machst du das manuell oder gibt es einen festen Ablauf?"
 
+Bereiche die bereits aus dem bisherigen Gespräch bekannt sind, NICHT nochmals erfragen.
 Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen aus dem bisherigen Gespräch ableitbar sind.
 Ansonsten verwende ask_question.`,
     workPlan: [
-      "Genutztes Tool oder Ablauf für den problemrelevanten Bereich konkret benannt (auch 'kein Tool' oder 'nur Papier' ist eine gültige Antwort – vage Antworten wie 'verschiedene Sachen' nicht)",
+      "Kassensystem oder Hauptverkaufstool bekannt (auch 'keins' oder 'nur Kasse' ist gültig)",
+      "Online-Präsenz bekannt (Online-Shop ja/nein, und falls ja welche Plattform – auch 'nur stationär' ist gültig)",
+      "Kundenkommunikationsweg bekannt (z. B. E-Mail, WhatsApp, Telefon)",
+      "Tool oder Ablauf für den problemrelevanten Bereich konkret benannt (auch 'kein Tool' oder 'nur Papier' ist gültig – vage Antworten wie 'verschiedene Sachen' nicht)",
     ],
     transitions: [
       {
-        condition: "Arbeitsplan vollständig – genutzter Tool-Stack oder Ablauf für den relevanten Bereich ist konkret bekannt",
+        condition: "Alle vier Arbeitsplan-Punkte bekannt – Kassensystem, Online-Präsenz, Kommunikationsweg UND problemrelevanter Bereich",
         to: "assess_situation",
       },
       {
@@ -138,24 +142,24 @@ Ansonsten verwende ask_question.`,
   {
     id: "assess_situation",
     persona: "full",
-    instruction: `Du hast jetzt: Laden, Problem/Wunsch, aktuelle Maßnahmen und Software-Stack.
-Gib eine kurze, ehrliche Einschätzung:
+    instruction: `Du hast jetzt: Laden, Problem/Ausmaß und den vollständigen Software-Stack.
+Gib eine kurze, ehrliche Einschätzung – und leite direkt in eine erste Empfehlung über:
 - Kann KI hier sinnvoll helfen – realistisch, ohne den bestehenden Stack zu verändern?
-- Wenn ja: Skizziere kurz einen möglichen Ansatz.
-- Wenn nein: Sag das direkt. "Das lohnt sich aktuell nicht" ist eine vollwertige Antwort.
-Frage am Ende, ob der Händler konkrete Lösungsvorschläge hören möchte.`,
+- Wenn ja: Skizziere direkt einen konkreten Ansatz, der in den Stack passt. Nenne ein realistisches Beispiel.
+- Wenn nein: Sag das klar und direkt. "Das lohnt sich aktuell nicht" ist eine vollwertige Antwort.
+Frage am Ende kurz, ob das in die richtige Richtung geht – nicht ob sie überhaupt eine Empfehlung wollen.`,
     workPlan: [],
     transitions: [
       {
-        condition: "Nutzer möchte konkrete Lösungsvorschläge hören",
+        condition: "Nutzer reagiert positiv, will mehr Details oder hat konkrete Rückfragen zum Vorschlag",
         to: "give_recommendation",
       },
       {
-        condition: "Nutzer ist zufrieden oder möchte nicht weiter",
+        condition: "Nutzer signalisiert klar kein Interesse oder möchte das Gespräch beenden",
         to: "closing",
       },
       {
-        condition: "Es stellt sich heraus, dass wesentliche Stack-Informationen fehlen oder unklar sind, um eine fundierte Einschätzung zu geben",
+        condition: "Wesentliche Stack-Informationen fehlen oder sind zu unklar für eine fundierte Einschätzung",
         to: "explore_software_stack",
       },
     ],
