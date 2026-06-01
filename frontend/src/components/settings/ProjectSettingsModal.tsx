@@ -407,6 +407,7 @@ function NaviInstructionsEditor({
                     <button
                       type="button"
                       className="ps-rules-list-delete"
+                      style={{ opacity: 1 }}
                       onClick={() => removeWorkPlanItem(idx)}
                       title="Punkt entfernen"
                     >
