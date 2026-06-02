@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Wand2, Pencil, Maximize2, Minimize2, FlaskConical } from "lucide-react";
+import { History, Wand2, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2 } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -101,7 +101,9 @@ interface ChatPanelProps {
   agentPresets?: AgentPreset[];
   onComposerDraftChange?: (text: string) => void;
   theme?: "light" | "dark";
-  onOpenThreadWorkspace?: () => void;
+  /** Summarize thread and merge result into parent conversation (only when activeIsThread is true). */
+  onSummarizeToParent?: (focusInstructions?: string) => Promise<void> | void;
+  isSummarizing?: boolean;
   /** Last visible message from the parent conversation (when activeIsThread is true). */
   parentLastMessage?: ChatMessage | null;
   /** ContextBar data — one per chat instance. */
@@ -179,7 +181,8 @@ export function ChatPanel({
   activeIsThread = false,
   parentLastMessage = null,
   theme = "dark",
-  onOpenThreadWorkspace,
+  onSummarizeToParent,
+  isSummarizing = false,
   contextInfo,
   activeFile,
   isDirty,
@@ -326,23 +329,26 @@ export function ChatPanel({
               <Wand2 size={14} />
             </button>
           )}
+          {activeIsThread && onSummarizeToParent && (
+            <button
+              type="button"
+              className="chat-history-btn"
+              onClick={() => void onSummarizeToParent()}
+              disabled={isSummarizing}
+              title="Zusammenfassen & zum Haupt-Chat"
+            >
+              {isSummarizing ? <Loader2 size={14} className="chat-btn-spin" /> : <GitMerge size={14} />}
+            </button>
+          )}
           <button
             type="button"
             data-testid="expandButton"
             className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
-            onClick={() => {
-              if (activeIsThread && onOpenThreadWorkspace) {
-                onOpenThreadWorkspace();
-              } else {
-                toggleChatFullscreen();
-              }
-            }}
+            onClick={toggleChatFullscreen}
             title={
-              activeIsThread
-                ? "Thread-Workspace öffnen"
-                : isFullscreen
-                  ? "Vergrößerte Ansicht schließen (Esc)"
-                  : "Chat vergrößern"
+              isFullscreen
+                ? "Vergrößerte Ansicht schließen (Esc)"
+                : "Chat vergrößern"
             }
             aria-pressed={isFullscreen}
           >

@@ -2245,6 +2245,15 @@ body.file-tree-native-dragging {
     color: var(--accent);
 }
 
+.chat-history-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.chat-btn-spin {
+    animation: spin 1s linear infinite;
+}
+
 .chat-header-title-row {
     display: flex;
     align-items: center;

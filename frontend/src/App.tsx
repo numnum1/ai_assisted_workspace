@@ -29,7 +29,6 @@ import { SubprojectTypeDialog } from "./components/settings/SubprojectTypeDialog
 import { MetaPanel } from "./components/meta/MetaPanel.tsx";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { SimulationSetupModal, type SimulationSetupResult } from "./components/simulation/SimulationSetupModal.tsx";
-import { ThreadWorkspacePanel } from "./components/chat/ThreadWorkspacePanel.tsx";
 import { ChatThreadsRail } from "./components/chat/ChatThreadsRail.tsx";
 import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
 import { PromptPackModal } from "./components/chat/PromptPackModal.tsx";
@@ -69,12 +68,6 @@ import {
 } from "./api.ts";
 import { buildThreadHiddenBootstrap } from "./components/chat/chatThreadUtils.ts";
 import type { GuidedThreadOfferPayload } from "./components/chat/guidedThreadOfferUtils.ts";
-import {
-  buildConversationById,
-  listAllDescendants,
-  resolveThreadBranchRootId,
-} from "./components/chat/chatHistoryUtils.ts";
-import type { ThreadBranchItem } from "./components/chat/ThreadBranchPicker.tsx";
 import { usePreferences } from "./hooks/usePreferences.ts";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import { useProject } from "./hooks/useProject.ts";
@@ -581,14 +574,6 @@ function App() {
     },
   });
 
-  // Parent-Chat-Instanz: immer instanziiert (React-Hooks-Regel), aktiv nur im Split-View
-  const parentChat = useChat((msgs) => {
-    const parentId = history.activeConversation?.parentConversationId;
-    if (parentId) {
-      history.updateMessagesForConversation(parentId, msgs);
-    }
-  });
-
   /** Bumped after modes + LLM list load so chat mode can sync once project defaults are known. */
   const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
 
@@ -689,25 +674,7 @@ function App() {
     return null;
   }, [history.activeConversation?.isThread, parentConversation?.messages]);
 
-  // Thread Workspace overlay
-  const [threadWorkspaceOpen, setThreadWorkspaceOpen] = useState(false);
   const [summarizingThread, setSummarizingThread] = useState(false);
-  const [mergingDirectly, setMergingDirectly] = useState(false);
-
-  // Close workspace when switching away from a thread conversation
-  useEffect(() => {
-    if (!history.activeConversation?.isThread) {
-      setThreadWorkspaceOpen(false);
-    }
-  }, [history.activeId, history.activeConversation?.isThread]);
-
-  const handleOpenThreadWorkspace = useCallback(() => {
-    setThreadWorkspaceOpen(true);
-  }, []);
-
-  const handleCloseThreadWorkspace = useCallback(() => {
-    setThreadWorkspaceOpen(false);
-  }, []);
 
   const handleSummarizeToParent = useCallback(
     async (focusInstructions?: string) => {
@@ -748,17 +715,9 @@ function App() {
             fromThreadTitle: generatedTitle || threadTitle,
           },
         };
-        // Build updated parent messages before the async state update lands
-        const currentParent = history.conversations.find(
-          (c) => c.id === parentId,
-        );
-        const updatedParentMessages = [
-          ...(currentParent?.messages ?? []),
-          summaryMessage,
-        ];
         history.summarizeThread(parentId, history.activeId, summaryMessage);
-        // Sync parentChat immediately so the summary is visible without a restart
-        parentChat.loadMessages(updatedParentMessages);
+        // Switch to parent so the summary is immediately visible
+        history.switchConversation(parentId);
       } catch (err) {
         console.error("[App] handleSummarizeToParent failed:", err);
         throw err;
@@ -766,151 +725,8 @@ function App() {
         setSummarizingThread(false);
       }
     },
-    [chat.messages, history, parentChat],
+    [chat.messages, history],
   );
-
-  const handleUseMessageAsThreadSummary = useCallback(
-    (messageIndex: number) => {
-      const parentId = history.activeConversation?.parentConversationId;
-      if (!parentId) return;
-      const threadTitle = history.activeConversation?.title ?? "Thread";
-      const msg = chat.messages[messageIndex];
-      if (!msg) return;
-      console.trace(
-        `[App] useMessageAsThreadSummary: parentId=${parentId}, messageIndex=${messageIndex}`,
-      );
-      const summaryMessage = {
-        role: "assistant" as const,
-        content: msg.content,
-        kind: "thread-summary" as const,
-        threadSummaryMeta: {
-          fromThreadId: history.activeId,
-          fromThreadTitle: threadTitle,
-        },
-      };
-      const currentParent = history.conversations.find(
-        (c) => c.id === parentId,
-      );
-      const updatedParentMessages = [
-        ...(currentParent?.messages ?? []),
-        summaryMessage,
-      ];
-      history.summarizeThread(parentId, history.activeId, summaryMessage);
-      parentChat.loadMessages(updatedParentMessages);
-      console.trace(
-        `[App] useMessageAsThreadSummary: done, content length=${msg.content.length}`,
-      );
-    },
-    [chat.messages, history, parentChat],
-  );
-
-  const handleUseTextAsMergeMessage = useCallback(
-    async (message: string) => {
-      const parentId = history.activeConversation?.parentConversationId;
-      if (!parentId) return;
-      const threadTitle = history.activeConversation?.title ?? "Thread";
-      const trimmed = message.trim();
-      if (!trimmed) return;
-
-      setMergingDirectly(true);
-      try {
-        console.trace(
-          `[App] useTextAsMergeMessage: parentId=${parentId}, content length=${trimmed.length}`,
-        );
-        const summaryMessage = {
-          role: "assistant" as const,
-          content: trimmed,
-          kind: "thread-summary" as const,
-          threadSummaryMeta: {
-            fromThreadId: history.activeId,
-            fromThreadTitle: threadTitle,
-          },
-        };
-        const currentParent = history.conversations.find(
-          (c) => c.id === parentId,
-        );
-        const updatedParentMessages = [
-          ...(currentParent?.messages ?? []),
-          summaryMessage,
-        ];
-        history.summarizeThread(parentId, history.activeId, summaryMessage);
-        parentChat.loadMessages(updatedParentMessages);
-        console.trace(`[App] useTextAsMergeMessage: done`);
-      } finally {
-        setMergingDirectly(false);
-      }
-    },
-    [history, parentChat],
-  );
-
-  // Build ThreadBranchPicker data for the workspace
-  const threadWorkspaceRail = useMemo(() => {
-    const byId = buildConversationById(history.conversations);
-    const activeConv = byId.get(history.activeId);
-    const rootId = resolveThreadBranchRootId(activeConv, byId);
-    if (!rootId) return null;
-    const rootConv = byId.get(rootId) ?? null;
-    if (!rootConv) return null;
-    const threads = listAllDescendants(history.conversations, rootId);
-    if (threads.length === 0) return null;
-    // Compute which threads have already been merged.
-    // Scan the entire tree (root + all descendants) so that merges into
-    // intermediate nodes (threads-of-threads) are also detected.
-    const treeConvIds = new Set([rootId, ...threads.map((t) => t.id)]);
-    const mergedThreadIds = new Set(
-      history.conversations
-        .filter((c) => treeConvIds.has(c.id))
-        .flatMap((c) => c.messages)
-        .filter(
-          (m) =>
-            m.kind === "thread-summary" && m.threadSummaryMeta?.fromThreadId,
-        )
-        .map((m) => m.threadSummaryMeta!.fromThreadId),
-    );
-    const toBranchItem = (
-      conv: {
-        id: string;
-        title: string;
-        messages: {
-          role: "user" | "assistant" | "tool" | "system";
-          content: string;
-          hidden?: boolean;
-        }[];
-        createdAt: number;
-        updatedAt: number;
-        savedToProject?: boolean;
-        isClosed?: boolean;
-        parentConversationId?: string;
-      },
-      mergedToParent?: boolean,
-    ): ThreadBranchItem => {
-      // CRITICAL FIX: lastUpdated MUST be stable and NEVER change when thread is opened/selected
-      // The bug was: using conv.updatedAt which gets updated by useChat when you click a thread
-      // Solution: always use conv.createdAt - this never changes and keeps threads in stable order
-      const lastUpdated = conv.createdAt;
-
-      return {
-        id: conv.id,
-        title: conv.title,
-        messageCount: conv.messages.filter((m) => !m.hidden).length,
-        messages: conv.messages,
-        createdAt: conv.createdAt,
-        // lastUpdated is NOW completely stable - equals createdAt and never changes
-        // This fixes the bug where threads jump to bottom when opened
-        lastUpdated: lastUpdated,
-        savedToProject: conv.savedToProject,
-        mergedToParent,
-        isClosed: conv.isClosed,
-        parentId: conv.parentConversationId,
-      };
-    };
-    return {
-      mainBranchItem: toBranchItem(rootConv),
-      threadBranchItems: threads.map((t) =>
-        toBranchItem(t, mergedThreadIds.has(t.id)),
-      ),
-    };
-  }, [history.conversations, history.activeId]);
 
   // Load messages when switching conversations
   useEffect(() => {
@@ -919,20 +735,6 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
-
-  // Load parent messages into parentChat when the parent conversation changes
-  useEffect(() => {
-    if (parentConversationId) {
-      const parent = history.conversations.find(
-        (c) => c.id === parentConversationId,
-      );
-      if (parent) {
-        parentChat.loadMessages(parent.messages);
-        parentChatComposerDraftRef.current = "";
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parentConversationId]);
 
   const loadModes = useCallback(async () => {
     try {
@@ -1649,7 +1451,6 @@ function App() {
   }, [refreshWorkspaceModeSchema]);
 
   const mainChatComposerDraftRef = useRef("");
-  const parentChatComposerDraftRef = useRef("");
 
   useEffect(() => {
     mainChatComposerDraftRef.current = "";
@@ -1676,41 +1477,12 @@ function App() {
     clearReferencedFiles: refs.clearFiles,
   });
 
-  const parentConversationModel = useConversationModel({
-    projectPath: project.projectPath,
-    activeConversation: parentConversation ?? undefined,
-    activeConversationId: parentConversationId ?? history.activeId,
-    selectedMode,
-    modes,
-    modeLlmId,
-    useReasoning,
-    disabledToolkits,
-    rulesDisabled: !rulesEnabled,
-    referencedFiles: refs.referencedFiles,
-    focusedFieldKey: focusedField?.fieldKey,
-    activeSelection: null,
-    messages: parentChat.messages,
-    pendingMessageRef: parentChatComposerDraftRef,
-    chat: parentChat,
-    patchConversation: history.patchConversation,
-    onActiveSelectionClear: () => {},
-    clearReferencedFiles: refs.clearFiles,
-  });
-
   const handleComposerDraftChange = useCallback(
     (text: string) => {
       mainChatComposerDraftRef.current = text;
       conversation.schedulePreviewRefresh();
     },
     [conversation.schedulePreviewRefresh],
-  );
-
-  const handleParentComposerDraftChange = useCallback(
-    (text: string) => {
-      parentChatComposerDraftRef.current = text;
-      parentConversationModel.schedulePreviewRefresh();
-    },
-    [parentConversationModel.schedulePreviewRefresh],
   );
 
   const performGuidedAgentPresetKickoff = useCallback(
@@ -2560,130 +2332,6 @@ function App() {
     ],
   );
 
-  const handleParentForkToNewConversation = useCallback(
-    (index: number) => {
-      const parent = parentConversation;
-      if (!parent) return;
-      const parentMessages = parentConversationModel.messages;
-      const forkedMessages = parentMessages.slice(0, index + 1);
-      const baseTitle = parent.title ?? "Chat";
-      const base = `${baseTitle}-fork`;
-      const existingTitles = new Set(history.conversations.map((c) => c.title));
-      let n = 1;
-      while (existingTitles.has(`${base} (${n})`)) n++;
-      const sk = parent.sessionKind ?? "standard";
-      const preset =
-        parent.agentPresetId != null
-          ? agentPresets.find((a) => a.id === parent.agentPresetId)
-          : undefined;
-      const threadModeId = preset?.threadModeId?.trim();
-      const forkMode =
-        threadModeId && modes.some((m) => m.id === threadModeId)
-          ? threadModeId
-          : selectedMode;
-      const newConv = history.createConversation(
-        forkMode,
-        forkedMessages,
-        `${base} (${n})`,
-        sk,
-      );
-      if (sk === "guided" && parent.steeringPlan) {
-        history.patchConversation(newConv.id, {
-          steeringPlan: parent.steeringPlan,
-        });
-      }
-      const agentPatch = agentExecutionPartialFromParent(parent);
-      const guidedPresetPatch =
-        sk === "guided" ? guidedPresetPartialFromParent(parent) : {};
-      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
-      const forkPatches = {
-        ...agentPatch,
-        ...guidedPresetPatch,
-        ...threadExec,
-      };
-      if (Object.keys(forkPatches).length > 0) {
-        history.patchConversation(newConv.id, forkPatches);
-      }
-    },
-    [
-      agentPresets,
-      parentConversation,
-      parentConversationModel.messages,
-      history,
-      llms,
-      modes,
-      selectedMode,
-    ],
-  );
-
-  const handleParentStartThreadFromMessage = useCallback(
-    (messageIndex: number) => {
-      const parent = parentConversation;
-      if (!parent) return;
-      const parentMessages = parentConversationModel.messages;
-      if (messageIndex < 0 || messageIndex >= parentMessages.length) return;
-
-      const baseTitle = parent.title?.trim() || "Chat";
-      const base = `${baseTitle}-Thread`;
-      const existingTitles = new Set(history.conversations.map((c) => c.title));
-      let n = 1;
-      while (existingTitles.has(`${base} (${n})`)) n++;
-
-      const initialMessages = buildThreadHiddenBootstrap(
-        baseTitle,
-        parentMessages,
-        messageIndex,
-      );
-
-      const sk = parent.sessionKind ?? "standard";
-      const preset =
-        parent.agentPresetId != null
-          ? agentPresets.find((a) => a.id === parent.agentPresetId)
-          : undefined;
-      const threadModeId = preset?.threadModeId?.trim();
-      const threadMode =
-        threadModeId && modes.some((m) => m.id === threadModeId)
-          ? threadModeId
-          : parent.mode || selectedMode;
-      const newConv = history.createConversation(
-        threadMode,
-        initialMessages,
-        `${base} (${n})`,
-        sk,
-      );
-      if (sk === "guided" && parent.steeringPlan) {
-        history.patchConversation(newConv.id, {
-          steeringPlan: parent.steeringPlan,
-        });
-      }
-      const agentPatch = agentExecutionPartialFromParent(parent);
-      const guidedPresetPatch =
-        sk === "guided" ? guidedPresetPartialFromParent(parent) : {};
-      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
-      const threadPatches = {
-        ...agentPatch,
-        ...guidedPresetPatch,
-        ...threadExec,
-      };
-      if (Object.keys(threadPatches).length > 0) {
-        history.patchConversation(newConv.id, threadPatches);
-      }
-      history.patchConversation(newConv.id, {
-        isThread: true,
-        parentConversationId: parent.id,
-      });
-    },
-    [
-      agentPresets,
-      parentConversation,
-      parentConversationModel.messages,
-      history,
-      llms,
-      modes,
-      selectedMode,
-    ],
-  );
-
   const handleSwitchChat = useCallback(
     (id: string) => {
       history.switchConversation(id);
@@ -3031,7 +2679,8 @@ function App() {
                   history.settleWriteFileSnapshots(history.activeId, patch);
                 }}
                 onComposerDraftChange={handleComposerDraftChange}
-                onOpenThreadWorkspace={handleOpenThreadWorkspace}
+                onSummarizeToParent={handleSummarizeToParent}
+                isSummarizing={summarizingThread}
                 contextInfo={conversation.contextInfo}
                 activeFile={activeChapterTitle}
                 isDirty={chapter.hasDirtyActions}
@@ -3039,127 +2688,6 @@ function App() {
                 onFetchContextBlocks={conversation.fetchContextBlocks}
                 parentLastMessage={parentLastVisibleMessage}
               />
-              {threadWorkspaceOpen &&
-                history.activeConversation?.isThread === true &&
-                threadWorkspaceRail && (
-                  <ThreadWorkspacePanel
-                    threadConversationId={history.activeId}
-                    threadTitle={history.activeConversation?.title ?? ""}
-                    messages={conversation.messages}
-                    streaming={conversation.streaming}
-                    error={conversation.error}
-                    toolActivity={conversation.toolActivity}
-                    parentConversation={parentConversation}
-                    parentMessages={parentConversationModel.messages}
-                    parentLastMessage={parentLastVisibleMessage}
-                    parentStreaming={parentConversationModel.streaming}
-                    mainBranchItem={threadWorkspaceRail.mainBranchItem}
-                    threadBranchItems={threadWorkspaceRail.threadBranchItems}
-                    onSwitchBranch={handleSwitchChat}
-                    onClose={handleCloseThreadWorkspace}
-                    onDeleteThread={(id) => history.deleteConversation(id)}
-                    onSummarizeToParent={handleSummarizeToParent}
-                    isSummarizing={summarizingThread}
-                    onUseMessageAsThreadSummary={
-                      handleUseMessageAsThreadSummary
-                    }
-                    onUseTextAsMergeMessage={handleUseTextAsMergeMessage}
-                    isMergingDirectly={mergingDirectly}
-                    onSend={conversation.send}
-                    onStop={conversation.stopStreaming}
-                    onEditMessage={conversation.editMessage}
-                    onDeleteMessages={conversation.deleteMessages}
-                    onForkFromMessage={conversation.forkFromMessage}
-                    onStartThreadFromMessage={handleStartThreadFromMessage}
-                    onForkToNewConversation={handleForkToNewConversation}
-                    onRetry={conversation.retry}
-                    onAcceptGuidedThreadOffer={
-                      handleAcceptGuidedThreadFromOffer
-                    }
-                    onSendToParent={parentConversationModel.send}
-                    onStopParent={parentConversationModel.stopStreaming}
-                    onParentEditMessage={parentConversationModel.editMessage}
-                    onParentDeleteMessages={
-                      parentConversationModel.deleteMessages
-                    }
-                    onParentForkFromMessage={
-                      parentConversationModel.forkFromMessage
-                    }
-                    onParentStartThreadFromMessage={
-                      handleParentStartThreadFromMessage
-                    }
-                    onParentForkToNewConversation={
-                      handleParentForkToNewConversation
-                    }
-                    onParentRetry={parentConversationModel.retry}
-                    parentWriteFileSettled={
-                      parentConversation?.writeFileSettled
-                    }
-                    onParentSettleSnapshots={(patch) => {
-                      if (parentConversationId) {
-                        history.settleWriteFileSnapshots(
-                          parentConversationId,
-                          patch,
-                        );
-                      }
-                    }}
-                    referencedFiles={refs.referencedFiles}
-                    onAddFile={refs.addFile}
-                    onRemoveFile={refs.removeFile}
-                    structureRoot={chapter.structureRoot}
-                    theme={
-                      preferences.appearance.theme === "light"
-                        ? "light"
-                        : "dark"
-                    }
-                    fieldLabels={fieldLabels}
-                    activeSessionKind={
-                      history.activeConversation?.sessionKind ?? "standard"
-                    }
-                    naviStateId={history.activeConversation?.naviStateId ?? null}
-                    naviResults={history.activeConversation?.naviResults}
-                    naviPlan={history.activeConversation?.naviPlan}
-                    naviCoveredTips={history.activeConversation?.naviCoveredTips}
-                    steeringPlan={
-                      history.activeConversation?.steeringPlan ?? ""
-                    }
-                    onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
-                    onFileChanged={(path) => {
-                      if (fileEditor.selectedPath === path) {
-                        void fileEditor.openFile(path);
-                      }
-                      setTreeRefreshKey((k) => k + 1);
-                    }}
-                    writeFileSettled={
-                      history.activeConversation?.writeFileSettled
-                    }
-                    onSettleSnapshots={(patch) => {
-                      history.settleWriteFileSnapshots(history.activeId, patch);
-                    }}
-                    useReasoning={useReasoning}
-                    onToggleReasoning={handleToggleReasoning}
-                    disabledToolkits={disabledToolkits}
-                    onToggleToolkit={handleToggleToolkit}
-                    rulesEnabled={rulesEnabled}
-                    onToggleRules={handleToggleRules}
-                    reasoningAvailable={reasoningAvailable}
-                    fastAvailable={fastAvailable}
-                    activeSelection={activeSelection}
-                    onDismissSelection={handleDismissSelection}
-                    onThreadDraftChange={handleComposerDraftChange}
-                    onParentDraftChange={handleParentComposerDraftChange}
-                    threadContextInfo={conversation.contextInfo}
-                    threadSystemPrompt={conversation.systemPrompt}
-                    onFetchThreadContextBlocks={conversation.fetchContextBlocks}
-                    parentContextInfo={parentConversationModel.contextInfo}
-                    parentSystemPrompt={parentConversationModel.systemPrompt}
-                    onFetchParentContextBlocks={
-                      parentConversationModel.fetchContextBlocks
-                    }
-                    activeFile={activeChapterTitle}
-                    isDirty={chapter.hasDirtyActions}
-                  />
-                )}
             </div>
           </div>
         </Panel>
