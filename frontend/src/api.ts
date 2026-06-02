@@ -874,7 +874,8 @@ function ipcChatStreamPayloadToBridgeEvent(
     type === "context_update" ||
     type === "navi_state" ||
     type === "navi_plan" ||
-    type === "navi_tips_covered"
+    type === "navi_tips_covered" ||
+    type === "navi_problems"
   ) {
     const payload = parseJson();
     if (payload == null) return null;
@@ -900,6 +901,7 @@ export function streamChat(
   onNaviState?: (stateId: string, completedStateId?: string, summary?: string) => void,
   onNaviPlan?: (plan: string) => void,
   onNaviTipsCovered?: (coveredIds: string[]) => void,
+  onNaviProblems?: (current: string, queue: string[]) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -966,6 +968,8 @@ export function streamChat(
         onNaviPlan?.(chatEvent.payload.plan);
       } else if (chatEvent.type === "navi_tips_covered") {
         onNaviTipsCovered?.(chatEvent.payload.coveredIds);
+      } else if (chatEvent.type === "navi_problems") {
+        onNaviProblems?.(chatEvent.payload.current, chatEvent.payload.queue);
       } else if (chatEvent.type === "token") {
         tokenCount++;
         const unescaped = decodeElectronStreamData(chatEvent.payload);

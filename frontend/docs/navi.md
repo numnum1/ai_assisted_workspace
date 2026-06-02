@@ -117,6 +117,17 @@ So haben Advisory-States vollständigen Kontext ohne die gesamte Gesprächshisto
 
 ---
 
+## Fragen-Planung (`clarify_problem`)
+
+Beim Eintritt in `clarify_problem` wird ein separater, nicht-streamender LLM-Call ausgeführt, der einen priorisierten Fragenplan erstellt:
+
+- Input: bisheriges Gespräch, Arbeitsplan-Punkte, bereits bekannte Infos
+- Output: priorisierte Liste offener Fragen (max. 5), differenziert nach Händlertyp (nur online / nur stationär / beides)
+- Gespeichert in: `conversation.naviPlan`
+- In den State-Prompt injiziert → steuert, was als nächstes gefragt wird
+
+---
+
 ## Knowledge Base (nur in Advisory-States)
 
 In `assess_situation`, `give_recommendation` und `refine_recommendation` wird ein Knowledge-Prompt injiziert:
@@ -126,6 +137,42 @@ In `assess_situation`, `give_recommendation` und `refine_recommendation` wird ei
 - In `give_recommendation` und `refine_recommendation` auch Tool-Empfehlungen nach Stack-Kompatibilität
 
 Overrides möglich über externe JSON-Dateien in `~/.writing-assistant/navi/`.
+
+---
+
+## Tip-System (`src/naviTips.ts`)
+
+Optionale Hinweise, die Navi natürlich im Gespräch einstreuen soll – derzeit 1 Tip:
+
+| ID | Inhalt |
+|---|---|
+| `ai_web_accessibility` | Webseite für KI-Assistenten (z. B. ChatGPT) auffindbar machen |
+
+**Mechanismus:**
+- Jeder Tip hat eine `instruction` (wann/wie erwähnen) und `coveredWhen`-Kriterium
+- Offene Tips werden in den System-Prompt von Full-Persona-States injiziert
+- Nach jeder Antwort: nicht-streamender LLM-Call prüft, ob ein Tip als „abgedeckt" gilt
+- Abgedeckte Tip-IDs werden in `conversation.naviCoveredTips` gespeichert und nicht mehr injiziert
+
+---
+
+## Project Config Overrides (`.assistant/project.yaml`)
+
+State-Verhalten kann pro Projekt überschrieben werden:
+
+```yaml
+naviInstructions:
+  clarify_problem: "Stelle genau eine Frage auf Englisch."
+naviWorkPlans:
+  clarify_problem:
+    - Problem konkret beschrieben
+    - Häufigkeit bekannt
+```
+
+- `naviInstructions`: Ersetzt die Standard-Instruction eines States vollständig
+- `naviWorkPlans`: Ersetzt die Standard-WorkPlan-Punkte eines States
+
+Diese Overrides greifen zur Laufzeit und haben Vorrang vor den Defaults in `src/naviStateMachine.ts`.
 
 ---
 
@@ -169,3 +216,6 @@ Navi kann automatisiert getestet werden: Ein simulierter Händler antwortet nach
 | `electron/services/naviKnowledgeBase.ts` | Use Cases und Tools für Advisory-States |
 | `src/naviUseCases.ts` | Use-Case-Definitionen |
 | `src/naviTools.ts` | Tool-Definitionen |
+| `src/naviTips.ts` | Tip-Definitionen (optionale Hinweise) |
+| `src/components/chat/naviGreetingKickoff.ts` | Scheduling der ersten Navi-Begrüßungsnachricht |
+| `electron/services/projectConfigService.ts` | Liest `.assistant/project.yaml`-Overrides für States |

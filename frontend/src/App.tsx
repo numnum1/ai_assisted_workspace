@@ -39,7 +39,6 @@ import { ProjectSettingsModal } from "./components/settings/ProjectSettingsModal
 import type { CommandAction } from "./components/git/CommandPalette.tsx";
 import type {
   AgentPreset,
-  ChatMessage,
   Mode,
   Conversation,
   GitStatus,
@@ -51,7 +50,6 @@ import type {
   AltVersionSession,
   LlmPublic,
   ChatSessionKind,
-  SimulationConfig,
 } from "./types.ts";
 import type { NewChatConfirmPayload } from "./components/chat/NewChatDialog.tsx";
 import { CHAT_TOOLKIT_IDS } from "./types.ts";
@@ -522,6 +520,9 @@ function App() {
       const existing = conv?.naviCoveredTips ?? [];
       const merged = [...new Set([...existing, ...coveredIds])];
       history.patchConversation(conversationId, { naviCoveredTips: merged });
+    },
+    onNaviProblems: (current, queue, conversationId) => {
+      history.patchConversation(conversationId, { naviCurrentProblem: current, naviProblemQueue: queue, naviPlan: null });
     },
     onAssistantResponseComplete: (fullText, meta) => {
       // Simulation auto-runner: after Navi finished a turn in a simulation,
@@ -1662,6 +1663,8 @@ function App() {
         naviResults: conv.naviResults,
         naviPlan: conv.naviPlan,
         naviCoveredTips: conv.naviCoveredTips,
+        naviCurrentProblem: conv.naviCurrentProblem,
+        naviProblemQueue: conv.naviProblemQueue,
       },
       { userHidden: true, rulesDisabled: !rulesEnabled },
     );
@@ -1744,6 +1747,8 @@ function App() {
             naviResults: conv.naviResults,
             naviPlan: conv.naviPlan,
             naviCoveredTips: conv.naviCoveredTips,
+            naviCurrentProblem: conv.naviCurrentProblem,
+            naviProblemQueue: conv.naviProblemQueue,
             simulationConfig: sim,
           },
           { rulesDisabled: !rulesEnabled },
@@ -2405,6 +2410,8 @@ function App() {
             naviResults={history.activeConversation?.naviResults}
             naviPlan={history.activeConversation?.naviPlan}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
+            naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
+            naviProblemQueue={history.activeConversation?.naviProblemQueue}
           />
         </Panel>
 
@@ -2682,6 +2689,8 @@ function App() {
                 naviResults={history.activeConversation?.naviResults}
                 naviPlan={history.activeConversation?.naviPlan}
                 naviCoveredTips={history.activeConversation?.naviCoveredTips}
+                naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
+                naviProblemQueue={history.activeConversation?.naviProblemQueue}
                 steeringPlan={history.activeConversation?.steeringPlan ?? ""}
                 simulationConfig={history.activeConversation?.simulationConfig}
                 onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
@@ -2748,6 +2757,8 @@ function App() {
             naviResults={history.activeConversation?.naviResults}
             naviPlan={history.activeConversation?.naviPlan}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
+            naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
+            naviProblemQueue={history.activeConversation?.naviProblemQueue}
           />
         </Panel>
       </Group>

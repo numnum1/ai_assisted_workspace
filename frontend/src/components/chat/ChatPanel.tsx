@@ -116,6 +116,8 @@ interface ChatPanelProps {
   naviResults?: Record<string, string>;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
+  naviCurrentProblem?: string;
+  naviProblemQueue?: string[];
   simulationConfig?: SimulationConfig;
   onOpenSimulationSetup?: () => void;
 }
@@ -192,6 +194,8 @@ export function ChatPanel({
   naviResults,
   naviPlan,
   naviCoveredTips,
+  naviCurrentProblem,
+  naviProblemQueue,
   simulationConfig,
   onOpenSimulationSetup,
 }: ChatPanelProps) {
@@ -427,7 +431,7 @@ export function ChatPanel({
       )}
 
       {activeSessionKind === "navi" && (
-        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} naviResults={naviResults} naviPlan={naviPlan} naviCoveredTips={naviCoveredTips} />
+        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} naviResults={naviResults} naviPlan={naviPlan} naviCoveredTips={naviCoveredTips} naviCurrentProblem={naviCurrentProblem} naviProblemQueue={naviProblemQueue} />
       )}
 
       <div className="chat-panel-body">

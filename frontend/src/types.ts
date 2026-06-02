@@ -174,6 +174,10 @@ export interface ChatRequest {
   naviPlan?: string | null;
   /** Ids of tips that have already been covered in this session; excluded from subsequent prompts. */
   naviCoveredTips?: string[];
+  /** The problem currently being addressed in the clarify_problem cycle. */
+  naviCurrentProblem?: string;
+  /** Problems mentioned by the merchant that have not yet been addressed, in order of priority. */
+  naviProblemQueue?: string[];
   /** When set, injects simulation context (goal + cast) into the system prompt. */
   simulationConfig?: SimulationConfig;
 }
@@ -257,6 +261,10 @@ export interface Conversation {
   naviPlan?: string | null;
   /** Ids of tips already covered in this conversation; excluded from subsequent prompts. */
   naviCoveredTips?: string[];
+  /** The problem currently being addressed in the clarify_problem cycle. */
+  naviCurrentProblem?: string;
+  /** Problems mentioned by the merchant that have not yet been addressed, in order of priority. */
+  naviProblemQueue?: string[];
   /** When set, this conversation is a simulation session with a goal and cast. */
   simulationConfig?: SimulationConfig;
 }

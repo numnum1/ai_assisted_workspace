@@ -6,7 +6,8 @@
   overflow-y: auto;
   background: var(--bg-secondary, #181825);
   border-bottom: 1px solid var(--border, #313244);
-  max-height: 420px;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── Section ──────────────────────────────────────────────── */
@@ -415,4 +416,53 @@
 
 .navi-tip-icon--covered {
   color: #a6e3a1;
+}
+
+/* ── Problem Queue ─────────────────────────────────────────── */
+.navi-problem-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navi-problem-current,
+.navi-problem-queued {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.navi-problem-current {
+  color: var(--text-primary, #cdd6f4);
+  font-weight: 500;
+}
+
+.navi-problem-queued {
+  color: var(--text-muted, #6c7086);
+}
+
+.navi-problem-icon {
+  flex-shrink: 0;
+  color: var(--text-muted, #6c7086);
+}
+
+.navi-problem-icon--active {
+  color: #a6e3a1;
+}
+
+.navi-problem-label {
+  flex: 1;
+}
+
+.navi-problem-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(166, 227, 161, 0.15);
+  color: #a6e3a1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  flex-shrink: 0;
 }

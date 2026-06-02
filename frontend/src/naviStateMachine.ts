@@ -75,6 +75,8 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
     persona: "narrow",
     instruction: `Dein Ziel: Die praktische Lücke hinter dem Problem finden – schnell und ohne Umwege.
 
+FOKUS-REGEL: Du klärst ausschließlich das Problem, das der Händler zu Beginn genannt hat. Frage NICHT nach anderen Problemen, Themen oder Bereichen – auch wenn der Händler Nebenthemen erwähnt. Ein Nebenthema ist kein Grund, das Hauptproblem zu wechseln.
+
 Prüffrage vor jeder Frage: Würde eine andere Antwort zu einem anderen Lösungsvorschlag führen? Wenn nein, stelle die Frage nicht.
 
 Richtig: "Zu wenig Laufkundschaft" → erste Frage: "Bist du auf Google Maps eingetragen?"

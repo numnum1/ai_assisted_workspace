@@ -105,7 +105,8 @@ export type ChatStreamEvent =
   | { type: "error"; payload: { message: string } }
   | { type: "navi_state"; payload: { stateId: string; completedStateId?: string; summary?: string } }
   | { type: "navi_plan"; payload: { plan: string } }
-  | { type: "navi_tips_covered"; payload: { coveredIds: string[] } };
+  | { type: "navi_tips_covered"; payload: { coveredIds: string[] } }
+  | { type: "navi_problems"; payload: { current: string; queue: string[] } };
 
 export interface ChatStreamStartResult {
   streamId: string;

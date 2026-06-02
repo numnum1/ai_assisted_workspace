@@ -69,7 +69,8 @@ export type ChatStreamEvent =
   | { type: "error"; data: { message: string } }
   | { type: "navi_state"; data: { stateId: string; completedStateId?: string; summary?: string } }
   | { type: "navi_plan"; data: { plan: string } }
-  | { type: "navi_tips_covered"; data: { coveredIds: string[] } };
+  | { type: "navi_tips_covered"; data: { coveredIds: string[] } }
+  | { type: "navi_problems"; data: { current: string; queue: string[] } };
 
 export interface ChatStreamStartResult {
   streamId: string;
@@ -1062,8 +1063,8 @@ async function runNaviChatStream(
             summaryJson?.choices?.[0]?.message?.content ?? "",
           ) || undefined;
         }
-      } catch {
-        // Summary extraction failed — non-fatal, continue without it
+      } catch (err) {
+        console.error("[navi] State summary generation failed:", err);
       }
     }
 
@@ -1085,14 +1086,15 @@ async function runNaviChatStream(
 
         const planSystemPrompt = [
           "Du analysierst das Gespräch zwischen Navi (KI-Berater) und einem Händler.",
-          "Deine Aufgabe: Erstelle eine kurze, priorisierte Liste der wichtigsten offenen Fragen, die Navi noch klären muss, um eine Empfehlung geben zu können.",
+          "Deine Aufgabe: Erstelle eine kurze, priorisierte Liste der wichtigsten offenen Fragen, die Navi noch klären muss – ausschließlich zum Hauptproblem, das der Händler genannt hat.",
+          "WICHTIG: Alle Fragen müssen sich auf DIESES EINE Hauptproblem beziehen. Keine Fragen zu anderen Themen oder potenziellen Nebenproblemen.",
           "Unterscheide dabei nach Händlertyp: Online-Handel (nur online), Vor-Ort-Handel (nur stationär), oder beides kombiniert.",
           "Fokussiere auf praktische Lücken – nicht auf Hintergründe, Ausmaß oder Auswirkungen.",
           "Fragen die bereits beantwortet wurden, NICHT aufnehmen.",
           "Maximal 5 Fragen. Antwortformat: NUR eine Bullet-Liste mit '-', kein anderer Text.",
         ].join("\n");
 
-        const planUserPrompt = `Gesprächsausschnitt:\n${excerpt}\n\nWelche offenen Fragen muss Navi noch klären?`;
+        const planUserPrompt = `Gesprächsausschnitt:\n${excerpt}\n\nWelche offenen Fragen muss Navi noch klären, um das genannte Hauptproblem des Händlers konkret zu verstehen und die praktische Lücke zu finden? Nur Fragen zu diesem einen Problem.`;
 
         const planResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
           method: "POST",
@@ -1122,8 +1124,79 @@ async function runNaviChatStream(
             emit({ type: "navi_plan", data: { plan: naviPlan } });
           }
         }
-      } catch {
-        // Plan generation failed — non-fatal, continue without plan
+      } catch (err) {
+        console.error("[navi] Question plan generation failed:", err);
+      }
+    }
+
+    // Call 2c: Problem extraction — runs when first entering clarify_problem without a known current problem.
+    let naviCurrentProblem: string | undefined = request.naviCurrentProblem ?? undefined;
+    let naviProblemQueue: string[] = request.naviProblemQueue ?? [];
+
+    if (newStateId === "clarify_problem" && currentStateId !== "clarify_problem") {
+      if (naviProblemQueue.length > 0 && naviCurrentProblem) {
+        // Transitioning back to clarify_problem with queued problems → pop next problem and reset plan.
+        naviCurrentProblem = naviProblemQueue[0];
+        naviProblemQueue = naviProblemQueue.slice(1);
+        naviPlan = undefined; // force new plan generation for the new problem
+        emit({ type: "navi_problems", data: { current: naviCurrentProblem, queue: naviProblemQueue } });
+      } else if (!naviCurrentProblem) {
+        // First entry into clarify_problem — extract all problems from the conversation.
+        try {
+          const history = Array.isArray(request.history) ? request.history : [];
+          const excerptLines: string[] = [];
+          for (const msg of history) {
+            if (msg.hidden) continue;
+            const content = normalizeText(typeof msg.content === "string" ? msg.content : "");
+            if (!content) continue;
+            if (msg.role === "assistant") excerptLines.push(`Navi: ${content}`);
+            else if (msg.role === "user") excerptLines.push(`Händler: ${content}`);
+          }
+          if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
+          const excerpt = excerptLines.slice(-10).join("\n");
+
+          const extractSystemPrompt = [
+            "Du analysierst ein Gespräch zwischen Navi (KI-Berater) und einem Händler.",
+            "Deine Aufgabe: Finde alle konkreten Probleme oder Anliegen, die der Händler genannt hat.",
+            "Gib das wichtigste / zuerst genannte Problem als 'current' zurück.",
+            "Alle weiteren als Array in 'queue' (leer wenn keins).",
+            "Formuliere kurz und präzise, z. B. 'Zu wenig Laufkundschaft' oder 'Buchhaltung zu aufwändig'.",
+            "Antworte NUR mit gültigem JSON: { \"current\": \"...\", \"queue\": [] }",
+          ].join("\n");
+
+          const extractResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
+            body: JSON.stringify({
+              model: endpoint.model,
+              stream: false,
+              max_tokens: 100,
+              temperature: 0.1,
+              messages: [
+                { role: "system", content: extractSystemPrompt },
+                { role: "user", content: `Gesprächsausschnitt:\n${excerpt}\n\nWelche Probleme hat der Händler genannt?` },
+              ],
+            }),
+          });
+
+          if (extractResponse.ok) {
+            const extractJson = (await extractResponse.json()) as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            const raw = normalizeText(extractJson?.choices?.[0]?.message?.content ?? "");
+            const jsonMatch = raw.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]) as { current?: string; queue?: string[] };
+              if (parsed.current) {
+                naviCurrentProblem = parsed.current;
+                naviProblemQueue = Array.isArray(parsed.queue) ? parsed.queue : [];
+                emit({ type: "navi_problems", data: { current: naviCurrentProblem, queue: naviProblemQueue } });
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[navi] Problem extraction failed:", err);
+        }
       }
     }
 
@@ -1150,6 +1223,20 @@ async function runNaviChatStream(
     const activePlan = naviPlan ?? (request.naviPlan ?? undefined);
     if (newStateId === "clarify_problem" && activePlan) {
       effectiveInstruction = `${effectiveInstruction}\n\nGesprächsplan für diesen Händler (abarbeiten, bereits beantwortete Punkte überspringen):\n${activePlan}`;
+    }
+
+    // Inject current problem label so the LLM always knows which problem it is addressing.
+    if (newStateId === "clarify_problem" && naviCurrentProblem) {
+      const queueNote =
+        naviProblemQueue.length > 0
+          ? `\n(Weitere genannte Anliegen werden danach separat behandelt: ${naviProblemQueue.join(", ")})`
+          : "";
+      effectiveInstruction = `Aktuell bearbeitetes Problem: "${naviCurrentProblem}"${queueNote}\n\n${effectiveInstruction}`;
+    }
+
+    // In closing, remind Navi of any queued problems so it can proactively ask about them.
+    if (newStateId === "closing" && naviProblemQueue.length > 0) {
+      effectiveInstruction = `${effectiveInstruction}\n\nNoch nicht besprochene Anliegen des Händlers: ${naviProblemQueue.map((p) => `"${p}"`).join(", ")}. Frage am Ende freundlich, ob der Händler eines dieser Themen noch angehen möchte.`;
     }
 
     const knowledgePrompt = buildNaviKnowledgePrompt(newStateId);

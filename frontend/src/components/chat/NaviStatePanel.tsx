@@ -8,6 +8,7 @@ import {
   ListChecks,
   Lightbulb,
   SplitSquareHorizontal,
+  Inbox,
 } from "lucide-react";
 import {
   NAVI_CLIENT_STATES,
@@ -22,9 +23,11 @@ interface Props {
   naviResults?: Record<string, string>;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
+  naviCurrentProblem?: string;
+  naviProblemQueue?: string[];
 }
 
-export function NaviStatePanel({ naviStateId, naviResults, naviPlan, naviCoveredTips }: Props) {
+export function NaviStatePanel({ naviStateId, naviResults, naviPlan, naviCoveredTips, naviCurrentProblem, naviProblemQueue }: Props) {
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
 
   const current = getNaviClientState(naviStateId);
@@ -87,7 +90,30 @@ export function NaviStatePanel({ naviStateId, naviResults, naviPlan, naviCovered
         )}
       </div>
 
-      {/* ── Section 1b: Frageplan ──────────────────────────── */}
+      {/* ── Section 1b: Problem Queue ──────────────────────── */}
+      {naviCurrentProblem && (
+        <div className="navi-section">
+          <div className="navi-section-label">
+            <Inbox size={11} />
+            Probleme
+          </div>
+          <div className="navi-problem-queue">
+            <div className="navi-problem-current">
+              <CheckCircle2 size={10} className="navi-problem-icon navi-problem-icon--active" />
+              <span className="navi-problem-label">{naviCurrentProblem}</span>
+              <span className="navi-problem-badge">aktiv</span>
+            </div>
+            {(naviProblemQueue ?? []).map((p, i) => (
+              <div key={i} className="navi-problem-queued">
+                <Circle size={10} className="navi-problem-icon" />
+                <span className="navi-problem-label">{p}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 1c: Frageplan ──────────────────────────── */}
       {naviPlan && naviStateId === "clarify_problem" && (
         <div className="navi-section">
           <div className="navi-section-label">

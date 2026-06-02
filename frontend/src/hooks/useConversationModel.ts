@@ -199,6 +199,9 @@ export function useConversationModel(p: UseConversationModelParams) {
         naviStateId: c?.naviStateId ?? null,
         ...(c?.naviPlan ? { naviPlan: c.naviPlan } : {}),
         ...(c?.naviResults ? { naviResults: c.naviResults } : {}),
+        ...(c?.naviCoveredTips?.length ? { naviCoveredTips: c.naviCoveredTips } : {}),
+        ...(c?.naviCurrentProblem ? { naviCurrentProblem: c.naviCurrentProblem } : {}),
+        ...(c?.naviProblemQueue?.length ? { naviProblemQueue: c.naviProblemQueue } : {}),
         ...(c?.simulationConfig ? { simulationConfig: c.simulationConfig } : {}),
       };
       chat.sendMessage(
