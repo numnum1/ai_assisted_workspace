@@ -65,6 +65,7 @@ export interface UseChatOptions {
   onNaviPlan?: (plan: string, conversationId: string) => void;
   onNaviTipsCovered?: (coveredIds: string[], conversationId: string) => void;
   onNaviProblems?: (current: string, queue: string[], conversationId: string) => void;
+  onNaviStep?: (label: string | null) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -122,6 +123,9 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   onNaviTipsCoveredRef.current = options?.onNaviTipsCovered;
   const onNaviProblemsRef = useRef(options?.onNaviProblems);
   onNaviProblemsRef.current = options?.onNaviProblems;
+  const onNaviStepRef = useRef(options?.onNaviStep);
+  onNaviStepRef.current = options?.onNaviStep;
+  const [naviStep, setNaviStep] = useState<string | null>(null);
 
   // Tracks the evolving base message list during an active stream so that
   // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
@@ -231,6 +235,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         ...(onNaviPlanCb ? { onNaviPlan: onNaviPlanCb } : {}),
         ...(onNaviTipsCoveredCb ? { onNaviTipsCovered: onNaviTipsCoveredCb } : {}),
         ...(onNaviProblemsCb ? { onNaviProblems: onNaviProblemsCb } : {}),
+        onNaviStep: (label) => setNaviStep(label),
       };
 
       const request: ChatRequest = {
@@ -405,6 +410,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     contextInfo,
     error,
     toolActivity,
+    naviStep,
     sendMessage,
     stopStreaming,
     retry,

@@ -2648,6 +2648,7 @@ function App() {
                 streaming={conversation.streaming}
                 error={conversation.error}
                 toolActivity={conversation.toolActivity}
+                naviStep={chat.naviStep}
                 theme={
                   preferences.appearance.theme === "light" ? "light" : "dark"
                 }

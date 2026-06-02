@@ -17,7 +17,6 @@ import { NewChatButton } from "./NewChatButton.tsx";
 import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
 import type { GuidedThreadOfferPayload } from "./guidedThreadOfferUtils.ts";
 import { ChatPane } from "./ChatPane.tsx";
-import { NaviStatePanel } from "./NaviStatePanel.tsx";
 import type { ContextBlock } from "./ContextBar.tsx";
 
 function resolveGuidedExecutionSummary(
@@ -118,6 +117,7 @@ interface ChatPanelProps {
   naviCoveredTips?: string[];
   naviCurrentProblem?: string;
   naviProblemQueue?: string[];
+  naviStep?: string | null;
   simulationConfig?: SimulationConfig;
   onOpenSimulationSetup?: () => void;
 }
@@ -196,6 +196,7 @@ export function ChatPanel({
   naviCoveredTips,
   naviCurrentProblem,
   naviProblemQueue,
+  naviStep,
   simulationConfig,
   onOpenSimulationSetup,
 }: ChatPanelProps) {
@@ -430,10 +431,6 @@ export function ChatPanel({
         />
       )}
 
-      {activeSessionKind === "navi" && (
-        <NaviStatePanel naviStateId={naviStateId ?? "greeting"} naviResults={naviResults} naviPlan={naviPlan} naviCoveredTips={naviCoveredTips} naviCurrentProblem={naviCurrentProblem} naviProblemQueue={naviProblemQueue} />
-      )}
-
       <div className="chat-panel-body">
         <ChatPane
           conversationId={activeConversationId}
@@ -442,6 +439,7 @@ export function ChatPanel({
           streaming={streaming}
           error={error}
           toolActivity={toolActivity}
+          naviStep={naviStep}
           onSend={onSend}
           onStop={onStop}
           onEditMessage={onEditMessage}

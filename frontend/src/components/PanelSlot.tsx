@@ -23,6 +23,8 @@ export interface PanelSlotProps {
   naviResults?: Record<string, string>;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
+  naviCurrentProblem?: string;
+  naviProblemQueue?: string[];
 }
 
 function loadSlotTool(key: string, defaultTool: SlotTool): SlotTool {
@@ -45,6 +47,8 @@ export function PanelSlot({
   naviResults,
   naviPlan,
   naviCoveredTips,
+  naviCurrentProblem,
+  naviProblemQueue,
 }: PanelSlotProps) {
   const [selectedTool, setSelectedTool] = useState<SlotTool>(() =>
     loadSlotTool(storageKey, defaultTool),
@@ -117,6 +121,8 @@ export function PanelSlot({
             naviResults={naviResults}
             naviPlan={naviPlan}
             naviCoveredTips={naviCoveredTips}
+            naviCurrentProblem={naviCurrentProblem}
+            naviProblemQueue={naviProblemQueue}
           />
         )}
         {selectedTool === "plans" && (

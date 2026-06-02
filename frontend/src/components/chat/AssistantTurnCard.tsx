@@ -117,10 +117,13 @@ export function AssistantTurnCard({
     const pre = hasTc ? subUnits.slice(0, firstToolIdx) : subUnits;
     const tools = subUnits.filter((s) => s.type === "toolCall");
     const post = hasTc ? subUnits.slice(lastToolIdx + 1) : [];
+    const hasClarificationTool = tools.some(
+      (s) => s.type === "toolCall" && s.toolCall.function.name === "ask_clarification",
+    );
     return {
-      preUnits: pre,
+      preUnits: hasClarificationTool ? pre.filter((s) => s.type !== "assistantText") : pre,
       toolUnits: tools,
-      postUnits: post,
+      postUnits: hasClarificationTool ? post.filter((s) => s.type !== "assistantText") : post,
       hasToolCalls: hasTc,
     };
   }, [subUnits]);

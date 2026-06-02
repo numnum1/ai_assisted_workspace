@@ -902,6 +902,7 @@ export function streamChat(
   onNaviPlan?: (plan: string) => void,
   onNaviTipsCovered?: (coveredIds: string[]) => void,
   onNaviProblems?: (current: string, queue: string[]) => void,
+  onNaviStep?: (label: string | null) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -970,6 +971,8 @@ export function streamChat(
         onNaviTipsCovered?.(chatEvent.payload.coveredIds);
       } else if (chatEvent.type === "navi_problems") {
         onNaviProblems?.(chatEvent.payload.current, chatEvent.payload.queue);
+      } else if (chatEvent.type === "navi_step") {
+        onNaviStep?.(chatEvent.payload.label);
       } else if (chatEvent.type === "token") {
         tokenCount++;
         const unescaped = decodeElectronStreamData(chatEvent.payload);

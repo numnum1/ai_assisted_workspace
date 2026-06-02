@@ -10,6 +10,7 @@ import {
   Trash2,
   RotateCcw,
   MessageSquare,
+  Loader,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -174,6 +175,7 @@ export interface ChatMessagesPaneProps {
   streaming: boolean;
   error: string | null;
   toolActivity: string | null;
+  naviStep?: string | null;
   activeIsThread: boolean;
   editingIdx: number | null;
   setEditingIdx: (idx: number | null) => void;
@@ -212,6 +214,7 @@ export function ChatMessagesPane({
   streaming,
   error,
   toolActivity,
+  naviStep,
   activeIsThread,
   editingIdx,
   setEditingIdx,
@@ -585,6 +588,12 @@ export function ChatMessagesPane({
         <div className="chat-tool-activity">
           <Search size={14} className="chat-tool-activity-icon" />
           <span>{toolActivity}</span>
+        </div>
+      )}
+      {!readOnly && naviStep && (
+        <div className="chat-tool-activity">
+          <Loader size={14} className="chat-tool-activity-icon navi-step-spin" />
+          <span>{naviStep}</span>
         </div>
       )}
       {!readOnly && error && (

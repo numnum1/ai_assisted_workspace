@@ -27,6 +27,7 @@ export type StreamCallbacks = {
   onNaviPlan?: (plan: string) => void;
   onNaviTipsCovered?: (coveredIds: string[]) => void;
   onNaviProblems?: (current: string, queue: string[]) => void;
+  onNaviStep?: (label: string | null) => void;
 };
 
 function assistantMessage(
@@ -181,5 +182,6 @@ export function attachAssistantStream(
     cbs.onNaviPlan,
     cbs.onNaviTipsCovered,
     cbs.onNaviProblems,
+    cbs.onNaviStep,
   );
 }

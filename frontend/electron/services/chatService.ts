@@ -70,7 +70,8 @@ export type ChatStreamEvent =
   | { type: "navi_state"; data: { stateId: string; completedStateId?: string; summary?: string } }
   | { type: "navi_plan"; data: { plan: string } }
   | { type: "navi_tips_covered"; data: { coveredIds: string[] } }
-  | { type: "navi_problems"; data: { current: string; queue: string[] } };
+  | { type: "navi_problems"; data: { current: string; queue: string[] } }
+  | { type: "navi_step"; data: { label: string | null } };
 
 export interface ChatStreamStartResult {
   streamId: string;
@@ -959,6 +960,7 @@ async function runNaviChatStream(
 
     // Call 1: Classification — skip if no user message or no transitions
     if (userMessage && currentState.transitions.length > 0) {
+      emit({ type: "navi_step", data: { label: "Analysiere Antwort …" } });
       const classificationSystemPrompt =
         'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.';
       const classificationHistory = Array.isArray(request.history)
@@ -1020,6 +1022,7 @@ async function runNaviChatStream(
     let stateSummary: string | undefined;
     const currentEffectiveWorkPlan = effectiveWorkPlan(currentStateId, currentState.workPlan);
     if (newStateId !== currentStateId && currentEffectiveWorkPlan.length > 0) {
+      emit({ type: "navi_step", data: { label: "Erstelle Zusammenfassung …" } });
       try {
         const history = Array.isArray(request.history) ? request.history : [];
         const excerptLines: string[] = [];
@@ -1071,6 +1074,7 @@ async function runNaviChatStream(
     // Call 2b (only when entering clarify_problem for the first time): generate question plan.
     let naviPlan: string | undefined = request.naviPlan ?? undefined;
     if (newStateId === "clarify_problem" && !naviPlan) {
+      emit({ type: "navi_step", data: { label: "Plane Fragen …" } });
       try {
         const history = Array.isArray(request.history) ? request.history : [];
         const excerptLines: string[] = [];
@@ -1133,6 +1137,7 @@ async function runNaviChatStream(
     let naviCurrentProblem: string | undefined = request.naviCurrentProblem ?? undefined;
     let naviProblemQueue: string[] = request.naviProblemQueue ?? [];
 
+
     if (newStateId === "clarify_problem" && currentStateId !== "clarify_problem") {
       if (naviProblemQueue.length > 0 && naviCurrentProblem) {
         // Transitioning back to clarify_problem with queued problems → pop next problem and reset plan.
@@ -1142,6 +1147,7 @@ async function runNaviChatStream(
         emit({ type: "navi_problems", data: { current: naviCurrentProblem, queue: naviProblemQueue } });
       } else if (!naviCurrentProblem) {
         // First entry into clarify_problem — extract all problems from the conversation.
+        emit({ type: "navi_step", data: { label: "Erkenne Anliegen …" } });
         try {
           const history = Array.isArray(request.history) ? request.history : [];
           const excerptLines: string[] = [];
@@ -1334,6 +1340,8 @@ async function runNaviChatStream(
     let fullAssistantText = "";
     const maxNaviToolRounds = 3;
     let toolRound = 0;
+
+    emit({ type: "navi_step", data: { label: null } }); // clear step indicator before main stream
 
     while (toolRound < maxNaviToolRounds) {
       if (!isStreamActive(streamId)) return;
