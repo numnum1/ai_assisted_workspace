@@ -29,7 +29,7 @@ import { SubprojectTypeDialog } from "./components/settings/SubprojectTypeDialog
 import { MetaPanel } from "./components/meta/MetaPanel.tsx";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { SimulationSetupModal, type SimulationSetupResult } from "./components/simulation/SimulationSetupModal.tsx";
-import { ChatThreadsRail } from "./components/chat/ChatThreadsRail.tsx";
+import { PanelSlot } from "./components/PanelSlot.tsx";
 import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
 import { PromptPackModal } from "./components/chat/PromptPackModal.tsx";
 import { CommandPalette } from "./components/git/CommandPalette.tsx";
@@ -240,7 +240,7 @@ function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
 }
 
 const MAIN_PANEL_LAYOUT_KEY = "assistant-main-panel-layout";
-const MAIN_PANEL_IDS = ["outliner", "editor", "chat"] as const;
+const MAIN_PANEL_IDS = ["far-left", "outliner", "editor", "chat", "far-right"] as const;
 
 function loadMainPanelLayout(): Layout | undefined {
   try {
@@ -601,9 +601,11 @@ function App() {
   const [altVersionSession, setAltVersionSession] =
     useState<AltVersionSession | null>(null);
 
+  const farLeftPanelRef = usePanelRef();
   const leftPanelRef = usePanelRef();
   const centerPanelRef = usePanelRef();
   const rightPanelRef = usePanelRef();
+  const farRightPanelRef = usePanelRef();
 
   const mainPanelDefaultLayout = useMemo(() => loadMainPanelLayout(), []);
 
@@ -1243,6 +1245,14 @@ function App() {
       const code = e.code;
       if (code === "Digit1" || code === "Numpad1") {
         e.preventDefault();
+        const p = farLeftPanelRef.current;
+        if (!p) return;
+        if (p.isCollapsed()) p.expand();
+        else p.collapse();
+        return;
+      }
+      if (code === "Digit2" || code === "Numpad2") {
+        e.preventDefault();
         const p = leftPanelRef.current;
         if (!p) return;
         if (p.isCollapsed()) p.expand();
@@ -1250,7 +1260,7 @@ function App() {
         syncSidebarsWideState();
         return;
       }
-      if (code === "Digit2" || code === "Numpad2") {
+      if (code === "Digit3" || code === "Numpad3") {
         e.preventDefault();
         const p = centerPanelRef.current;
         if (!p) return;
@@ -1258,13 +1268,21 @@ function App() {
         else p.collapse();
         return;
       }
-      if (code === "Digit3" || code === "Numpad3") {
+      if (code === "Digit4" || code === "Numpad4") {
         e.preventDefault();
         const p = rightPanelRef.current;
         if (!p) return;
         if (p.isCollapsed()) p.expand();
         else p.collapse();
         syncSidebarsWideState();
+        return;
+      }
+      if (code === "Digit5" || code === "Numpad5") {
+        e.preventDefault();
+        const p = farRightPanelRef.current;
+        if (!p) return;
+        if (p.isCollapsed()) p.expand();
+        else p.collapse();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -2370,6 +2388,29 @@ function App() {
         onLayoutChanged={handleMainPanelLayoutChanged}
       >
         <Panel
+          id="far-left"
+          panelRef={farLeftPanelRef}
+          defaultSize={0}
+          minSize="15%"
+          collapsible
+          collapsedSize={0}
+        >
+          <PanelSlot
+            storageKey="assistant-far-left-slot"
+            defaultTool="threads"
+            conversations={history.conversations}
+            activeConversationId={history.activeId}
+            onSwitchChat={handleSwitchChat}
+            naviStateId={history.activeConversation?.naviStateId ?? null}
+            naviResults={history.activeConversation?.naviResults}
+            naviPlan={history.activeConversation?.naviPlan}
+            naviCoveredTips={history.activeConversation?.naviCoveredTips}
+          />
+        </Panel>
+
+        <Separator className="resize-handle" />
+
+        <Panel
           id="outliner"
           panelRef={leftPanelRef}
           defaultSize="18%"
@@ -2594,11 +2635,6 @@ function App() {
           collapsedSize={0}
         >
           <div className="chat-column">
-            <ChatThreadsRail
-              conversations={history.conversations}
-              activeConversationId={history.activeId}
-              onSwitchChat={handleSwitchChat}
-            />
             <div className="chat-column-main">
               <ChatPanel
                 messages={conversation.messages}
@@ -2690,6 +2726,29 @@ function App() {
               />
             </div>
           </div>
+        </Panel>
+
+        <Separator className="resize-handle" />
+
+        <Panel
+          id="far-right"
+          panelRef={farRightPanelRef}
+          defaultSize={0}
+          minSize="15%"
+          collapsible
+          collapsedSize={0}
+        >
+          <PanelSlot
+            storageKey="assistant-far-right-slot"
+            defaultTool="navi-state"
+            conversations={history.conversations}
+            activeConversationId={history.activeId}
+            onSwitchChat={handleSwitchChat}
+            naviStateId={history.activeConversation?.naviStateId ?? null}
+            naviResults={history.activeConversation?.naviResults}
+            naviPlan={history.activeConversation?.naviPlan}
+            naviCoveredTips={history.activeConversation?.naviCoveredTips}
+          />
         </Panel>
       </Group>
 
