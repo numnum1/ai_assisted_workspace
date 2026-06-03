@@ -107,3 +107,53 @@ export function parseClarificationQuestions(content: string): ClarificationQuest
 export function hasClarificationFence(content: string): boolean {
   return parseClarificationQuestions(content) != null;
 }
+
+export interface YesNoQuestion {
+  question: string;
+}
+
+const YES_NO_OPEN_RE = /^```yes_no\s*$/;
+
+function yesNoOpenLineStart(content: string): number {
+  let offset = 0;
+  const n = content.length;
+  let last = -1;
+  while (offset < n) {
+    const lineEnd = content.indexOf('\n', offset);
+    const end = lineEnd === -1 ? n : lineEnd;
+    const line = content.slice(offset, end);
+    if (YES_NO_OPEN_RE.test(line)) {
+      last = offset;
+    }
+    if (lineEnd === -1) break;
+    offset = lineEnd + 1;
+  }
+  return last;
+}
+
+/**
+ * Parses the last ```yes_no block and returns the question.
+ * Accepts {"question": "..."} JSON or a plain string.
+ */
+export function parseYesNoQuestion(content: string): YesNoQuestion | null {
+  if (!content) return null;
+  const openStart = yesNoOpenLineStart(content);
+  if (openStart < 0) return null;
+  const bodyStart = bodyStartAfterOpenLine(content, openStart);
+  if (bodyStart < 0) return null;
+  const inner = innerUntilClosingFence(content, bodyStart);
+  if (inner == null) return null;
+  const trimmed = inner.trim();
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object' && typeof (parsed as { question?: unknown }).question === 'string') {
+      return { question: (parsed as { question: string }).question };
+    }
+  } catch {
+    /* fall through */
+  }
+  if (trimmed) {
+    return { question: trimmed };
+  }
+  return null;
+}

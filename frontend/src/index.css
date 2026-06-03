@@ -4534,6 +4534,85 @@ body.file-tree-native-dragging {
     cursor: default;
 }
 
+/* Yes/No card */
+.ync-surface {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ync-surface.frozen {
+    opacity: 0.65;
+    pointer-events: none;
+}
+
+.ync-question {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.ync-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.ync-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+}
+
+.ync-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+}
+
+.ync-btn:disabled {
+    cursor: default;
+}
+
+.ync-yes:hover:not(:disabled),
+.ync-yes.chosen {
+    background: color-mix(in srgb, #22c55e 12%, transparent);
+    border-color: color-mix(in srgb, #22c55e 50%, var(--border));
+    color: #16a34a;
+}
+
+.ync-no:hover:not(:disabled),
+.ync-no.chosen {
+    background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+    border-color: color-mix(in srgb, var(--text-muted) 40%, var(--border));
+}
+
+.ync-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--accent) 18%, var(--bg-tertiary));
+    color: var(--accent);
+    font-size: 10px;
+    font-family: ui-monospace, monospace;
+    font-weight: 600;
+    line-height: 1;
+}
+
 /* Pending write_file batch ÔÇö thin toolbar above ChatInput (Cursor-style) */
 .wf-batch-composer {
     width: 100%;

@@ -18,7 +18,8 @@ import { glossaryApi } from "../../api.ts";
 import { ChatInput } from "./ChatInput.tsx";
 import { ChatComposerCard } from "./ChatComposerCard.tsx";
 import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
-import { parseClarificationQuestions } from "./clarificationUtils.ts";
+import { YesNoCard } from "./YesNoCard.tsx";
+import { parseClarificationQuestions, parseYesNoQuestion } from "./clarificationUtils.ts";
 import {
   parseGuidedThreadOffer,
   type GuidedThreadOfferPayload,
@@ -495,6 +496,28 @@ export function ChatPane({
     }
   }, [pendingClarification]);
 
+  const pendingYesNo = useMemo(() => {
+    if (pendingClarification) return null;
+    const vis = messages
+      .map((m, originalIdx) => ({ m, originalIdx }))
+      .filter(({ m }) => !m.hidden);
+    if (vis.length === 0) return null;
+    let lastUserVisIdx = -1;
+    for (let i = vis.length - 1; i >= 0; i--) {
+      if (vis[i]!.m.role === "user") { lastUserVisIdx = i; break; }
+    }
+    for (let i = vis.length - 1; i > lastUserVisIdx; i--) {
+      const { m, originalIdx } = vis[i]!;
+      if (m.role !== "assistant" && m.role !== "tool") continue;
+      const q = parseYesNoQuestion(m.content);
+      if (!q) continue;
+      const userAfter = messages.slice(originalIdx + 1).some((msg) => !msg.hidden && msg.role === "user");
+      if (userAfter) return null;
+      return q;
+    }
+    return null;
+  }, [messages, pendingClarification]);
+
   const pendingGuidedThreadOffer = useMemo(() => {
     if (!onAcceptGuidedThreadOffer) return null;
     const vis = messages
@@ -667,6 +690,15 @@ export function ChatPane({
                 onSubmit={onSend}
                 disabled={streaming}
                 onOtherOpen={setClarificationOtherOpen}
+              />
+            </ChatComposerCard>
+          ) : null}
+          {pendingYesNo ? (
+            <ChatComposerCard>
+              <YesNoCard
+                question={pendingYesNo}
+                onSubmit={(msg) => onSend(msg)}
+                disabled={streaming}
               />
             </ChatComposerCard>
           ) : null}
