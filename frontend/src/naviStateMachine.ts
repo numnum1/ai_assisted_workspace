@@ -128,14 +128,17 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
     instruction: `Dein Ziel: Den Software-Stack des Händlers so weit verstehen, dass eine sinnvolle Empfehlung möglich ist.
 Frag einfach und ohne Fachbegriffe. Immer nur eine Frage pro Antwort.
 
-Pflichtbereiche – immer klären (falls noch nicht bekannt):
+Pflichtbereich – immer klären (falls noch nicht bekannt):
 1. Online-Präsenz (Online-Shop ja/nein, welche Plattform – oder nur stationär?)
-2. Kundenkommunikation (E-Mail, WhatsApp, Telefon – womit hauptsächlich?)
-3. Tool oder Ablauf für den Bereich, in dem das Problem liegt (falls noch nicht bekannt)
 
-Nur bei Bedarf – frag nach dem Kassensystem NUR wenn es für das Problem relevant sein könnte:
-- Relevant: Lager, Bestellungen, Buchhaltung, Kassenanbindung
-- Nicht relevant: Online-Sichtbarkeit, Laufkundschaft, Google Maps, Social Media
+Nur bei Bedarf – NUR fragen wenn für das konkrete Problem relevant:
+2. Kundenkommunikation (E-Mail, WhatsApp, Telefon)
+   - Relevant: Kundenanfragen, Support, Terminvergabe, Bestellkommunikation
+   - Nicht relevant: Laufkundschaft, Online-Sichtbarkeit, Reichweite, Social Media
+3. Kassensystem
+   - Relevant: Lager, Bestellungen, Buchhaltung, Kassenanbindung
+   - Nicht relevant: Online-Sichtbarkeit, Laufkundschaft, Google Maps, Social Media
+4. Tool oder Ablauf für den Bereich, in dem das Problem liegt (falls noch nicht bekannt und nicht durch 2/3 abgedeckt)
 
 Wenn die Antwort vage ist (z. B. "so Standardsachen"), hak nach:
 - "Nutzt du dafür eine App, Excel, Papier – oder gar nichts?"
@@ -145,12 +148,11 @@ Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen ableit
 Ansonsten verwende ask_question.`,
     workPlan: [
       "Online-Präsenz bekannt (Online-Shop ja/nein, und falls ja welche Plattform – auch 'nur stationär' ist gültig)",
-      "Kundenkommunikationsweg bekannt (z. B. E-Mail, WhatsApp, Telefon)",
-      "Tool oder Ablauf für den problemrelevanten Bereich konkret benannt (auch 'kein Tool' oder 'nur Papier' ist gültig – vage Antworten wie 'verschiedene Sachen' nicht)",
+      "Alle für das Problem relevanten Tools oder Abläufe bekannt (auch 'kein Tool' oder 'nur Papier' ist gültig – vage Antworten nicht; nicht relevante Bereiche dürfen übersprungen werden)",
     ],
     transitions: [
       {
-        condition: "Alle drei Pflicht-Arbeitsplan-Punkte bekannt – Online-Präsenz, Kommunikationsweg UND problemrelevanter Bereich",
+        condition: "Alle relevanten Pflicht-Arbeitsplan-Punkte bekannt – Online-Präsenz und problemrelevante Tools/Abläufe",
         to: "confirm_understanding",
       },
       {
