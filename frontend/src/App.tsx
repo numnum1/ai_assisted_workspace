@@ -384,8 +384,15 @@ function App() {
       const merged = [...new Set([...existing, ...coveredIds])];
       history.patchConversation(conversationId, { naviCoveredTips: merged });
     },
-    onNaviProblems: (current, queue, conversationId) => {
-      history.patchConversation(conversationId, { naviCurrentProblem: current, naviProblemQueue: queue, naviPlan: null });
+    onNaviProblems: (current, interpretation, queue, conversationId) => {
+      const patch: Partial<import("./types.ts").Conversation> = {
+        naviCurrentProblem: current,
+        naviProblemQueue: queue,
+        naviCurrentProblemInterpretation: interpretation,
+      };
+      // Reset the question plan when interpretation is absent (queue-pop) so a fresh plan is generated.
+      if (!interpretation) patch.naviPlan = null;
+      history.patchConversation(conversationId, patch);
     },
     onNaviContext: (ctx, conversationId) => {
       history.patchConversation(conversationId, { naviContext: ctx });
@@ -1488,6 +1495,7 @@ function App() {
         naviPlan: conv.naviPlan,
         naviCoveredTips: conv.naviCoveredTips,
         naviCurrentProblem: conv.naviCurrentProblem,
+        naviCurrentProblemInterpretation: conv.naviCurrentProblemInterpretation,
         naviProblemQueue: conv.naviProblemQueue,
       },
       { userHidden: true, rulesDisabled: !rulesEnabled },

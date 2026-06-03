@@ -202,6 +202,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         ...(c?.naviContext ? { naviContext: c.naviContext } : {}),
         ...(c?.naviCoveredTips?.length ? { naviCoveredTips: c.naviCoveredTips } : {}),
         ...(c?.naviCurrentProblem ? { naviCurrentProblem: c.naviCurrentProblem } : {}),
+        ...(c?.naviCurrentProblemInterpretation ? { naviCurrentProblemInterpretation: c.naviCurrentProblemInterpretation } : {}),
         ...(c?.naviProblemQueue?.length ? { naviProblemQueue: c.naviProblemQueue } : {}),
         ...(c?.simulationConfig ? { simulationConfig: c.simulationConfig } : {}),
       };

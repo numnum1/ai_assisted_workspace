@@ -903,7 +903,7 @@ export function streamChat(
   onNaviState?: (stateId: string, completedStateId?: string, summary?: string) => void,
   onNaviPlan?: (plan: string) => void,
   onNaviTipsCovered?: (coveredIds: string[]) => void,
-  onNaviProblems?: (current: string, queue: string[]) => void,
+  onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[]) => void,
   onNaviStep?: (label: string | null) => void,
   onNaviContext?: (ctx: import("./types.ts").NaviContext) => void,
 ): AbortController {
@@ -973,7 +973,7 @@ export function streamChat(
       } else if (chatEvent.type === "navi_tips_covered") {
         onNaviTipsCovered?.(chatEvent.payload.coveredIds);
       } else if (chatEvent.type === "navi_problems") {
-        onNaviProblems?.(chatEvent.payload.current, chatEvent.payload.queue);
+        onNaviProblems?.(chatEvent.payload.current, chatEvent.payload.interpretation, chatEvent.payload.queue);
       } else if (chatEvent.type === "navi_step") {
         onNaviStep?.(chatEvent.payload.label);
       } else if (chatEvent.type === "navi_context") {

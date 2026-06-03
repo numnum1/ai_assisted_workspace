@@ -41,6 +41,7 @@ export interface ChatStreamSessionMeta {
   naviPlan?: string | null;
   naviCoveredTips?: string[];
   naviCurrentProblem?: string;
+  naviCurrentProblemInterpretation?: string;
   naviProblemQueue?: string[];
   simulationConfig?: SimulationConfig;
 }
@@ -66,7 +67,7 @@ export interface UseChatOptions {
   onNaviStateTransition?: (stateId: string, conversationId: string, completedStateId?: string, summary?: string) => void;
   onNaviPlan?: (plan: string, conversationId: string) => void;
   onNaviTipsCovered?: (coveredIds: string[], conversationId: string) => void;
-  onNaviProblems?: (current: string, queue: string[], conversationId: string) => void;
+  onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[], conversationId: string) => void;
   onNaviStep?: (label: string | null) => void;
   onNaviContext?: (ctx: NaviContext, conversationId: string) => void;
 }
@@ -96,6 +97,7 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
       ...(meta.naviPlan ? { naviPlan: meta.naviPlan } : {}),
       ...(meta.naviCoveredTips && meta.naviCoveredTips.length > 0 ? { naviCoveredTips: meta.naviCoveredTips } : {}),
       ...(meta.naviCurrentProblem ? { naviCurrentProblem: meta.naviCurrentProblem } : {}),
+      ...(meta.naviCurrentProblemInterpretation ? { naviCurrentProblemInterpretation: meta.naviCurrentProblemInterpretation } : {}),
       ...(meta.naviProblemQueue && meta.naviProblemQueue.length > 0 ? { naviProblemQueue: meta.naviProblemQueue } : {}),
       ...simPart,
     };
@@ -238,7 +240,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
 
       const onNaviProblemsCb =
         streamSession?.sessionKind === 'navi' && onNaviProblemsRef.current
-          ? (current: string, queue: string[]) => onNaviProblemsRef.current!(current, queue, naviConversationId)
+          ? (current: string, interpretation: string | undefined, queue: string[]) => onNaviProblemsRef.current!(current, interpretation, queue, naviConversationId)
           : undefined;
 
       const onNaviContextCb =

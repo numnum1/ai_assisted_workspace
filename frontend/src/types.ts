@@ -195,6 +195,11 @@ export interface ChatRequest {
   naviCoveredTips?: string[];
   /** The problem currently being addressed in the clarify_problem cycle. */
   naviCurrentProblem?: string;
+  /**
+   * Semantic interpretation of the current problem: what it really means and in which direction
+   * the solution should go. Injected into all state instructions as a semantic frame.
+   */
+  naviCurrentProblemInterpretation?: string;
   /** Problems mentioned by the merchant that have not yet been addressed, in order of priority. */
   naviProblemQueue?: string[];
   /** When set, injects simulation context (goal + cast) into the system prompt. */
@@ -284,6 +289,8 @@ export interface Conversation {
   naviCoveredTips?: string[];
   /** The problem currently being addressed in the clarify_problem cycle. */
   naviCurrentProblem?: string;
+  /** Semantic interpretation of the current problem: what it means and solution direction. */
+  naviCurrentProblemInterpretation?: string;
   /** Problems mentioned by the merchant that have not yet been addressed, in order of priority. */
   naviProblemQueue?: string[];
   /** When set, this conversation is a simulation session with a goal and cast. */

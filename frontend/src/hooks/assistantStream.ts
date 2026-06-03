@@ -26,7 +26,7 @@ export type StreamCallbacks = {
   onNaviState?: (stateId: string, completedStateId?: string, summary?: string) => void;
   onNaviPlan?: (plan: string) => void;
   onNaviTipsCovered?: (coveredIds: string[]) => void;
-  onNaviProblems?: (current: string, queue: string[]) => void;
+  onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[]) => void;
   onNaviStep?: (label: string | null) => void;
   onNaviContext?: (ctx: NaviContext) => void;
 };
