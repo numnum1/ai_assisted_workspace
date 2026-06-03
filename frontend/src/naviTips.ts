@@ -10,6 +10,14 @@ export interface NaviTip {
 
 export const NAVI_TIPS: NaviTip[] = [
   {
+    id: "local_store_cooperation",
+    label: "Kooperation mit anderen Läden",
+    instruction:
+      "Weise darauf hin, dass gemeinsame Werbeaktionen mit benachbarten oder thematisch passenden Läden (z.B. gemeinsame Rabattaktionen, Stadtteilevent, Laufkunden-Weiterempfehlung) eine einfache Möglichkeit sind, Reichweite ohne großen Aufwand zu erhöhen. Bringe diesen Hinweis ein, wenn das Thema Laufkundschaft, lokale Sichtbarkeit oder Neukundengewinnung besprochen wird – am besten im Rahmen einer Empfehlung.",
+    coveredWhen:
+      "Navi hat gemeinsame Aktionen oder Kooperationen mit anderen lokalen Geschäften als Möglichkeit erwähnt.",
+  },
+  {
     id: "ai_web_accessibility",
     label: "KI-Zugänglichkeit im Web",
     instruction:

@@ -144,6 +144,7 @@ Wenn die Antwort vage ist (z. B. "so Standardsachen"), hak nach:
 - "Nutzt du dafür eine App, Excel, Papier – oder gar nichts?"
 
 Bereiche die bereits bekannt sind, NICHT nochmals erfragen.
+Frag NICHT nach: gemeinsamen Aktionen mit anderen Läden, Kooperationen, lokalen Netzwerken – das ist kein Stack-Thema.
 Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen ableitbar sind.
 Ansonsten verwende ask_question.`,
     workPlan: [
