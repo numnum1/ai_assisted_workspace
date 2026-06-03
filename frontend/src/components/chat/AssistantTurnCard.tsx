@@ -8,6 +8,7 @@ import {
   Copy,
   Check,
   GitMerge,
+  Loader,
 } from "lucide-react";
 import { TurnCard } from "./TurnCard.tsx";
 import type { ChatMessage, SelectionContext } from "../../types.ts";
@@ -69,6 +70,7 @@ export interface AssistantTurnCardProps {
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
+  naviStep?: string | null;
 }
 
 export function AssistantTurnCard({
@@ -96,6 +98,7 @@ export function AssistantTurnCard({
   onReplaceSelection,
   onApplyFieldUpdate,
   fieldLabels,
+  naviStep,
 }: AssistantTurnCardProps) {
   const trailingWriteFileBatch = getTrailingWriteFileBatch(visibleEntries);
   const dismissIds = bulkDismissIds;
@@ -355,7 +358,7 @@ export function AssistantTurnCard({
       data-testid="AssistantTurnCard"
     >
       <div className="assistant-turn-chunks">
-        {hasToolCalls ? (
+        {hasToolCalls || (isLiveTurn && !!naviStep) ? (
           <>
             {preUnits.map((su, idx) => {
               const subKey = subUnitReactKey(su);
@@ -379,8 +382,8 @@ export function AssistantTurnCard({
                 />
                 <span className="erkunden-title">Erkunden</span>
                 <span className="erkunden-count">
-                  · {toolUnits.length}{" "}
-                  {toolUnits.length === 1 ? "Aufruf" : "Aufrufe"}
+                  · {toolUnits.length + (isLiveTurn && naviStep ? 1 : 0)}{" "}
+                  {toolUnits.length + (isLiveTurn && naviStep ? 1 : 0) === 1 ? "Aufruf" : "Aufrufe"}
                 </span>
                 {streaming && isLiveTurn ? (
                   <span className="erkunden-spinner" aria-hidden />
@@ -388,6 +391,12 @@ export function AssistantTurnCard({
               </button>
               {erkundenOpen ? (
                 <div className="erkunden-body">
+                  {isLiveTurn && naviStep ? (
+                    <div className="erkunden-navi-step">
+                      <Loader size={12} className="erkunden-navi-step-icon" aria-hidden />
+                      <span>{naviStep}</span>
+                    </div>
+                  ) : null}
                   {toolUnits.map((su, idx) => {
                     const subKey = subUnitReactKey(su);
                     return (

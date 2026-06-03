@@ -839,12 +839,13 @@ function App() {
     const conv = history.activeConversation;
     const sessionKind = conv.sessionKind ?? "standard";
     const allowedForSession =
-      sessionKind === "guided" ? nonPrompt : standardSel;
+      sessionKind === "guided" || sessionKind === "navi" ? nonPrompt : standardSel;
     let desired: string;
     /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
-    /** Guided/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
+    /** Guided/navi/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
     const trulyEmptyForModeSync =
       sessionKind !== "guided" &&
+      sessionKind !== "navi" &&
       !conversationHasVisibleMessages(conv) &&
       conv.messages.length === 0;
     if (trulyEmptyForModeSync) {
@@ -2666,7 +2667,7 @@ function App() {
                 streaming={conversation.streaming}
                 error={conversation.error}
                 toolActivity={conversation.toolActivity}
-                naviStep={chat.naviStep}
+                naviStep={chat.naviStepForCard}
                 theme={
                   preferences.appearance.theme === "light" ? "light" : "dark"
                 }

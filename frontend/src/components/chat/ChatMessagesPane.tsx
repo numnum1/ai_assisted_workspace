@@ -10,7 +10,6 @@ import {
   Trash2,
   RotateCcw,
   MessageSquare,
-  Loader,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -309,8 +308,11 @@ export function ChatMessagesPane({
           <span className="thread-start-indicator-text">Thread-Startpunkt</span>
         </div>
       )}
-      {renderUnits.map((unit) => {
+      {renderUnits.map((unit, unitIdx) => {
         if (unit.type === "assistantTurn") {
+          const isLastAssistantTurn = !renderUnits
+            .slice(unitIdx + 1)
+            .some((u) => u.type === "assistantTurn");
           return (
             <AssistantTurnCard
               key={`turn-${unit.originalIndices.join("-")}`}
@@ -338,6 +340,7 @@ export function ChatMessagesPane({
               onReplaceSelection={onReplaceSelection}
               onApplyFieldUpdate={onApplyFieldUpdate}
               fieldLabels={fieldLabels}
+              naviStep={isLastAssistantTurn ? naviStep : null}
             />
           );
         }
@@ -588,12 +591,6 @@ export function ChatMessagesPane({
         <div className="chat-tool-activity">
           <Search size={14} className="chat-tool-activity-icon" />
           <span>{toolActivity}</span>
-        </div>
-      )}
-      {!readOnly && naviStep && (
-        <div className="chat-tool-activity">
-          <Loader size={14} className="chat-tool-activity-icon navi-step-spin" />
-          <span>{naviStep}</span>
         </div>
       )}
       {!readOnly && error && (

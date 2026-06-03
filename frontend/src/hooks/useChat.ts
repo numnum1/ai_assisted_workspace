@@ -126,6 +126,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   const onNaviStepRef = useRef(options?.onNaviStep);
   onNaviStepRef.current = options?.onNaviStep;
   const [naviStep, setNaviStep] = useState<string | null>(null);
+  const [naviStepForCard, setNaviStepForCard] = useState<string | null>(null);
 
   // Tracks the evolving base message list during an active stream so that
   // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
@@ -147,12 +148,17 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     onMessagesChangeRef.current?.(messages);
   }, [messages]);
 
+  useEffect(() => {
+    if (!streaming) setNaviStepForCard(null);
+  }, [streaming]);
+
   const loadMessages = useCallback((msgs: ChatMessage[]) => {
     syncEnabledRef.current = false;
     setMessages(msgs);
     setContextInfo(null);
     setError(null);
     setToolActivity(null);
+    setNaviStepForCard(null);
     // Re-enable sync after React processes the state update
     requestAnimationFrame(() => {
       syncEnabledRef.current = true;
@@ -235,7 +241,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         ...(onNaviPlanCb ? { onNaviPlan: onNaviPlanCb } : {}),
         ...(onNaviTipsCoveredCb ? { onNaviTipsCovered: onNaviTipsCoveredCb } : {}),
         ...(onNaviProblemsCb ? { onNaviProblems: onNaviProblemsCb } : {}),
-        onNaviStep: (label) => setNaviStep(label),
+        onNaviStep: (label) => {
+          setNaviStep(label);
+          if (label !== null) setNaviStepForCard(label);
+        },
       };
 
       const request: ChatRequest = {
@@ -411,6 +420,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     error,
     toolActivity,
     naviStep,
+    naviStepForCard,
     sendMessage,
     stopStreaming,
     retry,
