@@ -59,8 +59,16 @@ function buildMessage(
   const lines = questions.map((q, idx) => {
     const answers = selected[idx] ?? [];
     const answerText = answers.join(", ");
-    if (questions.length === 1 && !(q.allow_multiple ?? true)) {
+    const isMultiple = q.allow_multiple ?? true;
+    if (questions.length === 1 && !isMultiple) {
       return answerText;
+    }
+    // For multiple-choice questions, also include not-selected options so the
+    // LLM knows they were explicitly rejected and doesn't ask about them again.
+    if (isMultiple) {
+      const notSelected = (q.options ?? []).filter((o) => !answers.includes(o));
+      const notSelectedText = notSelected.length > 0 ? ` (NICHT genutzt: ${notSelected.join(", ")})` : "";
+      return `${q.question} → ${answerText}${notSelectedText}`;
     }
     return `${q.question} → ${answerText}`;
   });
