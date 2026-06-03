@@ -1034,7 +1034,7 @@ async function runNaviChatStream(
           else if (msg.role === "user") excerptLines.push(`Händler: ${content}`);
         }
         if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
-        const excerpt = excerptLines.slice(-20).join("\n"); // last 20 lines is enough context
+        const excerpt = excerptLines.join("\n");
 
         const summaryPrompt = buildStateSummaryPrompt(
           currentStateId,
@@ -1052,7 +1052,6 @@ async function runNaviChatStream(
             body: JSON.stringify({
               model: endpoint.model,
               stream: false,
-              max_tokens: 200,
               temperature: 0.1,
               messages: [{ role: "user", content: summaryPrompt }],
             }),

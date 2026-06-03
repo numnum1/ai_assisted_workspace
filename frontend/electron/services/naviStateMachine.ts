@@ -83,14 +83,15 @@ export function buildStateSummaryPrompt(
 ): string {
   const workPlanHint =
     workPlan.length > 0
-      ? `Der State sollte folgendes herausfinden:\n${workPlan.map((p) => `- ${p}`).join("\n")}\n\n`
+      ? `Die primären Lernziele dieser Phase waren:\n${workPlan.map((p) => `- ${p}`).join("\n")}`
       : "";
   return [
-    `Du fasst zusammen, was im Navi-Beratungsgespräch im State "${completedStateId}" herausgefunden wurde.`,
-    `${workPlanHint}Gesprächsauszug:\n${conversationExcerpt}`,
-    "Schreibe eine kompakte Zusammenfassung der konkreten Fakten (3–6 Stichpunkte, je 1 Zeile).",
+    `Du fasst zusammen, was der Händler im Navi-Beratungsgespräch während der Phase "${completedStateId}" über sich, seinen Laden oder sein Geschäft mitgeteilt hat.`,
+    workPlanHint,
+    `Gesprächsauszug:\n${conversationExcerpt}`,
+    "Erfasse ALLE konkreten Fakten, die der Händler genannt hat – auch scheinbar nebensächliche Angaben (z. B. genutzte Tools, Kommunikationswege, Plattformen, Arbeitsabläufe, Kontextinfos). Ziel: Nachfolgende Gesprächsphasen sollen nicht nach Dingen fragen, die der Händler hier bereits erwähnt hat.",
     "NUR Fakten aus dem Gespräch – keine Interpretationen, keine Empfehlungen.",
-    "Format: ein Stichpunkt pro Zeile, beginnend mit '- '",
+    "Format: ein Stichpunkt pro Zeile, beginnend mit '- ' (4–8 Stichpunkte, je 1 Zeile)",
     "Antworte ausschließlich mit den Stichpunkten, ohne Überschrift oder Einleitung.",
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 }
