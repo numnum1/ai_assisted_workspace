@@ -41,8 +41,6 @@ import type {
   AgentPreset,
   Mode,
   Conversation,
-  GitStatus,
-  GitSyncStatus,
   MetaSelection,
   MetaNodeType,
   NodeMeta,
@@ -55,17 +53,14 @@ import type { NewChatConfirmPayload } from "./components/chat/NewChatDialog.tsx"
 import { CHAT_TOOLKIT_IDS } from "./types.ts";
 import {
   modesApi,
-  gitApi,
   projectApi,
   projectConfigApi,
   bookApi,
   llmApi,
   vectorApi,
-  AuthRequiredError,
   chatApi,
 } from "./api.ts";
-import { buildThreadHiddenBootstrap } from "./components/chat/chatThreadUtils.ts";
-import type { GuidedThreadOfferPayload } from "./components/chat/guidedThreadOfferUtils.ts";
+
 import { usePreferences } from "./hooks/usePreferences.ts";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import { useProject } from "./hooks/useProject.ts";
@@ -77,6 +72,9 @@ import { useWorkspaceMode } from "./hooks/useWorkspaceMode.ts";
 import { useWorkspaceLevelConfigMap } from "./hooks/useWorkspaceLevelConfigMap.ts";
 import { useOutlinerScope } from "./hooks/useOutlinerScope.ts";
 import { useFileTabs } from "./hooks/useFileTabs.ts";
+import { useGitState } from "./hooks/useGitState.ts";
+import { useSimulationRunner } from "./hooks/useSimulationRunner.ts";
+import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { EditorTabs } from "./components/editor/EditorTabs.tsx";
 import { SearchPanel } from "./components/editor/SearchPanel.tsx";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
@@ -89,19 +87,15 @@ import {
   parseSteeringPlanFromAssistant,
 } from "./components/chat/planFenceUtils.ts";
 import {
-  agentExecutionPartialFromParent,
-  applyGuidedAgentFromNewChatDialog,
-  buildGuidedAgentPatchFromPreset,
   buildNaviConversationPatch,
   buildAgentExecutionPatchFromGlobals,
   conversationHasAgentExecution,
   getEffectiveChatExecution,
-  guidedPresetPartialFromParent,
-  isNewChatConfirmPayload,
-  threadExecutionOverrideFromPreset,
 } from "./components/chat/chatAgentUtils.ts";
 import {
   nonPromptModes,
+  standardChatModes,
+  resolveDefaultModeId,
   resolvePersistedChatModeId,
   effectiveChatModeIdForRequest,
 } from "./components/chat/effectiveChatModeForRequest.ts";
@@ -111,7 +105,6 @@ import {
   cancelGuidedAgentKickoffIfPendingMismatchesActive,
   clearPendingGuidedAgentKickoff,
   hasPendingGuidedAgentKickoffFor,
-  scheduleGuidedAgentPresetKickoff,
   tryMarkGuidedAgentKickoffStarted,
 } from "./components/chat/guidedAgentKickoff.ts";
 import { hasThreadResultFence, parseThreadResult } from "./components/chat/threadResultUtils.ts";
@@ -128,154 +121,21 @@ import {
   scheduleNaviGreetingKickoff,
   tryMarkNaviGreetingKickoffStarted,
 } from "./components/chat/naviGreetingKickoff.ts";
-import {
-  scheduleSimulationReply,
-  hasPendingSimulationReply,
-  tryStartSimulationReply,
-  finishSimulationReply,
-  clearSimulationReply,
-} from "./components/chat/simulationReplyKickoff.ts";
+import { scheduleSimulationReply } from "./components/chat/simulationReplyKickoff.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
-
-/** Safety cap on simulated-merchant turns so a looping Navi state cannot run forever. */
-const SIMULATION_MAX_TURNS = 12;
-
-/** Modes shown in the main chat mode menu and as project default (excludes agent-only). */
-function standardChatModes(mds: Mode[]): Mode[] {
-  return nonPromptModes(mds).filter((m) => !m.agentOnly);
-}
-
-function resolveDefaultModeId(
-  mds: Mode[],
-  configured: string | undefined,
-): string {
-  const id = configured?.trim() ?? "";
-  if (id && mds.some((m) => m.id === id)) return id;
-  if (mds.some((m) => m.id === "review")) return "review";
-  if (mds.length > 0) return mds[0].id;
-  return "review";
-}
+import {
+  loadInitialDisabledToolkits,
+  saveDisabledToolkits,
+  loadInitialRulesEnabled,
+  saveRulesEnabled,
+  loadLlmPrefs,
+  saveLlmPrefs,
+  loadMainPanelLayout,
+  saveMainPanelLayout,
+} from "./utils/chatStorage.ts";
 
 function conversationHasVisibleMessages(conv: Conversation): boolean {
   return conv.messages.some((m) => !m.hidden);
-}
-
-const LLM_PREFS_KEY = "chat-llm-prefs";
-const CHAT_DISABLED_TOOLKITS_KEY = "chat-disabled-toolkits";
-const CHAT_RULES_ENABLED_KEY = "chat-rules-enabled";
-
-function loadInitialDisabledToolkits(): Set<string> {
-  try {
-    const raw = localStorage.getItem(CHAT_DISABLED_TOOLKITS_KEY);
-    if (raw) {
-      const arr = JSON.parse(raw) as unknown;
-      if (Array.isArray(arr)) {
-        return new Set(arr.filter((x): x is string => typeof x === "string"));
-      }
-    }
-    if (localStorage.getItem("chat-tools-disabled") === "true") {
-      localStorage.removeItem("chat-tools-disabled");
-      return new Set(CHAT_TOOLKIT_IDS);
-    }
-  } catch {
-    /* ignore */
-  }
-  return new Set();
-}
-
-function saveDisabledToolkits(s: Set<string>) {
-  try {
-    localStorage.setItem(CHAT_DISABLED_TOOLKITS_KEY, JSON.stringify([...s]));
-  } catch {
-    /* ignore */
-  }
-}
-
-function loadInitialRulesEnabled(): boolean {
-  try {
-    const raw = localStorage.getItem(CHAT_RULES_ENABLED_KEY);
-    if (raw === "false") return false;
-  } catch {
-    /* ignore */
-  }
-  return true;
-}
-
-function saveRulesEnabled(enabled: boolean) {
-  try {
-    localStorage.setItem(CHAT_RULES_ENABLED_KEY, String(enabled));
-  } catch {
-    /* ignore */
-  }
-}
-
-function loadLlmPrefs(): {
-  llmId: string | null;
-  useReasoning: boolean;
-} | null {
-  try {
-    const raw = localStorage.getItem(LLM_PREFS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as {
-      llmId: string | null;
-      useReasoning: boolean;
-      useWebSearch?: boolean;
-    };
-    return { llmId: parsed.llmId, useReasoning: parsed.useReasoning };
-  } catch {
-    return null;
-  }
-}
-
-function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
-  try {
-    localStorage.setItem(
-      LLM_PREFS_KEY,
-      JSON.stringify({ llmId: llmId ?? null, useReasoning }),
-    );
-  } catch {
-    // localStorage full or unavailable — silently ignore
-  }
-}
-
-const MAIN_PANEL_LAYOUT_KEY = "assistant-main-panel-layout";
-const MAIN_PANEL_IDS = ["far-left", "outliner", "editor", "chat", "far-right"] as const;
-
-function loadMainPanelLayout(): Layout | undefined {
-  try {
-    const raw = localStorage.getItem(MAIN_PANEL_LAYOUT_KEY);
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-      return undefined;
-    const rec = parsed as Record<string, unknown>;
-    const layout: Layout = {};
-    for (const id of MAIN_PANEL_IDS) {
-      const v = rec[id];
-      if (typeof v !== "number" || !Number.isFinite(v) || v < 0)
-        return undefined;
-      layout[id] = v;
-    }
-    const sum = MAIN_PANEL_IDS.reduce((acc, id) => acc + layout[id], 0);
-    if (sum < 99 || sum > 101) return undefined;
-    return layout;
-  } catch {
-    return undefined;
-  }
-}
-
-function saveMainPanelLayout(layout: Layout) {
-  try {
-    const payload: Layout = {};
-    for (const id of MAIN_PANEL_IDS) {
-      const v = layout[id];
-      if (typeof v !== "number" || !Number.isFinite(v)) return;
-      payload[id] = v;
-    }
-    localStorage.setItem(MAIN_PANEL_LAYOUT_KEY, JSON.stringify(payload));
-  } catch {
-    /* ignore */
-  }
 }
 
 /** Compare disabled toolkit ids regardless of order or Set vs array (avoids update loops on new references). */
@@ -1098,77 +958,29 @@ function App() {
     },
     [history],
   );
-  const [credDialogOpen, setCredDialogOpen] = useState(false);
-  const [pendingRetry, setPendingRetry] = useState<(() => void) | null>(null);
-  const [syncStatus, setSyncStatus] = useState<GitSyncStatus | null>(null);
-  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
-  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
+  const git = useGitState(project.projectPath ?? null, paletteOpen);
+  const {
+    gitStatus,
+    syncStatus,
+    fetchGitState,
+    handleGitRevert: handleGitRevertBase,
+    credDialogOpen,
+    setCredDialogOpen,
+    pendingRetry,
+    setPendingRetry,
+    fileHistoryPath,
+    setFileHistoryPath,
+    showCredentialsDialog,
+  } = git;
   const hasUncommitted = !gitStatus?.isClean;
-
-  const showCredentialsDialog = useCallback((retry: () => void) => {
-    setPendingRetry(() => retry);
-    setCredDialogOpen(true);
-  }, []);
-
-  const fetchGitState = useCallback(async () => {
-    try {
-      const [ahead, status] = await Promise.all([
-        gitApi.aheadBehind(),
-        gitApi.status(),
-      ]);
-      setSyncStatus(ahead);
-      setGitStatus(status);
-    } catch (err) {
-      if (err instanceof AuthRequiredError) {
-        showCredentialsDialog(fetchGitState);
-      }
-    }
-  }, [showCredentialsDialog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGitRevert = useCallback(
     async (path: string, isDirectory: boolean) => {
-      const label = isDirectory ? `Ordner „${path}“` : `Datei „${path}“`;
-      if (
-        !window.confirm(
-          `Alle Änderungen in ${label} wirklich verwerfen?\nDieser Vorgang kann nicht rückgängig gemacht werden.`,
-        )
-      ) {
-        return;
-      }
-      try {
-        if (isDirectory) {
-          await gitApi.revertDirectory(path);
-        } else {
-          const isUntracked = gitStatus?.untracked?.includes(path) ?? false;
-          await gitApi.revertFile(path, isUntracked);
-        }
-        setTreeRefreshKey((k) => k + 1);
-        await fetchGitState();
-      } catch (err) {
-        window.alert(
-          err instanceof Error ? err.message : "Revert fehlgeschlagen",
-        );
-      }
+      await handleGitRevertBase(path, isDirectory);
+      setTreeRefreshKey((k) => k + 1);
     },
-    [gitStatus, fetchGitState],
+    [handleGitRevertBase],
   );
-
-  useEffect(() => {
-    void fetchGitState();
-    const interval = setInterval(
-      () => {
-        void fetchGitState();
-      },
-      10 * 60 * 1000,
-    );
-    return () => clearInterval(interval);
-  }, [fetchGitState, project.projectPath]);
-
-  useEffect(() => {
-    if (paletteOpen) {
-      void fetchGitState();
-    }
-  }, [paletteOpen, fetchGitState]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1693,213 +1505,19 @@ function App() {
     rulesEnabled,
   ]);
 
-  // Simulation runner: generate the next simulated-merchant reply and send it to Navi.
-  const performSimulationReply = useCallback(
-    async (conv: Conversation) => {
-      const sim = conv.simulationConfig;
-      if (!sim) {
-        finishSimulationReply(conv.id);
-        return;
-      }
-      const bridge = getAppBridge();
-      try {
-        const transcript = conv.messages
-          .filter(
-            (m) =>
-              !m.hidden &&
-              (m.role === "user" || m.role === "assistant") &&
-              m.content.trim().length > 0,
-          )
-          .map((m) => ({
-            speaker: (m.role === "assistant" ? "navi" : "merchant") as
-              | "navi"
-              | "merchant",
-            content: m.content,
-          }));
-
-        const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
-        const mode = modes.find((m) => m.id === modeId);
-        const exec = getEffectiveChatExecution(conv, {
-          llmId: modeLlmId,
-          useReasoning,
-          disabledToolkits,
-        });
-
-        // The persona description (if any) drives the simulated user; goal is a fallback.
-        const personaText = sim.personaPrompt?.trim() || sim.goal;
-        const result = await bridge?.simulation?.generateUserReply?.({
-          goal: personaText,
-          characterNames: sim.personaName
-            ? [sim.personaName]
-            : sim.characters.map((c) => c.name),
-          transcript,
-          llmId: exec.llmId,
-        });
-        const reply = result?.reply?.trim();
-        if (!reply) {
-          finishSimulationReply(conv.id);
-          return;
-        }
-
-        chat.sendMessage(
-          reply,
-          modeId,
-          [],
-          mode?.name,
-          mode?.color,
-          exec.useReasoning,
-          exec.llmId,
-          undefined,
-          null,
-          exec.disabledToolkits,
-          {
-            conversationId: conv.id,
-            sessionKind: "navi",
-            naviStateId: conv.naviStateId ?? "greeting",
-            naviResults: conv.naviResults,
-            naviContext: conv.naviContext,
-            naviPlan: conv.naviPlan,
-            naviCoveredTips: conv.naviCoveredTips,
-            naviCurrentProblem: conv.naviCurrentProblem,
-            naviProblemQueue: conv.naviProblemQueue,
-            simulationConfig: sim,
-          },
-          { rulesDisabled: !rulesEnabled },
-        );
-      } catch (err) {
-        console.error("[simulation] merchant reply failed", err);
-      } finally {
-        finishSimulationReply(conv.id);
-      }
-    },
-    [
-      chat.sendMessage,
-      selectedMode,
-      modes,
-      modeLlmId,
-      useReasoning,
-      disabledToolkits,
-      rulesEnabled,
-    ],
-  );
-
-  // Persist the full Navi ↔ merchant transcript to the simulation result file,
-  // then have a reviewer AI evaluate how well Navi performed and append its report.
-  const persistSimulationTranscript = useCallback(async (conv: Conversation) => {
-    const sim = conv.simulationConfig;
-    if (!sim) return;
-    const bridge = getAppBridge();
-    if (!bridge?.simulation?.writeResult) return;
-
-    const visibleMessages = conv.messages.filter(
-      (m) =>
-        !m.hidden &&
-        (m.role === "user" || m.role === "assistant") &&
-        m.content.trim().length > 0,
-    );
-
-    const lines = visibleMessages.map((m) =>
-      m.role === "assistant"
-        ? `**Navi:** ${m.content.trim()}`
-        : `**Händler:** ${m.content.trim()}`,
-    );
-
-    const transcript = visibleMessages.map((m) => ({
-      speaker: (m.role === "assistant" ? "navi" : "merchant") as
-        | "navi"
-        | "merchant",
-      content: m.content,
-    }));
-
-    // Ask the reviewer AI to judge Navi's performance (best-effort; non-fatal).
-    let evaluationSection: string[] = [];
-    if (bridge.simulation.evaluateRun) {
-      try {
-        const exec = getEffectiveChatExecution(conv, {
-          llmId: modeLlmId,
-          useReasoning,
-          disabledToolkits,
-        });
-        const evaluation = await bridge.simulation.evaluateRun({
-          persona: sim.personaPrompt?.trim() || sim.goal,
-          personaName: sim.personaName,
-          transcript,
-          llmId: exec.llmId,
-        });
-        if (evaluation?.report) {
-          evaluationSection = [
-            ``,
-            `---`,
-            ``,
-            `## KI-Bewertung des Navi`,
-            ``,
-            evaluation.report,
-            ``,
-          ];
-        }
-      } catch (err) {
-        console.error("[simulation] navi evaluation failed", err);
-      }
-    }
-
-    const body = [
-      `# ${conv.title ?? "Simulation"}`,
-      ``,
-      sim.personaName ? `**Persona:** ${sim.personaName}` : undefined,
-      sim.goal ? `**Ziel:** ${sim.goal}` : undefined,
-      sim.characters.length > 0
-        ? `**Charaktere:** ${sim.characters.map((c) => c.name).join(", ")}`
-        : undefined,
-      ``,
-      `---`,
-      ``,
-      `## Gesprächsverlauf`,
-      ``,
-      lines.join("\n\n"),
-      ``,
-      ...evaluationSection,
-    ]
-      .filter((l) => l !== undefined)
-      .join("\n");
-
-    const writeResult = await bridge.simulation
-      .writeResult(sim.resultFile, body)
-      .catch(() => null);
-
-    // Open the result file as a tab in the editor so the user can read it immediately.
-    if (writeResult?.path) {
-      void fileEditor.openFile(writeResult.path);
-    }
-  }, [modeLlmId, useReasoning, disabledToolkits, fileEditor.openFile]);
-
-  // Simulation runner: after Navi answered, fire the queued merchant reply (until closing).
-  useEffect(() => {
-    const conv = history.activeConversation;
-    if (!conv) return;
-    if (conv.sessionKind !== "navi" || !conv.simulationConfig) return;
-    if (!hasPendingSimulationReply(conv.id)) return;
-    if (chat.streaming) return;
-    if (chat.messages.length !== conv.messages.length) return;
-
-    // Stop the auto-run at closing, or after a safety cap (refine_recommendation can loop).
-    const reachedClosing = (conv.naviStateId ?? "greeting") === "closing";
-    const merchantTurns = conv.messages.filter(
-      (m) => !m.hidden && m.role === "user",
-    ).length;
-    if (reachedClosing || merchantTurns >= SIMULATION_MAX_TURNS) {
-      clearSimulationReply(conv.id);
-      void persistSimulationTranscript(conv);
-      return;
-    }
-    if (!tryStartSimulationReply(conv.id)) return;
-    void performSimulationReply(conv);
-  }, [
-    history.activeConversation,
-    chat.messages,
-    chat.streaming,
-    performSimulationReply,
-    persistSimulationTranscript,
-  ]);
+  useSimulationRunner({
+    activeConversation: history.activeConversation,
+    chatMessages: chat.messages,
+    chatStreaming: chat.streaming,
+    sendMessage: chat.sendMessage,
+    selectedMode,
+    modes,
+    modeLlmId,
+    useReasoning,
+    disabledToolkits,
+    rulesEnabled,
+    openFile: fileEditor.openFile,
+  });
 
   // Subthread result: when the parent becomes active and has a pending result kickoff, integrate it.
   useEffect(() => {
@@ -1983,84 +1601,25 @@ function App() {
     }
   }, [modes, selectedMode, handleModeChange]);
 
-  const handleNewChat = useCallback(
-    (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => {
-      if (isNewChatConfirmPayload(kindOrPayload)) {
-        const payload = kindOrPayload;
-        const preset =
-          payload.sessionKind === "guided" && payload.agentPresetId
-            ? agentPresets.find((a) => a.id === payload.agentPresetId)
-            : undefined;
-        if (preset && payload.sessionKind === "guided") {
-          handleModeChange(preset.modeId, modes);
-        }
-        const modeForCreate =
-          preset && payload.sessionKind === "guided"
-            ? preset.modeId
-            : selectedMode;
-        const titleArg = payload.title.trim() || undefined;
-        const newConv = history.createConversation(
-          modeForCreate,
-          undefined,
-          titleArg,
-          payload.sessionKind,
-        );
-        if (preset && payload.sessionKind === "guided") {
-          const agentPatch = buildGuidedAgentPatchFromPreset(
-            preset,
-            payload.initialSteeringPlan,
-            payload.agentPresetId,
-          );
-          history.patchConversation(newConv.id, agentPatch);
-          if (
-            agentPatch.steeringPlan?.trim() &&
-            agentPatch.agentPresetId?.trim()
-          ) {
-            scheduleGuidedAgentPresetKickoff(newConv.id);
-          }
-        } else {
-          applyGuidedAgentFromNewChatDialog(
-            newConv.id,
-            payload,
-            selectedMode,
-            { llmId: modeLlmId, useReasoning, disabledToolkits },
-            history.patchConversation,
-          );
-          // Guided chat ohne Agent-Preset: KI soll trotzdem als erste sprechen.
-          if (payload.sessionKind === "guided") {
-            scheduleGuidedAgentPresetKickoff(newConv.id);
-          }
-          if (payload.sessionKind === "navi") {
-            history.patchConversation(
-              newConv.id,
-              buildNaviConversationPatch(naviConfigRef.current, modes, llms),
-            );
-            scheduleNaviGreetingKickoff(newConv.id);
-          }
-        }
-        return;
-      }
-      const sk = (kindOrPayload as ChatSessionKind | undefined) ?? "standard";
-      const std = standardChatModes(modes);
-      let modeForNew = selectedMode;
-      if (sk === "standard" && !std.some((m) => m.id === modeForNew)) {
-        modeForNew = resolveDefaultModeId(std, undefined);
-        handleModeChange(modeForNew, modes);
-      }
-      history.createConversation(modeForNew, undefined, undefined, sk);
-    },
-    [
-      history,
-      selectedMode,
-      modeLlmId,
-      useReasoning,
-      disabledToolkits,
-      modes,
-      llms,
-      handleModeChange,
-      agentPresets,
-    ],
-  );
+  const {
+    handleNewChat,
+    handleDiscardCurrentChat,
+    handleForkToNewConversation,
+    handleStartThreadFromMessage,
+    handleAcceptGuidedThreadFromOffer,
+  } = useConversationActions({
+    history,
+    chatMessages: chat.messages,
+    selectedMode,
+    modes,
+    llms,
+    modeLlmId,
+    useReasoning,
+    disabledToolkits,
+    agentPresets,
+    naviConfigRef,
+    handleModeChange,
+  });
 
   const handleCreateSimulation = useCallback(
     async (result: SimulationSetupResult) => {
@@ -2095,289 +1654,6 @@ function App() {
     [history, selectedMode, modes, llms],
   );
 
-  const handleDiscardCurrentChat = useCallback(
-    (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => {
-      if (isNewChatConfirmPayload(kindOrPayload)) {
-        const payload = kindOrPayload;
-        const preset =
-          payload.sessionKind === "guided" && payload.agentPresetId
-            ? agentPresets.find((a) => a.id === payload.agentPresetId)
-            : undefined;
-        if (preset && payload.sessionKind === "guided") {
-          handleModeChange(preset.modeId, modes);
-        }
-        const modeForCreate =
-          preset && payload.sessionKind === "guided"
-            ? preset.modeId
-            : selectedMode;
-        const newConv = history.discardActiveAndCreateConversation(
-          modeForCreate,
-          payload.sessionKind,
-        );
-        const t = payload.title.trim();
-        if (t) {
-          history.patchConversation(newConv.id, { title: t });
-        }
-        if (preset && payload.sessionKind === "guided") {
-          const agentPatch = buildGuidedAgentPatchFromPreset(
-            preset,
-            payload.initialSteeringPlan,
-            payload.agentPresetId,
-          );
-          history.patchConversation(newConv.id, agentPatch);
-          if (
-            agentPatch.steeringPlan?.trim() &&
-            agentPatch.agentPresetId?.trim()
-          ) {
-            scheduleGuidedAgentPresetKickoff(newConv.id);
-          }
-        } else {
-          applyGuidedAgentFromNewChatDialog(
-            newConv.id,
-            payload,
-            selectedMode,
-            { llmId: modeLlmId, useReasoning, disabledToolkits },
-            history.patchConversation,
-          );
-          // Guided chat ohne Agent-Preset: KI soll trotzdem als erste sprechen.
-          if (payload.sessionKind === "guided") {
-            scheduleGuidedAgentPresetKickoff(newConv.id);
-          }
-          if (payload.sessionKind === "navi") {
-            history.patchConversation(
-              newConv.id,
-              buildNaviConversationPatch(naviConfigRef.current, modes, llms),
-            );
-            scheduleNaviGreetingKickoff(newConv.id);
-          }
-        }
-        return;
-      }
-      const skDiscard =
-        (kindOrPayload as ChatSessionKind | undefined) ?? "standard";
-      const stdDiscard = standardChatModes(modes);
-      let modeDiscard = selectedMode;
-      if (
-        skDiscard === "standard" &&
-        !stdDiscard.some((m) => m.id === modeDiscard)
-      ) {
-        modeDiscard = resolveDefaultModeId(stdDiscard, undefined);
-        handleModeChange(modeDiscard, modes);
-      }
-      history.discardActiveAndCreateConversation(modeDiscard, skDiscard);
-    },
-    [
-      history,
-      selectedMode,
-      modeLlmId,
-      useReasoning,
-      disabledToolkits,
-      modes,
-      llms,
-      handleModeChange,
-      agentPresets,
-    ],
-  );
-
-  const handleForkToNewConversation = useCallback(
-    (index: number) => {
-      if (history.activeConversation?.isThread) return;
-      const forkedMessages = chat.messages.slice(0, index + 1);
-      const baseTitle = history.activeConversation?.title ?? "Chat";
-      const base = `${baseTitle}-fork`;
-      const existingTitles = new Set(history.conversations.map((c) => c.title));
-      let n = 1;
-      while (existingTitles.has(`${base} (${n})`)) n++;
-      const parent = history.activeConversation;
-      const sk = parent?.sessionKind ?? "standard";
-      const preset =
-        parent?.agentPresetId != null
-          ? agentPresets.find((a) => a.id === parent.agentPresetId)
-          : undefined;
-      const threadModeId = preset?.threadModeId?.trim();
-      const forkMode =
-        threadModeId && modes.some((m) => m.id === threadModeId)
-          ? threadModeId
-          : selectedMode;
-      const newConv = history.createConversation(
-        forkMode,
-        forkedMessages,
-        `${base} (${n})`,
-        sk,
-      );
-      if (sk === "guided" && parent?.steeringPlan) {
-        history.patchConversation(newConv.id, {
-          steeringPlan: parent.steeringPlan,
-        });
-      }
-      const agentPatch = parent ? agentExecutionPartialFromParent(parent) : {};
-      const guidedPresetPatch =
-        parent && sk === "guided" ? guidedPresetPartialFromParent(parent) : {};
-      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
-      const forkPatches = {
-        ...agentPatch,
-        ...guidedPresetPatch,
-        ...threadExec,
-      };
-      if (Object.keys(forkPatches).length > 0) {
-        history.patchConversation(newConv.id, forkPatches);
-      }
-    },
-    [agentPresets, chat.messages, history, llms, modes, selectedMode],
-  );
-
-  /** New conversation: parent transcript for API only (hidden); UI shows only new thread messages. */
-  const handleStartThreadFromMessage = useCallback(
-    (messageIndex: number) => {
-      const parent = history.activeConversation;
-      if (!parent) return;
-      if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
-
-      const baseTitle = parent.title?.trim() || "Chat";
-      const base = `${baseTitle}-Thread`;
-      const existingTitles = new Set(history.conversations.map((c) => c.title));
-      let n = 1;
-      while (existingTitles.has(`${base} (${n})`)) n++;
-
-      const initialMessages = buildThreadHiddenBootstrap(
-        baseTitle,
-        chat.messages,
-        messageIndex,
-      );
-
-      const sk = parent.sessionKind ?? "standard";
-      const preset =
-        parent.agentPresetId != null
-          ? agentPresets.find((a) => a.id === parent.agentPresetId)
-          : undefined;
-      const threadModeId = preset?.threadModeId?.trim();
-      const threadMode =
-        threadModeId && modes.some((m) => m.id === threadModeId)
-          ? threadModeId
-          : parent.mode || selectedMode;
-      const newConv = history.createConversation(
-        threadMode,
-        initialMessages,
-        `${base} (${n})`,
-        sk,
-      );
-      if (sk === "guided" && parent.steeringPlan) {
-        history.patchConversation(newConv.id, {
-          steeringPlan: parent.steeringPlan,
-        });
-      }
-      const agentPatch = agentExecutionPartialFromParent(parent);
-      const guidedPresetPatch =
-        sk === "guided" ? guidedPresetPartialFromParent(parent) : {};
-      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
-      const threadPatches = {
-        ...agentPatch,
-        ...guidedPresetPatch,
-        ...threadExec,
-      };
-      if (Object.keys(threadPatches).length > 0) {
-        history.patchConversation(newConv.id, threadPatches);
-      }
-      history.patchConversation(newConv.id, {
-        isThread: true,
-        parentConversationId: parent.id,
-      });
-    },
-    [agentPresets, chat.messages, history, llms, modes, selectedMode],
-  );
-
-  /** User accepted a ```guided_thread_offer from the assistant: new guided thread with the offered plan. */
-  const handleAcceptGuidedThreadFromOffer = useCallback(
-    (messageIndex: number, offer: GuidedThreadOfferPayload) => {
-      const parent = history.activeConversation;
-      if (!parent) return;
-      if (messageIndex < 0 || messageIndex >= chat.messages.length) return;
-
-      const baseTitle = parent.title?.trim() || "Chat";
-      const base = offer.threadTitle?.trim() || `${baseTitle}-Thread`;
-      const existingTitles = new Set(history.conversations.map((c) => c.title));
-      let n = 1;
-      while (existingTitles.has(`${base} (${n})`)) n++;
-      const title = `${base} (${n})`;
-
-      const initialMessages = buildThreadHiddenBootstrap(
-        baseTitle,
-        chat.messages,
-        messageIndex,
-      );
-
-      const pid = offer.agentPresetId?.trim();
-      const preset = pid ? agentPresets.find((a) => a.id === pid) : undefined;
-      const threadModeIdFromPreset = preset?.threadModeId?.trim();
-      const modeIdOffer = offer.modeId?.trim();
-      const threadMode =
-        threadModeIdFromPreset &&
-        modes.some((m) => m.id === threadModeIdFromPreset)
-          ? threadModeIdFromPreset
-          : modeIdOffer && modes.some((m) => m.id === modeIdOffer)
-            ? modeIdOffer
-            : parent.mode || selectedMode;
-
-      const newConv = history.createConversation(
-        threadMode,
-        initialMessages,
-        title,
-        "guided",
-      );
-
-      if (preset) {
-        history.patchConversation(
-          newConv.id,
-          buildGuidedAgentPatchFromPreset(preset, undefined, pid),
-        );
-        history.patchConversation(newConv.id, {
-          steeringPlan: offer.steeringPlanMarkdown.trim(),
-          mode: threadMode,
-        });
-        scheduleGuidedAgentPresetKickoff(newConv.id);
-      } else {
-        history.patchConversation(newConv.id, {
-          steeringPlan: offer.steeringPlanMarkdown.trim(),
-        });
-        if (conversationHasAgentExecution(parent)) {
-          history.patchConversation(
-            newConv.id,
-            agentExecutionPartialFromParent(parent),
-          );
-        } else {
-          history.patchConversation(
-            newConv.id,
-            buildAgentExecutionPatchFromGlobals({
-              llmId: modeLlmId,
-              useReasoning,
-              disabledToolkits,
-            }),
-          );
-        }
-      }
-
-      const threadExec = threadExecutionOverrideFromPreset(preset, llms, modes);
-      if (Object.keys(threadExec).length > 0) {
-        history.patchConversation(newConv.id, threadExec);
-      }
-
-      history.patchConversation(newConv.id, {
-        isThread: true,
-        parentConversationId: parent.id,
-      });
-    },
-    [
-      agentPresets,
-      chat.messages,
-      disabledToolkits,
-      history,
-      llms,
-      modeLlmId,
-      modes,
-      selectedMode,
-      useReasoning,
-    ],
-  );
 
   const handleSwitchChat = useCallback(
     (id: string) => {

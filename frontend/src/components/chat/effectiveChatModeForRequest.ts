@@ -7,6 +7,22 @@ export function nonPromptModes(mds: Mode[]): Mode[] {
   return mds.filter((m) => m.id !== 'prompt-pack');
 }
 
+/** Modes shown in the main chat mode menu (excludes prompt-pack and agent-only). */
+export function standardChatModes(mds: Mode[]): Mode[] {
+  return nonPromptModes(mds).filter((m) => !m.agentOnly);
+}
+
+export function resolveDefaultModeId(
+  mds: Mode[],
+  configured: string | undefined,
+): string {
+  const id = configured?.trim() ?? "";
+  if (id && mds.some((m) => m.id === id)) return id;
+  if (mds.some((m) => m.id === "review")) return "review";
+  if (mds.length > 0) return mds[0].id;
+  return "review";
+}
+
 /**
  * Resolves mode id from persisted conversation (non–prompt-pack only).
  * Agent-only modes are kept for guided sessions; for standard chat they are ignored.
