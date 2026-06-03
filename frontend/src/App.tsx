@@ -92,6 +92,7 @@ import {
   agentExecutionPartialFromParent,
   applyGuidedAgentFromNewChatDialog,
   buildGuidedAgentPatchFromPreset,
+  buildNaviConversationPatch,
   buildAgentExecutionPatchFromGlobals,
   conversationHasAgentExecution,
   getEffectiveChatExecution,
@@ -368,6 +369,8 @@ function App() {
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
   const projectDefaultChatModeIdRef = useRef("review");
+  /** Configured mode/LLM for Navi sessions (project settings → Navi tab). */
+  const naviConfigRef = useRef<{ modeId?: string; llmId?: string }>({});
   /**
    * Ref-mirrors of toolbar state so the conv-sync effect can read current values without
    * listing them as reactive deps — which would cause snap-back any time the user changes
@@ -753,6 +756,10 @@ function App() {
         try {
           const cfg = await projectConfigApi.get();
           configured = cfg.defaultMode;
+          naviConfigRef.current = {
+            modeId: cfg.naviModeId,
+            llmId: cfg.naviLlmId,
+          };
         } catch {
           /* ignore */
         }
@@ -2018,7 +2025,10 @@ function App() {
             scheduleGuidedAgentPresetKickoff(newConv.id);
           }
           if (payload.sessionKind === "navi") {
-            history.patchConversation(newConv.id, { naviStateId: "greeting" });
+            history.patchConversation(
+              newConv.id,
+              buildNaviConversationPatch(naviConfigRef.current, modes, llms),
+            );
             scheduleNaviGreetingKickoff(newConv.id);
           }
         }
@@ -2040,6 +2050,7 @@ function App() {
       useReasoning,
       disabledToolkits,
       modes,
+      llms,
       handleModeChange,
       agentPresets,
     ],
@@ -2050,7 +2061,10 @@ function App() {
       setSimulationSetupOpen(false);
       const { title, simulationConfig } = result;
       const newConv = history.createConversation(selectedMode, undefined, title, "navi");
-      history.patchConversation(newConv.id, { simulationConfig, naviStateId: "greeting" });
+      history.patchConversation(newConv.id, {
+        simulationConfig,
+        ...buildNaviConversationPatch(naviConfigRef.current, modes, llms),
+      });
       scheduleNaviGreetingKickoff(newConv.id);
       // Create the result file with a placeholder — will be overwritten with the full
       // transcript + evaluation once the simulation finishes.
@@ -2072,7 +2086,7 @@ function App() {
         await bridge.simulation.writeResult(simulationConfig.resultFile, header).catch(() => {});
       }
     },
-    [history, selectedMode],
+    [history, selectedMode, modes, llms],
   );
 
   const handleDiscardCurrentChat = useCallback(
@@ -2124,7 +2138,10 @@ function App() {
             scheduleGuidedAgentPresetKickoff(newConv.id);
           }
           if (payload.sessionKind === "navi") {
-            history.patchConversation(newConv.id, { naviStateId: "greeting" });
+            history.patchConversation(
+              newConv.id,
+              buildNaviConversationPatch(naviConfigRef.current, modes, llms),
+            );
             scheduleNaviGreetingKickoff(newConv.id);
           }
         }
@@ -2150,6 +2167,7 @@ function App() {
       useReasoning,
       disabledToolkits,
       modes,
+      llms,
       handleModeChange,
       agentPresets,
     ],

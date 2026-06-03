@@ -960,7 +960,7 @@ async function runNaviChatStream(
 
     // Call 1: Classification — skip if no user message or no transitions
     if (userMessage && currentState.transitions.length > 0) {
-      emit({ type: "navi_step", data: { label: "Analysiere Antwort …" } });
+      emit({ type: "navi_step", data: { label: "Prüfe Phasenwechsel …" } });
       const classificationSystemPrompt =
         'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.';
       const classificationHistory = Array.isArray(request.history)
@@ -1088,7 +1088,8 @@ async function runNaviChatStream(
         if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
         const excerpt = excerptLines.slice(-10).join("\n");
 
-        const planSystemPrompt = [
+        const planHints = projConfig?.naviPlanHints?.[newStateId];
+        const planSystemPromptParts = [
           "Du analysierst das Gespräch zwischen Navi (KI-Berater) und einem Händler.",
           "Deine Aufgabe: Erstelle eine kurze, priorisierte Liste der wichtigsten offenen Fragen, die Navi noch klären muss – ausschließlich zum Hauptproblem, das der Händler genannt hat.",
           "WICHTIG: Alle Fragen müssen sich auf DIESES EINE Hauptproblem beziehen. Keine Fragen zu anderen Themen oder potenziellen Nebenproblemen.",
@@ -1096,7 +1097,18 @@ async function runNaviChatStream(
           "Fokussiere auf praktische Lücken – nicht auf Hintergründe, Ausmaß oder Auswirkungen.",
           "Fragen die bereits beantwortet wurden, NICHT aufnehmen.",
           "Maximal 5 Fragen. Antwortformat: NUR eine Bullet-Liste mit '-', kein anderer Text.",
-        ].join("\n");
+        ];
+        if (planHints?.include?.length) {
+          planSystemPromptParts.push(
+            `PFLICHT-THEMEN (müssen abgedeckt sein, sofern noch nicht beantwortet):\n${planHints.include.map((h) => `- ${h}`).join("\n")}`,
+          );
+        }
+        if (planHints?.exclude?.length) {
+          planSystemPromptParts.push(
+            `VERBOTENE THEMEN (auf keinen Fall fragen):\n${planHints.exclude.map((h) => `- ${h}`).join("\n")}`,
+          );
+        }
+        const planSystemPrompt = planSystemPromptParts.join("\n");
 
         const planUserPrompt = `Gesprächsausschnitt:\n${excerpt}\n\nWelche offenen Fragen muss Navi noch klären, um das genannte Hauptproblem des Händlers konkret zu verstehen und die praktische Lücke zu finden? Nur Fragen zu diesem einen Problem.`;
 

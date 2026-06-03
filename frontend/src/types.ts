@@ -301,6 +301,13 @@ export interface ProjectConfig {
   naviInstructions?: Record<string, string>;
   /** Per-state workPlan overrides for Navi sessions. Key = state id, value = checklist items. */
   naviWorkPlans?: Record<string, string[]>;
+  /** Per-state hints for the question-plan (Frageplan) LLM call.
+   *  Key = state id. include = Pflicht-Themen (Whitelist), exclude = verbotene Themen (Blacklist). */
+  naviPlanHints?: Record<string, { include?: string[]; exclude?: string[] }>;
+  /** Mode id used for Navi sessions; empty = current toolbar/default mode. */
+  naviModeId?: string;
+  /** LLM id used for Navi sessions; empty = mode/global default. */
+  naviLlmId?: string;
   extraFeatures?: ProjectExtraFeatures;
 }
 
