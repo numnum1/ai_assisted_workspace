@@ -4,6 +4,7 @@ import type {
   ChatRequest,
   ChatSessionKind,
   ContextInfo,
+  NaviContext,
   SelectionContext,
   SimulationConfig,
 } from '../types.ts';
@@ -36,6 +37,7 @@ export interface ChatStreamSessionMeta {
   isThread?: boolean;
   naviStateId?: string | null;
   naviResults?: Record<string, string>;
+  naviContext?: NaviContext;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
   naviCurrentProblem?: string;
@@ -66,6 +68,7 @@ export interface UseChatOptions {
   onNaviTipsCovered?: (coveredIds: string[], conversationId: string) => void;
   onNaviProblems?: (current: string, queue: string[], conversationId: string) => void;
   onNaviStep?: (label: string | null) => void;
+  onNaviContext?: (ctx: NaviContext, conversationId: string) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -89,6 +92,7 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
       ...(meta.naviResults && Object.keys(meta.naviResults).length > 0
         ? { naviResults: meta.naviResults }
         : {}),
+      ...(meta.naviContext ? { naviContext: meta.naviContext } : {}),
       ...(meta.naviPlan ? { naviPlan: meta.naviPlan } : {}),
       ...(meta.naviCoveredTips && meta.naviCoveredTips.length > 0 ? { naviCoveredTips: meta.naviCoveredTips } : {}),
       ...(meta.naviCurrentProblem ? { naviCurrentProblem: meta.naviCurrentProblem } : {}),
@@ -125,6 +129,8 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   onNaviProblemsRef.current = options?.onNaviProblems;
   const onNaviStepRef = useRef(options?.onNaviStep);
   onNaviStepRef.current = options?.onNaviStep;
+  const onNaviContextRef = useRef(options?.onNaviContext);
+  onNaviContextRef.current = options?.onNaviContext;
   const [naviStep, setNaviStep] = useState<string | null>(null);
   const [naviStepForCard, setNaviStepForCard] = useState<string | null>(null);
 
@@ -235,12 +241,18 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           ? (current: string, queue: string[]) => onNaviProblemsRef.current!(current, queue, naviConversationId)
           : undefined;
 
+      const onNaviContextCb =
+        streamSession?.sessionKind === 'navi' && onNaviContextRef.current
+          ? (ctx: NaviContext) => onNaviContextRef.current!(ctx, naviConversationId)
+          : undefined;
+
       const streamCbs: StreamCallbacks = {
         ...streamCbsBase,
         ...(onNaviState ? { onNaviState } : {}),
         ...(onNaviPlanCb ? { onNaviPlan: onNaviPlanCb } : {}),
         ...(onNaviTipsCoveredCb ? { onNaviTipsCovered: onNaviTipsCoveredCb } : {}),
         ...(onNaviProblemsCb ? { onNaviProblems: onNaviProblemsCb } : {}),
+        ...(onNaviContextCb ? { onNaviContext: onNaviContextCb } : {}),
         onNaviStep: (label) => {
           setNaviStep(label);
           if (label !== null) setNaviStepForCard(label);

@@ -9,6 +9,7 @@ import {
   Lightbulb,
   SplitSquareHorizontal,
   Inbox,
+  BookOpen,
 } from "lucide-react";
 import {
   NAVI_CLIENT_STATES,
@@ -16,18 +17,20 @@ import {
 } from "./naviStateMachineClient.ts";
 import { NAVI_STATES } from "../../naviStateMachine.ts";
 import { NAVI_TIPS } from "../../naviTips.ts";
+import type { NaviContext } from "../../types.ts";
 import "./NaviStatePanel.css";
 
 interface Props {
   naviStateId: string;
   naviResults?: Record<string, string>;
+  naviContext?: NaviContext;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
   naviCurrentProblem?: string;
   naviProblemQueue?: string[];
 }
 
-export function NaviStatePanel({ naviStateId, naviResults, naviPlan, naviCoveredTips, naviCurrentProblem, naviProblemQueue }: Props) {
+export function NaviStatePanel({ naviStateId, naviResults, naviContext, naviPlan, naviCoveredTips, naviCurrentProblem, naviProblemQueue }: Props) {
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
 
   const current = getNaviClientState(naviStateId);
@@ -109,6 +112,48 @@ export function NaviStatePanel({ naviStateId, naviResults, naviPlan, naviCovered
                 <span className="navi-problem-label">{p}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 1b2: Faktenlage (NaviContext) ─────────── */}
+      {naviContext && Object.values(naviContext).some(Boolean) && (
+        <div className="navi-section">
+          <div className="navi-section-label">
+            <BookOpen size={11} />
+            Faktenlage
+          </div>
+          <div className="navi-context-card">
+            {naviContext.laden && (
+              <div className="navi-context-row">
+                <span className="navi-context-key">Laden</span>
+                <span className="navi-context-value">{naviContext.laden}</span>
+              </div>
+            )}
+            {naviContext.problem && (
+              <div className="navi-context-row">
+                <span className="navi-context-key">Problem</span>
+                <span className="navi-context-value">{naviContext.problem}</span>
+              </div>
+            )}
+            {naviContext.luecke && (
+              <div className="navi-context-row">
+                <span className="navi-context-key">Lücke</span>
+                <span className="navi-context-value">{naviContext.luecke}</span>
+              </div>
+            )}
+            {naviContext.stack && (
+              <div className="navi-context-row">
+                <span className="navi-context-key">Stack</span>
+                <span className="navi-context-value">{naviContext.stack}</span>
+              </div>
+            )}
+            {naviContext.empfehlung && (
+              <div className="navi-context-row">
+                <span className="navi-context-key">Empfehlung</span>
+                <span className="navi-context-value">{naviContext.empfehlung}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

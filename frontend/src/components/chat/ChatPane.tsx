@@ -126,6 +126,7 @@ export interface ChatPaneProps {
   error: string | null;
   toolActivity: string | null;
   naviStep?: string | null;
+  naviStateId?: string | null;
 
   onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
@@ -197,6 +198,7 @@ export function ChatPane({
   error,
   toolActivity,
   naviStep,
+  naviStateId,
   onSend,
   onStop,
   onEditMessage,
@@ -641,6 +643,7 @@ export function ChatPane({
           error={error}
           toolActivity={toolActivity}
           naviStep={naviStep}
+          naviStateId={naviStateId}
           activeIsThread={isThread}
           editingIdx={editingIdx}
           setEditingIdx={setEditingIdx}

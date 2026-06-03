@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChatThreadsRail } from "./chat/ChatThreadsRail.tsx";
 import { NaviStatePanel } from "./chat/NaviStatePanel.tsx";
-import type { Conversation } from "../types.ts";
+import type { Conversation, NaviContext } from "../types.ts";
 
 type SlotTool = "threads" | "navi-state" | "plans";
 
@@ -21,6 +21,7 @@ export interface PanelSlotProps {
   onSwitchChat: (id: string) => void;
   naviStateId?: string | null;
   naviResults?: Record<string, string>;
+  naviContext?: NaviContext;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
   naviCurrentProblem?: string;
@@ -45,6 +46,7 @@ export function PanelSlot({
   onSwitchChat,
   naviStateId,
   naviResults,
+  naviContext,
   naviPlan,
   naviCoveredTips,
   naviCurrentProblem,
@@ -119,6 +121,7 @@ export function PanelSlot({
           <NaviStatePanel
             naviStateId={naviStateId}
             naviResults={naviResults}
+            naviContext={naviContext}
             naviPlan={naviPlan}
             naviCoveredTips={naviCoveredTips}
             naviCurrentProblem={naviCurrentProblem}

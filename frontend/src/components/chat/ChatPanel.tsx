@@ -440,6 +440,7 @@ export function ChatPanel({
           error={error}
           toolActivity={toolActivity}
           naviStep={naviStep}
+          naviStateId={naviStateId}
           onSend={onSend}
           onStop={onStop}
           onEditMessage={onEditMessage}

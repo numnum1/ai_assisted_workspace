@@ -328,6 +328,40 @@
   opacity: 0.6;
 }
 
+/* ── Faktenlage (NaviContext) ─────────────────────────────── */
+.navi-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent, #89b4fa) 20%, transparent);
+  border-radius: 4px;
+  padding: 6px 9px;
+  background: color-mix(in srgb, var(--accent, #89b4fa) 5%, transparent);
+}
+
+.navi-context-row {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.navi-context-key {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent, #89b4fa);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.navi-context-value {
+  font-size: 11px;
+  color: var(--text-primary, #cdd6f4);
+  line-height: 1.4;
+}
+
 /* ── Intermediate Results ─────────────────────────────────── */
 .navi-results {
   display: flex;

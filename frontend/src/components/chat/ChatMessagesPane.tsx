@@ -175,6 +175,7 @@ export interface ChatMessagesPaneProps {
   error: string | null;
   toolActivity: string | null;
   naviStep?: string | null;
+  naviStateId?: string | null;
   activeIsThread: boolean;
   editingIdx: number | null;
   setEditingIdx: (idx: number | null) => void;
@@ -214,6 +215,7 @@ export function ChatMessagesPane({
   error,
   toolActivity,
   naviStep,
+  naviStateId,
   activeIsThread,
   editingIdx,
   setEditingIdx,
@@ -341,6 +343,7 @@ export function ChatMessagesPane({
               onApplyFieldUpdate={onApplyFieldUpdate}
               fieldLabels={fieldLabels}
               naviStep={isLastAssistantTurn ? naviStep : null}
+              naviStateId={naviStateId}
             />
           );
         }
@@ -422,7 +425,7 @@ export function ChatMessagesPane({
             <TurnCard
               key={`uturn-${lastOriginalIdx}`}
               turnType="user"
-              showActions={!readOnly && !streaming && !turnMsgs.some((m) => editingIdx === m.originalIdx)}
+              showActions={!readOnly && !streaming && !naviStateId && !turnMsgs.some((m) => editingIdx === m.originalIdx)}
               actions={userActions}
             >
               {turnMsgs.map(({ msg, originalIdx: msgIdx }) => (

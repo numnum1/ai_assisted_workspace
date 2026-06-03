@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
+import type { ChatMessage, ChatRequest, ContextInfo, NaviContext, SelectionContext } from '../types.ts';
 import { streamChat } from '../api.ts';
 import { CHAT_ASSISTANT_UI_MODE } from '../config/chatAssistantUi.ts';
 import { extractFilesReadByTools } from '../utils/toolContextUtils.ts';
@@ -28,6 +28,7 @@ export type StreamCallbacks = {
   onNaviTipsCovered?: (coveredIds: string[]) => void;
   onNaviProblems?: (current: string, queue: string[]) => void;
   onNaviStep?: (label: string | null) => void;
+  onNaviContext?: (ctx: NaviContext) => void;
 };
 
 function assistantMessage(
@@ -183,5 +184,6 @@ export function attachAssistantStream(
     cbs.onNaviTipsCovered,
     cbs.onNaviProblems,
     cbs.onNaviStep,
+    cbs.onNaviContext,
   );
 }

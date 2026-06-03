@@ -1,3 +1,20 @@
+/**
+ * Accumulated structured facts about the merchant, extracted and updated at each state transition.
+ * Injected as a concise overview into every state's system prompt.
+ */
+export interface NaviContext {
+  /** Laden-Typ, Branche, Standort, Kontext */
+  laden?: string;
+  /** Das konkrete Problem oder der Wunsch des Händlers */
+  problem?: string;
+  /** Die praktische Lücke – der konkrete fehlende Schritt */
+  luecke?: string;
+  /** Software-Stack in einem Satz (Kasse, Online-Shop, Kommunikation, …) */
+  stack?: string;
+  /** Gemachter Lösungsvorschlag */
+  empfehlung?: string;
+}
+
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
 export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant', 'glossary'] as const;
 
@@ -170,6 +187,8 @@ export interface ChatRequest {
    * Injected as context into subsequent state prompts so Navi doesn't lose earlier findings.
    */
   naviResults?: Record<string, string>;
+  /** Structured fact sheet accumulated across state transitions; injected into every state's prompt. */
+  naviContext?: NaviContext;
   /** When set, the generated question plan for the clarify_problem state is re-sent each turn. */
   naviPlan?: string | null;
   /** Ids of tips that have already been covered in this session; excluded from subsequent prompts. */
@@ -257,6 +276,8 @@ export interface Conversation {
    * Key = state id, value = short summary of what was learned in that state.
    */
   naviResults?: Record<string, string>;
+  /** Structured fact sheet accumulated across state transitions. */
+  naviContext?: NaviContext;
   /** Generated question plan for the clarify_problem state; persisted and re-sent each turn. */
   naviPlan?: string | null;
   /** Ids of tips already covered in this conversation; excluded from subsequent prompts. */

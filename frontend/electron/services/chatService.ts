@@ -34,6 +34,7 @@ import {
 import {
   getNaviState,
   buildClassificationPrompt,
+  buildNaviContextPrompt,
   buildStateSummaryPrompt,
   type NaviState,
 } from "./naviStateMachine.js";
@@ -71,7 +72,8 @@ export type ChatStreamEvent =
   | { type: "navi_plan"; data: { plan: string } }
   | { type: "navi_tips_covered"; data: { coveredIds: string[] } }
   | { type: "navi_problems"; data: { current: string; queue: string[] } }
-  | { type: "navi_step"; data: { label: string | null } };
+  | { type: "navi_step"; data: { label: string | null } }
+  | { type: "navi_context"; data: import("../../src/types.js").NaviContext };
 
 export interface ChatStreamStartResult {
   streamId: string;
@@ -1024,6 +1026,7 @@ async function runNaviChatStream(
     let naviPlan: string | undefined = request.naviPlan ?? undefined;
     let naviCurrentProblem: string | undefined = request.naviCurrentProblem ?? undefined;
     let naviProblemQueue: string[] = request.naviProblemQueue ?? [];
+    let updatedNaviContext: import("../../src/types.js").NaviContext | undefined;
 
     // Sync pre-step: re-entering clarify_problem with a queued problem → pop it now so that
     // Call 2b (plan generation) correctly sees naviPlan = undefined and generates a fresh plan.
@@ -1131,6 +1134,57 @@ async function runNaviChatStream(
         }
       })(),
 
+      // Call 2d: naviContext extraction — on every state transition to keep the structured fact sheet current.
+      (async () => {
+        if (newStateId === currentStateId) return;
+        try {
+          const history = Array.isArray(request.history) ? request.history : [];
+          const excerptLines: string[] = [];
+          for (const msg of history) {
+            if (msg.hidden) continue;
+            const content = normalizeText(typeof msg.content === "string" ? msg.content : "");
+            if (!content) continue;
+            if (msg.role === "assistant") excerptLines.push(`Navi: ${content}`);
+            else if (msg.role === "user") excerptLines.push(`Händler: ${content}`);
+          }
+          if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
+          const excerpt = excerptLines.slice(-20).join("\n");
+          const contextPrompt = buildNaviContextPrompt(excerpt);
+          const contextResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
+            body: JSON.stringify({
+              model: endpoint.model,
+              stream: false,
+              max_tokens: 200,
+              temperature: 0,
+              messages: [{ role: "user", content: contextPrompt }],
+            }),
+          });
+          if (contextResponse.ok) {
+            const contextJson = (await contextResponse.json()) as { choices?: Array<{ message?: { content?: string } }> };
+            const raw = normalizeText(contextJson?.choices?.[0]?.message?.content ?? "");
+            const jsonMatch = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+            const start = jsonMatch.indexOf("{");
+            const end = jsonMatch.lastIndexOf("}");
+            if (start !== -1 && end > start) {
+              const parsed = JSON.parse(jsonMatch.slice(start, end + 1)) as Record<string, unknown>;
+              const ctx: import("../../src/types.js").NaviContext = {};
+              if (typeof parsed.laden === "string" && parsed.laden.trim()) ctx.laden = parsed.laden.trim();
+              if (typeof parsed.problem === "string" && parsed.problem.trim()) ctx.problem = parsed.problem.trim();
+              if (typeof parsed.luecke === "string" && parsed.luecke.trim()) ctx.luecke = parsed.luecke.trim();
+              if (typeof parsed.stack === "string" && parsed.stack.trim()) ctx.stack = parsed.stack.trim();
+              if (typeof parsed.empfehlung === "string" && parsed.empfehlung.trim()) ctx.empfehlung = parsed.empfehlung.trim();
+              if (Object.keys(ctx).length > 0) {
+                updatedNaviContext = ctx;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[navi] NaviContext extraction failed:", err);
+        }
+      })(),
+
       // Call 2c: problem extraction — first entry into clarify_problem without a known current problem.
       (async () => {
         if (newStateId !== "clarify_problem" || currentStateId === "clarify_problem" || naviCurrentProblem) return;
@@ -1199,6 +1253,10 @@ async function runNaviChatStream(
       },
     });
 
+    if (updatedNaviContext) {
+      emit({ type: "navi_context", data: updatedNaviContext });
+    }
+
     const newState = getNaviState(newStateId) ?? currentState;
 
     let effectiveInstruction = newState.instruction;
@@ -1229,6 +1287,20 @@ async function runNaviChatStream(
 
     const knowledgePrompt = buildNaviKnowledgePrompt(newStateId);
 
+    // Build structured fact sheet from naviContext (compact overview for all states).
+    const naviCtx = request.naviContext;
+    const naviContextSection = (() => {
+      if (!naviCtx) return "";
+      const parts: string[] = [];
+      if (naviCtx.laden) parts.push(`- Laden: ${naviCtx.laden}`);
+      if (naviCtx.problem) parts.push(`- Problem: ${naviCtx.problem}`);
+      if (naviCtx.luecke) parts.push(`- Praktische Lücke: ${naviCtx.luecke}`);
+      if (naviCtx.stack) parts.push(`- Stack: ${naviCtx.stack}`);
+      if (naviCtx.empfehlung) parts.push(`- Empfehlung: ${naviCtx.empfehlung}`);
+      if (parts.length === 0) return "";
+      return "Bekannte Fakten über den Händler:\n" + parts.join("\n");
+    })();
+
     // Build context block from accumulated state summaries (from previous states).
     const naviResults = request.naviResults ?? {};
     const resultEntries = Object.entries(naviResults).filter(([, v]) => v?.trim());
@@ -1257,6 +1329,7 @@ async function runNaviChatStream(
           "Sprich ihn immer direkt an – immer 'du', niemals 'der Händler' oder dritte Person.",
           "Antworte auf Deutsch. Kurz und natürlich.",
           "Du hast zwei Tools: ask_question für eine einzelne offene Frage, ask_clarification für Mehrfachauswahl. Die Aufgabe unten sagt dir wann welches Tool zu nutzen ist – halte dich exakt daran.",
+          ...(naviContextSection ? [naviContextSection] : []),
           ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
         ].join("\n\n")
@@ -1267,6 +1340,7 @@ async function runNaviChatStream(
           "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
           "Maximal eine Frage pro Antwort.",
           "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
+          ...(naviContextSection ? [naviContextSection] : []),
           ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
           ...(tipsPromptSection ? [tipsPromptSection] : []),

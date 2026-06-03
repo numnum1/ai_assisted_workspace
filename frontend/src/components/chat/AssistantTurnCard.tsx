@@ -71,6 +71,7 @@ export interface AssistantTurnCardProps {
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
   naviStep?: string | null;
+  naviStateId?: string | null;
 }
 
 export function AssistantTurnCard({
@@ -99,13 +100,14 @@ export function AssistantTurnCard({
   onApplyFieldUpdate,
   fieldLabels,
   naviStep,
+  naviStateId,
 }: AssistantTurnCardProps) {
   const trailingWriteFileBatch = getTrailingWriteFileBatch(visibleEntries);
   const dismissIds = bulkDismissIds;
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
 
-  const showActions = !readOnly && !streaming;
+  const showActions = !readOnly && !streaming && !naviStateId;
 
   const { preUnits, toolUnits, postUnits, hasToolCalls } = useMemo(() => {
     const firstToolIdx = subUnits.findIndex((s) => s.type === "toolCall");

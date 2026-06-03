@@ -527,6 +527,9 @@ function App() {
     onNaviProblems: (current, queue, conversationId) => {
       history.patchConversation(conversationId, { naviCurrentProblem: current, naviProblemQueue: queue, naviPlan: null });
     },
+    onNaviContext: (ctx, conversationId) => {
+      history.patchConversation(conversationId, { naviContext: ctx });
+    },
     onAssistantResponseComplete: (fullText, meta) => {
       // Simulation auto-runner: after Navi finished a turn in a simulation,
       // queue the next simulated-merchant reply (the effect below sends it).
@@ -1669,6 +1672,7 @@ function App() {
         sessionKind: "navi",
         naviStateId: conv.naviStateId ?? "greeting",
         naviResults: conv.naviResults,
+        naviContext: conv.naviContext,
         naviPlan: conv.naviPlan,
         naviCoveredTips: conv.naviCoveredTips,
         naviCurrentProblem: conv.naviCurrentProblem,
@@ -1753,6 +1757,7 @@ function App() {
             sessionKind: "navi",
             naviStateId: conv.naviStateId ?? "greeting",
             naviResults: conv.naviResults,
+            naviContext: conv.naviContext,
             naviPlan: conv.naviPlan,
             naviCoveredTips: conv.naviCoveredTips,
             naviCurrentProblem: conv.naviCurrentProblem,
@@ -2427,6 +2432,7 @@ function App() {
             onSwitchChat={handleSwitchChat}
             naviStateId={history.activeConversation?.naviStateId ?? null}
             naviResults={history.activeConversation?.naviResults}
+            naviContext={history.activeConversation?.naviContext}
             naviPlan={history.activeConversation?.naviPlan}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
             naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
@@ -2775,6 +2781,7 @@ function App() {
             onSwitchChat={handleSwitchChat}
             naviStateId={history.activeConversation?.naviStateId ?? null}
             naviResults={history.activeConversation?.naviResults}
+            naviContext={history.activeConversation?.naviContext}
             naviPlan={history.activeConversation?.naviPlan}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
             naviCurrentProblem={history.activeConversation?.naviCurrentProblem}

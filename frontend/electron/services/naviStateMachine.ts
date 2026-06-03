@@ -73,6 +73,21 @@ function normalizeContent(content: unknown): string {
 }
 
 /**
+ * Builds a prompt that extracts a structured NaviContext fact sheet from the conversation.
+ * Updated at each state transition so all states have a clean, current overview.
+ */
+export function buildNaviContextPrompt(conversationExcerpt: string): string {
+  return [
+    "Du analysierst ein Beratungsgespräch zwischen Navi (KI-Berater) und einem Händler.",
+    "Extrahiere alle bisher sicher bekannten Fakten als JSON-Objekt mit diesen Feldern:",
+    '{ "laden": "Ladentyp, Branche, Standort, Kontext – alles was der Händler über seinen Laden erwähnt hat (null wenn unbekannt)", "problem": "Das konkrete Problem oder der Wunsch – kurz und präzise (null wenn unbekannt)", "luecke": "Die praktische Lücke – der konkrete fehlende Schritt (null wenn unbekannt)", "stack": "Software-Stack in einem Satz, z.B. Kasse: X, Online-Shop: X, Komm: X (null wenn unbekannt)", "empfehlung": "Gemachter Lösungsvorschlag (null wenn noch keiner gemacht)" }',
+    `Gesprächsauszug:\n${conversationExcerpt}`,
+    "Setze null für Felder die noch nicht klar bekannt sind. Nur direkt Genanntes – keine Interpretationen.",
+    "Antworte NUR mit dem JSON-Objekt, ohne Markdown-Block und ohne weiteren Text.",
+  ].join("\n\n");
+}
+
+/**
  * Builds a prompt that extracts a compact summary of what was learned in a completed state.
  * The summary is stored in naviResults and injected as context in subsequent states.
  */
