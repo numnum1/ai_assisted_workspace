@@ -511,8 +511,17 @@ export function ChatInput({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const filePath = e.dataTransfer.getData("text/plain");
-    if (filePath) onAddFile(filePath);
+    const dropped = e.dataTransfer.getData("text/plain");
+    if (!dropped) return;
+    // Der Content-Browser zieht eine Mention `@[Name](pfad)`, der Datei-Outliner einen rohen Pfad.
+    // Ohne Extraktion landet die ganze Mention als „Pfad" im Chip und lässt sich serverseitig
+    // nicht auflösen → die Datei wird nicht mitgeschickt.
+    const mentions = [...dropped.matchAll(/@\[([^\]]+)\]\(([^)]+)\)/g)];
+    if (mentions.length > 0) {
+      for (const m of mentions) onAddFile(m[2].trim());
+    } else {
+      onAddFile(dropped);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
