@@ -217,7 +217,12 @@ export async function buildPreviewContext(
   for (const reference of referencedFiles) {
     if (includedFiles.has(reference)) continue;
     const fileData = await readReferencedProjectFile(projectPath, reference);
-    if (!fileData) continue;
+    if (!fileData) {
+      console.warn(
+        `[context] referenced file could not be resolved/read: "${reference}"`,
+      );
+      continue;
+    }
     includedFiles.add(reference);
     const referencedBlock = createContextBlock(
       "file",

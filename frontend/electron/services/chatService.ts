@@ -253,9 +253,32 @@ function ensureChatCompletionsUrl(apiUrl: string): string {
   return `${trimmed}/v1/chat/completions`;
 }
 
+/**
+ * Renders the file-type context blocks (referenced/attached + always-included files) into a
+ * text block. This is attached to the final user message (not a separate system message):
+ * many OpenAI-compatible endpoints drop or ignore a second/late `system` message, and placing
+ * the content next to the user's question makes the model actually use it. Without this the
+ * model only sees the file *names* from the system prompt — the content would never arrive.
+ */
+function buildFileContextText(contextBlocks: ContextBlock[]): string | null {
+  const fileBlocks = contextBlocks.filter((block) => block.type === "file");
+  if (fileBlocks.length === 0) return null;
+
+  const body = fileBlocks
+    .map((block) => `### ${block.label}\n${block.content}`)
+    .join("\n\n");
+
+  return (
+    "[Angehängte Dateien — vom Nutzer als Kontext bereitgestellt. Nutze ihren Inhalt direkt, " +
+    "du musst sie nicht erneut über Werkzeuge lesen.]\n\n" +
+    body
+  );
+}
+
 function buildOpenAiMessages(
   request: ChatRequest,
   systemPrompt: string,
+  contextBlocks: ContextBlock[] = [],
 ): OpenAiMessage[] {
   const messages: OpenAiMessage[] = [
     {
@@ -317,11 +340,15 @@ function buildOpenAiMessages(
     }
   }
 
+  const fileContextText = buildFileContextText(contextBlocks);
   const finalUserMessage = normalizeText(request.message);
-  if (finalUserMessage) {
+  if (finalUserMessage || fileContextText) {
+    const content = [fileContextText, finalUserMessage]
+      .filter(Boolean)
+      .join("\n\n");
     messages.push({
       role: "user",
-      content: finalUserMessage,
+      content,
     });
   }
 
@@ -1644,6 +1671,7 @@ async function runChatStream(
     let conversationMessages = buildOpenAiMessages(
       request,
       preview.systemPrompt,
+      preview.contextBlocks,
     );
     let toolRound = 0;
     let tokenCount = 0;
