@@ -16,7 +16,7 @@ export interface NaviContext {
 }
 
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
-export const CHAT_TOOLKIT_IDS = ['web', 'wiki', 'dateisystem', 'assistant', 'glossary'] as const;
+export const CHAT_TOOLKIT_IDS = ['web', 'dateisystem', 'assistant', 'glossary'] as const;
 
 /** A character entry in a simulation environment. */
 export interface SimulationCharacter {

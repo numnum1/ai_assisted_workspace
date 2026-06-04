@@ -56,7 +56,10 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
       type: "function",
       function: {
         name: "write_file",
-        description: "Write a file inside the current project.",
+        description:
+          "Create or overwrite a file inside the current project (full content). " +
+          "For small targeted changes to an existing file, prefer edit_file. " +
+          "Works on any path, including wiki/ entries.",
         parameters: {
           type: "object",
           properties: {
@@ -67,17 +70,26 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
         },
       },
     },
-  ],
-  wiki: [
     {
       type: "function",
       function: {
-        name: "wiki_read",
-        description: "Read a wiki markdown file by relative path inside wiki/.",
+        name: "edit_file",
+        description:
+          "Make a targeted edit to an existing project file by replacing an exact string. " +
+          "Safer than write_file for small changes — only touches what you specify. " +
+          "'old' must appear EXACTLY ONCE in the file (copy verbatim from read_file output). " +
+          "Works on any file, including wiki/ entries.",
         parameters: {
           type: "object",
-          properties: { path: { type: "string" } },
-          required: ["path"],
+          properties: {
+            path: { type: "string" },
+            old: {
+              type: "string",
+              description: "Exact string to replace (must be unique in the file).",
+            },
+            new: { type: "string", description: "Replacement string." },
+          },
+          required: ["path", "old", "new"],
         },
       },
     },
@@ -123,59 +135,6 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
             },
           },
           required: ["type", "text"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "wiki_write",
-        description:
-          "Create or overwrite a wiki markdown file. Path is relative to the wiki/ root. " +
-          "Use for new stubs (previously unrecorded entities) or full rewrites. " +
-          "For targeted changes to existing files, prefer wiki_patch instead.",
-        parameters: {
-          type: "object",
-          properties: {
-            path: {
-              type: "string",
-              description: "Relative path inside wiki/ (e.g. 'charakter/lyra.md').",
-            },
-            content: {
-              type: "string",
-              description: "Full markdown content of the file.",
-            },
-          },
-          required: ["path", "content"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "wiki_patch",
-        description:
-          "Replace an exact string inside an existing wiki markdown file. " +
-          "Safer than wiki_write for targeted updates — only changes what you specify. " +
-          "oldString must appear EXACTLY ONCE in the file (copy verbatim from wiki_read output). " +
-          "If it appears zero or multiple times the tool returns an error with guidance.",
-        parameters: {
-          type: "object",
-          properties: {
-            path: {
-              type: "string",
-              description: "Relative path inside wiki/ (e.g. 'charakter/lyra.md').",
-            },
-            old: {
-              type: "string",
-              description: "Exact string to replace (must be unique in the file).",
-            },
-            new: {
-              type: "string",
-              description: "Replacement string.",
-            },
-          },
-          required: ["path", "old", "new"],
         },
       },
     },
@@ -471,7 +430,7 @@ export function buildSystemPrompt(
       lines.push(`Charaktere in dieser Umgebung:\n${charLines.join("\n")}`);
       lines.push(
         "Du kannst diese Charaktere befragen, indem du ihre Perspektive und Motivation aus ihren Wiki-Einträgen ableitest. " +
-        "Nutze wiki_read um den vollständigen Eintrag zu lesen, wenn nötig. " +
+        "Nutze read_file um den vollständigen Eintrag (Pfad wiki/…) zu lesen, wenn nötig. " +
         "Charaktere ohne Wiki-Eintrag sind noch in Entwicklung — behandle sie explorativ.",
       );
     }

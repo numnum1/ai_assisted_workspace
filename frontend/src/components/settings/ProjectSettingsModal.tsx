@@ -60,7 +60,6 @@ interface AgentFormState {
 
 const TOOLKIT_LABELS: Record<ChatToolkitId, string> = {
   web: "Websuche",
-  wiki: "Wiki",
   dateisystem: "Dateisystem",
   assistant: "Assistant-Tools",
   glossary: "Glossar (KI)",

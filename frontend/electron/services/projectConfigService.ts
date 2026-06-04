@@ -150,7 +150,7 @@ const DEFAULT_MODES: Mode[] = [
       "GRUNDSATZ: Jeder dauerhafte Fakt braucht ein Zuhause im Wiki. " +
       "Behandle den Chat NIE als Wissensspeicher.\n\n" +
       "LESEN: Lies KEINE Kapitel- oder Manuskript-Dateien (Pfade wie /kapitel/, /chapters/, /manuscript/). " +
-      "Verschaffe dir Überblick über wiki_read und semantic_search (scope='wiki'). " +
+      "Das Wiki liegt als normale Dateien unter wiki/ — nutze semantic_search (scope='wiki') zum Finden und read_file zum Lesen. " +
       "Lade Wiki-Einträge nur, wenn sie für die aktuelle Frage relevant sind — " +
       "z. B. Charakter-Fragen → charakter/ + beziehung-arcs/; Plot-Fragen → story-arcs/.\n\n" +
       "WÄHREND DES GESPRÄCHS (ohne zu fragen):\n" +
@@ -158,9 +158,9 @@ const DEFAULT_MODES: Mode[] = [
       "- Reine Idee oder Spekulation? → journal_log(type=IDEE) optional, aber NICHT ins Wiki schreiben.\n" +
       "- Widerspruch zu bestehendem Wiki-Inhalt? → flag_conflict() aufrufen, Wiki NICHT überschreiben.\n\n" +
       "KONSOLIDIEREN (sobald ein Thema rund ist):\n" +
-      "- Übertrage Journal-Kanon in die passenden Wiki-Dateien: " +
-      "wiki_patch für gezielte Änderungen an bestehenden Einträgen, " +
-      "wiki_write für neue Stubs oder vollständige Neueinträge.\n" +
+      "- Übertrage Journal-Kanon in die passenden Wiki-Dateien (unter wiki/): " +
+      "edit_file für gezielte Änderungen an bestehenden Einträgen, " +
+      "write_file für neue Stubs oder vollständige Neueinträge.\n" +
       "- Neue Entität ohne Wiki-Eintrag → minimalen Stub anlegen (Name, Typ, 2–3 Kerneigenschaften).\n\n" +
       "ARBEITSNOTIZEN (für Analysen, die kein Kanon sind):\n" +
       "- Charaktermotivationen, Szenenvergleiche, Brainstorming-Strukturen → create_artifact().\n" +

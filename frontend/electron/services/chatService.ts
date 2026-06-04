@@ -22,11 +22,8 @@ import {
   type ToolDefinition,
 } from "./conversation/systemPrompt.js";
 import { semanticSearch, type EmbeddingConfig } from "./vectorService.js";
+import { createSnapshot } from "./snapshotService.js";
 import { appendJournalEntry, appendConflict } from "./journalService.js";
-import {
-  writeWikiFile,
-  patchWikiFile,
-} from "./wikiService.js";
 import {
   resolveEmbeddingCredentials,
   type AiProvider,
@@ -481,86 +478,6 @@ async function readProjectFile(
   return fs.readFile(targetPath, "utf8");
 }
 
-async function getWikiRoot(projectPath: string | null): Promise<string> {
-  const root = ensureProjectPath(projectPath);
-  const subDir = path.join(root, "wiki");
-  try {
-    const stat = await fs.stat(subDir);
-    if (stat.isDirectory()) {
-      console.debug(`[chat] getWikiRoot: using wiki subdirectory "${subDir}"`);
-      return subDir;
-    }
-  } catch {
-    // no wiki subdirectory — use project root directly
-  }
-  console.debug(
-    `[chat] getWikiRoot: no wiki/ subdir found, using project root "${root}"`,
-  );
-  return root;
-}
-
-async function readWikiFile(
-  projectPath: string | null,
-  relativePath: string,
-): Promise<string> {
-  const projectRoot = ensureProjectPath(projectPath);
-  const wikiRoot = await getWikiRoot(projectPath);
-  const normalized = normalizeText(relativePath).replace(/\\/g, "/");
-  const segments = normalized.split("/").filter(Boolean);
-
-  // First try resolving relative to project root (handles "wiki/story-arcs/..." paths
-  // from the file tree). If that lands outside the wiki root, fall back to resolving
-  // relative to the wiki root itself (handles "story-arcs/..." paths sent by the AI).
-  let targetPath = path.resolve(projectRoot, ...segments);
-  let relativeToWikiRoot = path.relative(wikiRoot, targetPath);
-
-  if (relativeToWikiRoot.startsWith("..") || path.isAbsolute(relativeToWikiRoot)) {
-    const fromWikiRoot = path.resolve(wikiRoot, ...segments);
-    const relFromWiki = path.relative(wikiRoot, fromWikiRoot);
-    if (!relFromWiki.startsWith("..") && !path.isAbsolute(relFromWiki)) {
-      targetPath = fromWikiRoot;
-      relativeToWikiRoot = relFromWiki;
-    }
-  }
-
-  console.debug(
-    `[chat] wiki_read: relativePath="${relativePath}" projectRoot="${projectRoot}" wikiRoot="${wikiRoot}" → targetPath="${targetPath}"`,
-  );
-  if (
-    relativeToWikiRoot.startsWith("..") ||
-    path.isAbsolute(relativeToWikiRoot)
-  ) {
-    // Wrong relative path (outside wiki) but nothing on disk: behave like a missing
-    // wiki page so the stream does not fail; if a file exists here, do not read it.
-    try {
-      await fs.access(targetPath);
-    } catch (e) {
-      if (isEnoent(e)) {
-        console.debug(
-          `[chat] wiki_read: path outside wiki root and not found at "${targetPath}", returning empty string`,
-        );
-        return "";
-      }
-      throw e;
-    }
-    throw new Error(`Wiki path escapes wiki root: ${relativePath}`);
-  }
-  if (!targetPath.toLowerCase().endsWith(".md")) {
-    throw new Error("Wiki only supports Markdown files.");
-  }
-  try {
-    return await fs.readFile(targetPath, "utf8");
-  } catch (e) {
-    if (isEnoent(e)) {
-      console.debug(
-        `[chat] wiki_read: no file at "${targetPath}", returning empty string`,
-      );
-      return "";
-    }
-    throw e;
-  }
-}
-
 async function addGlossaryEntryLocally(
   projectPath: string | null,
   term: string,
@@ -598,8 +515,9 @@ async function writeProjectFile(
 ): Promise<string> {
   const targetPath = resolveProjectPath(projectPath, filePath);
   let existed = true;
+  let oldContent = "";
   try {
-    await fs.access(targetPath);
+    oldContent = await fs.readFile(targetPath, "utf8");
   } catch {
     existed = false;
   }
@@ -608,23 +526,59 @@ async function writeProjectFile(
   await fs.writeFile(targetPath, content, "utf8");
 
   const relative = normalizeText(filePath).replace(/\\/g, "/");
-  return `write_file:success:local-${Date.now()}:${existed ? "modified" : "new"}:${relative}:Updated via local chat tool`;
+  // Record an in-memory snapshot so the chat ChangeCard can show a diff and offer apply/revert.
+  const snapshot = createSnapshot(relative, oldContent, !existed);
+  const description = existed ? "Datei aktualisiert" : "Neue Datei erstellt";
+  return `write_file:success:${snapshot.id}:${existed ? "modified" : "new"}:${relative}:${description}`;
+}
+
+async function editProjectFile(
+  projectPath: string | null,
+  filePath: string,
+  oldString: string,
+  newString: string,
+): Promise<string> {
+  if (!oldString) {
+    throw new Error("edit_file: 'old' must not be empty.");
+  }
+  const targetPath = resolveProjectPath(projectPath, filePath);
+  const oldContent = await fs.readFile(targetPath, "utf8");
+
+  const occurrences = oldContent.split(oldString).length - 1;
+  if (occurrences === 0) {
+    throw new Error(
+      `edit_file: 'old' string not found in ${filePath}. ` +
+        "Copy the exact text (including whitespace) from read_file output.",
+    );
+  }
+  if (occurrences > 1) {
+    throw new Error(
+      `edit_file: 'old' string appears ${occurrences} times in ${filePath}. ` +
+        "Provide a longer, unique context string.",
+    );
+  }
+
+  const updated = oldContent.replace(oldString, newString);
+  await fs.writeFile(targetPath, updated, "utf8");
+
+  const relative = normalizeText(filePath).replace(/\\/g, "/");
+  // Same in-memory snapshot + result format as write_file so the chat shows a diff card.
+  const snapshot = createSnapshot(relative, oldContent, false);
+  return `write_file:success:${snapshot.id}:modified:${relative}:Datei bearbeitet`;
 }
 
 function describeStreamingToolCall(toolCall: ToolCall): string {
   const name = toolCall.function.name;
   if (name === "read_file") return "Lese Datei";
   if (name === "semantic_search") return "Semantische Suche";
-  if (name === "wiki_read") return "Lese Wiki-Datei";
   if (name === "glossary_add") return "Ergänze Glossar";
   if (name === "write_file") return "Schreibe Datei";
+  if (name === "edit_file") return "Bearbeite Datei";
   if (name === "ask_clarification") return "Stelle Rückfrage";
   if (name === "propose_guided_thread") return "Biete Guided Thread an";
   if (name === "report_thread_result") return "Übermittle Thread-Ergebnis";
   if (name === "create_artifact") return "Erstelle Arbeitsnotiz";
   if (name === "journal_log") return "Notiere ins Journal";
-  if (name === "wiki_write") return "Schreibe Wiki-Eintrag";
-  if (name === "wiki_patch") return "Aktualisiere Wiki-Eintrag";
   if (name === "flag_conflict") return "Markiere Widerspruch";
   return `Tool: ${name}`;
 }
@@ -665,9 +619,6 @@ async function executeToolCall(
       }
       result = JSON.stringify(payload);
     }
-  } else if (name === "wiki_read") {
-    const filePath = normalizeText(String(args.path ?? ""));
-    result = await readWikiFile(projectPath, filePath);
   } else if (name === "glossary_add") {
     const term = normalizeText(String(args.term ?? ""));
     const definition = normalizeText(String(args.definition ?? ""));
@@ -676,6 +627,11 @@ async function executeToolCall(
     const filePath = normalizeText(String(args.path ?? ""));
     const content = typeof args.content === "string" ? args.content : "";
     result = await writeProjectFile(projectPath, filePath, content);
+  } else if (name === "edit_file") {
+    const filePath = normalizeText(String(args.path ?? ""));
+    const oldString = typeof args.old === "string" ? args.old : "";
+    const newString = typeof args.new === "string" ? args.new : "";
+    result = await editProjectFile(projectPath, filePath, oldString, newString);
   } else if (name === "ask_clarification") {
     const clarification = buildClarificationFence(args.questions ?? args);
     if (!clarification) {
@@ -717,17 +673,6 @@ async function executeToolCall(
     const type = normalizeText(String(args.type ?? "KANON"));
     const text = typeof args.text === "string" ? args.text : String(args.text ?? "");
     result = await appendJournalEntry(projectPath, type, text);
-  } else if (name === "wiki_write") {
-    const filePath = normalizeText(String(args.path ?? ""));
-    const content = typeof args.content === "string" ? args.content : "";
-    const writeResult = await writeWikiFile(projectPath, filePath, content);
-    result = `wiki_write:success:${writeResult.created ? "new" : "modified"}:${writeResult.path}`;
-  } else if (name === "wiki_patch") {
-    const filePath = normalizeText(String(args.path ?? ""));
-    const oldString = typeof args.old === "string" ? args.old : "";
-    const newString = typeof args.new === "string" ? args.new : "";
-    const patchResult = await patchWikiFile(projectPath, filePath, oldString, newString);
-    result = `wiki_patch:success:${patchResult.path}`;
   } else if (name === "flag_conflict") {
     const description = typeof args.description === "string" ? args.description : String(args.description ?? "");
     result = await appendConflict(projectPath, description);

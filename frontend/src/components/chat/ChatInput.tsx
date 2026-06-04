@@ -24,7 +24,6 @@ const EMPTY_DISABLED_TOOLKITS = new Set<string>();
 
 const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "web", label: "Web-Suche", icon: Globe },
-  { id: "wiki", label: "Wiki", icon: BookOpen },
   { id: "dateisystem", label: "Dateisystem", icon: FolderOpen },
   { id: "assistant", label: "Assistent", icon: Sparkles },
   { id: "glossary", label: "Glossar (KI)", icon: ScrollText },
