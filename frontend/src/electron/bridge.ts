@@ -219,6 +219,9 @@ export interface AppBridge {
     listFiles: () => Promise<string[]>;
     search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
   };
+  journal?: {
+    read: () => Promise<import('../types.ts').JournalData>;
+  };
   glossary?: {
     get: () => Promise<GlossaryData>;
     addEntry: (term: string, definition: string) => Promise<{ status: string }>;

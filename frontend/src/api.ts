@@ -18,6 +18,7 @@ import type {
   LlmPublic,
   LlmsListResponse,
   Conversation,
+  JournalData,
 } from "./types.ts";
 import type {
   ChatStreamEvent,
@@ -770,6 +771,14 @@ export const snapshotsApi = {
   revert: async (id: string): Promise<SnapshotRevertResponse> => {
     const api = getElectronApi();
     if (api?.snapshots) return api.snapshots.revert(id);
+    throw new Error("Electron bridge not available");
+  },
+};
+
+export const journalApi = {
+  read: async (): Promise<JournalData> => {
+    const api = getElectronApi();
+    if (api?.journal) return api.journal.read();
     throw new Error("Electron bridge not available");
   },
 };

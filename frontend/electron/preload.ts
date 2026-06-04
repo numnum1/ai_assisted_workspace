@@ -287,6 +287,9 @@ contextBridge.exposeInMainWorld("appBridge", {
     search: (query: string, limit?: number) =>
       ipcRenderer.invoke("wiki:search", query, limit),
   },
+  journal: {
+    read: () => ipcRenderer.invoke("journal:read"),
+  },
   glossary: {
     get: () => ipcRenderer.invoke("glossary:get"),
     addEntry: (term: string, definition: string) =>

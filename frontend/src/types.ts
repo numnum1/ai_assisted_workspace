@@ -60,6 +60,35 @@ export interface SimulationConfig {
 export type ChatSessionKind = 'standard' | 'guided' | 'navi';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
 
+/** A single journal bullet captured by the assistant (journal_log). */
+export interface JournalEntry {
+  /** HH:MM */
+  time: string;
+  /** KANON | NEU | WIDERSPRUCH | IDEE (uppercased; unknown values pass through). */
+  type: string;
+  text: string;
+}
+
+/** All journal bullets for one calendar day (file .assistant/journal/<date>.md). */
+export interface JournalDay {
+  /** YYYY-MM-DD */
+  date: string;
+  entries: JournalEntry[];
+}
+
+/** A flagged contradiction (flag_conflict → .assistant/journal/_conflicts.md). */
+export interface JournalConflict {
+  /** Free-form timestamp string as written (e.g. "2026-06-04 14:30"). */
+  when: string;
+  text: string;
+}
+
+/** Structured contents of the project journal, newest day first. */
+export interface JournalData {
+  days: JournalDay[];
+  conflicts: JournalConflict[];
+}
+
 export interface FileNode {
   name: string;
   path: string;

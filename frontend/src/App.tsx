@@ -76,6 +76,7 @@ import { useSimulationRunner } from "./hooks/useSimulationRunner.ts";
 import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { EditorTabs } from "./components/editor/EditorTabs.tsx";
 import { SearchPanel } from "./components/editor/SearchPanel.tsx";
+import { JournalPanel } from "./components/journal/JournalPanel.tsx";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
 import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
 import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
@@ -929,6 +930,7 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -998,6 +1000,10 @@ function App() {
       if (e.ctrlKey && e.shiftKey && e.key === "F") {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === "J") {
+        e.preventDefault();
+        setJournalOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handler);
@@ -1959,6 +1965,7 @@ function App() {
                   !project.projectPath || !history.hydrated
                 }
                 chatDownloadEnabled={chatDownloadFeatureEnabled}
+                onOpenJournal={() => setJournalOpen(true)}
                 structureRoot={chapter.structureRoot}
                 activeSelection={activeSelection}
                 onDismissSelection={handleDismissSelection}
@@ -2016,6 +2023,8 @@ function App() {
           />
         </Panel>
       </Group>
+
+      <JournalPanel open={journalOpen} onClose={() => setJournalOpen(false)} />
 
       {credDialogOpen && (
         <GitCredentialsDialog

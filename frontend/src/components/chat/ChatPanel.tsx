@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2 } from "lucide-react";
+import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, BookText } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -80,6 +80,8 @@ interface ChatPanelProps {
   onClearAllBrowserChats?: () => void;
   clearAllBrowserChatsDisabled?: boolean;
   chatDownloadEnabled?: boolean;
+  /** Opens the read-only Journal panel (assistant-persisted facts). */
+  onOpenJournal?: () => void;
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
@@ -157,6 +159,7 @@ export function ChatPanel({
   onClearAllBrowserChats,
   clearAllBrowserChatsDisabled = true,
   chatDownloadEnabled = false,
+  onOpenJournal,
   structureRoot = null,
   activeSelection = null,
   onDismissSelection,
@@ -321,6 +324,16 @@ export function ChatPanel({
                 </option>
               ))}
             </select>
+          )}
+          {onOpenJournal && (
+            <button
+              type="button"
+              className="chat-history-btn"
+              onClick={onOpenJournal}
+              title="Journal öffnen (Strg+Shift+J) — was die KI festgehalten hat"
+            >
+              <BookText size={14} />
+            </button>
           )}
           {activeIsThread && onSummarizeToParent && (
             <button

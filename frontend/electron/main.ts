@@ -43,6 +43,7 @@ import {
   removeSubproject,
 } from "./services/subprojectService.js";
 import { listWikiFiles, searchWiki } from "./services/wikiService.js";
+import { readJournal } from "./services/journalService.js";
 import {
   previewChatContext,
   startChatStream,
@@ -170,6 +171,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle("wiki:search", (_event, query: string, limit?: number) =>
     searchWiki(getCurrentProjectPath(), query, limit),
   );
+
+  ipcMain.handle("journal:read", () => readJournal(getCurrentProjectPath()));
 
   ipcMain.handle("glossary:get", () => getGlossary(getCurrentProjectPath()));
   ipcMain.handle(
