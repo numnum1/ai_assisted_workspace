@@ -77,6 +77,7 @@ import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { EditorTabs } from "./components/editor/EditorTabs.tsx";
 import { SearchPanel } from "./components/editor/SearchPanel.tsx";
 import { JournalPanel } from "./components/journal/JournalPanel.tsx";
+import { WikiContentBrowser } from "./components/wiki/WikiContentBrowser.tsx";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
 import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
 import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
@@ -931,6 +932,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
+  const [contentBrowserOpen, setContentBrowserOpen] = useState(false);
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1004,6 +1006,10 @@ function App() {
       if (e.ctrlKey && e.shiftKey && e.key === "J") {
         e.preventDefault();
         setJournalOpen((prev) => !prev);
+      }
+      if (e.ctrlKey && e.shiftKey && e.code === "Space") {
+        e.preventDefault();
+        setContentBrowserOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handler);
@@ -2025,6 +2031,12 @@ function App() {
       </Group>
 
       <JournalPanel open={journalOpen} onClose={() => setJournalOpen(false)} />
+      {contentBrowserOpen && (
+        <WikiContentBrowser
+          onClose={() => setContentBrowserOpen(false)}
+          onOpenFile={(path) => void fileEditor.openFile(path)}
+        />
+      )}
 
       {credDialogOpen && (
         <GitCredentialsDialog
