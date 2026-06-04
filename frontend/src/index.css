@@ -3122,6 +3122,29 @@ body.file-tree-native-dragging {
     color: var(--text-primary, #cdd6f4);
 }
 
+.journal-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    margin: 2px 0;
+    font-size: 0.78rem;
+    color: var(--text-muted, #888);
+    border-left: 2px solid var(--green, #a6e3a1);
+}
+
+.journal-indicator--conflict {
+    border-left-color: var(--red, #f38ba8);
+}
+
+.journal-indicator-icon {
+    flex-shrink: 0;
+}
+
+.journal-indicator-text strong {
+    color: var(--text-primary, #cdd6f4);
+}
+
 .chat-message {
     position: relative;
     padding: 8px 12px;

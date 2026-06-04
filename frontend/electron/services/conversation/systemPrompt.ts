@@ -319,6 +319,23 @@ export function buildSystemPrompt(
     );
   }
 
+  // 1b. Working method — baseline persistence behavior, independent of the chosen mode.
+  // The mode only personalizes the persona/task framing; HOW the app works (chat is
+  // disposable, durable facts go to files) is defined here for every writing session.
+  // Skipped for quick chat (ephemeral) and navi (customer-consulting) sessions.
+  if (!request.quickChat && request.sessionKind !== "navi") {
+    sections.push(
+      "ARBEITSWEISE (gilt unabhängig vom gewählten Modus):\n" +
+        "- Der Chat ist flüchtig und KEIN Wissensspeicher. Dauerhaftes gehört in Dateien: das Wiki (Markdown unter wiki/) und das Journal.\n" +
+        "- Sobald ein dauerhafter Fakt, eine Entscheidung oder eine neue Entität entsteht: sofort journal_log() aufrufen (type KANON oder NEU) — ohne zu fragen.\n" +
+        "- Reine Idee/Spekulation: journal_log(type=IDEE) optional, aber NICHT ins Wiki schreiben.\n" +
+        "- Widerspruch zu bestehendem Wiki-Inhalt: flag_conflict() aufrufen, das Wiki NICHT überschreiben.\n" +
+        "- Sobald ein Thema rund ist: Kanon in die passenden Wiki-Dateien übertragen — edit_file für gezielte Änderungen an bestehenden Einträgen, write_file für neue Einträge/Stubs.\n" +
+        "- Analysen oder Zwischenstände, die (noch) kein Kanon sind: create_artifact() — bleibt im Chat, geht NICHT ins Wiki.\n" +
+        "- Falls in einer Antwort etwas persistiert wurde, schließe mit einer kurzen Transparenz-Zeile: \"📝 Gesichert: <was>\" — oder \"⚠️ Konflikt: <kurz>\". Wurde nichts persistiert, lass die Zeile weg.",
+    );
+  }
+
   // 2. Current date
   sections.push(`Heutiges Datum: ${new Date().toISOString().slice(0, 10)}`);
 

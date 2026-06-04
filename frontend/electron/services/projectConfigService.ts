@@ -124,51 +124,41 @@ const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
 };
 
 const DEFAULT_MODES: Mode[] = [
+  // Modes ONLY personalize the persona/task framing. The working method
+  // (chat is disposable, durable facts go to wiki/journal) is baseline behavior
+  // defined in buildSystemPrompt — deliberately NOT repeated per mode.
   {
     id: "review",
-    name: "Review",
+    name: "Story-Review",
     systemPrompt:
-      "Du bist ein hilfreicher Schreibassistent. Analysiere den Text klar, konkret und konstruktiv.",
+      "Hilf beim Story-Review: analysiere Aufbau, Spannungsbogen, Figuren, Motivation und Logik — klar, konkret und konstruktiv.",
     autoIncludes: [],
     color: "#7c3aed",
+    useReasoning: false,
+  },
+  {
+    id: "entwickeln",
+    name: "Story entwickeln",
+    systemPrompt:
+      "Hilf, die Geschichte weiterzuentwickeln: stelle gezielte Fragen, biete Alternativen an und denke Figuren, Konflikte und Plot gemeinsam mit dem Autor weiter.",
+    autoIncludes: [],
+    color: "#059669",
     useReasoning: false,
   },
   {
     id: "brainstorm",
     name: "Brainstorm",
     systemPrompt:
-      "Du bist ein kreativer Sparringspartner. Liefere Ideen, Alternativen und neue Richtungen.",
+      "Sei ein kreativer Sparringspartner. Liefere viele Ideen, ungewöhnliche Richtungen und Was-wäre-wenn-Szenarien.",
     autoIncludes: [],
-    color: "#059669",
+    color: "#0891b2",
     useReasoning: false,
   },
   {
-    id: "chronist",
-    name: "Chronist",
+    id: "rechtschreibung",
+    name: "Rechtschreibung",
     systemPrompt:
-      "Du arbeitest im Chronist-Modus für ein Schreibprojekt.\n\n" +
-      "GRUNDSATZ: Jeder dauerhafte Fakt braucht ein Zuhause im Wiki. " +
-      "Behandle den Chat NIE als Wissensspeicher.\n\n" +
-      "LESEN: Lies KEINE Kapitel- oder Manuskript-Dateien (Pfade wie /kapitel/, /chapters/, /manuscript/). " +
-      "Das Wiki liegt als normale Dateien unter wiki/ — nutze semantic_search (scope='wiki') zum Finden und read_file zum Lesen. " +
-      "Lade Wiki-Einträge nur, wenn sie für die aktuelle Frage relevant sind — " +
-      "z. B. Charakter-Fragen → charakter/ + beziehung-arcs/; Plot-Fragen → story-arcs/.\n\n" +
-      "WÄHREND DES GESPRÄCHS (ohne zu fragen):\n" +
-      "- Kanon erkannt (Entscheidung, neue Entität, bestätigter Fakt)? → sofort journal_log() aufrufen (type KANON oder NEU).\n" +
-      "- Reine Idee oder Spekulation? → journal_log(type=IDEE) optional, aber NICHT ins Wiki schreiben.\n" +
-      "- Widerspruch zu bestehendem Wiki-Inhalt? → flag_conflict() aufrufen, Wiki NICHT überschreiben.\n\n" +
-      "KONSOLIDIEREN (sobald ein Thema rund ist):\n" +
-      "- Übertrage Journal-Kanon in die passenden Wiki-Dateien (unter wiki/): " +
-      "edit_file für gezielte Änderungen an bestehenden Einträgen, " +
-      "write_file für neue Stubs oder vollständige Neueinträge.\n" +
-      "- Neue Entität ohne Wiki-Eintrag → minimalen Stub anlegen (Name, Typ, 2–3 Kerneigenschaften).\n\n" +
-      "ARBEITSNOTIZEN (für Analysen, die kein Kanon sind):\n" +
-      "- Charaktermotivationen, Szenenvergleiche, Brainstorming-Strukturen → create_artifact().\n" +
-      "- Artifacts bleiben im Chat, gehen NICHT ins Wiki.\n" +
-      "- Wird ein Artifact-Inhalt später Kanon → journal_log() aufrufen + konsolidieren.\n\n" +
-      "AM ENDE JEDER ANTWORT: Schreibe eine kurze Transparenz-Zeile:\n" +
-      "📝 Gesichert: <was wurde persistiert> — oder — ⚠️ Konflikt: <kurze Beschreibung>.\n" +
-      "Falls nichts persistiert wurde, lass die Zeile weg.",
+      "Mach eine Rechtschreib- und Grammatikprüfung. Korrigiere Fehler, ohne Stil oder Inhalt zu verändern, und liste die Korrekturen knapp auf.",
     autoIncludes: [],
     color: "#b45309",
     useReasoning: false,

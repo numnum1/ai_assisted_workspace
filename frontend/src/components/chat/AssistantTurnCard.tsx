@@ -249,6 +249,36 @@ export function AssistantTurnCard({
       );
     }
 
+    if (
+      msg.role === "tool" &&
+      msg.content?.startsWith("journal_log:success:")
+    ) {
+      // Format: journal_log:success:<date>:<TYPE>
+      const type = msg.content.split(":")[3] ?? "";
+      return (
+        <div key={key} className="journal-indicator">
+          <span className="journal-indicator-icon">📝</span>
+          <span className="journal-indicator-text">
+            Ins Journal: <strong>{type}</strong>
+          </span>
+        </div>
+      );
+    }
+
+    if (
+      msg.role === "tool" &&
+      msg.content?.startsWith("flag_conflict:success:")
+    ) {
+      return (
+        <div key={key} className="journal-indicator journal-indicator--conflict">
+          <span className="journal-indicator-icon">⚠️</span>
+          <span className="journal-indicator-text">
+            Widerspruch im Journal vermerkt
+          </span>
+        </div>
+      );
+    }
+
     if (msg.role === "tool" && msg.toolCallId) {
       if (toolResultShownInAssistantTurns(renderUnits, msg.toolCallId)) {
         return null;
