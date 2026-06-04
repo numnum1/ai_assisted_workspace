@@ -179,8 +179,6 @@ export interface ChatMessagesPaneProps {
   activeIsThread: boolean;
   editingIdx: number | null;
   setEditingIdx: (idx: number | null) => void;
-  copiedIdx: number | null;
-  setCopiedIdx: (idx: number | null) => void;
   bulkDismissIds: Set<string>;
   composerBatchForced: Record<string, CardState>;
   onFileChanged?: (path: string) => void;
@@ -219,8 +217,6 @@ export function ChatMessagesPane({
   activeIsThread,
   editingIdx,
   setEditingIdx,
-  copiedIdx,
-  setCopiedIdx,
   bulkDismissIds,
   composerBatchForced,
   onFileChanged,
@@ -237,7 +233,6 @@ export function ChatMessagesPane({
   onApplyFieldUpdate,
   fieldLabels,
   onRetry,
-  onOpenPromptPack,
   theme,
   parentLastMessage = null,
 }: ChatMessagesPaneProps) {
@@ -290,13 +285,6 @@ export function ChatMessagesPane({
           <p className="chat-empty-hint">
             Drag files from the project tree into the input area to reference
             them, or use @filename syntax in the input area.
-            {onOpenPromptPack && !readOnly && (
-              <>
-                {" "}
-                Für einen fertigen Export-Prompt nutze das Zauberstab-Symbol
-                oben (Prompt-Paket).
-              </>
-            )}
           </p>
         </div>
       )}
@@ -330,8 +318,6 @@ export function ChatMessagesPane({
               activeIsThread={activeIsThread}
               bulkDismissIds={dismissIds}
               composerBatchForced={batchForced}
-              copiedIdx={copiedIdx}
-              setCopiedIdx={setCopiedIdx}
               onFileChanged={fileCb}
               onSnapshotSettled={snapshotCb}
               onForkFromMessage={onForkFromMessage}

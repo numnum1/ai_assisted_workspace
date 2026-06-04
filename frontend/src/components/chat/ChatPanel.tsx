@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Wand2, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2 } from "lucide-react";
+import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2 } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -80,7 +80,6 @@ interface ChatPanelProps {
   onClearAllBrowserChats?: () => void;
   clearAllBrowserChatsDisabled?: boolean;
   chatDownloadEnabled?: boolean;
-  onOpenPromptPack?: () => void;
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
@@ -158,7 +157,6 @@ export function ChatPanel({
   onClearAllBrowserChats,
   clearAllBrowserChatsDisabled = true,
   chatDownloadEnabled = false,
-  onOpenPromptPack,
   structureRoot = null,
   activeSelection = null,
   onDismissSelection,
@@ -324,16 +322,6 @@ export function ChatPanel({
               ))}
             </select>
           )}
-          {onOpenPromptPack && (
-            <button
-              type="button"
-              className="chat-prompt-pack-btn"
-              onClick={onOpenPromptPack}
-              title="Prompt-Paket (Export für ChatGPT / Grok)"
-            >
-              <Wand2 size={14} />
-            </button>
-          )}
           {activeIsThread && onSummarizeToParent && (
             <button
               type="button"
@@ -474,7 +462,6 @@ export function ChatPanel({
           onSettleSnapshots={onSettleSnapshots}
           onReplaceSelection={onReplaceSelection}
           onApplyFieldUpdate={onApplyFieldUpdate}
-          onOpenPromptPack={onOpenPromptPack}
           contextInfo={contextInfo}
           activeFile={activeFile}
           isDirty={isDirty}

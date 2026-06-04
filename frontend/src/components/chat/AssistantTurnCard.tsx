@@ -5,8 +5,6 @@ import {
   GitFork,
   MessageSquare,
   Trash2,
-  Copy,
-  Check,
   GitMerge,
   Loader,
 } from "lucide-react";
@@ -25,8 +23,6 @@ import {
   isSameWriteFileBatch,
 } from "./writeFileBatchUtils.ts";
 import "./AssistantTurnCard.css";
-
-const PROMPT_PACK_DISPLAY_NAME = "Prompt-Paket";
 
 function subUnitReactKey(su: SubRenderUnit): string {
   if (su.type === "writeFileGroup") {
@@ -54,8 +50,6 @@ export interface AssistantTurnCardProps {
   activeIsThread: boolean;
   bulkDismissIds: Set<string>;
   composerBatchForced: Record<string, CardState>;
-  copiedIdx: number | null;
-  setCopiedIdx: (idx: number | null) => void;
   onFileChanged?: (path: string) => void;
   onSnapshotSettled?: (
     snapshotId: string,
@@ -87,8 +81,6 @@ export function AssistantTurnCard({
   activeIsThread,
   bulkDismissIds,
   composerBatchForced,
-  copiedIdx,
-  setCopiedIdx,
   onFileChanged,
   onSnapshotSettled,
   onForkFromMessage,
@@ -192,14 +184,7 @@ export function AssistantTurnCard({
     }
 
     if (su.type === "assistantText") {
-      const { msg, originalIdx, visIdx } = su;
-      const visArr = visibleEntries;
-      const prevUser = visIdx > 0 ? visArr[visIdx - 1]!.msg : null;
-      const showCopyForPromptPack =
-        msg.role === "assistant" &&
-        msg.content.trim() &&
-        prevUser?.role === "user" &&
-        prevUser.mode === PROMPT_PACK_DISPLAY_NAME;
+      const { msg, originalIdx } = su;
 
       if (msg.kind === "thread-summary") {
         return (
@@ -243,28 +228,6 @@ export function AssistantTurnCard({
               suppressClarificationWidget={hasClarificationFence(msg.content)}
             />
           </div>
-          {showCopyForPromptPack && (
-            <button
-              type="button"
-              className="copy-msg-btn"
-              title="In Zwischenablage kopieren"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(msg.content);
-                  setCopiedIdx(originalIdx);
-                  setTimeout(() => setCopiedIdx(null), 2000);
-                } catch {
-                  /* ignore */
-                }
-              }}
-            >
-              {copiedIdx === originalIdx ? (
-                <Check size={14} />
-              ) : (
-                <Copy size={14} />
-              )}
-            </button>
-          )}
         </div>
       );
     }

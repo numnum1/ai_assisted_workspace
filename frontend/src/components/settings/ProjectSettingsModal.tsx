@@ -894,7 +894,7 @@ export function ProjectSettingsModal({
   // ── Agent presets (.assistant/agents.json) ───────────────────────────────────
 
   const openNewAgent = () => {
-    const chatModesList = modes.filter((m) => m.id !== "prompt-pack");
+    const chatModesList = modes;
     setAgentForm({
       editingId: null,
       id: "",
@@ -1252,7 +1252,7 @@ export function ProjectSettingsModal({
                     Automatic (review, or first mode if review is missing)
                   </option>
                   {modes
-                    .filter((m) => m.id !== "prompt-pack" && !m.agentOnly)
+                    .filter((m) => !m.agentOnly)
                     .map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name} ({m.id})
@@ -1827,7 +1827,6 @@ export function ProjectSettingsModal({
                       }}
                     >
                       {modes
-                        .filter((m) => m.id !== "prompt-pack")
                         .map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.name} ({m.id})
@@ -1853,7 +1852,6 @@ export function ProjectSettingsModal({
                     >
                       <option value="">— wie Eltern-Chat —</option>
                       {modes
-                        .filter((m) => m.id !== "prompt-pack")
                         .map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.name} ({m.id})
@@ -2076,7 +2074,6 @@ export function ProjectSettingsModal({
                 >
                   <option value="">— aktueller Chat-Modus —</option>
                   {modes
-                    .filter((m) => m.id !== "prompt-pack")
                     .map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name} ({m.id})

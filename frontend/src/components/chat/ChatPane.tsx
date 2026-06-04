@@ -174,7 +174,6 @@ export interface ChatPaneProps {
   /** Glossary toolkit support (optional). */
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
-  onOpenPromptPack?: () => void;
 
   contextInfo: ContextInfo | null;
   activeFile: string | null;
@@ -233,7 +232,6 @@ export function ChatPane({
   onSettleSnapshots,
   onReplaceSelection,
   onApplyFieldUpdate,
-  onOpenPromptPack,
   contextInfo,
   activeFile,
   isDirty,
@@ -254,7 +252,6 @@ export function ChatPane({
   const autoScrollActiveRef = useRef(true);
 
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
   const [guidedThreadOfferDismissed, setGuidedThreadOfferDismissed] = useState(
     () => new Set<number>(),
@@ -647,8 +644,6 @@ export function ChatPane({
           activeIsThread={isThread}
           editingIdx={editingIdx}
           setEditingIdx={setEditingIdx}
-          copiedIdx={copiedIdx}
-          setCopiedIdx={setCopiedIdx}
           bulkDismissIds={bulkDismissIds}
           composerBatchForced={composerBatchForced}
           onFileChanged={onFileChanged}
@@ -665,7 +660,6 @@ export function ChatPane({
           onApplyFieldUpdate={onApplyFieldUpdate}
           fieldLabels={fieldLabels}
           onRetry={onRetry}
-          onOpenPromptPack={onOpenPromptPack}
           theme={theme}
           parentLastMessage={parentLastMessage}
         />

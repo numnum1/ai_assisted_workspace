@@ -31,7 +31,6 @@ import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { SimulationSetupModal, type SimulationSetupResult } from "./components/simulation/SimulationSetupModal.tsx";
 import { PanelSlot } from "./components/PanelSlot.tsx";
 import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
-import { PromptPackModal } from "./components/chat/PromptPackModal.tsx";
 import { CommandPalette } from "./components/git/CommandPalette.tsx";
 import { GitCredentialsDialog } from "./components/git/GitCredentialsDialog.tsx";
 import { FileHistoryModal } from "./components/git/FileHistoryModal.tsx";
@@ -93,7 +92,6 @@ import {
   getEffectiveChatExecution,
 } from "./components/chat/chatAgentUtils.ts";
 import {
-  nonPromptModes,
   standardChatModes,
   resolveDefaultModeId,
   resolvePersistedChatModeId,
@@ -640,7 +638,6 @@ function App() {
         }
       }
       setAgentPresets(agents);
-      if (configured === "prompt-pack") configured = undefined;
       if (configured) {
         const cfgMode = mds.find((m) => m.id === configured);
         if (cfgMode?.agentOnly) configured = undefined;
@@ -704,12 +701,11 @@ function App() {
   // Sync main chat Mode selector with the active conversation (initial load + chat switch).
   useEffect(() => {
     if (!history.hydrated || modes.length === 0) return;
-    const nonPrompt = nonPromptModes(modes);
     const standardSel = standardChatModes(modes);
     const conv = history.activeConversation;
     const sessionKind = conv.sessionKind ?? "standard";
     const allowedForSession =
-      sessionKind === "guided" || sessionKind === "navi" ? nonPrompt : standardSel;
+      sessionKind === "guided" || sessionKind === "navi" ? modes : standardSel;
     let desired: string;
     /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
     /** Guided/navi/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
@@ -724,7 +720,7 @@ function App() {
         desired = resolveDefaultModeId(standardSel, undefined);
       }
     } else {
-      const fromConv = resolvePersistedChatModeId(conv, nonPrompt, modes);
+      const fromConv = resolvePersistedChatModeId(conv, modes);
       desired = fromConv ?? projectDefaultChatModeIdRef.current;
       if (!allowedForSession.some((m) => m.id === desired)) {
         desired = resolveDefaultModeId(allowedForSession, undefined);
@@ -933,7 +929,6 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [promptPackOpen, setPromptPackOpen] = useState(false);
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1558,57 +1553,6 @@ function App() {
     return base;
   }, [modes, selectedMode]);
 
-  const handlePromptPackGenerate = useCallback(
-    (message: string, files: string[]) => {
-      const m = modes.find((x) => x.id === "prompt-pack");
-      const conv = history.activeConversation;
-      const exec = getEffectiveChatExecution(conv, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
-      chat.sendMessage(
-        message,
-        "prompt-pack",
-        files,
-        m?.name ?? "Prompt-Paket",
-        m?.color ?? "#f9e2af",
-        exec.useReasoning,
-        exec.llmId,
-        undefined,
-        null,
-        exec.disabledToolkits,
-        {
-          conversationId: conv?.id ?? history.activeId,
-          sessionKind: "standard",
-        },
-        { ...(!rulesEnabled ? { rulesDisabled: true } : {}) },
-      );
-      history.patchConversation(history.activeId, { mode: "prompt-pack" });
-      setPromptPackOpen(false);
-    },
-    [
-      chat.sendMessage,
-      modes,
-      useReasoning,
-      modeLlmId,
-      disabledToolkits,
-      rulesEnabled,
-      history.activeConversation,
-      history.activeId,
-      history.patchConversation,
-    ],
-  );
-
-  useEffect(() => {
-    if (!modes.length) return;
-    if (selectedMode === "prompt-pack") {
-      const std = standardChatModes(modes);
-      const fallbackId = resolveDefaultModeId(std, undefined);
-      handleModeChange(fallbackId, modes);
-    }
-  }, [modes, selectedMode, handleModeChange]);
-
   const {
     handleNewChat,
     handleDiscardCurrentChat,
@@ -2015,7 +1959,6 @@ function App() {
                   !project.projectPath || !history.hydrated
                 }
                 chatDownloadEnabled={chatDownloadFeatureEnabled}
-                onOpenPromptPack={() => setPromptPackOpen(true)}
                 structureRoot={chapter.structureRoot}
                 activeSelection={activeSelection}
                 onDismissSelection={handleDismissSelection}
@@ -2096,14 +2039,6 @@ function App() {
           onWorkspacePluginsChanged={onWorkspacePluginsChanged}
         />
       )}
-
-      <PromptPackModal
-        open={promptPackOpen}
-        onClose={() => setPromptPackOpen(false)}
-        onGenerate={handlePromptPackGenerate}
-        streaming={conversation.streaming}
-        hasPromptPackMode={modes.some((m) => m.id === "prompt-pack")}
-      />
 
       {subprojectDialog && (
         <SubprojectTypeDialog
