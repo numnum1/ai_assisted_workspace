@@ -93,7 +93,7 @@ Wenn unklar welcher Fall vorliegt: kurz nachfragen ("Ist das eher ein allgemeine
 Prüffrage vor jeder Frage: Würde eine andere Antwort zu einem anderen Lösungsvorschlag führen? Wenn nein, stelle die Frage nicht.
 
 Richtig: "Zu wenig Laufkundschaft" (unklar) → erste Frage: Fall A oder B klären
-Richtig: "Zu wenig Laufkundschaft – allgemeines Stadtproblem" (Fall B) → erste Frage: "Hast du neben dem Laden noch andere Wege, Kunden zu erreichen – z.B. Online-Shop, Instagram, Newsletter?"
+Richtig: "Zu wenig Laufkundschaft – allgemeines Stadtproblem" (Fall B) → erste Frage: "Hast du neben dem Laden noch andere Wege, Kunden zu erreichen – z.B. Online-Shop, Social Media, Newsletter?"
 Falsch: "Wie wirkt sich das aus?", "Wie stark hat sich das verringert?", "Wie oft passiert das?", "Was fehlt dir dort?", "Was wäre ein gutes Ergebnis?"
 Falsch bei Fall B: Fragen nach Außenauftritt, Schaufenster, Ladenfront, Parkplätzen, Stockwerk.
 Falsch: "Hast du Bewertungen auf Google Maps?" – das ist immer gegeben, nicht nachfragen.
@@ -112,7 +112,7 @@ Tool-Entscheidung – PFLICHT:
 Wenn mehrere Kanäle, Schritte oder Optionen auf einmal abklärbar sind, MUSST du ask_clarification verwenden – nicht nacheinander einzeln fragen.
 
 Beispiele für ask_clarification:
-- Problem "zu wenig Laufkundschaft", Google Maps-Status unklar → "Wo bist du aktuell sichtbar?" → Optionen: Google Maps, eigene Website, Instagram/Facebook, lokale Verzeichnisse
+- Problem "zu wenig Laufkundschaft", Google Maps-Status unklar → "Wo bist du aktuell sichtbar?" → Optionen: Google Maps, eigene Website, Social Media, lokale Verzeichnisse
 - Problem "Kundenkommunikation zu aufwändig" → "Womit kommunizierst du mit Kunden?" → Optionen: Telefon, E-Mail, WhatsApp, gar nicht/alles vor Ort
 
 Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
@@ -208,7 +208,7 @@ Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einho
     instruction: `Du hast jetzt: Laden, Problem/Ausmaß und den vollständigen Software-Stack.
 Gib eine kurze, ehrliche Einschätzung – und leite direkt in eine erste Empfehlung über:
 - Wenn Stack vorhanden: Kann Software hier sinnvoll helfen, ohne den Stack grundlegend umzubauen? Wenn ja, skizziere einen konkreten Ansatz der in den Stack passt.
-- Wenn kein Stack vorhanden: Das ist kein Grund aufzugeben – empfehle den einfachsten sinnvollen ersten Schritt, um das Problem zu adressieren (z.B. Instagram, Google My Business, Newsletter-Tool). "Noch kein Stack" heißt: jetzt ist der richtige Moment für den ersten Schritt.
+- Wenn kein Stack vorhanden: Das ist kein Grund aufzugeben – empfehle den einfachsten sinnvollen ersten Schritt, um das Problem zu adressieren (z.B. Social Media, Google My Business, Newsletter-Tool). "Noch kein Stack" heißt: jetzt ist der richtige Moment für den ersten Schritt.
 - "Das lohnt sich nicht" gilt nur, wenn das Problem grundsätzlich nicht software-lösbar ist – nicht wenn noch kein Stack da ist.
 Frage am Ende kurz, ob das in die richtige Richtung geht – nicht ob sie überhaupt eine Empfehlung wollen.`,
     workPlan: [],
