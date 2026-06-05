@@ -851,13 +851,13 @@ const ASK_QUESTION_TOOL: ToolDefinition = {
   function: {
     name: "ask_question",
     description:
-      "Schreibe deine nächste Nachricht im Gespräch. Sprich dein Gegenüber direkt an (du/dich). Optional: ein kurzer Satz der zeigt, dass du es verstanden hast – dann genau eine Frage.",
+      "Schreibe deine nächste Nachricht im Gespräch. Zeige zuerst in einem kurzen Satz, dass du verstanden hast, was der Händler gerade gesagt hat – dann genau eine gezielte Frage.",
     parameters: {
       type: "object",
       properties: {
         response: {
           type: "string",
-          description: "Deine direkte Gesprächsnachricht. Immer 'du', nie 'der Händler'. Max. 2 Sätze.",
+          description: "Deine direkte Gesprächsnachricht. Immer 'du', nie 'der Händler'. 1–2 Sätze: erst kurze Reaktion auf das Gesagte, dann eine konkrete Frage.",
         },
       },
       required: ["response"],
@@ -1256,23 +1256,28 @@ async function runNaviChatStream(
     }
 
     // Inject the question plan if we are in clarify_problem and have a plan.
+    // The plan is specific to this conversation and takes priority — inject it FIRST so the LLM
+    // picks the right next question before reading the general rules below.
     const activePlan = naviPlan ?? (request.naviPlan ?? undefined);
     if (newStateId === "clarify_problem" && activePlan) {
-      effectiveInstruction = `${effectiveInstruction}\n\nGesprächsplan für diesen Händler (abarbeiten, bereits beantwortete Punkte überspringen):\n${activePlan}`;
+      effectiveInstruction = [
+        `Nächste Fragen für dieses Gespräch (in dieser Reihenfolge – bereits beantwortete überspringen):`,
+        activePlan,
+        `---`,
+        `Allgemeine Regeln (nur anwenden, wenn der Plan oben keine Abdeckung hat):`,
+        effectiveInstruction,
+      ].join("\n");
     }
 
-    // Inject problem frame into all navi states so the LLM always knows what it is working on
-    // and in which direction the solution should go.
-    if (naviCurrentProblem) {
-      const interpretationLine = naviCurrentProblemInterpretation
-        ? `\nInterpretation: ${naviCurrentProblemInterpretation}`
-        : "";
-      const queueNote =
-        naviProblemQueue.length > 0
-          ? `\nWeitere Anliegen (danach): ${naviProblemQueue.join(", ")}`
-          : "";
-      effectiveInstruction = `[Aktuelles Anliegen: "${naviCurrentProblem}"${interpretationLine}${queueNote}]\n\n${effectiveInstruction}`;
-    }
+    // Build a standalone problem-focus block injected as its own section in the system prompt.
+    const problemFocusBlock = naviCurrentProblem
+      ? [
+          `Das Anliegen des Händlers: "${naviCurrentProblem}"`,
+          ...(naviCurrentProblemInterpretation ? [`→ ${naviCurrentProblemInterpretation}`] : []),
+          ...(naviProblemQueue.length > 0 ? [`Weitere Anliegen danach: ${naviProblemQueue.join(", ")}`] : []),
+          "Alle Fragen ausschließlich zu diesem Anliegen – nichts anderes.",
+        ].join("\n")
+      : null;
 
     // In closing, remind Navi of any queued problems so it can proactively ask about them.
     if (newStateId === "closing" && naviProblemQueue.length > 0) {
@@ -1323,6 +1328,7 @@ async function runNaviChatStream(
           "Sprich ihn immer direkt an – immer 'du', niemals 'der Händler' oder dritte Person.",
           "Antworte auf Deutsch. Kurz und natürlich.",
           "Du hast zwei Tools: ask_question für eine einzelne offene Frage, ask_clarification für Mehrfachauswahl. Die Aufgabe unten sagt dir wann welches Tool zu nutzen ist – halte dich exakt daran.",
+          ...(problemFocusBlock ? [problemFocusBlock] : []),
           ...(naviContextSection ? [naviContextSection] : []),
           ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
@@ -1334,6 +1340,7 @@ async function runNaviChatStream(
           "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
           "Maximal eine Frage pro Antwort.",
           "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
+          ...(problemFocusBlock ? [problemFocusBlock] : []),
           ...(naviContextSection ? [naviContextSection] : []),
           ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
