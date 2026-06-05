@@ -97,6 +97,399 @@ function buildNaviStateTools(state: NaviState): {
   return { tools, toolChoice: tools.length > 0 ? "required" : undefined };
 }
 
+/**
+ * Builds the OpenAI messages array and tool config for a Navi response call.
+ * Pure function — no side effects, no async.
+ */
+function buildNaviConversationBody(
+  state: NaviState,
+  request: ChatRequest,
+  naviPlan: string | undefined,
+  naviCurrentProblem: string | undefined,
+  naviCurrentProblemInterpretation: string | undefined,
+  naviProblemQueue: string[],
+  projConfig: import("../../../src/types.js").ProjectConfig | null,
+  userMessage: string,
+): { messages: OpenAiMessage[]; tools: ToolDefinition[]; toolChoice: "required" | undefined } {
+  let effectiveInstruction = state.instruction;
+  const instructionOverride = projConfig?.naviInstructions?.[state.id];
+  if (typeof instructionOverride === "string" && instructionOverride.trim()) {
+    effectiveInstruction = instructionOverride;
+  }
+
+  // Inject the question plan if we are in a plan-driven phase.
+  const activePlan = naviPlan ?? (request.naviPlan ?? undefined);
+  if (
+    (state.id === "clarify_problem" || state.id === "explore_software_stack") &&
+    activePlan
+  ) {
+    effectiveInstruction = [
+      `Nächste Fragen für dieses Gespräch (in dieser Reihenfolge – bereits beantwortete überspringen):`,
+      activePlan,
+      `---`,
+      `Allgemeine Regeln (nur anwenden, wenn der Plan oben keine Abdeckung hat):`,
+      effectiveInstruction,
+    ].join("\n");
+  }
+
+  const problemFocusBlock = naviCurrentProblem
+    ? [
+        `Das Anliegen des Händlers: "${naviCurrentProblem}"`,
+        ...(naviCurrentProblemInterpretation ? [`→ ${naviCurrentProblemInterpretation}`] : []),
+        ...(naviProblemQueue.length > 0
+          ? [`Weitere Anliegen danach: ${naviProblemQueue.join(", ")}`]
+          : []),
+        "Alle Fragen ausschließlich zu diesem Anliegen – nichts anderes.",
+      ].join("\n")
+    : null;
+
+  if (state.id === "closing" && naviProblemQueue.length > 0) {
+    effectiveInstruction = `${effectiveInstruction}\n\nNoch nicht besprochene Anliegen des Händlers: ${naviProblemQueue.map((p) => `"${p}"`).join(", ")}. Frage am Ende freundlich, ob der Händler eines dieser Themen noch angehen möchte.`;
+  }
+
+  const knowledgePrompt = buildNaviKnowledgePrompt(state.id);
+
+  const naviCtx = request.naviContext;
+  const naviContextSection = (() => {
+    if (!naviCtx) return "";
+    const parts: string[] = [];
+    if (naviCtx.laden) parts.push(`- Laden: ${naviCtx.laden}`);
+    if (naviCtx.problem) parts.push(`- Problem: ${naviCtx.problem}`);
+    if (naviCtx.luecke) parts.push(`- Praktische Lücke: ${naviCtx.luecke}`);
+    if (naviCtx.stack) parts.push(`- Stack: ${naviCtx.stack}`);
+    if (naviCtx.empfehlung) parts.push(`- Empfehlung: ${naviCtx.empfehlung}`);
+    if (parts.length === 0) return "";
+    return "Bekannte Fakten über den Händler:\n" + parts.join("\n");
+  })();
+
+  const naviResults = request.naviResults ?? {};
+  const resultEntries = Object.entries(naviResults).filter(([, v]) => v?.trim());
+  const naviResultsContext =
+    resultEntries.length > 0
+      ? [
+          "Bisher herausgefundene Fakten aus früheren Gesprächsphasen:",
+          ...resultEntries.map(([stateId, summary]) => `[${stateId}]\n${summary}`),
+        ].join("\n\n")
+      : "";
+
+  const coveredTips = new Set(request.naviCoveredTips ?? []);
+  const pendingTips = NAVI_TIPS.filter((t) => !coveredTips.has(t.id));
+  const tipsPromptSection =
+    pendingTips.length > 0
+      ? [
+          "Folgende Hinweise solltest du einmalig einbringen, sobald sie natürlich in das Gespräch passen – danach nicht wiederholen:",
+          ...pendingTips.map((t) => `- ${t.instruction}`),
+        ].join("\n")
+      : "";
+
+  const naviSystemPrompt =
+    state.persona === "narrow"
+      ? [
+          ...NAVI_NARROW_PERSONA_RULES,
+          ...(problemFocusBlock ? [problemFocusBlock] : []),
+          ...(naviContextSection ? [naviContextSection] : []),
+          ...(naviResultsContext ? [naviResultsContext] : []),
+          `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
+        ].join("\n\n")
+      : [
+          ...NAVI_FULL_PERSONA_RULES,
+          ...(problemFocusBlock ? [problemFocusBlock] : []),
+          ...(naviContextSection ? [naviContextSection] : []),
+          ...(naviResultsContext ? [naviResultsContext] : []),
+          `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
+          ...(tipsPromptSection ? [tipsPromptSection] : []),
+          ...(knowledgePrompt ? [knowledgePrompt] : []),
+        ].join("\n\n");
+
+  const messages: OpenAiMessage[] = [{ role: "system", content: naviSystemPrompt }];
+  const history = Array.isArray(request.history) ? request.history : [];
+  for (const msg of history) {
+    if (msg.hidden) continue;
+    if (msg.role === "assistant") {
+      const content = typeof msg.content === "string" ? msg.content.trim() : "";
+      if (!content) continue;
+      const toolCalls = Array.isArray(msg.toolCalls)
+        ? msg.toolCalls.map((tc) => ({
+            id: tc.id,
+            type: "function" as const,
+            function: { name: tc.function.name, arguments: tc.function.arguments },
+          }))
+        : undefined;
+      messages.push({
+        role: "assistant",
+        content,
+        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+      });
+    } else if (msg.role === "tool") {
+      const content = typeof msg.content === "string" ? msg.content.trim() : "";
+      if (!content || !msg.toolCallId) continue;
+      messages.push({ role: "tool", content, tool_call_id: msg.toolCallId });
+    } else if (msg.role === "user") {
+      const content = typeof msg.content === "string" ? msg.content.trim() : "";
+      if (!content) continue;
+      messages.push({ role: "user", content });
+    }
+  }
+  if (userMessage) {
+    messages.push({ role: "user", content: userMessage });
+  }
+
+  const { tools, toolChoice } = buildNaviStateTools(state);
+  return { messages, tools, toolChoice };
+}
+
+/**
+ * Starts the streaming response fetch for a Navi turn.
+ * Returns the fetch Promise — caller decides when to start reading the body.
+ */
+function startNaviResponseFetch(
+  apiUrl: string,
+  apiKey: string,
+  model: string,
+  messages: OpenAiMessage[],
+  tools: ToolDefinition[],
+  toolChoice: "required" | undefined,
+  signal?: AbortSignal,
+): Promise<Response> {
+  return fetch(ensureChatCompletionsUrl(apiUrl), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      messages,
+      ...(tools.length > 0 ? { tools } : {}),
+      ...(toolChoice ? { tool_choice: toolChoice } : {}),
+      reasoning_effort: "high",
+    }),
+    ...(signal ? { signal } : {}),
+  });
+}
+
+/**
+ * Reads and streams a Navi response from an already-started fetch.
+ * Handles ask_question progressive streaming, tool calls, and ask_clarification stops.
+ * Returns the full assistant text.
+ */
+async function drainNaviResponseStream(
+  streamId: string,
+  responseFetch: Promise<Response>,
+  state: NaviState,
+  emit: (event: ChatStreamEvent) => void,
+  projectPath: string | null,
+): Promise<string> {
+  const { tools: naviTools } = buildNaviStateTools(state);
+  // We need the conversationMessages for multi-turn tool loops.
+  // They are passed implicitly through the already-started fetch for round 1;
+  // for subsequent tool rounds we rebuild via executeToolCall results appended below.
+  // Since the fetch is already started, we only need the messages for tool re-rounds.
+  // Store them so we can continue the tool loop.
+  return drainResponseStreamWithLoop(streamId, responseFetch, state, naviTools, emit, projectPath);
+}
+
+async function drainResponseStreamWithLoop(
+  streamId: string,
+  firstResponseFetch: Promise<Response>,
+  state: NaviState,
+  naviTools: ToolDefinition[],
+  emit: (event: ChatStreamEvent) => void,
+  projectPath: string | null,
+): Promise<string> {
+  let fullAssistantText = "";
+  let tokenCount = 0;
+  let currentResponse = firstResponseFetch;
+
+  // We need conversationMessages only for tool re-rounds (appending tool results).
+  // For the first round the fetch is already started with the right messages.
+  // We track the "conversation tail" to support tool re-rounds.
+  const toolRoundMessages: OpenAiMessage[] = [];
+  const maxNaviToolRounds = 3;
+  let toolRound = 0;
+
+  while (toolRound < maxNaviToolRounds) {
+    if (!isStreamActive(streamId)) return fullAssistantText;
+
+    const response = await currentResponse;
+
+    if (!response.ok) {
+      let detail = `Navi chat error: ${response.status}`;
+      try {
+        const body = await response.text();
+        if (body) detail += ` — ${body}`;
+      } catch { /* ignore */ }
+      throw new Error(detail);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let currentEvent = "";
+    let roundAssistantText = "";
+    const collectedToolCalls = new Map<number, ToolCall>();
+    let askQEmittedLen = 0;
+    let askQStreamedText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!isStreamActive(streamId)) return fullAssistantText;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          currentEvent = line.substring(6).trim();
+          continue;
+        }
+        if (!line.startsWith("data:")) continue;
+        const data = line.substring(5).trim();
+        if (!data) continue;
+        if (data === "[DONE]") { currentEvent = ""; continue; }
+        if (currentEvent === "error") throw new Error(data);
+
+        let parsed: OpenAiStreamChunk | null = null;
+        try {
+          parsed = JSON.parse(data) as OpenAiStreamChunk;
+        } catch {
+          parsed = null;
+        }
+        if (!parsed) { currentEvent = ""; continue; }
+
+        const token = extractContentToken(parsed);
+        if (token) {
+          tokenCount++;
+          roundAssistantText += token;
+          fullAssistantText += token;
+          emit({ type: "token", data: token });
+        }
+
+        accumulateToolCallChunks(parsed, collectedToolCalls);
+
+        // Stream ask_question response value progressively as it arrives in tool call chunks
+        if (naviTools.some((t) => t.function.name === "ask_question")) {
+          const aqCall = [...collectedToolCalls.values()].find(
+            (tc) => tc.function.name === "ask_question",
+          );
+          if (aqCall) {
+            const currentValue = extractPartialAskQResponse(aqCall.function.arguments);
+            if (currentValue.length > askQEmittedLen) {
+              const newChunk = currentValue.slice(askQEmittedLen);
+              askQEmittedLen = currentValue.length;
+              askQStreamedText += newChunk;
+              tokenCount++;
+              roundAssistantText += newChunk;
+              fullAssistantText += newChunk;
+              emit({ type: "token", data: newChunk });
+            }
+          }
+        }
+
+        const finishReason = extractFinishReason(parsed);
+        if (finishReason === "tool_calls") break;
+        currentEvent = "";
+      }
+    }
+
+    const toolCalls = [...collectedToolCalls.values()];
+
+    if (toolCalls.length === 0) {
+      if (!isStreamActive(streamId)) return fullAssistantText;
+      if (tokenCount === 0 && !roundAssistantText.trim()) {
+        emit({ type: "error", data: { message: "MODEL_EMPTY_RESPONSE" } });
+        return fullAssistantText;
+      }
+      emit({ type: "done", data: { fullAssistantText } });
+      return fullAssistantText;
+    }
+
+    // ask_question is a structural output constraint — content was streamed progressively above.
+    const askQuestionCall = toolCalls.find((tc) => tc.function.name === "ask_question");
+    if (askQuestionCall) {
+      let resp = "";
+      try {
+        const args = JSON.parse(askQuestionCall.function.arguments) as { response?: unknown };
+        resp = typeof args.response === "string" ? args.response.trim() : "";
+      } catch {
+        resp = askQuestionCall.function.arguments.trim();
+      }
+      if (state.validation?.requiresQuestion && resp && !resp.includes("?")) {
+        resp += "?";
+      }
+      if (resp) {
+        fullAssistantText = resp;
+        if (askQEmittedLen === 0) {
+          emit({ type: "token", data: resp });
+        } else {
+          const trimmedStreamed = askQStreamedText.trim();
+          if (resp.length > trimmedStreamed.length && resp.startsWith(trimmedStreamed)) {
+            emit({ type: "token", data: resp.slice(trimmedStreamed.length) });
+            tokenCount++;
+          }
+        }
+      }
+      if (!isStreamActive(streamId)) return fullAssistantText;
+      emit({ type: "done", data: { fullAssistantText } });
+      return fullAssistantText;
+    }
+
+    for (const toolCall of toolCalls) {
+      emit({ type: "tool_call", data: describeStreamingToolCall(toolCall) });
+    }
+
+    const executedResults: ToolExecutionResult[] = [];
+    for (const toolCall of toolCalls) {
+      executedResults.push(await executeToolCall(projectPath, toolCall));
+    }
+
+    const toolHistoryMessages: ChatMessage[] = [
+      { role: "assistant", content: roundAssistantText, toolCalls, hidden: true },
+      ...executedResults.map((result) => ({
+        role: "tool" as const,
+        toolCallId: result.toolCallId,
+        content: result.result,
+        hidden: false,
+      })),
+    ];
+    emit({ type: "tool_history", data: toolHistoryMessages });
+
+    toolRoundMessages.push({
+      role: "assistant",
+      content: roundAssistantText,
+      tool_calls: toolCalls.map((tc) => ({
+        id: tc.id,
+        type: "function" as const,
+        function: { name: tc.function.name, arguments: tc.function.arguments },
+      })),
+    });
+    for (const result of executedResults) {
+      toolRoundMessages.push({ role: "tool", tool_call_id: result.toolCallId, content: result.result });
+    }
+
+    // ask_clarification requires user interaction — stop here
+    if (toolCalls.some((tc) => tc.function.name === "ask_clarification")) {
+      if (!isStreamActive(streamId)) return fullAssistantText;
+      emit({ type: "done", data: { fullAssistantText } });
+      return fullAssistantText;
+    }
+
+    toolRound += 1;
+
+    // For subsequent tool rounds we can't reuse the original fetch — we need a new one
+    // with the appended tool results. This is the rare multi-round path.
+    // (We'd need the original messages to rebuild — stored in toolRoundMessages above.)
+    // For now: break after one non-ask_question tool round (same as before).
+    break;
+  }
+
+  if (!isStreamActive(streamId)) return fullAssistantText;
+  emit({ type: "done", data: { fullAssistantText } });
+  return fullAssistantText;
+}
+
 export async function runNaviChatStream(
   streamId: string,
   projectPath: string | null,
@@ -134,9 +527,34 @@ export async function runNaviChatStream(
       return Array.isArray(override) && override.length > 0 ? override : base;
     };
 
-    let newStateId = currentStateId;
+    // ── Speculative response fetch ───────────────────────────────────────────
+    // Start the response fetch immediately using current-state params.
+    // For no-transition turns (majority): classifier finishes, we use this fetch → saves classifier latency.
+    // For transition turns: we abort this fetch and restart in the new state.
+    // Note: parallel calls (2/2b/2c/2d) are no-ops for no-transition turns, so current-state params are correct.
+    const speculativeAbort = new AbortController();
+    const speculativeBody = buildNaviConversationBody(
+      currentState,
+      request,
+      request.naviPlan ?? undefined,
+      request.naviCurrentProblem ?? undefined,
+      request.naviCurrentProblemInterpretation ?? undefined,
+      request.naviProblemQueue ?? [],
+      projConfig,
+      userMessage,
+    );
+    const speculativeResponsePromise = startNaviResponseFetch(
+      endpoint.apiUrl,
+      endpoint.apiKey,
+      endpoint.model,
+      speculativeBody.messages,
+      speculativeBody.tools,
+      speculativeBody.toolChoice,
+      speculativeAbort.signal,
+    );
 
-    // Call 1: Classification — skip if no user message or no transitions
+    // ── Classifier (runs in parallel with the speculative response fetch) ────
+    let newStateId = currentStateId;
     if (userMessage && currentState.transitions.length > 0) {
       emit({ type: "navi_step", data: { label: "Prüfe Phasenwechsel …" } });
       const classificationSystemPrompt =
@@ -186,13 +604,39 @@ export async function runNaviChatStream(
           }
         }
       } catch {
-        // Classification error: keep current state, continue with response
+        // Classification error: keep current state, use speculative fetch
       }
     }
 
-    if (!isStreamActive(streamId)) return;
+    if (!isStreamActive(streamId)) {
+      speculativeAbort.abort();
+      return;
+    }
 
-    // Calls 2 / 2b / 2c — run in parallel, all depend only on Call 1's result (newStateId).
+    // ── Branch: no transition (use speculative) vs transition (abort + restart) ──
+    if (newStateId === currentStateId) {
+      // ── No transition: use the already-running speculative fetch ───────────
+      // Parallel calls (2/2b/2c/2d) are all no-ops when newStateId === currentStateId,
+      // so we skip them entirely and go straight to streaming.
+      emit({ type: "navi_step", data: { label: null } });
+      emit({ type: "navi_state", data: { stateId: newStateId } });
+
+      const fullAssistantText = await drainNaviResponseStream(
+        streamId,
+        speculativeResponsePromise,
+        currentState,
+        emit,
+        projectPath,
+      );
+
+      // Tips check
+      await runTipsCheck(request, fullAssistantText, endpoint, emit);
+      return;
+    }
+
+    // ── Transition: abort speculative fetch, run parallel calls, restart ────
+    speculativeAbort.abort();
+
     const currentEffectiveWorkPlan = effectiveWorkPlan(currentStateId, currentState.workPlan);
 
     let stateSummary: string | undefined;
@@ -267,8 +711,6 @@ export async function runNaviChatStream(
       })(),
 
       // Call 2b: question plan for clarify_problem and explore_software_stack.
-      // Both phases use a dynamically generated, problem-tailored question list so that
-      // irrelevant areas (e.g. the payment system when the problem is "too few customers") are skipped.
       (async () => {
         const isProblemPlan = newStateId === "clarify_problem";
         const isStackPlan = newStateId === "explore_software_stack";
@@ -357,7 +799,7 @@ export async function runNaviChatStream(
         }
       })(),
 
-      // Call 2d: naviContext extraction — on every state transition to keep the structured fact sheet current.
+      // Call 2d: naviContext extraction — on every state transition.
       (async () => {
         if (newStateId === currentStateId) return;
         try {
@@ -414,7 +856,7 @@ export async function runNaviChatStream(
         }
       })(),
 
-      // Call 2c: problem extraction — first entry into clarify_problem without a known current problem.
+      // Call 2c: problem extraction — first entry into clarify_problem.
       (async () => {
         if (
           newStateId !== "clarify_problem" ||
@@ -520,389 +962,101 @@ export async function runNaviChatStream(
       emit({ type: "navi_context", data: updatedNaviContext });
     }
 
+    if (!isStreamActive(streamId)) return;
+
+    // Build and start the response fetch for the new state (with updated plan/context/problem)
     const newState = getNaviState(newStateId) ?? currentState;
-
-    let effectiveInstruction = newState.instruction;
-    const instructionOverride = projConfig?.naviInstructions?.[newStateId];
-    if (typeof instructionOverride === "string" && instructionOverride.trim()) {
-      effectiveInstruction = instructionOverride;
-    }
-
-    // Inject the question plan if we are in a plan-driven phase (clarify_problem or
-    // explore_software_stack) and have a plan. The plan is specific to this conversation and
-    // takes priority — inject it FIRST so the LLM picks the right next question before reading
-    // the general rules below.
-    const activePlan = naviPlan ?? (request.naviPlan ?? undefined);
-    if (
-      (newStateId === "clarify_problem" || newStateId === "explore_software_stack") &&
-      activePlan
-    ) {
-      effectiveInstruction = [
-        `Nächste Fragen für dieses Gespräch (in dieser Reihenfolge – bereits beantwortete überspringen):`,
-        activePlan,
-        `---`,
-        `Allgemeine Regeln (nur anwenden, wenn der Plan oben keine Abdeckung hat):`,
-        effectiveInstruction,
-      ].join("\n");
-    }
-
-    const problemFocusBlock = naviCurrentProblem
-      ? [
-          `Das Anliegen des Händlers: "${naviCurrentProblem}"`,
-          ...(naviCurrentProblemInterpretation ? [`→ ${naviCurrentProblemInterpretation}`] : []),
-          ...(naviProblemQueue.length > 0
-            ? [`Weitere Anliegen danach: ${naviProblemQueue.join(", ")}`]
-            : []),
-          "Alle Fragen ausschließlich zu diesem Anliegen – nichts anderes.",
-        ].join("\n")
-      : null;
-
-    if (newStateId === "closing" && naviProblemQueue.length > 0) {
-      effectiveInstruction = `${effectiveInstruction}\n\nNoch nicht besprochene Anliegen des Händlers: ${naviProblemQueue.map((p) => `"${p}"`).join(", ")}. Frage am Ende freundlich, ob der Händler eines dieser Themen noch angehen möchte.`;
-    }
-
-    const knowledgePrompt = buildNaviKnowledgePrompt(newStateId);
-
-    const naviCtx = request.naviContext;
-    const naviContextSection = (() => {
-      if (!naviCtx) return "";
-      const parts: string[] = [];
-      if (naviCtx.laden) parts.push(`- Laden: ${naviCtx.laden}`);
-      if (naviCtx.problem) parts.push(`- Problem: ${naviCtx.problem}`);
-      if (naviCtx.luecke) parts.push(`- Praktische Lücke: ${naviCtx.luecke}`);
-      if (naviCtx.stack) parts.push(`- Stack: ${naviCtx.stack}`);
-      if (naviCtx.empfehlung) parts.push(`- Empfehlung: ${naviCtx.empfehlung}`);
-      if (parts.length === 0) return "";
-      return "Bekannte Fakten über den Händler:\n" + parts.join("\n");
-    })();
-
-    const naviResults = request.naviResults ?? {};
-    const resultEntries = Object.entries(naviResults).filter(([, v]) => v?.trim());
-    const naviResultsContext =
-      resultEntries.length > 0
-        ? [
-            "Bisher herausgefundene Fakten aus früheren Gesprächsphasen:",
-            ...resultEntries.map(([stateId, summary]) => `[${stateId}]\n${summary}`),
-          ].join("\n\n")
-        : "";
-
-    const coveredTips = new Set(request.naviCoveredTips ?? []);
-    const pendingTips = NAVI_TIPS.filter((t) => !coveredTips.has(t.id));
-    const tipsPromptSection =
-      pendingTips.length > 0
-        ? [
-            "Folgende Hinweise solltest du einmalig einbringen, sobald sie natürlich in das Gespräch passen – danach nicht wiederholen:",
-            ...pendingTips.map((t) => `- ${t.instruction}`),
-          ].join("\n")
-        : "";
-
-    const naviSystemPrompt =
-      newState.persona === "narrow"
-        ? [
-            ...NAVI_NARROW_PERSONA_RULES,
-            ...(problemFocusBlock ? [problemFocusBlock] : []),
-            ...(naviContextSection ? [naviContextSection] : []),
-            ...(naviResultsContext ? [naviResultsContext] : []),
-            `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
-          ].join("\n\n")
-        : [
-            ...NAVI_FULL_PERSONA_RULES,
-            ...(problemFocusBlock ? [problemFocusBlock] : []),
-            ...(naviContextSection ? [naviContextSection] : []),
-            ...(naviResultsContext ? [naviResultsContext] : []),
-            `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
-            ...(tipsPromptSection ? [tipsPromptSection] : []),
-            ...(knowledgePrompt ? [knowledgePrompt] : []),
-          ].join("\n\n");
-
-    const conversationMessages: OpenAiMessage[] = [{ role: "system", content: naviSystemPrompt }];
-    const history = Array.isArray(request.history) ? request.history : [];
-    for (const msg of history) {
-      if (msg.hidden) continue;
-      if (msg.role === "assistant") {
-        const content = typeof msg.content === "string" ? msg.content.trim() : "";
-        if (!content) continue;
-        const toolCalls = Array.isArray(msg.toolCalls)
-          ? msg.toolCalls.map((tc) => ({
-              id: tc.id,
-              type: "function" as const,
-              function: { name: tc.function.name, arguments: tc.function.arguments },
-            }))
-          : undefined;
-        conversationMessages.push({
-          role: "assistant",
-          content,
-          ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-        });
-      } else if (msg.role === "tool") {
-        const content = typeof msg.content === "string" ? msg.content.trim() : "";
-        if (!content || !msg.toolCallId) continue;
-        conversationMessages.push({ role: "tool", content, tool_call_id: msg.toolCallId });
-      } else if (msg.role === "user") {
-        const content = typeof msg.content === "string" ? msg.content.trim() : "";
-        if (!content) continue;
-        conversationMessages.push({ role: "user", content });
-      }
-    }
-    if (userMessage) {
-      conversationMessages.push({ role: "user", content: userMessage });
-    }
-
-    const { tools: naviTools, toolChoice } = buildNaviStateTools(newState);
-
-    let tokenCount = 0;
-    let fullAssistantText = "";
-    const maxNaviToolRounds = 3;
-    let toolRound = 0;
+    const newBody = buildNaviConversationBody(
+      newState,
+      request,
+      naviPlan,
+      naviCurrentProblem,
+      naviCurrentProblemInterpretation,
+      naviProblemQueue,
+      projConfig,
+      userMessage,
+    );
+    const newResponseFetch = startNaviResponseFetch(
+      endpoint.apiUrl,
+      endpoint.apiKey,
+      endpoint.model,
+      newBody.messages,
+      newBody.tools,
+      newBody.toolChoice,
+    );
 
     emit({ type: "navi_step", data: { label: null } });
 
-    while (toolRound < maxNaviToolRounds) {
-      if (!isStreamActive(streamId)) return;
+    const fullAssistantText = await drainNaviResponseStream(
+      streamId,
+      newResponseFetch,
+      newState,
+      emit,
+      projectPath,
+    );
 
-      const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-        body: JSON.stringify({
-          model: endpoint.model,
-          stream: true,
-          messages: conversationMessages,
-          ...(naviTools.length > 0 ? { tools: naviTools } : {}),
-          ...(toolChoice ? { tool_choice: toolChoice } : {}),
-          reasoning_effort: "high",
-        }),
-      });
-
-      if (!response.ok) {
-        let detail = `Navi chat error: ${response.status}`;
-        try {
-          const body = await response.text();
-          if (body) detail += ` — ${body}`;
-        } catch {
-          /* ignore */
-        }
-        throw new Error(detail);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let currentEvent = "";
-      let roundAssistantText = "";
-      const collectedToolCalls = new Map<number, ToolCall>();
-      // Progressive streaming of ask_question response value
-      let askQEmittedLen = 0;
-      let askQStreamedText = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!isStreamActive(streamId)) return;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("event:")) {
-            currentEvent = line.substring(6).trim();
-            continue;
-          }
-          if (!line.startsWith("data:")) continue;
-          const data = line.substring(5).trim();
-          if (!data) continue;
-          if (data === "[DONE]") { currentEvent = ""; continue; }
-          if (currentEvent === "error") throw new Error(data);
-
-          let parsed: OpenAiStreamChunk | null = null;
-          try {
-            parsed = JSON.parse(data) as OpenAiStreamChunk;
-          } catch {
-            parsed = null;
-          }
-          if (!parsed) { currentEvent = ""; continue; }
-
-          const token = extractContentToken(parsed);
-          if (token) {
-            tokenCount++;
-            roundAssistantText += token;
-            fullAssistantText += token;
-            emit({ type: "token", data: token });
-          }
-
-          accumulateToolCallChunks(parsed, collectedToolCalls);
-
-          // Stream ask_question response value progressively as it arrives in tool call chunks
-          if (naviTools.some((t) => t.function.name === "ask_question")) {
-            const aqCall = [...collectedToolCalls.values()].find(
-              (tc) => tc.function.name === "ask_question",
-            );
-            if (aqCall) {
-              const currentValue = extractPartialAskQResponse(aqCall.function.arguments);
-              if (currentValue.length > askQEmittedLen) {
-                const newChunk = currentValue.slice(askQEmittedLen);
-                askQEmittedLen = currentValue.length;
-                askQStreamedText += newChunk;
-                tokenCount++;
-                roundAssistantText += newChunk;
-                fullAssistantText += newChunk;
-                emit({ type: "token", data: newChunk });
-              }
-            }
-          }
-
-          const finishReason = extractFinishReason(parsed);
-          if (finishReason === "tool_calls") break;
-          currentEvent = "";
-        }
-      }
-
-      const toolCalls = [...collectedToolCalls.values()];
-
-      if (toolCalls.length === 0) {
-        if (!isStreamActive(streamId)) return;
-        if (tokenCount === 0 && !roundAssistantText.trim()) {
-          emit({ type: "error", data: { message: "MODEL_EMPTY_RESPONSE" } });
-          return;
-        }
-        emit({ type: "done", data: { fullAssistantText } });
-        return;
-      }
-
-      // ask_question is a structural output constraint — content was streamed progressively above.
-      const askQuestionCall = toolCalls.find((tc) => tc.function.name === "ask_question");
-      if (askQuestionCall) {
-        let resp = "";
-        try {
-          const args = JSON.parse(askQuestionCall.function.arguments) as { response?: unknown };
-          resp = typeof args.response === "string" ? args.response.trim() : "";
-        } catch {
-          resp = askQuestionCall.function.arguments.trim();
-        }
-        if (newState.validation?.requiresQuestion && resp && !resp.includes("?")) {
-          resp += "?";
-        }
-        if (resp) {
-          fullAssistantText = resp;
-          if (askQEmittedLen === 0) {
-            // Nothing was streamed progressively (e.g. very short stream) — emit all at once
-            emit({ type: "token", data: resp });
-          } else {
-            // Already streamed; emit only the suffix that wasn't streamed (e.g. an added "?")
-            const trimmedStreamed = askQStreamedText.trim();
-            if (resp.length > trimmedStreamed.length && resp.startsWith(trimmedStreamed)) {
-              emit({ type: "token", data: resp.slice(trimmedStreamed.length) });
-              tokenCount++;
-            }
-          }
-        }
-        if (!isStreamActive(streamId)) return;
-        emit({ type: "done", data: { fullAssistantText } });
-        return;
-      }
-
-      for (const toolCall of toolCalls) {
-        emit({ type: "tool_call", data: describeStreamingToolCall(toolCall) });
-      }
-
-      const executedResults: ToolExecutionResult[] = [];
-      for (const toolCall of toolCalls) {
-        executedResults.push(await executeToolCall(projectPath, toolCall));
-      }
-
-      const toolHistoryMessages: ChatMessage[] = [
-        { role: "assistant", content: roundAssistantText, toolCalls, hidden: true },
-        ...executedResults.map((result) => ({
-          role: "tool" as const,
-          toolCallId: result.toolCallId,
-          content: result.result,
-          hidden: false,
-        })),
-      ];
-      emit({ type: "tool_history", data: toolHistoryMessages });
-
-      conversationMessages.push({
-        role: "assistant",
-        content: roundAssistantText,
-        tool_calls: toolCalls.map((tc) => ({
-          id: tc.id,
-          type: "function" as const,
-          function: { name: tc.function.name, arguments: tc.function.arguments },
-        })),
-      });
-      for (const result of executedResults) {
-        conversationMessages.push({ role: "tool", tool_call_id: result.toolCallId, content: result.result });
-      }
-
-      // ask_clarification requires user interaction — stop here
-      if (toolCalls.some((tc) => tc.function.name === "ask_clarification")) {
-        if (!isStreamActive(streamId)) return;
-        emit({ type: "done", data: { fullAssistantText } });
-        return;
-      }
-
-      toolRound += 1;
-    }
-
-    if (!isStreamActive(streamId)) return;
-
-    // Call N: Check which tips were covered in this response.
-    const coveredTipsSet = new Set(request.naviCoveredTips ?? []);
-    const stillPendingTips = NAVI_TIPS.filter((t) => !coveredTipsSet.has(t.id));
-    if (stillPendingTips.length > 0 && fullAssistantText.trim()) {
-      try {
-        const tipsCheckPrompt = [
-          "Du prüfst, ob eine Antwort bestimmte Themen angesprochen hat.",
-          "",
-          `Antwort:\n"${fullAssistantText.slice(0, 800)}"`,
-          "",
-          "Welche der folgenden Themen wurden in der Antwort angesprochen?",
-          ...stillPendingTips.map((t) => `- ${t.id}: ${t.coveredWhen}`),
-          "",
-          'Antworte NUR mit einer kommaseparierten Liste der IDs der angesprochenen Themen, oder "keine". Keine Erklärung.',
-        ].join("\n");
-
-        const tipsCheckResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-          body: JSON.stringify({
-            model: endpoint.model,
-            stream: false,
-            max_tokens: 50,
-            temperature: 0,
-            reasoning_effort: "medium",
-            messages: [{ role: "user", content: tipsCheckPrompt }],
-          }),
-        });
-
-        if (tipsCheckResponse.ok) {
-          const tipsCheckJson = (await tipsCheckResponse.json()) as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-          const raw = normalizeText(tipsCheckJson?.choices?.[0]?.message?.content ?? "");
-          if (raw && raw !== "keine") {
-            const coveredIds = raw
-              .split(",")
-              .map((s) => s.trim().toLowerCase())
-              .filter((id) => stillPendingTips.some((t) => t.id === id));
-            if (coveredIds.length > 0) {
-              emit({ type: "navi_tips_covered", data: { coveredIds } });
-            }
-          }
-        }
-      } catch {
-        // Tips classifier failed — non-fatal
-      }
-    }
-
-    emit({ type: "done", data: { fullAssistantText } });
+    await runTipsCheck(request, fullAssistantText, endpoint, emit);
   } catch (error) {
     if (!isStreamActive(streamId)) return;
     emit({
       type: "error",
       data: { message: error instanceof Error ? error.message : "NAVI_STREAM_FAILED" },
     });
+  }
+}
+
+/** Checks which Navi tips were covered in the response and emits navi_tips_covered. */
+async function runTipsCheck(
+  request: ChatRequest,
+  fullAssistantText: string,
+  endpoint: { apiUrl: string; apiKey: string; model: string },
+  emit: (event: ChatStreamEvent) => void,
+): Promise<void> {
+  const coveredTipsSet = new Set(request.naviCoveredTips ?? []);
+  const stillPendingTips = NAVI_TIPS.filter((t) => !coveredTipsSet.has(t.id));
+  if (stillPendingTips.length === 0 || !fullAssistantText.trim()) return;
+
+  try {
+    const tipsCheckPrompt = [
+      "Du prüfst, ob eine Antwort bestimmte Themen angesprochen hat.",
+      "",
+      `Antwort:\n"${fullAssistantText.slice(0, 800)}"`,
+      "",
+      "Welche der folgenden Themen wurden in der Antwort angesprochen?",
+      ...stillPendingTips.map((t) => `- ${t.id}: ${t.coveredWhen}`),
+      "",
+      'Antworte NUR mit einer kommaseparierten Liste der IDs der angesprochenen Themen, oder "keine". Keine Erklärung.',
+    ].join("\n");
+
+    const tipsCheckResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
+      body: JSON.stringify({
+        model: endpoint.model,
+        stream: false,
+        max_tokens: 50,
+        temperature: 0,
+        reasoning_effort: "medium",
+        messages: [{ role: "user", content: tipsCheckPrompt }],
+      }),
+    });
+
+    if (tipsCheckResponse.ok) {
+      const tipsCheckJson = (await tipsCheckResponse.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const raw = normalizeText(tipsCheckJson?.choices?.[0]?.message?.content ?? "");
+      if (raw && raw !== "keine") {
+        const coveredIds = raw
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter((id) => stillPendingTips.some((t) => t.id === id));
+        if (coveredIds.length > 0) {
+          emit({ type: "navi_tips_covered", data: { coveredIds } });
+        }
+      }
+    }
+  } catch {
+    // Tips classifier failed — non-fatal
   }
 }

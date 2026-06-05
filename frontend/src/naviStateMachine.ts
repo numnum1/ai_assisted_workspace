@@ -97,7 +97,8 @@ Prüffrage vor jeder Frage: Würde eine andere Antwort zum anderen Fall führen 
 Richtig: "Zu wenig Laufkundschaft" (unklar) → erste Frage: Fall A oder B klären
 Richtig: "Zu wenig Laufkundschaft – allgemeines Stadtproblem" (Fall B) → kein weiterer Klärungsbedarf, Typ ist bekannt
 Richtig: "Zu wenig Laufkundschaft – Leute gehen vorbei aber kommen nicht rein" (Fall A) → Frage nach konkretem Schwachpunkt (Schaufenster? Eingang?)
-Falsch: "Wie wirkt sich das aus?", "Wie stark hat sich das verringert?", "Wie oft passiert das?", "Was fehlt dir dort?", "Was wäre ein gutes Ergebnis?"
+Falsch – Ausmaß-Fragen (bringen keine Lücke ans Licht): "Wie wirkt sich das aus?", "Wie stark hat sich das verringert?", "Wie oft passiert das?", "Was fehlt dir dort?", "Was wäre ein gutes Ergebnis?"
+Falsch – Umfeld-Fragen (klingen relevant, ändern den Vorschlag aber nicht): "In was für einer Straße liegt dein Laden?", "Wie ist die Lage deines Geschäfts?", "Seit wann hast du den Laden?", "Wie groß ist dein Einzugsgebiet?", "Wie viele Mitbewerber hast du in der Nähe?"
 Falsch: Fragen nach Online-Kanälen, Tools, Plattformen – das ist der nächste Schritt.
 Falsch: "Hast du Bewertungen auf Google Maps?" – das ist immer gegeben, nicht nachfragen.
 
