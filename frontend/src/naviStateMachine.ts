@@ -73,7 +73,7 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
   {
     id: "clarify_problem",
     persona: "narrow",
-    instruction: `Dein Ziel: Die praktische Lücke hinter dem Problem finden – schnell und ohne Umwege.
+    instruction: `Dein Ziel: Das Problem konkret machen und den Problem-Typ/die Ursache bestimmen – so dass im nächsten Schritt klar ist, welche Stack-Bereiche relevant sind.
 
 FOKUS-REGEL: Du klärst ausschließlich das Problem, das der Händler zu Beginn genannt hat. Frage NICHT nach anderen Problemen, Themen oder Bereichen – auch wenn der Händler Nebenthemen erwähnt. Ein Nebenthema ist kein Grund, das Hauptproblem zu wechseln.
 
@@ -81,48 +81,44 @@ KONTEXT-REGEL: Wenn der Händler erklärt, warum oder wie das Problem entsteht (
 
 LAUFKUNDSCHAFT – ZWEI GRUNDVERSCHIEDENE FÄLLE:
 → Fall A: "Mein Laden zieht zu wenig der vorhandenen Laufkundschaft an" (store-spezifisch)
-   Praktische Lücke: Außenauftritt, Sichtbarkeit, Einstiegshürde
-   Richtige Fragen: Schaufenster, Beschilderung, Eingang, Google Maps-Eintrag
+   Typ: Außenauftritt, Sichtbarkeit, Einstiegshürde
+   Richtige Fragen: Schaufenster, Beschilderung, Eingang – um den konkreten Schwachpunkt zu verstehen
+   NICHT fragen: Online-Kanäle, Stack – das kommt im nächsten Schritt
 → Fall B: "Es gibt generell weniger Laufkundschaft in der Gegend" (strukturell/extern)
-   Praktische Lücke: Fehlende alternative Kanäle – der Händler muss Geschäft WOANDERS machen
-   Richtige Fragen: Online-Präsenz, Social Media, Stammkunden, Lieferung/Click&Collect
+   Typ: Händler muss Kunden AUSSERHALB der Straße erreichen
+   Richtige Fragen: Keine weiteren – der Typ ist klar, sobald Fall B bestätigt ist
    FALSCH bei Fall B: Fragen nach Außenauftritt, Schaufenster, Ladenfront – das löst das strukturelle Problem nicht.
+   NICHT fragen: Online-Kanäle, Stack – das kommt im nächsten Schritt
 
 Wenn unklar welcher Fall vorliegt: kurz nachfragen ("Ist das eher ein allgemeines Problem in der Gegend, oder fällt dir auf, dass Leute vorbeigehen aber nicht reinkommen?")
 
-Prüffrage vor jeder Frage: Würde eine andere Antwort zu einem anderen Lösungsvorschlag führen? Wenn nein, stelle die Frage nicht.
+Prüffrage vor jeder Frage: Würde eine andere Antwort zum anderen Fall führen oder den Schwachpunkt konkreter machen? Wenn nein, stelle die Frage nicht.
 
 Richtig: "Zu wenig Laufkundschaft" (unklar) → erste Frage: Fall A oder B klären
-Richtig: "Zu wenig Laufkundschaft – allgemeines Stadtproblem" (Fall B) → erste Frage: "Hast du neben dem Laden noch andere Wege, Kunden zu erreichen – z.B. Online-Shop, Social Media, Newsletter?"
+Richtig: "Zu wenig Laufkundschaft – allgemeines Stadtproblem" (Fall B) → kein weiterer Klärungsbedarf, Typ ist bekannt
+Richtig: "Zu wenig Laufkundschaft – Leute gehen vorbei aber kommen nicht rein" (Fall A) → Frage nach konkretem Schwachpunkt (Schaufenster? Eingang?)
 Falsch: "Wie wirkt sich das aus?", "Wie stark hat sich das verringert?", "Wie oft passiert das?", "Was fehlt dir dort?", "Was wäre ein gutes Ergebnis?"
-Falsch bei Fall B: Fragen nach Außenauftritt, Schaufenster, Ladenfront, Parkplätzen, Stockwerk.
+Falsch: Fragen nach Online-Kanälen, Tools, Plattformen – das ist der nächste Schritt.
 Falsch: "Hast du Bewertungen auf Google Maps?" – das ist immer gegeben, nicht nachfragen.
-Falsch: "Hast du schon mal an deinem Google-Eintrag etwas geändert?" – irrelevant für den Lösungsvorschlag.
 
 ANNAHMEN (immer als gegeben voraussetzen, nie erfragen):
 - Der Händler hat Google Maps-Bewertungen.
-
-Nach einer Antwort des Händlers: Leite die Lücke SELBST ab – frage sie niemals direkt ab.
-Händler nennt seine Kanäle → du schaust auf den Plan und wählst die nächste konkrete Frage, die die Lücke eingrenzt.
 
 Tool-Entscheidung – PFLICHT:
 → Kannst du mindestens 3 konkrete Optionen nennen, die der Händler kennt und selbst beurteilen kann? → ask_clarification mit allow_multiple: true
 → Sonst: ask_question
 
-Wenn mehrere Kanäle, Schritte oder Optionen auf einmal abklärbar sind, MUSST du ask_clarification verwenden – nicht nacheinander einzeln fragen.
-
-Beispiele für ask_clarification:
-- Problem "zu wenig Laufkundschaft", Google Maps-Status unklar → "Wo bist du aktuell sichtbar?" → Optionen: Google Maps, eigene Website, Social Media, lokale Verzeichnisse
+Beispiel für ask_clarification:
 - Problem "Kundenkommunikation zu aufwändig" → "Womit kommunizierst du mit Kunden?" → Optionen: Telefon, E-Mail, WhatsApp, gar nicht/alles vor Ort
 
 Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
     workPlan: [
       "Problem konkret beschrieben (nicht nur benannt – mit erkennbarem Kontext oder Auswirkung)",
-      "Praktische Lücke bekannt – der konkrete Schritt, der fehlt oder nicht klappt",
+      "Problem-Typ/Ursache klar – so dass feststeht, welche Stack-Bereiche im nächsten Schritt relevant sind (z.B. Fall A store-spezifisch vs. Fall B strukturell)",
     ],
     transitions: [
       {
-        condition: "BEIDE Arbeitsplan-Punkte bekannt – Problem konkret UND praktische Lücke identifiziert",
+        condition: "BEIDE Arbeitsplan-Punkte bekannt – Problem konkret UND Problem-Typ/Ursache identifiziert",
         to: "explore_software_stack",
       },
       {
@@ -137,19 +133,31 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
     id: "explore_software_stack",
     persona: "narrow",
     instruction: `Dein Ziel: Den Software-Stack des Händlers so weit verstehen, dass eine sinnvolle Empfehlung möglich ist.
+Du kennst bereits den Problem-Typ aus der Klärungsphase – nutze ihn, um zu entscheiden, welche Bereiche relevant sind.
 Frag einfach und ohne Fachbegriffe. Immer nur eine Frage pro Antwort.
 
-Pflichtbereich – immer klären (falls noch nicht bekannt):
-1. Online-Präsenz (Online-Shop ja/nein, welche Plattform – oder nur stationär?)
+Pflichtbereich nach Problem-Typ:
+
+→ Strukturelles Reichweiten-Problem (Fall B: zu wenig Laufkundschaft in der Gegend, genereller Rückgang):
+   1. Online-Präsenz (Online-Shop ja/nein, welche Plattform – oder nur stationär?)
+   2. Social Media / Newsletter (aktiv genutzt, oder noch nicht vorhanden?)
+   → Diese beiden MÜSSEN geklärt werden – sie sind der Kern der Lösung.
+
+→ Store-spezifisches Problem (Fall A: Leute gehen vorbei, kommen aber nicht rein):
+   1. Online-Präsenz (Online-Shop ja/nein – auch hier relevant für Google Maps-Präsenz)
+   → Fokus liegt auf Sichtbarkeit und Außenwirkung, nicht auf Vertriebskanälen.
+
+→ Alle anderen Probleme:
+   1. Online-Präsenz (Online-Shop ja/nein, welche Plattform – oder nur stationär?)
 
 Nur bei Bedarf – NUR fragen wenn für das konkrete Problem relevant:
-2. Kundenkommunikation (E-Mail, WhatsApp, Telefon)
-   - Relevant: Kundenanfragen, Support, Terminvergabe, Bestellkommunikation
-   - Nicht relevant: Laufkundschaft, Online-Sichtbarkeit, Reichweite, Social Media
-3. Kassensystem
-   - Relevant: Lager, Bestellungen, Buchhaltung, Kassenanbindung
-   - Nicht relevant: Online-Sichtbarkeit, Laufkundschaft, Google Maps, Social Media
-4. Tool oder Ablauf für den Bereich, in dem das Problem liegt (falls noch nicht bekannt und nicht durch 2/3 abgedeckt)
+- Kundenkommunikation (E-Mail, WhatsApp, Telefon)
+  Relevant: Kundenanfragen, Support, Terminvergabe, Bestellkommunikation
+  Nicht relevant: Laufkundschaft, Online-Sichtbarkeit, Reichweite
+- Kassensystem
+  Relevant: Lager, Bestellungen, Buchhaltung, Kassenanbindung
+  Nicht relevant: Online-Sichtbarkeit, Laufkundschaft, Social Media
+- Tool oder Ablauf für den Bereich, in dem das Problem liegt (falls noch nicht bekannt und nicht durch obiges abgedeckt)
 
 Wenn die Antwort vage ist (z. B. "so Standardsachen"), hak nach:
 - "Nutzt du dafür eine App, Excel, Papier – oder gar nichts?"
@@ -206,12 +214,25 @@ Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einho
     id: "assess_situation",
     persona: "full",
     instruction: `Du hast jetzt: Laden, Problem/Ausmaß und den vollständigen Software-Stack.
-Gib eine kurze, ehrliche Einschätzung – und leite direkt in eine erste Empfehlung über:
-- Wenn Stack vorhanden: Kann Software hier sinnvoll helfen, ohne den Stack grundlegend umzubauen? Wenn ja, skizziere einen konkreten Ansatz der in den Stack passt.
-- Wenn kein Stack vorhanden: Das ist kein Grund aufzugeben – empfehle den einfachsten sinnvollen ersten Schritt, um das Problem zu adressieren (z.B. Social Media, Google My Business, Newsletter-Tool). "Noch kein Stack" heißt: jetzt ist der richtige Moment für den ersten Schritt.
+
+SCHRITT 1 – Ehrliche Einschätzung:
+Kann KI oder Software hier überhaupt sinnvoll helfen? Begründe kurz, warum – bezogen auf die erkannte Lücke.
+- Wenn ja: Welche Hebel könnten das Problem adressieren, und warum (Bezug zur Lücke)?
+- Wenn nein: Sag das klar und direkt.
 - "Das lohnt sich nicht" gilt nur, wenn das Problem grundsätzlich nicht software-lösbar ist – nicht wenn noch kein Stack da ist.
-Frage am Ende kurz, ob das in die richtige Richtung geht – nicht ob sie überhaupt eine Empfehlung wollen.`,
-    workPlan: [],
+
+SCHRITT 2 – Lösungsrichtung erklären (KEIN konkretes Tool, KEIN Preis, KEINE Plattform):
+Erkläre die Richtung deines Ansatzes in 1–2 Sätzen – welche Hebel und warum.
+Beispiel: "Da dein Problem strukturell ist und Laufkundschaft fehlt, wäre der Hebel, Kunden außerhalb der Straße zu erreichen – z.B. über eine Online-Präsenz und gezielte Werbung."
+NICHT: "Ich würde dir Shopify empfehlen" oder "Google Ads kostet ca. 50€/Monat".
+
+SCHRITT 3 – Resonanz einholen:
+Frage den Händler kurz, ob diese Richtung grundsätzlich passt – bevor du ins Konkrete gehst.`,
+    workPlan: [
+      "Ehrliche Einschätzung gegeben: kann KI/Software hier überhaupt sinnvoll helfen (mit Begründung)",
+      "Lösungsrichtung erklärt – welche Hebel und warum (Bezug zur erkannten Lücke), ohne konkretes Tool, Plattform oder Preis",
+      "Händler nach der Richtung gefragt – Resonanz eingeholt",
+    ],
     transitions: [
       {
         condition: "Nutzer reagiert positiv, will mehr Details oder hat konkrete Rückfragen zum Vorschlag",
