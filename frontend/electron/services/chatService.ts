@@ -961,6 +961,7 @@ async function runNaviChatStream(
               model: endpoint.model,
               stream: false,
               max_tokens: 5,
+              reasoning_effort: "low",
               messages: [
                 { role: "system", content: classificationSystemPrompt },
                 { role: "user", content: classificationUserPrompt },
@@ -1038,6 +1039,7 @@ async function runNaviChatStream(
               model: endpoint.model,
               stream: false,
               temperature: 0.1,
+              reasoning_effort: "low",
               messages: [{ role: "user", content: summaryPrompt }],
             }),
           });
@@ -1092,6 +1094,7 @@ async function runNaviChatStream(
               stream: false,
               max_tokens: 150,
               temperature: 0.1,
+              reasoning_effort: "low",
               messages: [{ role: "system", content: planSystemPrompt }, { role: "user", content: planUserPrompt }],
             }),
           });
@@ -1132,6 +1135,7 @@ async function runNaviChatStream(
               stream: false,
               max_tokens: 200,
               temperature: 0,
+              reasoning_effort: "low",
               messages: [{ role: "user", content: contextPrompt }],
             }),
           });
@@ -1206,6 +1210,7 @@ async function runNaviChatStream(
               stream: false,
               max_tokens: 200,
               temperature: 0.1,
+              reasoning_effort: "low",
               messages: [
                 { role: "system", content: extractSystemPrompt },
                 { role: "user", content: `Gesprächsausschnitt:\n${excerpt}\n\nAnalysiere das Problem des Händlers.` },
@@ -1415,6 +1420,7 @@ async function runNaviChatStream(
           messages: conversationMessages,
           ...(naviTools.length > 0 ? { tools: naviTools } : {}),
           ...(toolChoice ? { tool_choice: toolChoice } : {}),
+          reasoning_effort: "high",
         }),
       });
 
@@ -1600,6 +1606,7 @@ async function runNaviChatStream(
             stream: false,
             max_tokens: 50,
             temperature: 0,
+            reasoning_effort: "low",
             messages: [{ role: "user", content: tipsCheckPrompt }],
           }),
         });
