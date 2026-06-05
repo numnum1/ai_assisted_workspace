@@ -982,7 +982,17 @@ async function runNaviChatStream(
             choiceNum >= 1 &&
             choiceNum <= currentState.transitions.length
           ) {
-            newStateId = currentState.transitions[choiceNum - 1].to;
+            const candidateStateId = currentState.transitions[choiceNum - 1].to;
+            if (candidateStateId === "confirm_understanding") {
+              const userMessageCount =
+                classificationHistory.filter((m) => m.role === "user").length +
+                1;
+              if (userMessageCount > 10) {
+                newStateId = candidateStateId;
+              }
+            } else {
+              newStateId = candidateStateId;
+            }
           }
         }
       } catch {
