@@ -125,7 +125,7 @@ export function AssistantTurnCard({
     };
   }, [subUnits]);
 
-  const [erkundenOpen, setErkundenOpen] = useState(true);
+  const [erkundenOpen, setErkundenOpen] = useState(false);
   const prevStreamingRef = useRef(streaming);
 
   const lastVisibleOriginalIdx =
