@@ -207,9 +207,9 @@ Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einho
     persona: "full",
     instruction: `Du hast jetzt: Laden, Problem/Ausmaß und den vollständigen Software-Stack.
 Gib eine kurze, ehrliche Einschätzung – und leite direkt in eine erste Empfehlung über:
-- Kann KI hier sinnvoll helfen – realistisch, ohne den bestehenden Stack zu verändern?
-- Wenn ja: Skizziere direkt einen konkreten Ansatz, der in den Stack passt. Nenne ein realistisches Beispiel.
-- Wenn nein: Sag das klar und direkt. "Das lohnt sich aktuell nicht" ist eine vollwertige Antwort.
+- Wenn Stack vorhanden: Kann Software hier sinnvoll helfen, ohne den Stack grundlegend umzubauen? Wenn ja, skizziere einen konkreten Ansatz der in den Stack passt.
+- Wenn kein Stack vorhanden: Das ist kein Grund aufzugeben – empfehle den einfachsten sinnvollen ersten Schritt, um das Problem zu adressieren (z.B. Instagram, Google My Business, Newsletter-Tool). "Noch kein Stack" heißt: jetzt ist der richtige Moment für den ersten Schritt.
+- "Das lohnt sich nicht" gilt nur, wenn das Problem grundsätzlich nicht software-lösbar ist – nicht wenn noch kein Stack da ist.
 Frage am Ende kurz, ob das in die richtige Richtung geht – nicht ob sie überhaupt eine Empfehlung wollen.`,
     workPlan: [],
     transitions: [
@@ -231,7 +231,9 @@ Frage am Ende kurz, ob das in die richtige Richtung geht – nicht ob sie überh
     id: "give_recommendation",
     persona: "full",
     instruction: `Fasse in einem Satz zusammen, was du weißt (Laden, Problem, Stack).
-Mache dann einen konkreten, realistischen Vorschlag, der sich in den bestehenden Stack einfügt – kein Umbau, keine neuen Plattformen ohne Not.
+Mache dann einen konkreten, realistischen Vorschlag:
+- Wenn Stack vorhanden: Vorschlag fügt sich in den bestehenden Stack ein – kein Umbau, keine neuen Plattformen ohne Not.
+- Wenn kein Stack vorhanden: Empfehle den einfachsten sinnvollen Einstieg (z.B. eine Plattform, ein Tool) – konkret und machbar für jemanden ohne Vorkenntnisse.
 Nenne ehrlich: Was kostet es ungefähr? Was ist der Aufwand? Was bringt es konkret?
 Frage am Ende, ob das passt oder ob etwas unklar ist.`,
     workPlan: [],
