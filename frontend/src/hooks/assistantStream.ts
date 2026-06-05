@@ -183,7 +183,13 @@ export function attachAssistantStream(
     cbs.onNaviPlan,
     cbs.onNaviTipsCovered,
     cbs.onNaviProblems,
-    cbs.onNaviStep,
+    cbs.onNaviStep
+      ? (label: string | null) => {
+          // Push shell immediately so the AssistantTurnCard exists to display the step label
+          if (label !== null) pushAssistantShell();
+          cbs.onNaviStep!(label);
+        }
+      : undefined,
     cbs.onNaviContext,
   );
 }

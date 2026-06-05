@@ -380,7 +380,12 @@ export function AssistantTurnCard({
                   · {toolUnits.length + (isLiveTurn && naviStep ? 1 : 0)}{" "}
                   {toolUnits.length + (isLiveTurn && naviStep ? 1 : 0) === 1 ? "Aufruf" : "Aufrufe"}
                 </span>
-                {streaming && isLiveTurn ? (
+                {streaming && isLiveTurn && naviStep ? (
+                  <>
+                    <span className="erkunden-spinner" aria-hidden />
+                    <span className="erkunden-step-label">{naviStep}</span>
+                  </>
+                ) : streaming && isLiveTurn ? (
                   <span className="erkunden-spinner" aria-hidden />
                 ) : null}
               </button>

@@ -26,6 +26,36 @@ import { TOOLKIT_TOOL_DEFINITIONS, type ToolDefinition } from "./systemPrompt.js
 import type { ChatRequest, ChatMessage, ToolCall } from "../../../src/types.js";
 import type { ChatStreamEvent } from "../chatTypes.js";
 
+/**
+ * Progressively extracts the unescaped value of the "response" field from a partial
+ * ask_question arguments JSON string (e.g. `{"response": "Ich ver...`).
+ * Returns as many characters as are safely extractable; call again with more data to get more.
+ */
+function extractPartialAskQResponse(buf: string): string {
+  const keyMatch = buf.match(/"response"\s*:\s*"/);
+  if (!keyMatch || keyMatch.index === undefined) return "";
+  let pos = keyMatch.index + keyMatch[0].length;
+  let value = "";
+  while (pos < buf.length) {
+    const ch = buf[pos];
+    if (ch === "\\" && pos + 1 < buf.length) {
+      const next = buf[pos + 1];
+      if (next === '"') { value += '"'; pos += 2; }
+      else if (next === "n") { value += "\n"; pos += 2; }
+      else if (next === "t") { value += "\t"; pos += 2; }
+      else if (next === "\\") { value += "\\"; pos += 2; }
+      else if (next === "r") { value += "\r"; pos += 2; }
+      else { pos++; }
+    } else if (ch === '"') {
+      break;
+    } else {
+      value += ch;
+      pos++;
+    }
+  }
+  return value;
+}
+
 const ASK_QUESTION_TOOL: ToolDefinition = {
   type: "function",
   function: {
@@ -662,6 +692,9 @@ export async function runNaviChatStream(
       let currentEvent = "";
       let roundAssistantText = "";
       const collectedToolCalls = new Map<number, ToolCall>();
+      // Progressive streaming of ask_question response value
+      let askQEmittedLen = 0;
+      let askQStreamedText = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -701,6 +734,25 @@ export async function runNaviChatStream(
 
           accumulateToolCallChunks(parsed, collectedToolCalls);
 
+          // Stream ask_question response value progressively as it arrives in tool call chunks
+          if (naviTools.some((t) => t.function.name === "ask_question")) {
+            const aqCall = [...collectedToolCalls.values()].find(
+              (tc) => tc.function.name === "ask_question",
+            );
+            if (aqCall) {
+              const currentValue = extractPartialAskQResponse(aqCall.function.arguments);
+              if (currentValue.length > askQEmittedLen) {
+                const newChunk = currentValue.slice(askQEmittedLen);
+                askQEmittedLen = currentValue.length;
+                askQStreamedText += newChunk;
+                tokenCount++;
+                roundAssistantText += newChunk;
+                fullAssistantText += newChunk;
+                emit({ type: "token", data: newChunk });
+              }
+            }
+          }
+
           const finishReason = extractFinishReason(parsed);
           if (finishReason === "tool_calls") break;
           currentEvent = "";
@@ -719,7 +771,7 @@ export async function runNaviChatStream(
         return;
       }
 
-      // ask_question is a structural output constraint — extract and stream as plain text.
+      // ask_question is a structural output constraint — content was streamed progressively above.
       const askQuestionCall = toolCalls.find((tc) => tc.function.name === "ask_question");
       if (askQuestionCall) {
         let resp = "";
@@ -734,7 +786,17 @@ export async function runNaviChatStream(
         }
         if (resp) {
           fullAssistantText = resp;
-          emit({ type: "token", data: resp });
+          if (askQEmittedLen === 0) {
+            // Nothing was streamed progressively (e.g. very short stream) — emit all at once
+            emit({ type: "token", data: resp });
+          } else {
+            // Already streamed; emit only the suffix that wasn't streamed (e.g. an added "?")
+            const trimmedStreamed = askQStreamedText.trim();
+            if (resp.length > trimmedStreamed.length && resp.startsWith(trimmedStreamed)) {
+              emit({ type: "token", data: resp.slice(trimmedStreamed.length) });
+              tokenCount++;
+            }
+          }
         }
         if (!isStreamActive(streamId)) return;
         emit({ type: "done", data: { fullAssistantText } });
