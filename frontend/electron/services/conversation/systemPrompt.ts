@@ -398,6 +398,19 @@ export function buildSystemPrompt(
     }
   }
 
+  // 4b. yes_no UI hint
+  if (!request.quickChat) {
+    sections.push(
+      "UI-Tipp: Wenn du eine echte Ja/Nein-Frage stellst, gib zusätzlich einen ```yes_no-Block aus — " +
+      "die App rendert daraus zwei Schaltflächen (Ja / Nein).\n" +
+      "Format:\n" +
+      "```yes_no\n" +
+      "{\"question\": \"<deine Frage>\"}\n" +
+      "```\n" +
+      "Verwende diesen Block NUR bei echten Ja/Nein-Entscheidungen, nicht bei Fragen mit mehr als zwei sinnvollen Antworten.",
+    );
+  }
+
   // 5. Guided session & steering plan
   if (request.sessionKind === "guided") {
     const guidedLines = [
