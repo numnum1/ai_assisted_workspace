@@ -19,6 +19,7 @@ import {
   type NaviState,
 } from "../naviStateMachine.js";
 import { buildNaviKnowledgePrompt } from "../naviKnowledgeBase.js";
+import { NAVI_FULL_PERSONA_RULES, NAVI_NARROW_PERSONA_RULES } from "./naviVoice.js";
 import { NAVI_TIPS } from "../../../src/naviTips.js";
 import { getProjectConfig } from "../projectConfigService.js";
 import { TOOLKIT_TOOL_DEFINITIONS, type ToolDefinition } from "./systemPrompt.js";
@@ -568,22 +569,14 @@ export async function runNaviChatStream(
     const naviSystemPrompt =
       newState.persona === "narrow"
         ? [
-            "Du bist in einem direkten Gespräch. Dein Gegenüber sitzt vor dir und schreibt mit dir.",
-            "Sprich ihn immer direkt an – immer 'du', niemals 'der Händler' oder dritte Person.",
-            "Antworte auf Deutsch. Kurz und natürlich.",
-            "Du hast zwei Tools: ask_question für eine einzelne offene Frage, ask_clarification für Mehrfachauswahl. Die Aufgabe unten sagt dir wann welches Tool zu nutzen ist – halte dich exakt daran.",
+            ...NAVI_NARROW_PERSONA_RULES,
             ...(problemFocusBlock ? [problemFocusBlock] : []),
             ...(naviContextSection ? [naviContextSection] : []),
             ...(naviResultsContext ? [naviResultsContext] : []),
             `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
           ].join("\n\n")
         : [
-            "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler.",
-            "Deine Nutzer sind Händler – meist ohne KI-Vorkenntnisse. Sprich auf Augenhöhe, kein Fachjargon.",
-            "Antworte immer auf Deutsch, kurz und direkt.",
-            "Keine Bullet-Listen außer wenn das ask_clarification Tool verwendet wird.",
-            "Maximal eine Frage pro Antwort.",
-            "Empfehle nur Lösungen, die zum bestehenden Software-Stack des Händlers passen. Schlage keinen Stack-Umbau vor.",
+            ...NAVI_FULL_PERSONA_RULES,
             ...(problemFocusBlock ? [problemFocusBlock] : []),
             ...(naviContextSection ? [naviContextSection] : []),
             ...(naviResultsContext ? [naviResultsContext] : []),

@@ -64,6 +64,8 @@ Advisory-States (`assess_situation`, `give_recommendation`, `refine_recommendati
 
 Greeting-States (`greeting`, `ask_problem`) erhalten die volle Persona, da Navi sich dort als KI-Berater vorstellen muss.
 
+**Zentrale Navi-Stimme (`naviVoice.ts`):** Das *Wie* der Kommunikation – Identität, „User kennt die Software nicht", erst erklären *was/wofür* dann benennen, Gedankengang zeigen – ist **einmal** zentral definiert (`NAVI_FULL_PERSONA_RULES` / `NAVI_NARROW_PERSONA_RULES`) und wird in jeden State-Prompt injiziert. Die State-Instructions in `naviStateMachine.ts` beschreiben nur noch das *Was* (welches Ziel die Phase hat), nicht das *Wie*.
+
 ### Schicht 2 – Tool-Constraints (`tools?: NaviStateToolName[]`)
 
 In Info-Gathering-States kann das LLM nur per Tool antworten – freier Text ist strukturell ausgeschlossen:
@@ -208,7 +210,8 @@ Navi kann automatisiert getestet werden: Ein simulierter Händler antwortet nach
 
 | Datei | Inhalt |
 |---|---|
-| `src/naviStateMachine.ts` | State-Definitionen (Quelle der Wahrheit) |
+| `src/naviStateMachine.ts` | State-Definitionen – das *Was* jeder Phase (Quelle der Wahrheit) |
+| `electron/services/conversation/naviVoice.ts` | Zentrale Navi-Stimme – das *Wie* der Kommunikation (Persona-Regeln) |
 | `src/components/chat/naviStateMachineClient.ts` | Client-seitige State-Labels für die UI |
 | `src/components/chat/NaviStatePanel.tsx` | State-Fortschritts-Panel mit Ergebnis-Anzeige |
 | `electron/services/naviStateMachine.ts` | Backend-Wrapper: Klassifizierungs- und Summary-Prompts |
