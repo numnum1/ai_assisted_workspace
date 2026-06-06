@@ -613,6 +613,74 @@ export async function runNaviChatStream(
       return;
     }
 
+    // ── Cascade check ─────────────────────────────────────────────────────────
+    // If the triggering message already satisfies the new state's workPlan,
+    // skip that intermediate state and jump one hop further.
+    // Example: user describes Fall B in ask_problem → classifier says clarify_problem,
+    // but both clarify_problem workPlan items are already covered → jump to explore_software_stack.
+    if (newStateId !== currentStateId) {
+      const cascadeState = getNaviState(newStateId);
+      const cascadeWorkPlan = cascadeState
+        ? effectiveWorkPlan(newStateId, cascadeState.workPlan)
+        : [];
+      if (cascadeState && cascadeWorkPlan.length > 0 && cascadeState.transitions.length > 0) {
+        try {
+          const cascadePrompt = buildClassificationPrompt(
+            newStateId,
+            userMessage,
+            cascadeState.transitions,
+            cascadeWorkPlan,
+            Array.isArray(request.history) ? request.history : [],
+          );
+          const cascadeResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${endpoint.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: endpoint.model,
+              stream: false,
+              max_tokens: 5,
+              reasoning_effort: "medium",
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.',
+                },
+                { role: "user", content: cascadePrompt },
+              ],
+            }),
+          });
+          if (cascadeResponse.ok) {
+            const cascadeJson = (await cascadeResponse.json()) as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            const rawCascade =
+              cascadeJson?.choices?.[0]?.message?.content?.trim() ?? "0";
+            const cascadeChoice = parseInt(rawCascade, 10);
+            if (
+              !isNaN(cascadeChoice) &&
+              cascadeChoice >= 1 &&
+              cascadeChoice <= cascadeState.transitions.length
+            ) {
+              const cascadeTarget = cascadeState.transitions[cascadeChoice - 1].to;
+              if (cascadeTarget === "confirm_understanding") {
+                const histMsgs = Array.isArray(request.history) ? request.history : [];
+                const userCount = histMsgs.filter((m) => m.role === "user").length + 1;
+                if (userCount > 10) newStateId = cascadeTarget;
+              } else {
+                newStateId = cascadeTarget;
+              }
+            }
+          }
+        } catch {
+          // Non-fatal — keep newStateId from first classifier
+        }
+      }
+    }
+
     // ── Branch: no transition (use speculative) vs transition (abort + restart) ──
     if (newStateId === currentStateId) {
       // ── No transition: use the already-running speculative fetch ───────────

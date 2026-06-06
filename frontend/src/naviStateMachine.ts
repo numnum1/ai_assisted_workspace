@@ -86,9 +86,9 @@ LAUFKUNDSCHAFT – ZWEI GRUNDVERSCHIEDENE FÄLLE:
    NICHT fragen: Online-Kanäle, Stack – das kommt im nächsten Schritt
 → Fall B: "Es gibt generell weniger Laufkundschaft in der Gegend" (strukturell/extern)
    Typ: Händler muss Kunden AUSSERHALB der Straße erreichen
-   Richtige Fragen: Keine weiteren – der Typ ist klar, sobald Fall B bestätigt ist
+   Richtige Fragen: Keine weiteren – der Typ ist klar, sobald Fall B bestätigt ist.
+   Wenn du hier keine weitere Klärungsfrage stellen kannst: Bestätige kurz und frage nach dem nächsten relevanten Schritt, z.B. "Bist du aktuell auch online aktiv, oder bist du nur stationär?"
    FALSCH bei Fall B: Fragen nach Außenauftritt, Schaufenster, Ladenfront – das löst das strukturelle Problem nicht.
-   NICHT fragen: Online-Kanäle, Stack – das kommt im nächsten Schritt
 
 Wenn unklar welcher Fall vorliegt: kurz nachfragen ("Ist das eher ein allgemeines Problem in der Gegend, oder fällt dir auf, dass Leute vorbeigehen aber nicht reinkommen?")
 
