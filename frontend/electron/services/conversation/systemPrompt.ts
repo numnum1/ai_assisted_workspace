@@ -221,9 +221,11 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
       function: {
         name: "ask_yes_no",
         description:
-          "Ask the user a yes/no question. The UI renders two buttons (Ja / Nein). " +
-          "Use this whenever the user's decision can be fully captured with a simple yes or no. " +
-          "Do NOT use when there are more than two meaningful answers — use ask_clarification instead.",
+          "MANDATORY: Call this tool whenever you want to ask the user any yes/no question. " +
+          "NEVER ask a yes/no question as plain text — ALWAYS use this tool instead. " +
+          "The app renders two buttons (Ja / Nein) for the user to click. " +
+          "Only use this for decisions with exactly two options (yes or no). " +
+          "For questions with more than two options, use ask_clarification instead.",
         parameters: {
           type: "object",
           properties: {
@@ -414,7 +416,22 @@ export function buildSystemPrompt(
     const activeTools = getActiveToolDefinitions(request);
     if (activeTools.length > 0) {
       const toolNames = activeTools.map((t) => t.function.name).join(", ");
-      sections.push(`Verfügbare Werkzeuge: ${toolNames}`);
+      const hasYesNo = activeTools.some((t) => t.function.name === "ask_yes_no");
+      const hasAskClarification = activeTools.some((t) => t.function.name === "ask_clarification");
+      const lines = [`Verfügbare Werkzeuge: ${toolNames}`];
+      if (hasYesNo || hasAskClarification) {
+        lines.push(
+          "REGEL – Rückfragen:\n" +
+          (hasYesNo
+            ? "- Ja/Nein-Fragen: IMMER ask_yes_no() aufrufen, NIE als Fließtext stellen.\n"
+            : "") +
+          (hasAskClarification
+            ? "- Mehrfach-Auswahlentscheidungen: ask_clarification() mit passenden Optionen aufrufen.\n"
+            : "") +
+          "- Rückfragen niemals als reinen Text formulieren, wenn ein passendes Tool vorhanden ist.",
+        );
+      }
+      sections.push(lines.join("\n"));
     }
   }
 

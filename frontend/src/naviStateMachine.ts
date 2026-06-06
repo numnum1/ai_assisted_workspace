@@ -4,7 +4,7 @@ export interface NaviTransition {
 }
 
 export type NaviStatePersona = "narrow" | "full";
-export type NaviStateToolName = "ask_question" | "ask_clarification";
+export type NaviStateToolName = "ask_question" | "ask_clarification" | "ask_yes_no";
 
 export interface NaviStateValidation {
   /** Response must contain a question mark. */
