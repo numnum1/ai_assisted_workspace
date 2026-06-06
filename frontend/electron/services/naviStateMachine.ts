@@ -80,7 +80,7 @@ export function buildNaviContextPrompt(conversationExcerpt: string): string {
   return [
     "Du analysierst ein Beratungsgespräch zwischen Navi (KI-Berater) und einem Händler.",
     "Extrahiere alle bisher sicher bekannten Fakten als JSON-Objekt mit diesen Feldern:",
-    '{ "laden": "Ladentyp, Branche, Standort, Kontext – alles was der Händler über seinen Laden erwähnt hat (null wenn unbekannt)", "problem": "Das konkrete Problem oder der Wunsch – kurz und präzise (null wenn unbekannt)", "luecke": "Die praktische Lücke – der konkrete fehlende Schritt (null wenn unbekannt)", "stack": "Software-Stack in einem Satz, z.B. Kasse: X, Online-Shop: X, Komm: X (null wenn unbekannt)", "empfehlung": "Gemachter Lösungsvorschlag (null wenn noch keiner gemacht)" }',
+    '{ "laden": "Ladentyp, Branche, Standort, Kontext – alles was der Händler über seinen Laden erwähnt hat (null wenn unbekannt)", "problem": "Das konkrete Problem oder der Wunsch – kurz und präzise (null wenn unbekannt)", "luecke": "Die praktische Lücke – der konkrete fehlende Schritt (null wenn unbekannt)", "stack": "Software-Stack in einem Satz, z.B. Kasse: X, Online-Shop: X, Komm: X (null wenn unbekannt)", "investition": "Bereitschaft für Zeit und Geld in einem Satz, z.B. Zeit: X h/Woche, Budget: X €/Monat (null wenn unbekannt)", "empfehlung": "Gemachter Lösungsvorschlag (null wenn noch keiner gemacht)" }',
     `Gesprächsauszug:\n${conversationExcerpt}`,
     "Setze null für Felder die noch nicht klar bekannt sind. Nur direkt Genanntes – keine Interpretationen.",
     "Antworte NUR mit dem JSON-Objekt, ohne Markdown-Block und ohne weiteren Text.",

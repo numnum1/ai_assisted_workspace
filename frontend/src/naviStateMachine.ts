@@ -174,7 +174,7 @@ Ansonsten verwende ask_question.`,
     transitions: [
       {
         condition: "Alle relevanten Pflicht-Arbeitsplan-Punkte bekannt – Online-Präsenz und problemrelevante Tools/Abläufe",
-        to: "confirm_understanding",
+        to: "explore_investment",
       },
       {
         condition: "Im Gespräch taucht ein wesentlicher neuer Problem-Aspekt auf, der das ursprünglich verstandene Problem grundlegend verändert",
@@ -185,12 +185,42 @@ Ansonsten verwende ask_question.`,
     validation: { requiresQuestion: true },
   },
   {
+    id: "explore_investment",
+    persona: "narrow",
+    instruction: `Dein Ziel: Herausfinden, was der Händler bereit ist, in eine Lösung zu investieren – sowohl Zeit als auch Geld.
+Das ist keine Verkaufsvorbereitung, sondern echte Grundlage für eine realistische Empfehlung.
+
+ABLAUF:
+Frag zuerst nach dem Zeitaufwand – was der Händler realistisch pro Woche oder Monat investieren könnte oder will.
+Frag danach nach dem Budget – was monatlich oder einmalig drin wäre.
+
+HINWEISE:
+- Stelle immer nur eine Frage pro Antwort.
+- Wenn die Antwort sehr vage ist ("so ein bisschen", "weiß nicht"), hak kurz nach – z. B. "Eher eine Stunde pro Woche, oder eher mehr?"
+- Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen ableitbar sind (z. B. Zeitrahmen: < 1h/Woche, 1–3h/Woche, mehr).
+- Drängele nicht – wenn der Händler sagt "gar nicht" oder "kein Budget", nimm das als valide Antwort.
+- Bereiche die bereits klar beantwortet wurden, NICHT nochmals erfragen.`,
+    workPlan: [
+      "Bereitschaft für Zeitinvestition bekannt (auch 'gar nichts' oder 'so wenig wie möglich' ist gültig – vage Antworten nicht)",
+      "Bereitschaft für Geldbudget bekannt (auch 'kein Budget' oder 'muss kostenlos sein' ist gültig – vage Antworten nicht)",
+    ],
+    transitions: [
+      {
+        condition: "Beide Arbeitsplan-Punkte bekannt – Zeitbereitschaft UND Budgetbereitschaft geklärt",
+        to: "confirm_understanding",
+      },
+    ],
+    tools: ["ask_question", "ask_clarification"],
+    validation: { requiresQuestion: true },
+  },
+  {
     id: "confirm_understanding",
     persona: "full",
-    instruction: `Fasse in 3–4 knappen Stichpunkten zusammen, was du bisher verstanden hast:
+    instruction: `Fasse in 3–5 knappen Stichpunkten zusammen, was du bisher verstanden hast:
 - Laden und Kontext des Händlers
 - Das konkrete Problem und sein Ausmaß
 - Den Software-Stack (Kasse, Online-Präsenz, Kommunikation, relevanter Bereich)
+- Bereitschaft für Zeit- und Geldinvestition
 
 Formuliere die Stichpunkte als Fakten ("Du nutzt...", "Das Problem ist...", "Bisher hast du...").
 Frage danach kurz: "Habe ich das richtig verstanden?"
