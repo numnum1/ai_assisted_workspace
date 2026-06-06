@@ -585,6 +585,7 @@ export function ProjectSettingsModal({
   const [duplicatingModeId, setDuplicatingModeId] = useState<string | null>(
     null,
   );
+  const [resettingModes, setResettingModes] = useState(false);
 
   // Agent presets (.assistant/agents.json)
   const [agents, setAgents] = useState<AgentPreset[]>([]);
@@ -865,6 +866,60 @@ export function ProjectSettingsModal({
       setError(err instanceof Error ? err.message : "Failed to delete mode");
     } finally {
       setDeletingMode(null);
+    }
+  };
+
+  const handleResetNavi = async () => {
+    if (
+      !window.confirm(
+        "Alle Navi-Anpassungen (Anweisungen, Arbeitspläne, Frageplan-Hints) verwerfen und auf die Standard-States zurücksetzen?",
+      )
+    )
+      return;
+    setSavingConfig(true);
+    setError(null);
+    try {
+      const saved = await projectConfigApi.update({
+        ...config,
+        naviInstructions: undefined,
+        naviWorkPlans: undefined,
+        naviPlanHints: undefined,
+      });
+      setConfig(saved);
+      setNaviInstructionDraft({});
+      setNaviWorkPlanDraft({});
+      setNaviPlanHintsDraft({});
+      setConfigSaved(true);
+      setTimeout(() => setConfigSaved(false), 2000);
+      onGeneralConfigSaved?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Zurücksetzen fehlgeschlagen");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleResetModes = async () => {
+    if (
+      !window.confirm(
+        "Alle Modi auf die Standard-Modi zurücksetzen? Eigene und geänderte Modi gehen dabei verloren.",
+      )
+    )
+      return;
+    setResettingModes(true);
+    setError(null);
+    try {
+      const defaults = await projectConfigApi.resetModes();
+      setModes(defaults);
+      setModeForm(null);
+      setEditingModeId(null);
+      onModesChanged();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Modi konnten nicht zurückgesetzt werden",
+      );
+    } finally {
+      setResettingModes(false);
     }
   };
 
@@ -1739,9 +1794,24 @@ export function ProjectSettingsModal({
                         </div>
                       ))}
                     </div>
-                    <div className="ps-actions">
+                    <div className="ps-actions" style={{ gap: 8 }}>
                       <button className="ps-add-btn" onClick={openNewMode}>
                         <Plus size={13} /> New Mode
+                      </button>
+                      <button
+                        type="button"
+                        className="ps-secondary-btn"
+                        onClick={() => void handleResetModes()}
+                        disabled={resettingModes}
+                        title="Alle Modi auf die eingebauten Standard-Modi zurücksetzen"
+                        style={{ display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        {resettingModes ? (
+                          <Loader size={13} className="ps-spinner" />
+                        ) : (
+                          <RefreshCw size={13} />
+                        )}
+                        Auf Standard zurücksetzen
                       </button>
                     </div>
                   </>
@@ -2118,7 +2188,7 @@ export function ProjectSettingsModal({
                   onWorkPlanChange={setNaviWorkPlanDraft}
                   onPlanHintsChange={setNaviPlanHintsDraft}
                 />
-                <div className="ps-actions">
+                <div className="ps-actions" style={{ gap: 8 }}>
                   <button
                     type="button"
                     className="ps-save-btn"
@@ -2156,6 +2226,20 @@ export function ProjectSettingsModal({
                       <><Save size={13} /> Speichern</>
                     )}
                   </button>
+                  {(Object.keys(naviInstructionDraft).length > 0 ||
+                    Object.keys(naviWorkPlanDraft).length > 0 ||
+                    Object.keys(naviPlanHintsDraft).length > 0) && (
+                    <button
+                      type="button"
+                      className="ps-secondary-btn"
+                      disabled={savingConfig}
+                      onClick={() => void handleResetNavi()}
+                      title="Alle Navi-Anpassungen verwerfen und auf die Standard-States zurücksetzen"
+                      style={{ display: "flex", alignItems: "center", gap: 4 }}
+                    >
+                      <RefreshCw size={13} /> Alle zurücksetzen
+                    </button>
+                  )}
                 </div>
               </div>
             )}

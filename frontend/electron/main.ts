@@ -36,6 +36,7 @@ import {
   saveProjectAgent as saveAgentPreset,
   updateProjectConfig as saveProjectConfig,
   saveProjectMode,
+  resetProjectModes,
 } from "./services/projectConfigService.js";
 import {
   getSubprojectInfo,
@@ -672,6 +673,9 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("projectConfig:deleteMode", (_event, id: string) =>
     removeProjectMode(getCurrentProjectPath(), id),
+  );
+  ipcMain.handle("projectConfig:resetModes", () =>
+    resetProjectModes(getCurrentProjectPath()),
   );
   ipcMain.handle("projectConfig:listAgents", () =>
     listAgentPresets(getCurrentProjectPath()),

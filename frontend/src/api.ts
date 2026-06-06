@@ -289,6 +289,11 @@ export const projectConfigApi = {
     if (api?.projectConfig) return api.projectConfig.deleteMode(id);
     throw new Error("Electron bridge not available");
   },
+  resetModes: async (): Promise<Mode[]> => {
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.resetModes();
+    throw new Error("Electron bridge not available");
+  },
   listAgents: async (): Promise<AgentPreset[]> => {
     const api = getElectronApi();
     if (api?.projectConfig) return api.projectConfig.listAgents();

@@ -479,6 +479,17 @@ export async function deleteProjectMode(
   return { status: "ok" };
 }
 
+/** Restores the built-in default modes, discarding all custom modes. */
+export async function resetProjectModes(
+  projectPath: string | null,
+): Promise<Mode[]> {
+  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
+  await ensureAssistantDir(resolvedProjectPath);
+  const defaults = DEFAULT_MODES.map(normalizeMode);
+  await writeJsonFile(getModesPath(resolvedProjectPath), defaults);
+  return defaults;
+}
+
 export async function listProjectAgents(
   projectPath: string | null,
 ): Promise<AgentPreset[]> {

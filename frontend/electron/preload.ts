@@ -322,6 +322,7 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("projectConfig:saveMode", id, mode),
     deleteMode: (id: string) =>
       ipcRenderer.invoke("projectConfig:deleteMode", id),
+    resetModes: () => ipcRenderer.invoke("projectConfig:resetModes"),
     listAgents: () => ipcRenderer.invoke("projectConfig:listAgents"),
     saveAgent: (id: string, preset: unknown) =>
       ipcRenderer.invoke("projectConfig:saveAgent", id, preset),

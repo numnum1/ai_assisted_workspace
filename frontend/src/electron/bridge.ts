@@ -258,6 +258,7 @@ export interface AppBridge {
     getModes: () => Promise<Mode[]>;
     saveMode: (id: string, mode: Mode) => Promise<Mode>;
     deleteMode: (id: string) => Promise<{ status: string }>;
+    resetModes: () => Promise<Mode[]>;
     listAgents: () => Promise<AgentPreset[]>;
     saveAgent: (id: string, preset: AgentPreset) => Promise<AgentPreset>;
     deleteAgent: (id: string) => Promise<{ status: string }>;
