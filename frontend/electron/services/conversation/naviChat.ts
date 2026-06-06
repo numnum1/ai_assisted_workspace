@@ -19,10 +19,10 @@ import {
   type NaviState,
 } from "../naviStateMachine.js";
 import { buildNaviKnowledgePrompt } from "../naviKnowledgeBase.js";
-import { NAVI_FULL_PERSONA_RULES, NAVI_NARROW_PERSONA_RULES } from "./naviVoice.js";
+import { NAVI_DEFAULT_ROLE, NAVI_FULL_PERSONA_RULES, NAVI_NARROW_PERSONA_RULES } from "./naviVoice.js";
 import { NAVI_TIPS } from "../../../src/naviTips.js";
 import { getProjectConfig } from "../projectConfigService.js";
-import { TOOLKIT_TOOL_DEFINITIONS, type ToolDefinition } from "./systemPrompt.js";
+import { TOOLKIT_TOOL_DEFINITIONS, resolveModeSystemPrompt, type ToolDefinition } from "./systemPrompt.js";
 import type { ChatRequest, ChatMessage, ToolCall } from "../../../src/types.js";
 import type { ChatStreamEvent } from "../chatTypes.js";
 
@@ -110,6 +110,7 @@ function buildNaviConversationBody(
   naviProblemQueue: string[],
   projConfig: import("../../../src/types.js").ProjectConfig | null,
   userMessage: string,
+  roleIntro: string,
 ): { messages: OpenAiMessage[]; tools: ToolDefinition[]; toolChoice: "required" | undefined } {
   let effectiveInstruction = state.instruction;
   const instructionOverride = projConfig?.naviInstructions?.[state.id];
@@ -205,6 +206,7 @@ function buildNaviConversationBody(
           `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
         ].join("\n\n")
       : [
+          roleIntro,
           ...NAVI_FULL_PERSONA_RULES,
           ...(problemFocusBlock ? [problemFocusBlock] : []),
           ...(naviContextSection ? [naviContextSection] : []),
@@ -535,6 +537,21 @@ export async function runNaviChatStream(
       // Non-fatal: fall back to defaults
     }
 
+    // Resolve Navi's role/identity ("WHO Navi is"). A project can override it by
+    // configuring a Navi mode (project settings → Navi tab): the mode referenced by
+    // naviModeId supplies the role via its systemPrompt. We gate on naviModeId so a
+    // plain toolbar story mode (e.g. "review") can never leak in as Navi's role.
+    let roleIntro = NAVI_DEFAULT_ROLE;
+    const naviModeId = projConfig?.naviModeId?.trim();
+    if (naviModeId && request.mode === naviModeId) {
+      try {
+        const modeRole = (await resolveModeSystemPrompt(projectPath, naviModeId)).trim();
+        if (modeRole) roleIntro = modeRole;
+      } catch {
+        // Non-fatal: keep the default role
+      }
+    }
+
     const effectiveWorkPlan = (stateId: string, base: string[]): string[] => {
       const override = projConfig?.naviWorkPlans?.[stateId];
       return Array.isArray(override) && override.length > 0 ? override : base;
@@ -555,6 +572,7 @@ export async function runNaviChatStream(
       request.naviProblemQueue ?? [],
       projConfig,
       userMessage,
+      roleIntro,
     );
     const speculativeResponsePromise = startNaviResponseFetch(
       endpoint.apiUrl,
@@ -1058,6 +1076,7 @@ export async function runNaviChatStream(
       naviProblemQueue,
       projConfig,
       userMessage,
+      roleIntro,
     );
     const newResponseFetch = startNaviResponseFetch(
       endpoint.apiUrl,

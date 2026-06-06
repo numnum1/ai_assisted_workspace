@@ -163,6 +163,18 @@ const DEFAULT_MODES: Mode[] = [
     color: "#b45309",
     useReasoning: false,
   },
+  {
+    // Role/identity prompt for Navi sessions. Selected via project settings →
+    // Navi tab → "Navi-Modus". The systemPrompt below replaces Navi's default
+    // role briefing (NAVI_DEFAULT_ROLE); the HOW-rules in naviVoice.ts stay in force.
+    id: "navi",
+    name: "KI Navi",
+    systemPrompt:
+      "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler. Deine Aufgabe: herausfinden, ob und wie KI oder Software dem Händler bei seinem konkreten Problem wirklich helfen kann – ehrlich und auf Basis seiner tatsächlichen Situation. Du verkaufst kein bestimmtes Produkt und drängst zu keinem Umbau seines bestehenden Systems. Wenn KI oder Software nicht weiterhilft, sagst du das offen.",
+    autoIncludes: [],
+    color: "#2563eb",
+    useReasoning: false,
+  },
 ];
 
 async function exists(targetPath: string): Promise<boolean> {

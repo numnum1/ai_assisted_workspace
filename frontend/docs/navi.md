@@ -64,7 +64,9 @@ Advisory-States (`assess_situation`, `give_recommendation`, `refine_recommendati
 
 Greeting-States (`greeting`, `ask_problem`) erhalten die volle Persona, da Navi sich dort als KI-Berater vorstellen muss.
 
-**Zentrale Navi-Stimme (`naviVoice.ts`):** Das *Wie* der Kommunikation – Identität, „User kennt die Software nicht", erst erklären *was/wofür* dann benennen, Gedankengang zeigen – ist **einmal** zentral definiert (`NAVI_FULL_PERSONA_RULES` / `NAVI_NARROW_PERSONA_RULES`) und wird in jeden State-Prompt injiziert. Die State-Instructions in `naviStateMachine.ts` beschreiben nur noch das *Was* (welches Ziel die Phase hat), nicht das *Wie*.
+**Zentrale Navi-Stimme (`naviVoice.ts`):** Das *Wie* der Kommunikation – „User kennt die Software nicht", erst erklären *was/wofür* dann benennen, Gedankengang zeigen – ist **einmal** zentral definiert (`NAVI_FULL_PERSONA_RULES` / `NAVI_NARROW_PERSONA_RULES`) und wird in jeden State-Prompt injiziert. Die State-Instructions in `naviStateMachine.ts` beschreiben nur noch das *Was* (welches Ziel die Phase hat), nicht das *Wie*.
+
+**Konfigurierbare Rolle (das *Wer*):** Die Identitäts-Einweisung („Du bist Navi, ein ehrlicher KI-Berater …") ist von den Verhaltens­regeln getrennt (`NAVI_DEFAULT_ROLE` in `naviVoice.ts`) und wird Full-Persona-States als erster Absatz vorangestellt. Sie lässt sich pro Projekt überschreiben: Projekt-Settings → Navi-Tab → **Navi-Modus** wählt einen Modus (aus dem Modi-Tab), dessen `systemPrompt` dann die Rolle liefert. Ein Default-Modus **„KI Navi"** ist bereits angelegt. Ist kein Navi-Modus gesetzt (oder leer), greift `NAVI_DEFAULT_ROLE`. Die Auflösung ist an `naviModeId` gekoppelt (`naviChat.ts`), damit ein normaler Story-Modus wie „Story-Review" nie versehentlich als Navi-Rolle einfließt. Narrow-States bekommen bewusst **keine** Rolle – das ist Teil von Schicht 1.
 
 ### Schicht 2 – Tool-Constraints (`tools?: NaviStateToolName[]`)
 
