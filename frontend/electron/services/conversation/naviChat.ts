@@ -157,9 +157,22 @@ function buildNaviConversationBody(
     if (naviCtx.problem) parts.push(`- Problem: ${naviCtx.problem}`);
     if (naviCtx.luecke) parts.push(`- Praktische Lücke: ${naviCtx.luecke}`);
     if (naviCtx.stack) parts.push(`- Stack: ${naviCtx.stack}`);
+    if (naviCtx.investition) parts.push(`- Investitionsbereitschaft (Zeit & Geld): ${naviCtx.investition}`);
     if (naviCtx.empfehlung) parts.push(`- Empfehlung: ${naviCtx.empfehlung}`);
     if (parts.length === 0) return "";
-    return "Bekannte Fakten über den Händler:\n" + parts.join("\n");
+
+    // In recommendation states the investment readiness is a hard constraint, not just context.
+    const recommendationStates = new Set([
+      "assess_situation",
+      "give_recommendation",
+      "refine_recommendation",
+    ]);
+    const investmentRule =
+      recommendationStates.has(state.id) && naviCtx.investition
+        ? "\n\nWICHTIG für deinen Vorschlag: Die Investitionsbereitschaft (Zeit & Geld) ist eine harte Randbedingung. Empfiehl NUR, was innerhalb dieses Rahmens realistisch umsetzbar und betreibbar ist. Beispiel: Ein eigener Webshop ist nur sinnvoll, wenn der Händler genug Zeit für Pflege und Budget dafür mitbringt – ist die Bereitschaft gering, schlage eine schlankere Lösung vor (z. B. bestehende Plattform, Google-Profil, ein einzelner Kanal). Mach den Aufwand und die Kosten deines Vorschlags immer transparent und gleiche sie mit der genannten Bereitschaft ab."
+        : "";
+
+    return "Bekannte Fakten über den Händler:\n" + parts.join("\n") + investmentRule;
   })();
 
   const naviResults = request.naviResults ?? {};
@@ -914,6 +927,8 @@ export async function runNaviChatStream(
                 ctx.luecke = parsed.luecke.trim();
               if (typeof parsed.stack === "string" && parsed.stack.trim())
                 ctx.stack = parsed.stack.trim();
+              if (typeof parsed.investition === "string" && parsed.investition.trim())
+                ctx.investition = parsed.investition.trim();
               if (typeof parsed.empfehlung === "string" && parsed.empfehlung.trim())
                 ctx.empfehlung = parsed.empfehlung.trim();
               if (Object.keys(ctx).length > 0) updatedNaviContext = ctx;

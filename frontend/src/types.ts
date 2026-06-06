@@ -11,6 +11,8 @@ export interface NaviContext {
   luecke?: string;
   /** Software-Stack in einem Satz (Kasse, Online-Shop, Kommunikation, …) */
   stack?: string;
+  /** Bereitschaft für Zeit- und Geldinvestition in einem Satz */
+  investition?: string;
   /** Gemachter Lösungsvorschlag */
   empfehlung?: string;
 }

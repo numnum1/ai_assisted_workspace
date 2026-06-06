@@ -148,6 +148,12 @@ export function NaviStatePanel({ naviStateId, naviResults, naviContext, naviPlan
                 <span className="navi-context-value">{naviContext.stack}</span>
               </div>
             )}
+            {naviContext.investition && (
+              <div className="navi-context-row">
+                <span className="navi-context-key">Aufwand</span>
+                <span className="navi-context-value">{naviContext.investition}</span>
+              </div>
+            )}
             {naviContext.empfehlung && (
               <div className="navi-context-row">
                 <span className="navi-context-key">Empfehlung</span>

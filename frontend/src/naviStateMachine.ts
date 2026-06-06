@@ -244,13 +244,16 @@ Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einho
   {
     id: "assess_situation",
     persona: "full",
-    instruction: `Du hast jetzt: Laden, Problem/Ausmaß und den vollständigen Software-Stack.
+    instruction: `Du hast jetzt: Laden, Problem/Ausmaß, den vollständigen Software-Stack UND die Investitionsbereitschaft (Zeit & Geld) des Händlers.
 
 SCHRITT 1 – Ehrliche Einschätzung:
 Kann KI oder Software hier überhaupt sinnvoll helfen? Begründe kurz, warum – bezogen auf die erkannte Lücke.
 - Wenn ja: Welche Hebel könnten das Problem adressieren, und warum (Bezug zur Lücke)?
 - Wenn nein: Sag das klar und direkt.
 - "Das lohnt sich nicht" gilt nur, wenn das Problem grundsätzlich nicht software-lösbar ist – nicht wenn noch kein Stack da ist.
+
+INVESTITIONSBEREITSCHAFT ALS RANDBEDINGUNG (sehr wichtig):
+Die Lösungsrichtung MUSS zum genannten Zeit- und Geldrahmen passen. Eine aufwändige Richtung (z. B. eigener Webshop, der laufend gepflegt werden muss) kommt nur in Frage, wenn die Bereitschaft dafür ausreicht. Ist sie gering, wähle bewusst eine schlankere Richtung – das ist ehrlicher und hilfreicher als ein zu großer Vorschlag.
 
 SCHRITT 2 – Lösungsrichtung erklären (KEIN konkretes Tool, KEIN Preis, KEINE Plattform):
 Erkläre die Richtung deines Ansatzes in 1–2 Sätzen – welche Hebel und warum.
@@ -263,7 +266,7 @@ SCHRITT 3 – Resonanz einholen:
 Frage den Händler kurz, ob diese Richtung grundsätzlich passt – bevor du ins Konkrete gehst.`,
     workPlan: [
       "Ehrliche Einschätzung gegeben: kann KI/Software hier überhaupt sinnvoll helfen (mit Begründung)",
-      "Lösungsrichtung erklärt – welche Hebel und warum (Bezug zur erkannten Lücke), ohne konkretes Tool, Plattform oder Preis",
+      "Lösungsrichtung erklärt – welche Hebel und warum (Bezug zur erkannten Lücke), passend zur Investitionsbereitschaft, ohne konkretes Tool, Plattform oder Preis",
       "Händler nach der Richtung gefragt – Resonanz eingeholt",
     ],
     transitions: [
@@ -284,11 +287,18 @@ Frage den Händler kurz, ob diese Richtung grundsätzlich passt – bevor du ins
   {
     id: "give_recommendation",
     persona: "full",
-    instruction: `Fasse in einem Satz zusammen, was du weißt (Laden, Problem, Stack).
+    instruction: `Fasse in einem Satz zusammen, was du weißt (Laden, Problem, Stack, Investitionsbereitschaft).
 Mache dann einen konkreten, realistischen Vorschlag:
 - Wenn Stack vorhanden: Vorschlag fügt sich in den bestehenden Stack ein – kein Umbau, keine neuen Plattformen ohne Not.
 - Wenn kein Stack vorhanden: Empfehle den einfachsten sinnvollen Einstieg (z.B. eine Plattform, ein Tool) – konkret und machbar für jemanden ohne Vorkenntnisse.
-Nenne ehrlich: Was kostet es ungefähr? Was ist der Aufwand? Was bringt es konkret?
+
+INVESTITIONSBEREITSCHAFT IST ENTSCHEIDEND (sehr wichtig):
+Der Vorschlag MUSS in den genannten Zeit- und Geldrahmen passen – sowohl bei der Einrichtung als auch im laufenden Betrieb.
+- Ein eigener Webshop o. Ä. ist nur dann die richtige Empfehlung, wenn der Händler genug Zeit für die Pflege UND das nötige Budget mitbringt.
+- Ist die Bereitschaft gering, empfiehl bewusst die schlankere Lösung (z. B. bestehende Plattform/Marktplatz, gepflegtes Google-Profil, ein einzelner Kanal) statt der aufwändigen.
+- Sag offen, wenn der Wunsch des Händlers mehr Aufwand bräuchte als er investieren will – und biete die realistische Alternative an.
+
+Nenne ehrlich: Was kostet es ungefähr? Was ist der Aufwand (Einrichtung und laufend)? Was bringt es konkret? Passt das zum genannten Rahmen?
 Frage am Ende, ob das passt oder ob etwas unklar ist.`,
     workPlan: [],
     transitions: [

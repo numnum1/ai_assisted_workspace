@@ -49,8 +49,20 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
       "Tool oder Ablauf für den problemrelevanten Bereich konkret benannt",
     ],
     transitions: [
-      { to: "confirm_understanding", label: "Vollständiger Stack bekannt" },
+      { to: "explore_investment", label: "Vollständiger Stack bekannt" },
       { to: "clarify_problem", label: "Neuer Problem-Aspekt aufgetaucht" },
+    ],
+  },
+  {
+    id: "explore_investment",
+    label: "Aufwandbereitschaft",
+    description: "Navi fragt, wie viel Zeit und Geld der Händler in eine Lösung investieren würde.",
+    workPlan: [
+      "Bereitschaft für Zeitinvestition bekannt",
+      "Bereitschaft für Geldbudget bekannt",
+    ],
+    transitions: [
+      { to: "confirm_understanding", label: "Zeit + Budget bekannt" },
     ],
   },
   {
