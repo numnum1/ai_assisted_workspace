@@ -158,6 +158,10 @@ export function buildClarificationFence(
   };
 }
 
+export function buildYesNoFence(question: string): string {
+  return `\`\`\`yes_no\n${JSON.stringify({ question })}\n\`\`\``;
+}
+
 export function buildGuidedThreadOfferFence(args: {
   steeringPlanMarkdown?: unknown;
   threadTitle?: unknown;
@@ -209,6 +213,7 @@ export function describeStreamingToolCall(toolCall: ToolCall): string {
   if (name === "write_file") return "Schreibe Datei";
   if (name === "edit_file") return "Bearbeite Datei";
   if (name === "ask_clarification") return "Stelle Rückfrage";
+  if (name === "ask_yes_no") return "Ja/Nein-Frage";
   if (name === "propose_guided_thread") return "Biete Guided Thread an";
   if (name === "report_thread_result") return "Übermittle Thread-Ergebnis";
   if (name === "create_artifact") return "Erstelle Arbeitsnotiz";
@@ -263,6 +268,10 @@ export async function executeToolCall(
     const clarification = buildClarificationFence(args.questions ?? args);
     if (!clarification) throw new Error("ask_clarification requires at least one valid question.");
     result = clarification.text;
+  } else if (name === "ask_yes_no") {
+    const question = normalizeText(String(args.question ?? ""));
+    if (!question) throw new Error("ask_yes_no requires a non-empty question.");
+    result = buildYesNoFence(question);
   } else if (name === "propose_guided_thread") {
     const offer = buildGuidedThreadOfferFence({
       steeringPlanMarkdown: args.steeringPlanMarkdown,

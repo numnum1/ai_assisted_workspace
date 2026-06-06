@@ -219,6 +219,26 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
     {
       type: "function",
       function: {
+        name: "ask_yes_no",
+        description:
+          "Ask the user a yes/no question. The UI renders two buttons (Ja / Nein). " +
+          "Use this whenever the user's decision can be fully captured with a simple yes or no. " +
+          "Do NOT use when there are more than two meaningful answers — use ask_clarification instead.",
+        parameters: {
+          type: "object",
+          properties: {
+            question: {
+              type: "string",
+              description: "The yes/no question to display to the user.",
+            },
+          },
+          required: ["question"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
         name: "propose_guided_thread",
         description:
           "Propose a guided follow-up thread with a steering plan for structured work.",
@@ -396,19 +416,6 @@ export function buildSystemPrompt(
       const toolNames = activeTools.map((t) => t.function.name).join(", ");
       sections.push(`Verfügbare Werkzeuge: ${toolNames}`);
     }
-  }
-
-  // 4b. yes_no UI hint
-  if (!request.quickChat) {
-    sections.push(
-      "UI-Tipp: Wenn du eine echte Ja/Nein-Frage stellst, gib zusätzlich einen ```yes_no-Block aus — " +
-      "die App rendert daraus zwei Schaltflächen (Ja / Nein).\n" +
-      "Format:\n" +
-      "```yes_no\n" +
-      "{\"question\": \"<deine Frage>\"}\n" +
-      "```\n" +
-      "Verwende diesen Block NUR bei echten Ja/Nein-Entscheidungen, nicht bei Fragen mit mehr als zwei sinnvollen Antworten.",
-    );
   }
 
   // 5. Guided session & steering plan
