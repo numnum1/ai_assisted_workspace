@@ -10,7 +10,7 @@ import {
   type OpenAiStreamChunk,
 } from "../openAiClient.js";
 import { isStreamActive } from "../chatSession.js";
-import { executeToolCall, describeStreamingToolCall, buildYesNoFence, type ToolExecutionResult } from "../chatToolExecution.js";
+import { executeToolCall, describeStreamingToolCall, type ToolExecutionResult } from "../chatToolExecution.js";
 import {
   getNaviState,
   buildClassificationPrompt,
@@ -61,7 +61,7 @@ const ASK_QUESTION_TOOL: ToolDefinition = {
   function: {
     name: "ask_question",
     description:
-      "Schreibe deine nächste Nachricht im Gespräch: knüpf kurz und konkret an das an, was der Händler gerade gesagt hat, und stelle genau eine gezielte Frage. Beginne NICHT formelhaft mit 'Verstehe', 'Verstanden', 'Alles klar', 'Okay' o.Ä. – greif stattdessen einen konkreten Inhalt seiner Antwort auf oder stell die Frage direkt.\n\nWenn die Frage eine reine Ja/Nein-Entscheidung ist, fülle ZUSÄTZLICH das Feld yes_no_question mit dem genauen Fragetext. Das rendert Ja/Nein-Buttons in der UI. Nutze yes_no_question NUR wenn die Frage wirklich nur mit Ja oder Nein beantwortet werden kann.",
+      "Schreibe deine nächste Nachricht im Gespräch: knüpf kurz und konkret an das an, was der Händler gerade gesagt hat, und stelle genau eine gezielte Frage. Beginne NICHT formelhaft mit 'Verstehe', 'Verstanden', 'Alles klar', 'Okay' o.Ä. – greif stattdessen einen konkreten Inhalt seiner Antwort auf oder stell die Frage direkt.",
     parameters: {
       type: "object",
       properties: {
@@ -69,11 +69,6 @@ const ASK_QUESTION_TOOL: ToolDefinition = {
           type: "string",
           description:
             "Deine direkte Gesprächsnachricht. Immer 'du', nie 'der Händler'. 1–2 Sätze: konkrete Reaktion auf das Gesagte (kein formelhaftes 'Verstehe'/'Verstanden'/'Okay' am Anfang), dann eine konkrete Frage.",
-        },
-        yes_no_question: {
-          type: "string",
-          description:
-            "Optional. Fülle dieses Feld, wenn die Frage in 'response' eine reine Ja/Nein-Entscheidung ist. Die App zeigt dann Ja/Nein-Buttons. Text muss identisch mit der Frage in 'response' sein.",
         },
       },
       required: ["response"],
@@ -435,11 +430,9 @@ async function drainResponseStreamWithLoop(
     const askQuestionCall = toolCalls.find((tc) => tc.function.name === "ask_question");
     if (askQuestionCall) {
       let resp = "";
-      let yesNoQuestion = "";
       try {
-        const args = JSON.parse(askQuestionCall.function.arguments) as { response?: unknown; yes_no_question?: unknown };
+        const args = JSON.parse(askQuestionCall.function.arguments) as { response?: unknown };
         resp = typeof args.response === "string" ? args.response.trim() : "";
-        yesNoQuestion = typeof args.yes_no_question === "string" ? args.yes_no_question.trim() : "";
       } catch {
         resp = askQuestionCall.function.arguments.trim();
       }
@@ -457,12 +450,6 @@ async function drainResponseStreamWithLoop(
             tokenCount++;
           }
         }
-      }
-      // Append yes_no fence if the question is a pure yes/no decision
-      if (yesNoQuestion) {
-        const ynFence = "\n" + buildYesNoFence(yesNoQuestion);
-        fullAssistantText += ynFence;
-        emit({ type: "token", data: ynFence });
       }
       if (!isStreamActive(streamId)) return fullAssistantText;
       emit({ type: "done", data: { fullAssistantText } });
