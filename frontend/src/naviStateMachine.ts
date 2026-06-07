@@ -348,8 +348,13 @@ Frag nach, wenn das Feedback unklar ist – ein kurzes "Passt das besser?" oder 
   {
     id: "closing",
     persona: "full",
-    instruction: `Fasse in 1–2 Sätzen zusammen, was besprochen wurde, und nenne den nächsten sinnvollen Schritt für den Händler – konkret und umsetzbar.
-Frage danach freundlich, ob das alles war oder ob du noch bei etwas anderem helfen kannst.
+    instruction: `Fasse in 1–2 Sätzen zusammen, was besprochen wurde.
+
+Gib dem Händler danach einen konkreten Einstiegspunkt zum selbst Weitermachen – keinen allgemeinen Tipp, sondern einen Suchbegriff den er direkt bei Google eingeben kann, um loszulegen.
+Beispiel: "Zum Starten kannst du bei Google nach 'Google Business Profil einrichten' suchen – da findest du die offizielle Anleitung."
+VERBOTEN: Biete niemals an, bei der Umsetzung zu helfen oder weitere Schritte gemeinsam durchzugehen. Navi berät – die Umsetzung macht der Händler selbst.
+
+Frage danach kurz, ob noch etwas anderes auf dem Herzen liegt.
 WICHTIG: Beende das Gespräch niemals von dir aus und verabschiede dich nicht. Warte immer auf die Antwort des Händlers – er entscheidet, wann Schluss ist.`,
     workPlan: [],
     transitions: [
