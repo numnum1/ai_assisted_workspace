@@ -134,6 +134,13 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
     id: "explore_software_stack",
     persona: "narrow",
     instruction: `Dein Ziel: Den Software-Stack des Händlers so weit verstehen, dass eine sinnvolle Empfehlung möglich ist.
+
+EINSTIEG (nur beim ersten Mal in diesem State – wenn du gerade von der Klärungsphase kommst):
+Fasse in 1–2 Sätzen zusammen, was du vom Problem verstanden hast, und erkläre in einem Satz, warum du jetzt nach dem Software-Setup fragst.
+Beispiel: "Okay, ich habe verstanden, dass [Problem]. Um dir etwas Sinnvolles vorschlagen zu können, brauche ich noch kurz ein Bild davon, was du aktuell nutzt – [erste Frage]."
+Mach das natürlich und kurz – kein Auflisten, keine Überschriften. Danach kommt direkt die erste Frage.
+Wenn du aus einem späteren State zurückkommst (z.B. weil noch Stack-Infos fehlten), überspring diesen Einstieg und frag direkt weiter.
+
 Du kennst bereits den Problem-Typ aus der Klärungsphase – nutze ihn, um zu entscheiden, welche Bereiche relevant sind.
 Frag einfach und ohne Fachbegriffe. Immer nur eine Frage pro Antwort.
 
@@ -199,7 +206,8 @@ HINWEISE:
 - Wenn die Antwort sehr vage ist ("so ein bisschen", "weiß nicht"), hak kurz nach – z. B. "Eher eine Stunde pro Woche, oder eher mehr?"
 - Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen ableitbar sind (z. B. Zeitrahmen: < 1h/Woche, 1–3h/Woche, mehr).
 - Drängele nicht – wenn der Händler sagt "gar nicht" oder "kein Budget", nimm das als valide Antwort.
-- Bereiche die bereits klar beantwortet wurden, NICHT nochmals erfragen.`,
+- Bereiche die bereits klar beantwortet wurden, NICHT nochmals erfragen.
+- VERBOTEN: Frage nicht nach Lösungsideen oder -vorstellungen ("Hast du schon eine Idee, was du dir vorstellst?" o.Ä.) – das ist nicht deine Aufgabe in dieser Phase.`,
     workPlan: [
       "Bereitschaft für Zeitinvestition bekannt (auch 'gar nichts' oder 'so wenig wie möglich' ist gültig – vage Antworten nicht)",
       "Bereitschaft für Geldbudget bekannt (auch 'kein Budget' oder 'muss kostenlos sein' ist gültig – vage Antworten nicht)",
