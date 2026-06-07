@@ -315,7 +315,7 @@ Frage am Ende, ob das passt oder ob etwas unklar ist.`,
     transitions: [
       {
         condition: "Nutzer signalisiert klar, dass er zufrieden ist oder das Gespräch beenden möchte",
-        to: "closing",
+        to: "offer_ai_exploration",
       },
       {
         condition: "Nutzer hat Einwände, Fragen oder möchte eine Alternative – auch bei kurzem Zögern oder Nachfragen",
@@ -333,7 +333,7 @@ Frag nach, wenn das Feedback unklar ist – ein kurzes "Passt das besser?" oder 
     transitions: [
       {
         condition: "Nutzer signalisiert klar, dass er zufrieden ist oder das Gespräch beenden möchte",
-        to: "closing",
+        to: "offer_ai_exploration",
       },
       {
         condition: "Nutzer hat weitere Fragen, Einwände oder möchte noch etwas klären",
@@ -342,6 +342,57 @@ Frag nach, wenn das Feedback unklar ist – ein kurzes "Passt das besser?" oder 
       {
         condition: "Der bisherige Vorschlag passt grundlegend nicht – ein komplett neuer Ansatz ist nötig, der eine neue Einschätzung erfordert",
         to: "give_recommendation",
+      },
+    ],
+  },
+  {
+    id: "offer_ai_exploration",
+    persona: "full",
+    instruction: `Der Händler ist mit der bisherigen Empfehlung zufrieden. Bevor das Gespräch endet, bietest du EINMALIG an, gezielt KI-Tools für sein Problem anzuschauen – ganz ohne Druck.
+
+WICHTIG – Haltung:
+- Das ist ein Angebot, keine Verkaufsmasche. Der bisherige ehrliche Rat steht und bleibt gültig – egal wie der Händler antwortet.
+- Wenn die bisherige Empfehlung bereits ein KI-Tool war, biete an, "noch weitere KI-Ansätze" anzusehen statt "KI" generell.
+- Wenn KI für dieses Problem realistisch keinen Mehrwert über den bisherigen Rat hinaus bringt, sag das ehrlich und biete es NICHT künstlich an – dann reicht ein kurzer Hinweis und du überlässt dem Händler die Wahl.
+
+ABLAUF – PFLICHT:
+Stelle die Frage über das ask_yes_no-Werkzeug (nie als Fließtext). Formuliere sie kurz, konkret und mit Bezug auf das Problem des Händlers.
+Beispiel: "Da das hier das KI-Navi ist: Soll ich dir noch zeigen, wo speziell KI-Tools bei [konkretes Problem] reinpassen könnten?"`,
+    workPlan: [],
+    transitions: [
+      {
+        condition: "Händler antwortet zustimmend (Ja) oder möchte KI-Lösungen ansehen",
+        to: "explore_ai_solutions",
+      },
+      {
+        condition: "Händler antwortet ablehnend (Nein) oder hat kein Interesse an einer KI-Erkundung",
+        to: "closing",
+      },
+    ],
+    tools: ["ask_yes_no"],
+  },
+  {
+    id: "explore_ai_solutions",
+    persona: "full",
+    instruction: `Der Händler möchte gezielt KI-Lösungen für sein Problem erkunden. Zeig ihm konkret, welche KI-Tools zu seinem Problem UND seinem Stack passen.
+
+VORGEHEN:
+- Wähle aus den bekannten KI-Tools die 1–2 aus, die zum Use-Case und zum Software-Stack des Händlers passen – nicht mehr.
+- Erkläre pro Tool: erst was/wofür (der Händler kennt die Tools nicht), dann den konkreten Nutzen für sein Problem.
+- Bleib ehrlich beim Aufwand und den Kosten: passt das zum genannten Zeit- und Geldrahmen? Wenn ein Tool den Rahmen sprengt, sag das offen.
+- Wenn für das konkrete Problem KEIN passendes KI-Tool existiert, sag das klar – eine ehrliche Fehlanzeige ist besser als ein erzwungener Vorschlag.
+
+KEIN Druck: Der Händler hat diese Erkundung selbst gewählt – aber das heißt nicht, dass er etwas davon umsetzen muss. Bewerte realistisch.
+Frag am Ende, ob das passt oder ob etwas unklar ist.`,
+    workPlan: [],
+    transitions: [
+      {
+        condition: "Nutzer signalisiert klar, dass er zufrieden ist oder das Gespräch beenden möchte",
+        to: "closing",
+      },
+      {
+        condition: "Nutzer hat weitere Fragen oder Einwände zu den KI-Tools oder möchte eine Alternative",
+        to: "explore_ai_solutions",
       },
     ],
   },

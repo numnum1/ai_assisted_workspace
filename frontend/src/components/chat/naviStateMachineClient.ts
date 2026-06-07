@@ -94,7 +94,7 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
     workPlan: [],
     transitions: [
       { to: "refine_recommendation", label: "Einwände / Fragen" },
-      { to: "closing", label: "Zufrieden" },
+      { to: "offer_ai_exploration", label: "Zufrieden" },
     ],
   },
   {
@@ -105,6 +105,26 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
     transitions: [
       { to: "refine_recommendation", label: "Weitere Einwände" },
       { to: "give_recommendation", label: "Komplett neuer Ansatz nötig" },
+      { to: "offer_ai_exploration", label: "Zufrieden" },
+    ],
+  },
+  {
+    id: "offer_ai_exploration",
+    label: "KI-Erkundung anbieten",
+    description: "Navi fragt einmalig und ohne Druck, ob der Händler gezielt KI-Tools ansehen möchte.",
+    workPlan: [],
+    transitions: [
+      { to: "explore_ai_solutions", label: "Ja, KI ansehen" },
+      { to: "closing", label: "Nein, danke" },
+    ],
+  },
+  {
+    id: "explore_ai_solutions",
+    label: "KI-Lösungen",
+    description: "Navi zeigt konkrete KI-Tools, die zu Problem und Stack des Händlers passen.",
+    workPlan: [],
+    transitions: [
+      { to: "explore_ai_solutions", label: "Fragen / Einwände" },
       { to: "closing", label: "Zufrieden" },
     ],
   },

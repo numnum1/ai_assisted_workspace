@@ -30,13 +30,21 @@ assess_situation
   └─→ explore_software_stack  (Stack-Info lückenhaft)
 
 give_recommendation
-  ├─→ refine_recommendation  (Einwände / Fragen)
-  └─→ closing                (zufrieden)
+  ├─→ refine_recommendation   (Einwände / Fragen)
+  └─→ offer_ai_exploration    (zufrieden)
 
 refine_recommendation
-  ├─→ refine_recommendation  (weitere Einwände)
-  ├─→ give_recommendation    (komplett neuer Ansatz nötig)
-  └─→ closing                (zufrieden)
+  ├─→ refine_recommendation   (weitere Einwände)
+  ├─→ give_recommendation     (komplett neuer Ansatz nötig)
+  └─→ offer_ai_exploration    (zufrieden)
+
+offer_ai_exploration
+  ├─→ explore_ai_solutions    (Händler will KI ansehen – ask_yes_no: Ja)
+  └─→ closing                 (kein Interesse – ask_yes_no: Nein)
+
+explore_ai_solutions
+  ├─→ explore_ai_solutions    (Fragen / Einwände zu den KI-Tools)
+  └─→ closing                 (zufrieden)
 
 closing
   └─→ clarify_problem      (weiteres Anliegen)
@@ -134,11 +142,18 @@ Beim Eintritt in `clarify_problem` wird ein separater, nicht-streamender LLM-Cal
 
 ## Knowledge Base (nur in Advisory-States)
 
-In `assess_situation`, `give_recommendation` und `refine_recommendation` wird ein Knowledge-Prompt injiziert:
+In `assess_situation`, `give_recommendation`, `refine_recommendation` und `explore_ai_solutions` wird ein Knowledge-Prompt injiziert:
 
 - **Use Cases**: 5 Beratungs-Kategorien (Online-Sichtbarkeit, FAQ-Automatisierung, Kundenkommunikation, Buchhaltung, Lagerverwaltung)
 - **Tools**: 12 KI-Tools, den Kategorien zugeordnet
-- In `give_recommendation` und `refine_recommendation` auch Tool-Empfehlungen nach Stack-Kompatibilität
+- In `give_recommendation`, `refine_recommendation` und `explore_ai_solutions` auch Tool-Empfehlungen nach Stack-Kompatibilität
+
+## Opt-in KI-Erkundung (`offer_ai_exploration` → `explore_ai_solutions`)
+
+Der Primärpfad (`assess_situation` → `give_recommendation`) bleibt KI-agnostisch: Navi gibt den ehrlichsten, schlanksten Rat, ohne KI aufzudrängen. Da das Feature aber das „KI-Navi" ist, fragt Navi den Händler **einmalig** nach einer zufriedenen Empfehlung (vor `closing`), ob er gezielt KI-Tools erkunden möchte:
+
+- `offer_ai_exploration` (persona `full`, Tool `ask_yes_no`, `tool_choice: required`): stellt die Opt-in-Frage als Ja/Nein-UI. Kein Druck; bei „Nein" → `closing`.
+- `explore_ai_solutions` (persona `full`, Tool-KB injiziert): präsentiert konkrete KI-Tools passend zu Use-Case und Stack, ehrlich zu Aufwand/Kosten/Rahmen. Eine ehrliche Fehlanzeige ist erlaubt.
 
 Overrides möglich über externe JSON-Dateien in `~/.writing-assistant/navi/`.
 

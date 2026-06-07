@@ -72,11 +72,13 @@ const STATES_WITH_USE_CASES = new Set([
   "assess_situation",
   "give_recommendation",
   "refine_recommendation",
+  "explore_ai_solutions",
 ]);
 
 const STATES_WITH_TOOLS = new Set([
   "give_recommendation",
   "refine_recommendation",
+  "explore_ai_solutions",
 ]);
 
 export function buildNaviKnowledgePrompt(stateId: string): string {
