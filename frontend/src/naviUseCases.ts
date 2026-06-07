@@ -17,8 +17,8 @@ export const NAVI_USE_CASES: NaviUseCase[] = [
     categories: ["chatbot", "knowledge_base"],
   },
   {
-    name: "Streamline Customer Communication",
-    description: "Aufwändige manuelle Kommunikation mit Kunden per E-Mail oder Messaging.",
+    name: "Answer Incoming Customer Requests",
+    description: "Händler bekommt viele gleichartige eingehende Anfragen per E-Mail, WhatsApp oder Website – z.B. Fragen zu Lieferstatus, Öffnungszeiten oder Terminwünschen – und beantwortet alles manuell. Dieser Use Case betrifft ausschließlich eingehende Kommunikation: Kunden schreiben zuerst, der Händler antwortet. Kein Outreach, keine Kundenlisten, keine Newsletter.",
     categories: ["email_automation", "messaging"],
   },
   {

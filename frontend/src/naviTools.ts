@@ -21,10 +21,10 @@ export const NAVI_TOOLS: NaviTool[] = [
   { name: "WissensHub", category: "knowledge_base", beschreibung: "Strukturiert internes Produktwissen und macht es für Chatbots abrufbar." },
 
   // email_automation
-  { name: "MailPilot", category: "email_automation", beschreibung: "Automatisiert wiederkehrende E-Mails wie Bestellbestätigungen und Follow-ups." },
+  { name: "MailPilot", category: "email_automation", beschreibung: "Antwortet automatisch auf eingehende E-Mails mit gleichartigen Anfragen – z.B. Bestellbestätigungen, Lieferstatus oder Terminbestätigungen." },
 
   // messaging
-  { name: "ChatConnect", category: "messaging", beschreibung: "Verbindet WhatsApp oder Instagram-DMs mit automatischen Antwortvorlagen." },
+  { name: "ChatConnect", category: "messaging", beschreibung: "Antwortet automatisch auf eingehende WhatsApp- oder Instagram-Nachrichten mit vordefinierten Vorlagen – für Anfragen, die Kunden selbst schicken." },
 
   // accounting
   { name: "BuchhalterKI", category: "accounting", beschreibung: "Kategorisiert Ausgaben und bereitet den Steuerberater-Export automatisch vor." },
