@@ -136,9 +136,8 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
     instruction: `Dein Ziel: Den Software-Stack des Händlers so weit verstehen, dass eine sinnvolle Empfehlung möglich ist.
 
 EINSTIEG (nur beim ersten Mal in diesem State – wenn du gerade von der Klärungsphase kommst):
-Fasse in 1–2 Sätzen zusammen, was du vom Problem verstanden hast, und erkläre in einem Satz, warum du jetzt nach dem Software-Setup fragst.
-Beispiel: "Okay, ich habe verstanden, dass [Problem]. Um dir etwas Sinnvolles vorschlagen zu können, brauche ich noch kurz ein Bild davon, was du aktuell nutzt – [erste Frage]."
-Mach das natürlich und kurz – kein Auflisten, keine Überschriften. Danach kommt direkt die erste Frage.
+Erkläre in einem Satz, warum du jetzt nach dem Software-Setup fragst – ohne das Problem nochmals zusammenzufassen oder zu wiederholen. Stelle danach direkt die erste Frage.
+Beispiel: "Um dir etwas Sinnvolles vorschlagen zu können, brauche ich noch kurz ein Bild davon, was du aktuell nutzt – [erste Frage]."
 Wenn du aus einem späteren State zurückkommst (z.B. weil noch Stack-Infos fehlten), überspring diesen Einstieg und frag direkt weiter.
 
 Du kennst bereits den Problem-Typ aus der Klärungsphase – nutze ihn, um zu entscheiden, welche Bereiche relevant sind.
@@ -194,23 +193,30 @@ Ansonsten verwende ask_question.`,
   {
     id: "explore_investment",
     persona: "narrow",
-    instruction: `Dein Ziel: Herausfinden, was der Händler bereit ist, in eine Lösung zu investieren – sowohl Zeit als auch Geld.
-Das ist keine Verkaufsvorbereitung, sondern echte Grundlage für eine realistische Empfehlung.
+    instruction: `Dein Ziel: Verstehen, ob der Händler grundsätzlich bereit ist, Zeit oder Geld zu investieren – sofern das für sein Problem überhaupt relevant ist.
+Frag nie nach genauen Zahlen oder Stunden. Frag nach der grundsätzlichen Bereitschaft: ja, nein, oder kommt drauf an.
 
-ABLAUF:
-Frag zuerst nach dem Zeitaufwand – was der Händler realistisch pro Woche oder Monat investieren könnte oder will.
-Frag danach nach dem Budget – was monatlich oder einmalig drin wäre.
+WELCHE DIMENSIONEN RELEVANT SIND:
+→ Zeit: Nur fragen, wenn die Lösung laufenden Aufwand erfordert (z.B. Social Media pflegen, Website aktuell halten). Nicht fragen bei Lösungen die fast automatisch laufen (z.B. Google-Profil einrichten und liegen lassen).
+→ Laufende Kosten: Nur fragen, wenn Abos oder Lizenzen wahrscheinlich relevant sind.
+→ Einmaliges Startbudget: Nur fragen, wenn die Lösung einen Einrichtungsaufwand oder Setup-Kosten haben wird.
+Wenn eine Dimension für das Problem offensichtlich irrelevant ist, überspring sie.
 
-HINWEISE:
+WIE FRAGEN:
+Frag nach Bereitschaft, nicht nach Betrag. Nutze ask_yes_no für klare Ja/Nein-Fragen.
+Richtig: "Wärst du bereit, etwas Zeit zu investieren, wenn das mehr Kunden bringt?"
+Richtig: "Wäre ein kleines monatliches Budget für eine Lösung für dich okay?"
+Falsch: "Wie viele Stunden pro Woche könntest du investieren?"
+Falsch: "Was wäre monatlich drin?"
+
 - Stelle immer nur eine Frage pro Antwort.
-- Wenn die Antwort sehr vage ist ("so ein bisschen", "weiß nicht"), hak kurz nach – z. B. "Eher eine Stunde pro Woche, oder eher mehr?"
-- Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen ableitbar sind (z. B. Zeitrahmen: < 1h/Woche, 1–3h/Woche, mehr).
-- Drängele nicht – wenn der Händler sagt "gar nicht" oder "kein Budget", nimm das als valide Antwort.
-- Bereiche die bereits klar beantwortet wurden, NICHT nochmals erfragen.
-- VERBOTEN: Frage nicht nach Lösungsideen oder -vorstellungen ("Hast du schon eine Idee, was du dir vorstellst?" o.Ä.) – das ist nicht deine Aufgabe in dieser Phase.`,
+- Wenn die Antwort vage ist ("kommt drauf an", "weiß nicht"), frag kurz nach was entscheidend ist – z.B. "Kommt es auf den Aufwand an, oder eher auf den Preis?"
+- "Nein" oder "lieber nicht" ist eine valide Antwort – nicht nachhaken.
+- VERBOTEN: Frage nicht nach Lösungsideen oder -vorstellungen – das ist nicht deine Aufgabe in dieser Phase.`,
     workPlan: [
-      "Bereitschaft für Zeitinvestition bekannt (auch 'gar nichts' oder 'so wenig wie möglich' ist gültig – vage Antworten nicht)",
-      "Bereitschaft für Geldbudget bekannt (auch 'kein Budget' oder 'muss kostenlos sein' ist gültig – vage Antworten nicht)",
+      "Grundsätzliche Bereitschaft für Zeitinvestition bekannt, sofern für das Problem relevant (auch 'nein' oder 'lieber nicht' ist gültig – 'weiß nicht' nicht)",
+      "Grundsätzliche Bereitschaft für laufende Kosten bekannt, sofern für das Problem relevant (auch 'nein' oder 'muss kostenlos sein' ist gültig – 'weiß nicht' nicht)",
+      "Grundsätzliche Bereitschaft für einmaliges Startbudget bekannt, sofern für das Problem relevant (auch 'nein' ist gültig – 'weiß nicht' nicht)",
     ],
     transitions: [
       {
@@ -228,7 +234,7 @@ HINWEISE:
 - Laden und Kontext des Händlers
 - Das konkrete Problem und sein Ausmaß
 - Den Software-Stack (Kasse, Online-Präsenz, Kommunikation, relevanter Bereich)
-- Bereitschaft für Zeit- und Geldinvestition
+- Bereitschaft für Zeit, laufende Kosten und einmaliges Startbudget
 
 Formuliere die Stichpunkte als Fakten ("Du nutzt...", "Das Problem ist...", "Bisher hast du...").
 Frage danach kurz: "Habe ich das richtig verstanden?"
@@ -252,7 +258,7 @@ Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einho
   {
     id: "assess_situation",
     persona: "full",
-    instruction: `Du hast jetzt: Laden, Problem/Ausmaß, den vollständigen Software-Stack UND die Investitionsbereitschaft (Zeit & Geld) des Händlers.
+    instruction: `Du hast jetzt: Laden, Problem/Ausmaß, den vollständigen Software-Stack UND die Investitionsbereitschaft (Zeit, laufende Kosten, einmaliges Startbudget) des Händlers.
 
 SCHRITT 1 – Ehrliche Einschätzung:
 Kann KI oder Software hier überhaupt sinnvoll helfen? Begründe kurz, warum – bezogen auf die erkannte Lücke.
@@ -261,7 +267,9 @@ Kann KI oder Software hier überhaupt sinnvoll helfen? Begründe kurz, warum –
 - "Das lohnt sich nicht" gilt nur, wenn das Problem grundsätzlich nicht software-lösbar ist – nicht wenn noch kein Stack da ist.
 
 INVESTITIONSBEREITSCHAFT ALS RANDBEDINGUNG (sehr wichtig):
-Die Lösungsrichtung MUSS zum genannten Zeit- und Geldrahmen passen. Eine aufwändige Richtung (z. B. eigener Webshop, der laufend gepflegt werden muss) kommt nur in Frage, wenn die Bereitschaft dafür ausreicht. Ist sie gering, wähle bewusst eine schlankere Richtung – das ist ehrlicher und hilfreicher als ein zu großer Vorschlag.
+Berücksichtige alle drei Dimensionen – Zeit, laufende Kosten UND einmaliges Startbudget. Eine Lösung ist nur realistisch, wenn sie in alle drei Rahmen passt.
+Beispiel: Ein eigener Webshop braucht Zeit zum Pflegen (laufend), monatliche Plattformkosten (laufend) UND Aufwand für die Einrichtung (einmalig) – wenn eine davon nicht passt, ist es die falsche Richtung.
+Ist die Bereitschaft gering, wähle bewusst eine schlankere Richtung – das ist ehrlicher und hilfreicher als ein zu großer Vorschlag.
 
 SCHRITT 2 – Lösungsrichtung erklären (KEIN konkretes Tool, KEIN Preis, KEINE Plattform):
 Erkläre die Richtung deines Ansatzes in 1–2 Sätzen – welche Hebel und warum.
@@ -298,16 +306,15 @@ Falsch: "Möchtest du, dass ich dir dazu etwas vorschlage?"`,
   {
     id: "give_recommendation",
     persona: "full",
-    instruction: `Fasse in einem Satz zusammen, was du weißt (Laden, Problem, Stack, Investitionsbereitschaft).
-Mache dann einen konkreten, realistischen Vorschlag:
+    instruction: `Mache einen konkreten, realistischen Vorschlag:
 - Wenn Stack vorhanden: Vorschlag fügt sich in den bestehenden Stack ein – kein Umbau, keine neuen Plattformen ohne Not.
 - Wenn kein Stack vorhanden: Empfehle den einfachsten sinnvollen Einstieg (z.B. eine Plattform, ein Tool) – konkret und machbar für jemanden ohne Vorkenntnisse.
 
 INVESTITIONSBEREITSCHAFT IST ENTSCHEIDEND (sehr wichtig):
-Der Vorschlag MUSS in den genannten Zeit- und Geldrahmen passen – sowohl bei der Einrichtung als auch im laufenden Betrieb.
-- Ein eigener Webshop o. Ä. ist nur dann die richtige Empfehlung, wenn der Händler genug Zeit für die Pflege UND das nötige Budget mitbringt.
-- Ist die Bereitschaft gering, empfiehl bewusst die schlankere Lösung (z. B. bestehende Plattform/Marktplatz, gepflegtes Google-Profil, ein einzelner Kanal) statt der aufwändigen.
-- Sag offen, wenn der Wunsch des Händlers mehr Aufwand bräuchte als er investieren will – und biete die realistische Alternative an.
+Der Vorschlag MUSS in alle drei Dimensionen passen: Zeit (laufend), monatliche Kosten (laufend) UND einmaliges Startbudget.
+- Prüfe jeden Vorschlag gegen alle drei: Was kostet die Einrichtung einmalig? Was kostet der Betrieb monatlich? Wie viel Zeit braucht es laufend?
+- Ein eigener Webshop ist nur dann richtig, wenn der Händler Zeit zum Pflegen, Monatskosten UND ein Startbudget für die Einrichtung mitbringt.
+- Ist eine der drei Dimensionen zu knapp, empfiehl die schlankere Alternative – und sag offen warum.
 
 Nenne ehrlich: Was kostet es ungefähr? Was ist der Aufwand (Einrichtung und laufend)? Was bringt es konkret? Passt das zum genannten Rahmen?
 Frage am Ende, ob das passt oder ob etwas unklar ist.`,

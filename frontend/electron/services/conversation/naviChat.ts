@@ -61,14 +61,14 @@ const ASK_QUESTION_TOOL: ToolDefinition = {
   function: {
     name: "ask_question",
     description:
-      "Schreibe deine nächste Nachricht im Gespräch: knüpf kurz und konkret an das an, was der Händler gerade gesagt hat, und stelle genau eine gezielte Frage. Beginne NICHT formelhaft mit 'Verstehe', 'Verstanden', 'Alles klar', 'Okay' o.Ä. – greif stattdessen einen konkreten Inhalt seiner Antwort auf oder stell die Frage direkt.",
+      "Schreibe deine nächste Nachricht im Gespräch und stelle genau eine gezielte Frage. Stell die Frage direkt – ohne das Gesagte vorher zu wiederholen, zusammenzufassen oder zu paraphrasieren. Beginne NICHT mit 'Verstehe', 'Verstanden', 'Alles klar', 'Okay', 'Das klingt nach...' o.Ä. Kein Echo. Kein 'Habe ich das richtig verstanden?'.",
     parameters: {
       type: "object",
       properties: {
         response: {
           type: "string",
           description:
-            "Deine direkte Gesprächsnachricht. Immer 'du', nie 'der Händler'. 1–2 Sätze: konkrete Reaktion auf das Gesagte (kein formelhaftes 'Verstehe'/'Verstanden'/'Okay' am Anfang), dann eine konkrete Frage.",
+            "Deine direkte Gesprächsnachricht. Immer 'du', nie 'der Händler'. Fang direkt mit der Frage an. Wenn es natürlich ist, kannst du in einem Halbsatz auf einen konkreten Punkt eingehen – aber KEIN Echo und KEINE Zusammenfassung dessen, was der Händler gerade gesagt hat.",
         },
       },
       required: ["response"],
