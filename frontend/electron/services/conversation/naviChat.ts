@@ -477,8 +477,12 @@ async function drainResponseStreamWithLoop(
       toolRoundMessages.push({ role: "tool", tool_call_id: result.toolCallId, content: result.result });
     }
 
-    // ask_clarification requires user interaction — stop here
-    if (toolCalls.some((tc) => tc.function.name === "ask_clarification")) {
+    // ask_clarification / ask_yes_no require user interaction — stop here
+    if (
+      toolCalls.some(
+        (tc) => tc.function.name === "ask_clarification" || tc.function.name === "ask_yes_no",
+      )
+    ) {
       if (!isStreamActive(streamId)) return fullAssistantText;
       emit({ type: "done", data: { fullAssistantText } });
       return fullAssistantText;

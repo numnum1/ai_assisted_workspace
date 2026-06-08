@@ -15,7 +15,6 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
     workPlan: [],
     transitions: [
       { to: "ask_problem", label: "Laden genannt" },
-      { to: "clarify_problem", label: "Laden + Problem genannt" },
     ],
   },
   {

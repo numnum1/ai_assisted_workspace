@@ -43,10 +43,6 @@ Was ist dein Laden?"`,
     workPlan: [],
     transitions: [
       {
-        condition: "Nutzer nennt seinen Laden UND beschreibt ein konkretes Problem oder einen konkreten Wunsch mit ausreichend Details",
-        to: "clarify_problem",
-      },
-      {
         condition: "Nutzer nennt seinen Laden (auch wenn noch kein Problem genannt wurde)",
         to: "ask_problem",
       },
@@ -224,7 +220,7 @@ Falsch: "Was wäre monatlich drin?"
         to: "confirm_understanding",
       },
     ],
-    tools: ["ask_question", "ask_clarification"],
+    tools: ["ask_question", "ask_clarification", "ask_yes_no"],
     validation: { requiresQuestion: true },
   },
   {
