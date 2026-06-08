@@ -13,7 +13,7 @@ import { isStreamActive } from "../chatSession.js";
 import { executeToolCall, describeStreamingToolCall, type ToolExecutionResult } from "../chatToolExecution.js";
 import {
   getNaviState,
-  buildClassificationPrompt,
+  buildCombinedClassifierPrompt,
   buildNaviContextPrompt,
   type NaviState,
 } from "../naviStateMachine.js";
@@ -581,19 +581,21 @@ export async function runNaviChatStream(
       speculativeAbort.signal,
     );
 
-    // ── Classifier (runs in parallel with the speculative response fetch) ────
+    // ── Combined classifier + cascade (single call) ──────────────────────────
+    // Replaces the former two sequential blocking calls (classifier → cascade check).
+    // The prompt includes transition targets' workPlans so the LLM determines the
+    // final destination state — including a one-hop cascade — in a single response.
     let newStateId = currentStateId;
     if (userMessage && currentState.transitions.length > 0) {
       emit({ type: "navi_step", data: { label: "Prüfe Phasenwechsel …" } });
-      const classificationSystemPrompt =
-        'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.';
       const classificationHistory = Array.isArray(request.history) ? request.history : [];
-      const classificationUserPrompt = buildClassificationPrompt(
+      const { prompt: combinedPrompt, validStates } = buildCombinedClassifierPrompt(
         currentStateId,
         userMessage,
         currentState.transitions,
         effectiveWorkPlan(currentStateId, currentState.workPlan),
         classificationHistory,
+        effectiveWorkPlan,
       );
 
       try {
@@ -603,11 +605,15 @@ export async function runNaviChatStream(
           body: JSON.stringify({
             model: endpoint.model,
             stream: false,
-            max_tokens: 5,
+            max_tokens: 30,
             reasoning_effort: "medium",
             messages: [
-              { role: "system", content: classificationSystemPrompt },
-              { role: "user", content: classificationUserPrompt },
+              {
+                role: "system",
+                content:
+                  'Du analysierst eine Nutzer-Nachricht und bestimmst den nächsten State. Antworte NUR mit dem State-Namen oder "none". Keine Erklärung.',
+              },
+              { role: "user", content: combinedPrompt },
             ],
           }),
         });
@@ -616,96 +622,30 @@ export async function runNaviChatStream(
           const classificationJson = (await classificationResponse.json()) as {
             choices?: Array<{ message?: { content?: string } }>;
           };
-          const rawChoice = classificationJson?.choices?.[0]?.message?.content?.trim() ?? "0";
-          const choiceNum = parseInt(rawChoice, 10);
-          if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= currentState.transitions.length) {
-            const candidateStateId = currentState.transitions[choiceNum - 1].to;
-            if (candidateStateId === "confirm_understanding") {
+          const rawChoice =
+            classificationJson?.choices?.[0]?.message?.content?.trim() ?? "none";
+          const lowerRaw = rawChoice.toLowerCase();
+          let candidate = "none";
+          for (const s of validStates) {
+            if (s !== "none" && lowerRaw.includes(s.toLowerCase())) {
+              candidate = s;
+              break;
+            }
+          }
+          if (candidate !== "none") {
+            if (candidate === "confirm_understanding") {
               const userMessageCount =
                 classificationHistory.filter((m) => m.role === "user").length + 1;
               if (userMessageCount > 10) {
-                newStateId = candidateStateId;
+                newStateId = candidate;
               }
             } else {
-              newStateId = candidateStateId;
+              newStateId = candidate;
             }
           }
         }
       } catch {
         // Classification error: keep current state, use speculative fetch
-      }
-    }
-
-    if (!isStreamActive(streamId)) {
-      speculativeAbort.abort();
-      return;
-    }
-
-    // ── Cascade check ─────────────────────────────────────────────────────────
-    // If the triggering message already satisfies the new state's workPlan,
-    // skip that intermediate state and jump one hop further.
-    // Example: user describes Fall B in ask_problem → classifier says clarify_problem,
-    // but both clarify_problem workPlan items are already covered → jump to explore_software_stack.
-    if (newStateId !== currentStateId) {
-      const cascadeState = getNaviState(newStateId);
-      const cascadeWorkPlan = cascadeState
-        ? effectiveWorkPlan(newStateId, cascadeState.workPlan)
-        : [];
-      if (cascadeState && cascadeWorkPlan.length > 0 && cascadeState.transitions.length > 0) {
-        try {
-          const cascadePrompt = buildClassificationPrompt(
-            newStateId,
-            userMessage,
-            cascadeState.transitions,
-            cascadeWorkPlan,
-            Array.isArray(request.history) ? request.history : [],
-          );
-          const cascadeResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${endpoint.apiKey}`,
-            },
-            body: JSON.stringify({
-              model: endpoint.model,
-              stream: false,
-              max_tokens: 5,
-              reasoning_effort: "medium",
-              messages: [
-                {
-                  role: "system",
-                  content:
-                    'Du analysierst eine Nutzer-Nachricht und entscheidest, welche Transition zutrifft. Antworte NUR mit der Zahl der zutreffenden Transition oder "0" wenn keine zutrifft. Keine Erklärung. Nur die Zahl.',
-                },
-                { role: "user", content: cascadePrompt },
-              ],
-            }),
-          });
-          if (cascadeResponse.ok) {
-            const cascadeJson = (await cascadeResponse.json()) as {
-              choices?: Array<{ message?: { content?: string } }>;
-            };
-            const rawCascade =
-              cascadeJson?.choices?.[0]?.message?.content?.trim() ?? "0";
-            const cascadeChoice = parseInt(rawCascade, 10);
-            if (
-              !isNaN(cascadeChoice) &&
-              cascadeChoice >= 1 &&
-              cascadeChoice <= cascadeState.transitions.length
-            ) {
-              const cascadeTarget = cascadeState.transitions[cascadeChoice - 1].to;
-              if (cascadeTarget === "confirm_understanding") {
-                const histMsgs = Array.isArray(request.history) ? request.history : [];
-                const userCount = histMsgs.filter((m) => m.role === "user").length + 1;
-                if (userCount > 10) newStateId = cascadeTarget;
-              } else {
-                newStateId = cascadeTarget;
-              }
-            }
-          }
-        } catch {
-          // Non-fatal — keep newStateId from first classifier
-        }
       }
     }
 
@@ -849,8 +789,17 @@ export async function runNaviChatStream(
       })(),
 
       // Call 2d: naviContext extraction — on every state transition.
+      // When entering clarify_problem for the first time, also extracts problem details
+      // (interpretation + queue) in the same call, replacing the former separate Call 2c.
       (async () => {
         if (newStateId === currentStateId) return;
+        const withProblemDetails =
+          newStateId === "clarify_problem" &&
+          currentStateId !== "clarify_problem" &&
+          !naviCurrentProblemInterpretation;
+        if (withProblemDetails) {
+          emit({ type: "navi_step", data: { label: "Erkenne Anliegen …" } });
+        }
         try {
           const history = Array.isArray(request.history) ? request.history : [];
           const excerptLines: string[] = [];
@@ -863,7 +812,7 @@ export async function runNaviChatStream(
           }
           if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
           const excerpt = excerptLines.slice(-20).join("\n");
-          const contextPrompt = buildNaviContextPrompt(excerpt);
+          const contextPrompt = buildNaviContextPrompt(excerpt, withProblemDetails);
           const contextResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
@@ -902,102 +851,35 @@ export async function runNaviChatStream(
               if (typeof parsed.details === "string" && parsed.details.trim())
                 ctx.details = parsed.details.trim();
               if (Object.keys(ctx).length > 0) updatedNaviContext = ctx;
-            }
-          }
-        } catch (err) {
-          console.error("[navi] NaviContext extraction failed:", err);
-        }
-      })(),
-
-      // Call 2c: problem extraction — first entry into clarify_problem.
-      (async () => {
-        if (
-          newStateId !== "clarify_problem" ||
-          currentStateId === "clarify_problem" ||
-          naviCurrentProblemInterpretation
-        )
-          return;
-        emit({ type: "navi_step", data: { label: "Erkenne Anliegen …" } });
-        try {
-          const history = Array.isArray(request.history) ? request.history : [];
-          const excerptLines: string[] = [];
-          for (const msg of history) {
-            if (msg.hidden) continue;
-            const content = normalizeText(typeof msg.content === "string" ? msg.content : "");
-            if (!content) continue;
-            if (msg.role === "assistant") excerptLines.push(`Navi: ${content}`);
-            else if (msg.role === "user") excerptLines.push(`Händler: ${content}`);
-          }
-          if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
-          const excerpt = excerptLines.slice(-10).join("\n");
-
-          const knownProblem = naviCurrentProblem;
-          const extractSystemPrompt = knownProblem
-            ? [
-                "Du analysierst ein Gespräch zwischen Navi (KI-Berater) und einem Händler.",
-                `Das aktuelle Problem des Händlers ist bereits bekannt: "${knownProblem}"`,
-                "Deine Aufgabe: Erstelle eine kurze Interpretation dieses Problems.",
-                "Die Interpretation erklärt: Was bedeutet das Problem wirklich? In welche Richtung zeigt die Lösung?",
-                "Beispiel: 'Struktureller Rückgang der Laufkundschaft in der Gegend – nicht store-spezifisch. Lösung: alternative Kanäle erschließen (online, Reichweite), nicht Außenauftritt optimieren.'",
-                'Antworte NUR mit gültigem JSON: { "current": "...", "interpretation": "...", "queue": [] }',
-              ].join("\n")
-            : [
-                "Du analysierst ein Gespräch zwischen Navi (KI-Berater) und einem Händler.",
-                "Deine Aufgabe: Finde alle konkreten Probleme oder Anliegen, die der Händler genannt hat.",
-                "Gib das wichtigste / zuerst genannte Problem als 'current' zurück.",
-                "Erstelle außerdem eine kurze 'interpretation': Was bedeutet das Problem wirklich? In welche Richtung zeigt die Lösung?",
-                "Beispiel interpretation: 'Struktureller Rückgang der Laufkundschaft – nicht store-spezifisch. Lösung: alternative Kanäle erschließen, nicht Außenauftritt optimieren.'",
-                "Alle weiteren Probleme als Array in 'queue' (leer wenn keins). Kurze Labels, z. B. 'Buchhaltung zu aufwändig'.",
-                'Antworte NUR mit gültigem JSON: { "current": "...", "interpretation": "...", "queue": [] }',
-              ].join("\n");
-
-          const extractResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-            body: JSON.stringify({
-              model: endpoint.model,
-              stream: false,
-              max_tokens: 200,
-              temperature: 0.1,
-              reasoning_effort: "medium",
-              messages: [
-                { role: "system", content: extractSystemPrompt },
-                {
-                  role: "user",
-                  content: `Gesprächsausschnitt:\n${excerpt}\n\nAnalysiere das Problem des Händlers.`,
-                },
-              ],
-            }),
-          });
-          if (extractResponse.ok) {
-            const extractJson = (await extractResponse.json()) as {
-              choices?: Array<{ message?: { content?: string } }>;
-            };
-            const raw = normalizeText(extractJson?.choices?.[0]?.message?.content ?? "");
-            const jsonMatch = raw.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]) as {
-                current?: string;
-                interpretation?: string;
-                queue?: string[];
-              };
-              if (parsed.current) {
-                naviCurrentProblem = parsed.current;
-                naviCurrentProblemInterpretation = parsed.interpretation ?? "";
-                naviProblemQueue = Array.isArray(parsed.queue) ? parsed.queue : naviProblemQueue;
-                emit({
-                  type: "navi_problems",
-                  data: {
-                    current: naviCurrentProblem,
-                    interpretation: naviCurrentProblemInterpretation,
-                    queue: naviProblemQueue,
-                  },
-                });
+              // Problem details — merged from former Call 2c
+              if (withProblemDetails) {
+                if (ctx.problem && !naviCurrentProblem) naviCurrentProblem = ctx.problem;
+                if (
+                  typeof parsed.problemInterpretation === "string" &&
+                  parsed.problemInterpretation.trim()
+                )
+                  naviCurrentProblemInterpretation = parsed.problemInterpretation.trim();
+                if (Array.isArray(parsed.problemQueue)) {
+                  const newItems = (parsed.problemQueue as unknown[])
+                    .filter((p): p is string => typeof p === "string" && !!p.trim())
+                    .filter((p) => !naviProblemQueue.includes(p));
+                  if (newItems.length > 0) naviProblemQueue = [...naviProblemQueue, ...newItems];
+                }
+                if (naviCurrentProblem) {
+                  emit({
+                    type: "navi_problems",
+                    data: {
+                      current: naviCurrentProblem,
+                      interpretation: naviCurrentProblemInterpretation,
+                      queue: naviProblemQueue,
+                    },
+                  });
+                }
               }
             }
           }
         } catch (err) {
-          console.error("[navi] Problem extraction failed:", err);
+          console.error("[navi] NaviContext extraction failed:", err);
         }
       })(),
     ]);
