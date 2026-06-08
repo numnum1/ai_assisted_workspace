@@ -367,13 +367,8 @@ function App() {
 
   const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages, {
-    onNaviStateTransition: (stateId, conversationId, completedStateId, summary) => {
-      const patch: Partial<import("./types.ts").Conversation> = { naviStateId: stateId };
-      if (completedStateId && summary) {
-        const conv = history.conversations.find((c) => c.id === conversationId);
-        patch.naviResults = { ...(conv?.naviResults ?? {}), [completedStateId]: summary };
-      }
-      history.patchConversation(conversationId, patch);
+    onNaviStateTransition: (stateId, conversationId) => {
+      history.patchConversation(conversationId, { naviStateId: stateId });
     },
     onNaviPlan: (plan, conversationId) => {
       history.patchConversation(conversationId, { naviPlan: plan });
@@ -1497,7 +1492,6 @@ function App() {
         conversationId: conv.id,
         sessionKind: "navi",
         naviStateId: conv.naviStateId ?? "greeting",
-        naviResults: conv.naviResults,
         naviContext: conv.naviContext,
         naviPlan: conv.naviPlan,
         naviCoveredTips: conv.naviCoveredTips,
@@ -1671,7 +1665,6 @@ function App() {
             activeConversationId={history.activeId}
             onSwitchChat={handleSwitchChat}
             naviStateId={history.activeConversation?.naviStateId ?? null}
-            naviResults={history.activeConversation?.naviResults}
             naviContext={history.activeConversation?.naviContext}
             naviPlan={history.activeConversation?.naviPlan}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
@@ -1952,7 +1945,6 @@ function App() {
                   history.activeConversation?.sessionKind ?? "standard"
                 }
                 naviStateId={history.activeConversation?.naviStateId ?? null}
-                naviResults={history.activeConversation?.naviResults}
                 naviPlan={history.activeConversation?.naviPlan}
                 naviCoveredTips={history.activeConversation?.naviCoveredTips}
                 naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
@@ -2020,7 +2012,6 @@ function App() {
             activeConversationId={history.activeId}
             onSwitchChat={handleSwitchChat}
             naviStateId={history.activeConversation?.naviStateId ?? null}
-            naviResults={history.activeConversation?.naviResults}
             naviContext={history.activeConversation?.naviContext}
             naviPlan={history.activeConversation?.naviPlan}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}

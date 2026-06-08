@@ -80,33 +80,10 @@ export function buildNaviContextPrompt(conversationExcerpt: string): string {
   return [
     "Du analysierst ein Beratungsgespräch zwischen Navi (KI-Berater) und einem Händler.",
     "Extrahiere alle bisher sicher bekannten Fakten als JSON-Objekt mit diesen Feldern:",
-    '{ "laden": "Ladentyp, Branche, Standort, Kontext – alles was der Händler über seinen Laden erwähnt hat (null wenn unbekannt)", "problem": "Das konkrete Problem oder der Wunsch – kurz und präzise (null wenn unbekannt)", "luecke": "Die praktische Lücke – der konkrete fehlende Schritt (null wenn unbekannt)", "stack": "Software-Stack in einem Satz, z.B. Kasse: X, Online-Shop: X, Komm: X (null wenn unbekannt)", "investition": "Bereitschaft für Zeit und Geld in einem Satz, z.B. Zeit: X h/Woche, Budget: X €/Monat (null wenn unbekannt)", "empfehlung": "Gemachter Lösungsvorschlag (null wenn noch keiner gemacht)" }',
+    '{ "laden": "Ladentyp, Branche, Standort, Kontext – alles was der Händler über seinen Laden erwähnt hat (null wenn unbekannt)", "problem": "Das konkrete Problem oder der Wunsch – kurz und präzise (null wenn unbekannt)", "luecke": "Die praktische Lücke – der konkrete fehlende Schritt (null wenn unbekannt)", "stack": "Software-Stack in einem Satz, z.B. Kasse: X, Online-Shop: X, Komm: X (null wenn unbekannt)", "investition": "Bereitschaft für Zeit und Geld in einem Satz, z.B. Zeit: X h/Woche, Budget: X €/Monat (null wenn unbekannt)", "empfehlung": "Gemachter Lösungsvorschlag (null wenn noch keiner gemacht)", "details": "Alle weiteren konkreten Fakten in Stichpunktform – z.B. genutzte Tools, spezifische Kommunikationswege, Abläufe, Plattformen, Angaben die nicht in die Hauptfelder passen. Beginne jeden Punkt mit \'- \'. (null wenn nichts Zusätzliches)" }',
     `Gesprächsauszug:\n${conversationExcerpt}`,
     "Setze null für Felder die noch nicht klar bekannt sind. Nur direkt Genanntes – keine Interpretationen.",
     "Antworte NUR mit dem JSON-Objekt, ohne Markdown-Block und ohne weiteren Text.",
   ].join("\n\n");
 }
 
-/**
- * Builds a prompt that extracts a compact summary of what was learned in a completed state.
- * The summary is stored in naviResults and injected as context in subsequent states.
- */
-export function buildStateSummaryPrompt(
-  completedStateId: string,
-  workPlan: string[],
-  conversationExcerpt: string,
-): string {
-  const workPlanHint =
-    workPlan.length > 0
-      ? `Die primären Lernziele dieser Phase waren:\n${workPlan.map((p) => `- ${p}`).join("\n")}`
-      : "";
-  return [
-    `Du fasst zusammen, was der Händler im Navi-Beratungsgespräch während der Phase "${completedStateId}" über sich, seinen Laden oder sein Geschäft mitgeteilt hat.`,
-    workPlanHint,
-    `Gesprächsauszug:\n${conversationExcerpt}`,
-    "Erfasse ALLE konkreten Fakten, die der Händler genannt hat – auch scheinbar nebensächliche Angaben (z. B. genutzte Tools, Kommunikationswege, Plattformen, Arbeitsabläufe, Kontextinfos). Ziel: Nachfolgende Gesprächsphasen sollen nicht nach Dingen fragen, die der Händler hier bereits erwähnt hat.",
-    "NUR Fakten aus dem Gespräch – keine Interpretationen, keine Empfehlungen.",
-    "Format: ein Stichpunkt pro Zeile, beginnend mit '- ' (4–8 Stichpunkte, je 1 Zeile)",
-    "Antworte ausschließlich mit den Stichpunkten, ohne Überschrift oder Einleitung.",
-  ].filter(Boolean).join("\n\n");
-}

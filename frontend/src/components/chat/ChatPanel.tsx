@@ -113,7 +113,6 @@ interface ChatPanelProps {
   systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
   naviStateId?: string | null;
-  naviResults?: Record<string, string>;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
   naviCurrentProblem?: string;
@@ -192,7 +191,6 @@ export function ChatPanel({
   systemPromptPreview,
   onFetchContextBlocks,
   naviStateId,
-  naviResults,
   naviPlan,
   naviCoveredTips,
   naviCurrentProblem,

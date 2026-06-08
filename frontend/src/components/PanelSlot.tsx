@@ -20,7 +20,6 @@ export interface PanelSlotProps {
   activeConversationId: string;
   onSwitchChat: (id: string) => void;
   naviStateId?: string | null;
-  naviResults?: Record<string, string>;
   naviContext?: NaviContext;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
@@ -45,7 +44,6 @@ export function PanelSlot({
   activeConversationId,
   onSwitchChat,
   naviStateId,
-  naviResults,
   naviContext,
   naviPlan,
   naviCoveredTips,
@@ -120,7 +118,6 @@ export function PanelSlot({
         {selectedTool === "navi-state" && naviStateId && (
           <NaviStatePanel
             naviStateId={naviStateId}
-            naviResults={naviResults}
             naviContext={naviContext}
             naviPlan={naviPlan}
             naviCoveredTips={naviCoveredTips}

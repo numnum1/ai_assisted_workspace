@@ -15,7 +15,6 @@ import {
   getNaviState,
   buildClassificationPrompt,
   buildNaviContextPrompt,
-  buildStateSummaryPrompt,
   type NaviState,
 } from "../naviStateMachine.js";
 import { buildNaviKnowledgePrompt } from "../naviKnowledgeBase.js";
@@ -165,6 +164,7 @@ function buildNaviConversationBody(
     if (naviCtx.stack) parts.push(`- Stack: ${naviCtx.stack}`);
     if (naviCtx.investition) parts.push(`- Investitionsbereitschaft (Zeit & Geld): ${naviCtx.investition}`);
     if (naviCtx.empfehlung) parts.push(`- Empfehlung: ${naviCtx.empfehlung}`);
+    if (naviCtx.details) parts.push(`- Weitere Fakten:\n${naviCtx.details}`);
     if (parts.length === 0) return "";
 
     // In recommendation states the investment readiness is a hard constraint, not just context.
@@ -180,16 +180,6 @@ function buildNaviConversationBody(
 
     return "Bekannte Fakten über den Händler:\n" + parts.join("\n") + investmentRule;
   })();
-
-  const naviResults = request.naviResults ?? {};
-  const resultEntries = Object.entries(naviResults).filter(([, v]) => v?.trim());
-  const naviResultsContext =
-    resultEntries.length > 0
-      ? [
-          "Bisher herausgefundene Fakten aus früheren Gesprächsphasen:",
-          ...resultEntries.map(([stateId, summary]) => `[${stateId}]\n${summary}`),
-        ].join("\n\n")
-      : "";
 
   const coveredTips = new Set(request.naviCoveredTips ?? []);
   const pendingTips = NAVI_TIPS.filter((t) => !coveredTips.has(t.id));
@@ -207,7 +197,6 @@ function buildNaviConversationBody(
           ...NAVI_NARROW_PERSONA_RULES,
           ...(problemFocusBlock ? [problemFocusBlock] : []),
           ...(naviContextSection ? [naviContextSection] : []),
-          ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
         ].join("\n\n")
       : [
@@ -215,7 +204,6 @@ function buildNaviConversationBody(
           ...NAVI_FULL_PERSONA_RULES,
           ...(problemFocusBlock ? [problemFocusBlock] : []),
           ...(naviContextSection ? [naviContextSection] : []),
-          ...(naviResultsContext ? [naviResultsContext] : []),
           `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
           ...(tipsPromptSection ? [tipsPromptSection] : []),
           ...(knowledgePrompt ? [knowledgePrompt] : []),
@@ -741,9 +729,6 @@ export async function runNaviChatStream(
     // ── Transition: abort speculative fetch, run parallel calls, restart ────
     speculativeAbort.abort();
 
-    const currentEffectiveWorkPlan = effectiveWorkPlan(currentStateId, currentState.workPlan);
-
-    let stateSummary: string | undefined;
     let naviPlan: string | undefined = request.naviPlan ?? undefined;
     let naviCurrentProblem: string | undefined = request.naviCurrentProblem ?? undefined;
     let naviCurrentProblemInterpretation: string | undefined =
@@ -770,50 +755,6 @@ export async function runNaviChatStream(
     }
 
     await Promise.all([
-      // Call 2: summary of the completed state (on transition with workPlan).
-      (async () => {
-        if (newStateId === currentStateId || currentEffectiveWorkPlan.length === 0) return;
-        emit({ type: "navi_step", data: { label: "Erstelle Zusammenfassung …" } });
-        try {
-          const history = Array.isArray(request.history) ? request.history : [];
-          const excerptLines: string[] = [];
-          for (const msg of history) {
-            if (msg.hidden) continue;
-            const content = normalizeText(typeof msg.content === "string" ? msg.content : "");
-            if (!content) continue;
-            if (msg.role === "assistant") excerptLines.push(`Navi: ${content}`);
-            else if (msg.role === "user") excerptLines.push(`Händler: ${content}`);
-          }
-          if (userMessage) excerptLines.push(`Händler: ${userMessage}`);
-          const excerpt = excerptLines.join("\n");
-          const summaryPrompt = buildStateSummaryPrompt(
-            currentStateId,
-            currentEffectiveWorkPlan,
-            excerpt,
-          );
-          const summaryResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-            body: JSON.stringify({
-              model: endpoint.model,
-              stream: false,
-              temperature: 0.1,
-              reasoning_effort: "medium",
-              messages: [{ role: "user", content: summaryPrompt }],
-            }),
-          });
-          if (summaryResponse.ok) {
-            const summaryJson = (await summaryResponse.json()) as {
-              choices?: Array<{ message?: { content?: string } }>;
-            };
-            stateSummary =
-              normalizeText(summaryJson?.choices?.[0]?.message?.content ?? "") || undefined;
-          }
-        } catch (err) {
-          console.error("[navi] State summary generation failed:", err);
-        }
-      })(),
-
       // Call 2b: question plan for clarify_problem and explore_software_stack.
       (async () => {
         const isProblemPlan = newStateId === "clarify_problem";
@@ -925,7 +866,7 @@ export async function runNaviChatStream(
             body: JSON.stringify({
               model: endpoint.model,
               stream: false,
-              max_tokens: 200,
+              max_tokens: 400,
               temperature: 0,
               reasoning_effort: "medium",
               messages: [{ role: "user", content: contextPrompt }],
@@ -954,6 +895,8 @@ export async function runNaviChatStream(
                 ctx.investition = parsed.investition.trim();
               if (typeof parsed.empfehlung === "string" && parsed.empfehlung.trim())
                 ctx.empfehlung = parsed.empfehlung.trim();
+              if (typeof parsed.details === "string" && parsed.details.trim())
+                ctx.details = parsed.details.trim();
               if (Object.keys(ctx).length > 0) updatedNaviContext = ctx;
             }
           }
@@ -1060,7 +1003,6 @@ export async function runNaviChatStream(
       data: {
         stateId: newStateId,
         ...(newStateId !== currentStateId ? { completedStateId: currentStateId } : {}),
-        ...(stateSummary ? { summary: stateSummary } : {}),
       },
     });
 

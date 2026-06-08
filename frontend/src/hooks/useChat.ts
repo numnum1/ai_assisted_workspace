@@ -36,7 +36,6 @@ export interface ChatStreamSessionMeta {
   steeringPlan?: string;
   isThread?: boolean;
   naviStateId?: string | null;
-  naviResults?: Record<string, string>;
   naviContext?: NaviContext;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
@@ -64,7 +63,7 @@ export interface UseChatOptions {
     fullText: string,
     meta: { conversationId: string; sessionKind: ChatSessionKind },
   ) => void;
-  onNaviStateTransition?: (stateId: string, conversationId: string, completedStateId?: string, summary?: string) => void;
+  onNaviStateTransition?: (stateId: string, conversationId: string, completedStateId?: string) => void;
   onNaviPlan?: (plan: string, conversationId: string) => void;
   onNaviTipsCovered?: (coveredIds: string[], conversationId: string) => void;
   onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[], conversationId: string) => void;
@@ -90,9 +89,6 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
     return {
       sessionKind: 'navi',
       naviStateId: meta.naviStateId ?? null,
-      ...(meta.naviResults && Object.keys(meta.naviResults).length > 0
-        ? { naviResults: meta.naviResults }
-        : {}),
       ...(meta.naviContext ? { naviContext: meta.naviContext } : {}),
       ...(meta.naviPlan ? { naviPlan: meta.naviPlan } : {}),
       ...(meta.naviCoveredTips && meta.naviCoveredTips.length > 0 ? { naviCoveredTips: meta.naviCoveredTips } : {}),
@@ -224,8 +220,8 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       const naviConversationId = streamSession?.conversationId ?? '';
       const onNaviState =
         streamSession?.sessionKind === 'navi' && onNaviStateTransitionRef.current
-          ? (stateId: string, completedStateId?: string, summary?: string) =>
-              onNaviStateTransitionRef.current!(stateId, naviConversationId, completedStateId, summary)
+          ? (stateId: string, completedStateId?: string) =>
+              onNaviStateTransitionRef.current!(stateId, naviConversationId, completedStateId)
           : undefined;
 
       const onNaviPlanCb =

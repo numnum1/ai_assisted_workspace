@@ -103,7 +103,6 @@ export function useSimulationRunner({
             conversationId: conv.id,
             sessionKind: "navi",
             naviStateId: conv.naviStateId ?? "greeting",
-            naviResults: conv.naviResults,
             naviContext: conv.naviContext,
             naviPlan: conv.naviPlan,
             naviCoveredTips: conv.naviCoveredTips,

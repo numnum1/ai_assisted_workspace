@@ -1,5 +1,6 @@
 /**
  * Accumulated structured facts about the merchant, extracted and updated at each state transition.
+ * Single source of truth — replaces all per-state summaries (naviResults).
  * Injected as a concise overview into every state's system prompt.
  */
 export interface NaviContext {
@@ -15,6 +16,8 @@ export interface NaviContext {
   investition?: string;
   /** Gemachter Lösungsvorschlag */
   empfehlung?: string;
+  /** Granulare Zusatzfakten die nicht in die Hauptfelder passen (Tools, Abläufe, Spezifika) */
+  details?: string;
 }
 
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
@@ -212,12 +215,6 @@ export interface ChatRequest {
   rulesDisabled?: boolean;
   /** Current state id for navi sessions; sent each request. */
   naviStateId?: string | null;
-  /**
-   * Accumulated compact summaries from completed navi states.
-   * Key = state id (e.g. "clarify_problem"), value = 2–5 bullet summary of what was learned.
-   * Injected as context into subsequent state prompts so Navi doesn't lose earlier findings.
-   */
-  naviResults?: Record<string, string>;
   /** Structured fact sheet accumulated across state transitions; injected into every state's prompt. */
   naviContext?: NaviContext;
   /** When set, the generated question plan for the clarify_problem state is re-sent each turn. */
@@ -307,11 +304,6 @@ export interface Conversation {
   writeFileSettled?: Record<string, 'applied' | 'reverted'>;
   /** Current navi state id; persisted for navi sessions and sent with each request. */
   naviStateId?: string | null;
-  /**
-   * Accumulated compact summaries from completed navi states (persisted per conversation).
-   * Key = state id, value = short summary of what was learned in that state.
-   */
-  naviResults?: Record<string, string>;
   /** Structured fact sheet accumulated across state transitions. */
   naviContext?: NaviContext;
   /** Generated question plan for the clarify_problem state; persisted and re-sent each turn. */

@@ -23,7 +23,7 @@ export type StreamCallbacks = {
   setContextInfo: Dispatch<SetStateAction<ContextInfo | null>>;
   currentBaseRef: MutableRefObject<ChatMessage[]>;
   turnId?: string;
-  onNaviState?: (stateId: string, completedStateId?: string, summary?: string) => void;
+  onNaviState?: (stateId: string, completedStateId?: string) => void;
   onNaviPlan?: (plan: string) => void;
   onNaviTipsCovered?: (coveredIds: string[]) => void;
   onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[]) => void;

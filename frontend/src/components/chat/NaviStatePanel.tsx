@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   CheckCircle2,
   Circle,
@@ -22,7 +21,6 @@ import "./NaviStatePanel.css";
 
 interface Props {
   naviStateId: string;
-  naviResults?: Record<string, string>;
   naviContext?: NaviContext;
   naviPlan?: string | null;
   naviCoveredTips?: string[];
@@ -30,18 +28,15 @@ interface Props {
   naviProblemQueue?: string[];
 }
 
-export function NaviStatePanel({ naviStateId, naviResults, naviContext, naviPlan, naviCoveredTips, naviCurrentProblem, naviProblemQueue }: Props) {
-  const [expandedResult, setExpandedResult] = useState<string | null>(null);
-
+export function NaviStatePanel({ naviStateId, naviContext, naviPlan, naviCoveredTips, naviCurrentProblem, naviProblemQueue }: Props) {
   const current = getNaviClientState(naviStateId);
   const currentRaw = NAVI_STATES.find((s) => s.id === naviStateId);
 
-  const isDone = (stateId: string) =>
-    stateId !== naviStateId && Boolean(naviResults?.[stateId]);
-
-  const resultEntries = Object.entries(naviResults ?? {}).filter(([, v]) =>
-    v?.trim(),
-  );
+  const currentIndex = NAVI_CLIENT_STATES.findIndex((s) => s.id === naviStateId);
+  const isDone = (stateId: string) => {
+    const idx = NAVI_CLIENT_STATES.findIndex((s) => s.id === stateId);
+    return idx !== -1 && idx < currentIndex;
+  };
 
   return (
     <div className="navi-panel">
@@ -160,6 +155,16 @@ export function NaviStatePanel({ naviStateId, naviResults, naviContext, naviPlan
                 <span className="navi-context-value">{naviContext.empfehlung}</span>
               </div>
             )}
+            {naviContext.details && (
+              <div className="navi-context-row">
+                <span className="navi-context-key">Details</span>
+                <span className="navi-context-value navi-context-value--details">
+                  {naviContext.details.split("\n").filter((l) => l.trim()).map((line, i) => (
+                    <div key={i}>{line.replace(/^[-•]\s*/, "")}</div>
+                  ))}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -240,77 +245,16 @@ export function NaviStatePanel({ naviStateId, naviResults, naviContext, naviPlan
             const done = isDone(s.id);
             const active = s.id === naviStateId;
             const status = done ? "done" : active ? "active" : "upcoming";
-            const result = naviResults?.[s.id];
             return (
               <li key={s.id} className={`navi-step navi-step--${status}`}>
                 <span className="navi-step-dot" />
                 <span className="navi-step-label">{s.label}</span>
-                {result && (
-                  <button
-                    className="navi-step-result-btn"
-                    onClick={() =>
-                      setExpandedResult(
-                        expandedResult === s.id ? null : s.id,
-                      )
-                    }
-                    type="button"
-                    title="Ergebnis anzeigen"
-                  >
-                    <CheckCircle2 size={10} />
-                  </button>
-                )}
-                {expandedResult === s.id && result && (
-                  <div className="navi-step-result-box">
-                    {result
-                      .split("\n")
-                      .filter((l) => l.trim())
-                      .map((line, i) => (
-                        <div key={i} className="navi-step-result-line">
-                          {line.replace(/^[-•]\s*/, "")}
-                        </div>
-                      ))}
-                  </div>
-                )}
               </li>
             );
           })}
         </ol>
       </div>
 
-      {/* ── Section 4: Intermediate Results ────────────────── */}
-      {resultEntries.length > 0 && (
-        <div className="navi-section">
-          <div className="navi-section-label">
-            <CheckCircle2 size={11} />
-            Zwischenergebnisse
-          </div>
-          <div className="navi-results">
-            {resultEntries.map(([stateId, summary]) => {
-              const clientState = getNaviClientState(stateId);
-              return (
-                <div key={stateId} className="navi-result-entry">
-                  <div className="navi-result-entry-header">
-                    <span className="navi-result-entry-id">{stateId}</span>
-                    <span className="navi-result-entry-label">
-                      {clientState?.label ?? stateId}
-                    </span>
-                  </div>
-                  <div className="navi-result-entry-body">
-                    {summary
-                      .split("\n")
-                      .filter((l) => l.trim())
-                      .map((line, i) => (
-                        <div key={i} className="navi-result-entry-line">
-                          {line.replace(/^[-•]\s*/, "")}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -198,7 +198,6 @@ export function useConversationModel(p: UseConversationModelParams) {
         isThread: c?.isThread ?? false,
         naviStateId: c?.naviStateId ?? null,
         ...(c?.naviPlan ? { naviPlan: c.naviPlan } : {}),
-        ...(c?.naviResults ? { naviResults: c.naviResults } : {}),
         ...(c?.naviContext ? { naviContext: c.naviContext } : {}),
         ...(c?.naviCoveredTips?.length ? { naviCoveredTips: c.naviCoveredTips } : {}),
         ...(c?.naviCurrentProblem ? { naviCurrentProblem: c.naviCurrentProblem } : {}),

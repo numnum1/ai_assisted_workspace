@@ -914,7 +914,7 @@ export function streamChat(
   onContextUpdate?: (estimatedTokens: number) => void,
   onToolHistory?: (messages: import("./types.ts").ChatMessage[]) => void,
   onResolvedUserMessage?: (content: string) => void,
-  onNaviState?: (stateId: string, completedStateId?: string, summary?: string) => void,
+  onNaviState?: (stateId: string, completedStateId?: string) => void,
   onNaviPlan?: (plan: string) => void,
   onNaviTipsCovered?: (coveredIds: string[]) => void,
   onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[]) => void,
@@ -980,7 +980,6 @@ export function streamChat(
         onNaviState?.(
           chatEvent.payload.stateId,
           chatEvent.payload.completedStateId,
-          chatEvent.payload.summary,
         );
       } else if (chatEvent.type === "navi_plan") {
         onNaviPlan?.(chatEvent.payload.plan);
