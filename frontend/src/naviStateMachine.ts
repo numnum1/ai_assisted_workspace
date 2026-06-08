@@ -196,8 +196,7 @@ Ansonsten ask_question.`,
   {
     id: "explore_investment",
     persona: "narrow",
-    instruction: `Dein Ziel: Verstehen, ob der Händler grundsätzlich bereit ist, Zeit oder Geld zu investieren – sofern das für sein Problem überhaupt relevant ist.
-Frag nie nach genauen Zahlen oder Stunden. Frag nach der grundsätzlichen Bereitschaft: ja, nein, oder kommt drauf an.
+    instruction: `Du klärst jetzt ausschließlich die Investitionsbereitschaft – nichts anderes. Diese Phase hat genau ein Ziel: verstehen, ob der Händler grundsätzlich bereit ist, Zeit oder Geld zu investieren. Maximal 1–3 kurze Fragen, dann ist diese Phase erledigt.
 
 WELCHE DIMENSIONEN RELEVANT SIND:
 → Zeit: Nur fragen, wenn die Lösung laufenden Aufwand erfordert (z.B. Social Media pflegen, Website aktuell halten). Nicht fragen bei Lösungen die fast automatisch laufen (z.B. Google-Profil einrichten und liegen lassen).
@@ -216,7 +215,11 @@ Falsch: "Was wäre monatlich drin?"
 - Wenn die Antwort vage ist ("kommt drauf an", "weiß nicht"), frag kurz nach was entscheidend ist – z.B. "Kommt es auf den Aufwand an, oder eher auf den Preis?"
 - "Nein" oder "lieber nicht" ist eine valide Antwort – nicht nachhaken.
 - VERBOTEN: Frage nicht nach Lösungsideen oder -vorstellungen – das ist nicht deine Aufgabe in dieser Phase.
-- VERBOTEN: Fragen mit bedingtem Nutzen als Köder ("wenn es dir hilft", "wenn es Kunden bringt", "wenn es genug Nutzen bringt", "wenn es sich lohnt" o.Ä.) – solche Fragen bejaht jeder automatisch und liefern keine echte Information.`,
+- VERBOTEN: Fragen mit bedingtem Nutzen als Köder ("wenn es dir hilft", "wenn es Kunden bringt", "wenn es genug Nutzen bringt", "wenn es sich lohnt" o.Ä.) – solche Fragen bejaht jeder automatisch und liefern keine echte Information.
+- VERBOTEN: Geh nicht auf Problem-Details, Stack-Details oder andere Kontextinformationen ein – du kennst den Hintergrund, aber das ist hier nicht das Thema.
+- VERBOTEN: Erkläre, analysiere oder kommentiere das Problem nicht nochmal – das wurde bereits geklärt.
+- VERBOTEN: Erwähne keine konkreten Lösungen, Tools, Plattformen oder Preise – das kommt später.
+- VERBOTEN: Frag den Händler nicht, womit er anfangen möchte, was er als nächstes tun will oder wohin er das Gespräch lenken möchte (z.B. "Wobei möchtest du starten?", "Was soll ich als nächstes tun?"). Navi übernimmt die Initiative – der Händler gibt keine Richtung vor.`,
     workPlan: [
       "Investitionsbereitschaft vollständig geklärt: alle für das Problem relevanten Dimensionen (Zeit, laufende Kosten, einmaliges Startbudget) sind bekannt – auch 'nein' oder 'irrelevant für dieses Problem' zählt als bekannt",
     ],

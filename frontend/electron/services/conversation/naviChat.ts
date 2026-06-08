@@ -581,6 +581,26 @@ export async function runNaviChatStream(
       speculativeAbort.signal,
     );
 
+    // ── Tips coverage check (parallel, not a blocking tail) ───────────────────
+    // We check the PREVIOUS Navi message instead of the one we're about to produce.
+    // This lets the check run concurrently with classification and the response
+    // fetch, and — crucially — emit navi_tips_covered BEFORE `done`. The frontend
+    // tears down its stream listener on `done`, so anything emitted afterwards
+    // (as the old tail call did) is silently dropped. Cost: a tip is registered
+    // one turn later, which is fine for "mention when it fits the conversation".
+    const previousAssistantText = (() => {
+      const history = Array.isArray(request.history) ? request.history : [];
+      for (let i = history.length - 1; i >= 0; i--) {
+        const m = history[i];
+        if (m.hidden) continue;
+        if (m.role === "assistant" && typeof m.content === "string" && m.content.trim()) {
+          return m.content.trim();
+        }
+      }
+      return "";
+    })();
+    const tipsPromise = runTipsCheck(request, previousAssistantText, endpoint, emit);
+
     // ── Combined classifier + cascade (single call) ──────────────────────────
     // Replaces the former two sequential blocking calls (classifier → cascade check).
     // The prompt includes transition targets' workPlans so the LLM determines the
@@ -605,8 +625,10 @@ export async function runNaviChatStream(
           body: JSON.stringify({
             model: endpoint.model,
             stream: false,
-            max_tokens: 30,
-            reasoning_effort: "medium",
+            // Reasoning tokens count against max_tokens on Grok — keep enough headroom
+            // that minimal reasoning never starves the (tiny) actual answer.
+            max_tokens: 512,
+            reasoning_effort: "minimal",
             messages: [
               {
                 role: "system",
@@ -657,16 +679,16 @@ export async function runNaviChatStream(
       emit({ type: "navi_step", data: { label: null } });
       emit({ type: "navi_state", data: { stateId: newStateId } });
 
-      const fullAssistantText = await drainNaviResponseStream(
+      // Ensure navi_tips_covered (started in parallel above) is emitted before `done`.
+      await tipsPromise;
+
+      await drainNaviResponseStream(
         streamId,
         speculativeResponsePromise,
         currentState,
         emit,
         projectPath,
       );
-
-      // Tips check
-      await runTipsCheck(request, fullAssistantText, endpoint, emit);
       return;
     }
 
@@ -764,9 +786,9 @@ export async function runNaviChatStream(
             body: JSON.stringify({
               model: endpoint.model,
               stream: false,
-              max_tokens: 150,
+              max_tokens: 512,
               temperature: 0.1,
-              reasoning_effort: "medium",
+              reasoning_effort: "minimal",
               messages: [
                 { role: "system", content: planSystemPrompt },
                 { role: "user", content: planUserPrompt },
@@ -819,9 +841,9 @@ export async function runNaviChatStream(
             body: JSON.stringify({
               model: endpoint.model,
               stream: false,
-              max_tokens: 400,
+              max_tokens: 1024,
               temperature: 0,
-              reasoning_effort: "medium",
+              reasoning_effort: "minimal",
               messages: [{ role: "user", content: contextPrompt }],
             }),
           });
@@ -922,15 +944,16 @@ export async function runNaviChatStream(
 
     emit({ type: "navi_step", data: { label: null } });
 
-    const fullAssistantText = await drainNaviResponseStream(
+    // Ensure navi_tips_covered (started in parallel above) is emitted before `done`.
+    await tipsPromise;
+
+    await drainNaviResponseStream(
       streamId,
       newResponseFetch,
       newState,
       emit,
       projectPath,
     );
-
-    await runTipsCheck(request, fullAssistantText, endpoint, emit);
   } catch (error) {
     if (!isStreamActive(streamId)) return;
     emit({
@@ -969,9 +992,9 @@ async function runTipsCheck(
       body: JSON.stringify({
         model: endpoint.model,
         stream: false,
-        max_tokens: 50,
+        max_tokens: 256,
         temperature: 0,
-        reasoning_effort: "medium",
+        reasoning_effort: "minimal",
         messages: [{ role: "user", content: tipsCheckPrompt }],
       }),
     });
