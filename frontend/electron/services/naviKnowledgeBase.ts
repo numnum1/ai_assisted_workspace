@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { NAVI_USE_CASES, type NaviUseCase } from "../../src/naviUseCases.js";
-import { NAVI_TOOLS, type NaviTool } from "../../src/naviTools.js";
+import { NAVI_TOOLS, naviToolUrl, naviCategoryUrl, type NaviTool } from "../../src/naviTools.js";
 
 const NAVI_DATA_DIR = path.join(os.homedir(), ".writing-assistant", "navi");
 
@@ -55,15 +55,19 @@ function buildToolsSection(useCases: NaviUseCase[], tools: NaviTool[]): string {
     byCategory.set(tool.category, list);
   }
 
-  const lines: string[] = ["Verfügbare KI-Tools nach Kategorie:"];
+  const lines: string[] = ["Verfügbare KI-Tools nach Kategorie (mit Link auf die Tool-Seite):"];
   for (const [cat, catTools] of byCategory) {
-    lines.push(`[${cat}]`);
+    lines.push(`[${cat}] (Kategorie-Übersicht: ${naviCategoryUrl(cat)})`);
     for (const t of catTools) {
-      lines.push(`  - ${t.name}: ${t.beschreibung}`);
+      lines.push(`  - ${t.name}: ${t.beschreibung} → Link: ${naviToolUrl(t)}`);
     }
   }
   lines.push(
     "Empfehle nur Tools, die zum genannten Use Case und zum Software-Stack des Händlers passen.",
+  );
+  lines.push(
+    "PFLICHT – Link mitgeben: Sobald du ein konkretes KI-Tool empfiehlst, füge den zugehörigen Link als klickbaren Markdown-Link in deine Antwort ein, z.B. [PostPilot ansehen](https://www.ki-navi.net/post-pilot). Nutze ausschließlich die oben angegebenen Links – erfinde keine eigenen URLs.",
+    "Wenn du keinem einzelnen Tool den Vorzug gibst, sondern auf eine ganze Kategorie passender Tools verweist, nutze stattdessen den Kategorie-Link der jeweiligen Kategorie (z.B. [Social-Media-Tools ansehen](" + naviCategoryUrl("social_media") + ")).",
   );
   return lines.join("\n");
 }
