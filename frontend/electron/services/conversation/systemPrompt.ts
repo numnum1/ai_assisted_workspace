@@ -196,7 +196,8 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
       function: {
         name: "ask_clarification",
         description:
-          "Ask the user one or more clarifying questions before proceeding.",
+          "Ask the user one or more clarifying questions before proceeding. " +
+          "Set allow_multiple: true on a question to let the user select multiple options at once (e.g. 'which of these do you use?' where several may apply).",
         parameters: {
           type: "object",
           properties: {
@@ -207,6 +208,11 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
                 properties: {
                   question: { type: "string" },
                   options: { type: "array", items: { type: "string" } },
+                  allow_multiple: {
+                    type: "boolean",
+                    description:
+                      "If true, the user may select multiple options. Use when several answers can apply simultaneously (e.g. which channels does the user use).",
+                  },
                 },
                 required: ["question", "options"],
               },

@@ -57,8 +57,7 @@ export const NAVI_CLIENT_STATES: NaviClientState[] = [
     label: "Aufwandbereitschaft",
     description: "Navi fragt, wie viel Zeit und Geld der Händler in eine Lösung investieren würde.",
     workPlan: [
-      "Bereitschaft für Zeitinvestition bekannt",
-      "Bereitschaft für Geldbudget bekannt",
+      "Investitionsbereitschaft geklärt (Zeit, laufende Kosten, Startbudget – soweit für das Problem relevant)",
     ],
     transitions: [
       { to: "confirm_understanding", label: "Zeit + Budget bekannt" },

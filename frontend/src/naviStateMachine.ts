@@ -137,18 +137,25 @@ Beispiel: "Um dir etwas Sinnvolles vorschlagen zu können, brauche ich noch kurz
 Wenn du aus einem späteren State zurückkommst (z.B. weil noch Stack-Infos fehlten), überspring diesen Einstieg und frag direkt weiter.
 
 Du kennst bereits den Problem-Typ aus der Klärungsphase – nutze ihn, um zu entscheiden, welche Bereiche relevant sind.
-Frag einfach und ohne Fachbegriffe. Immer nur eine Frage pro Antwort.
+Frag einfach und ohne Fachbegriffe. In der Regel eine Frage pro Antwort.
+
+BÜNDELUNGS-REGEL – Online-Kanäle (PFLICHT):
+Wenn Online-Präsenz, Social Media und Newsletter noch alle unbekannt sind → fasse sie IMMER in einem einzigen ask_clarification-Aufruf zusammen. NIEMALS einzeln nacheinander fragen.
+Pflichtformat:
+  Frage: "Welche dieser Online-Kanäle nutzt du aktuell?"
+  Optionen: ["Website oder Online-Shop", "Social Media (z.B. Instagram, Facebook)", "Newsletter oder E-Mails an Kunden", "Noch keinen – ich bin nur stationär"]
+Dieses ask_clarification muss allow_multiple: true verwenden, da der Händler mehrere Optionen wählen kann.
+Wenn einzelne Kanäle bereits bekannt sind, frag nur nach den noch unbekannten – aber auch dann gebündelt, nicht einzeln.
 
 Pflichtbereich nach Problem-Typ:
 
 → Strukturelles Reichweiten-Problem (Fall B: zu wenig Laufkundschaft in der Gegend, genereller Rückgang):
-   1. Online-Präsenz (Online-Shop ja/nein, welche Plattform – oder nur stationär?)
-   2. Social Media / Newsletter (aktiv genutzt, oder noch nicht vorhanden?)
-   → Diese beiden MÜSSEN geklärt werden – sie sind der Kern der Lösung.
+   1. Online-Kanäle gebündelt: Online-Shop, Social Media, Newsletter → IMMER als ein ask_clarification (siehe BÜNDELUNGS-REGEL oben)
+   → Diese Informationen MÜSSEN geklärt werden – sie sind der Kern der Lösung.
 
 → Store-spezifisches Problem (Fall A: Leute gehen vorbei, kommen aber nicht rein):
-   1. Online-Präsenz (Online-Shop ja/nein – auch hier relevant für Google Maps-Präsenz)
-   → Fokus liegt auf Sichtbarkeit und Außenwirkung, nicht auf Vertriebskanälen.
+   1. Online-Präsenz (Online-Shop ja/nein – relevant für Google Maps-Präsenz)
+   → Fokus liegt auf Sichtbarkeit und Außenwirkung, nicht auf Vertriebskanälen. Hier genügt die Online-Präsenz allein – kein Bündeln mit Social Media/Newsletter nötig.
 
 → Alle anderen Probleme:
    1. Online-Präsenz (Online-Shop ja/nein, welche Plattform – oder nur stationär?)
@@ -167,8 +174,8 @@ Wenn die Antwort vage ist (z. B. "so Standardsachen"), hak nach:
 
 Bereiche die bereits bekannt sind, NICHT nochmals erfragen.
 Frag NICHT nach: gemeinsamen Aktionen mit anderen Läden, Kooperationen, lokalen Netzwerken – das ist kein Stack-Thema.
-Das ask_clarification Tool darf verwendet werden, wenn sinnvolle Optionen ableitbar sind.
-Ansonsten verwende ask_question.`,
+Das ask_clarification Tool verwenden wenn sinnvolle Optionen ableitbar sind (und IMMER für Online-Kanäle).
+Ansonsten ask_question.`,
     workPlan: [
       "Online-Präsenz bekannt (Online-Shop ja/nein, und falls ja welche Plattform – auch 'nur stationär' ist gültig)",
       "Alle für das Problem relevanten Tools oder Abläufe bekannt (auch 'kein Tool' oder 'nur Papier' ist gültig – vage Antworten nicht; nicht relevante Bereiche dürfen übersprungen werden)",
@@ -200,23 +207,22 @@ Wenn eine Dimension für das Problem offensichtlich irrelevant ist, überspring 
 
 WIE FRAGEN:
 Frag nach Bereitschaft, nicht nach Betrag. Nutze ask_yes_no für klare Ja/Nein-Fragen.
-Richtig: "Wärst du bereit, etwas Zeit zu investieren, wenn das mehr Kunden bringt?"
 Richtig: "Wäre ein kleines monatliches Budget für eine Lösung für dich okay?"
+Richtig: "Wäre es okay, dafür regelmäßig etwas Zeit einzuplanen?"
 Falsch: "Wie viele Stunden pro Woche könntest du investieren?"
 Falsch: "Was wäre monatlich drin?"
 
 - Stelle immer nur eine Frage pro Antwort.
 - Wenn die Antwort vage ist ("kommt drauf an", "weiß nicht"), frag kurz nach was entscheidend ist – z.B. "Kommt es auf den Aufwand an, oder eher auf den Preis?"
 - "Nein" oder "lieber nicht" ist eine valide Antwort – nicht nachhaken.
-- VERBOTEN: Frage nicht nach Lösungsideen oder -vorstellungen – das ist nicht deine Aufgabe in dieser Phase.`,
+- VERBOTEN: Frage nicht nach Lösungsideen oder -vorstellungen – das ist nicht deine Aufgabe in dieser Phase.
+- VERBOTEN: Fragen mit bedingtem Nutzen als Köder ("wenn es dir hilft", "wenn es Kunden bringt", "wenn es genug Nutzen bringt", "wenn es sich lohnt" o.Ä.) – solche Fragen bejaht jeder automatisch und liefern keine echte Information.`,
     workPlan: [
-      "Grundsätzliche Bereitschaft für Zeitinvestition bekannt, sofern für das Problem relevant (auch 'nein' oder 'lieber nicht' ist gültig – 'weiß nicht' nicht)",
-      "Grundsätzliche Bereitschaft für laufende Kosten bekannt, sofern für das Problem relevant (auch 'nein' oder 'muss kostenlos sein' ist gültig – 'weiß nicht' nicht)",
-      "Grundsätzliche Bereitschaft für einmaliges Startbudget bekannt, sofern für das Problem relevant (auch 'nein' ist gültig – 'weiß nicht' nicht)",
+      "Investitionsbereitschaft vollständig geklärt: alle für das Problem relevanten Dimensionen (Zeit, laufende Kosten, einmaliges Startbudget) sind bekannt – auch 'nein' oder 'irrelevant für dieses Problem' zählt als bekannt",
     ],
     transitions: [
       {
-        condition: "Beide Arbeitsplan-Punkte bekannt – Zeitbereitschaft UND Budgetbereitschaft geklärt",
+        condition: "Investitionsbereitschaft für alle relevanten Dimensionen bekannt – mindestens Zeitbereitschaft (falls laufender Aufwand erwartet) und Budgetbereitschaft (falls Kosten entstehen). Nicht relevante Dimensionen zählen als bekannt.",
         to: "confirm_understanding",
       },
     ],
