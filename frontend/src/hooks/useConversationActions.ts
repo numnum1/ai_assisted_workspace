@@ -250,10 +250,10 @@ export function useConversationActions({
   );
 
   const handleAcceptGuidedThreadFromOffer = useCallback(
-    (messageIndex: number, offer: GuidedThreadOfferPayload) => {
+    (messageIndex: number, offer: GuidedThreadOfferPayload): string | undefined => {
       const parent = history.activeConversation;
-      if (!parent) return;
-      if (messageIndex < 0 || messageIndex >= chatMessages.length) return;
+      if (!parent) return undefined;
+      if (messageIndex < 0 || messageIndex >= chatMessages.length) return undefined;
 
       const baseTitle = parent.title?.trim() || "Chat";
       const base = offer.threadTitle?.trim() || `${baseTitle}-Thread`;
@@ -317,6 +317,7 @@ export function useConversationActions({
         isThread: true,
         parentConversationId: parent.id,
       });
+      return newConv.id;
     },
     [agentPresets, chatMessages, disabledToolkits, history, llms, modeLlmId, modes, selectedMode, useReasoning],
   );

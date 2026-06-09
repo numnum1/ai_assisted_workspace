@@ -289,6 +289,8 @@ contextBridge.exposeInMainWorld("appBridge", {
   },
   journal: {
     read: () => ipcRenderer.invoke("journal:read"),
+    unsyncedEntries: () => ipcRenderer.invoke("journal:unsyncedEntries"),
+    logSync: () => ipcRenderer.invoke("journal:logSync"),
   },
   glossary: {
     get: () => ipcRenderer.invoke("glossary:get"),

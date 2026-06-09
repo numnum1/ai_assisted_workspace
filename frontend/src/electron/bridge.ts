@@ -221,6 +221,11 @@ export interface AppBridge {
   };
   journal?: {
     read: () => Promise<import('../types.ts').JournalData>;
+    unsyncedEntries: () => Promise<{
+      entries: Array<{ date: string; time: string; type: string; text: string }>;
+      lastSyncAt: string | null;
+    }>;
+    logSync: () => Promise<string>;
   };
   glossary?: {
     get: () => Promise<GlossaryData>;

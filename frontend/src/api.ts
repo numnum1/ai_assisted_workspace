@@ -786,6 +786,16 @@ export const journalApi = {
     if (api?.journal) return api.journal.read();
     throw new Error("Electron bridge not available");
   },
+  unsyncedEntries: async (): Promise<{ entries: Array<{ date: string; time: string; type: string; text: string }>; lastSyncAt: string | null }> => {
+    const api = getElectronApi();
+    if (api?.journal) return api.journal.unsyncedEntries();
+    throw new Error("Electron bridge not available");
+  },
+  logSync: async (): Promise<string> => {
+    const api = getElectronApi();
+    if (api?.journal) return api.journal.logSync();
+    throw new Error("Electron bridge not available");
+  },
 };
 
 export async function getFileContentForChangeCard(

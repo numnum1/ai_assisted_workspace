@@ -360,7 +360,7 @@ export function buildSystemPrompt(
         "- Widerspruch zu bestehendem Wiki-Inhalt: flag_conflict() aufrufen, das Wiki NICHT überschreiben.\n" +
         "- Sobald ein Thema rund ist: Kanon in die passenden Wiki-Dateien übertragen — edit_file für gezielte Änderungen an bestehenden Einträgen, write_file für neue Einträge/Stubs.\n" +
         "- Wiki-Format: pro Entität eine Markdown-Datei in der passenden Kategorie (z. B. wiki/characters/, wiki/locations/, wiki/organizations/), Dateiname kebab-case. Frontmatter mit id, type, aliases, tags und einer einsätzigen summary. Falls vorhanden, orientiere dich vor dem Anlegen am Format in wiki/<kategorie>/README.md (einmal read_file genügt).\n" +
-        "- Analysen oder Zwischenstände, die (noch) kein Kanon sind: create_artifact() — bleibt im Chat, geht NICHT ins Wiki.\n" +
+        "- Analysen oder Zwischenstände, die (noch) kein Kanon sind: create_artifact() — bleibt im Chat, geht NICHT ins Wiki. create_artifact() schreibt KEINE Datei und ist kein Ersatz für journal_log().\n" +
         "- Falls in einer Antwort etwas persistiert wurde, schließe mit einer kurzen Transparenz-Zeile: \"📝 Gesichert: <was>\" — oder \"⚠️ Konflikt: <kurz>\". Wurde nichts persistiert, lass die Zeile weg.",
     );
   }

@@ -8,6 +8,11 @@ import { stripPlanFencesForDisplay } from './planFenceUtils.ts';
 import { parseThinkSegments } from './thinkSegmentUtils.ts';
 import { ArtifactCard } from './ArtifactCard.tsx';
 
+/** Remove the buchentwicklung STATUS line from the end of assistant responses before rendering. */
+function stripBuchentwicklungStatusLine(text: string): string {
+  return text.replace(/\n?STATUS:\s*(offen|beschlossen)\s*$/i, "");
+}
+
 interface ChatMessageMarkdownProps {
   content: string;
   streamingCursor?: boolean;
@@ -339,10 +344,10 @@ export function ChatMessageMarkdown({
     () => onApplyFieldUpdate ? fixFieldUpdateBlocks(content) : content,
     [content, onApplyFieldUpdate],
   );
-  const displayContent = useMemo(
-    () => stripPlanFencesForDisplay(processedContent, !!streamingCursor),
-    [processedContent, streamingCursor],
-  );
+  const displayContent = useMemo(() => {
+    const stripped = stripPlanFencesForDisplay(processedContent, !!streamingCursor);
+    return stripBuchentwicklungStatusLine(stripped);
+  }, [processedContent, streamingCursor]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = useCallback((text: string, key: string) => {

@@ -2391,6 +2391,34 @@ body.file-tree-native-dragging {
     font-size: var(--pref-chat-font-size);
 }
 
+.chat-abschluss-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: color-mix(in srgb, #c2410c 15%, var(--bg-secondary, #1e1e1e));
+  border-bottom: 1px solid color-mix(in srgb, #c2410c 40%, transparent);
+  font-size: 12px;
+  color: var(--text-secondary, #aaa);
+  flex-shrink: 0;
+}
+
+.chat-abschluss-banner-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, #c2410c 60%, transparent);
+  background: color-mix(in srgb, #c2410c 20%, transparent);
+  color: #f97316;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chat-abschluss-banner-btn:hover {
+  background: color-mix(in srgb, #c2410c 35%, transparent);
+}
+
 .chat-panel-body {
     display: flex;
     flex: 1;

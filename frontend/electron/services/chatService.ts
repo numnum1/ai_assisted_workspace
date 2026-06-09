@@ -13,6 +13,50 @@ import {
   getActiveToolDefinitions,
   resolveModeSystemPrompt,
 } from "./conversation/systemPrompt.js";
+
+// ── Buchentwicklung mode: reminder + guardrail constants ──────────────────────
+const BUCHENTWICKLUNG_MODE_ID = "buchentwicklung";
+/** Inject a reminder system message every N user turns when in buchentwicklung mode. */
+const BUCHENTWICKLUNG_REMINDER_INTERVAL = 6;
+/** Max one guardrail retry per assistant turn (prevents infinite loops). */
+const BUCHENTWICKLUNG_GUARDRAIL_MAX_RETRY = 1;
+
+const BUCHENTWICKLUNG_REMINDER =
+  "Erinnerung: (1) Beschluss vom Autor bestätigt → sofort `journal_log(KANON)` aufrufen. " +
+  "(2) Jeden Themenblock mit `Festhalten als Kanon? → …` abschließen. " +
+  "(3) Jede Antwort endet mit `STATUS: offen` oder `STATUS: beschlossen`. " +
+  "(4) Keine Wiki-Writes im Gesprächsfluss.";
+
+/** Returns a guardrail nudge message if the assistant response violates buchentwicklung rules, or null if fine. */
+function checkBuchentwicklungGuardrail(
+  fullAssistantText: string,
+  journalCallsThisTurn: number,
+): string | null {
+  const lines = fullAssistantText.trimEnd().split(/\r?\n/);
+  let lastNonEmpty = "";
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i].trim();
+    if (l) { lastNonEmpty = l; break; }
+  }
+
+  const statusMatch = /^STATUS:\s*(offen|beschlossen)\s*$/i.exec(lastNonEmpty);
+
+  if (!statusMatch) {
+    return (
+      "Deine Antwort endet ohne Statuszeile. " +
+      "Füge als letzte Zeile genau `STATUS: offen` oder `STATUS: beschlossen` hinzu."
+    );
+  }
+
+  if (statusMatch[1].toLowerCase() === "beschlossen" && journalCallsThisTurn === 0) {
+    return (
+      "Du hast STATUS: beschlossen markiert, aber in diesem Turn keinen journal_log aufgerufen. " +
+      "Hole den `journal_log(KANON)`-Aufruf jetzt nach, bevor du weiter antwortest."
+    );
+  }
+
+  return null;
+}
 import { resolveEmbeddingCredentials } from "./aiProviderService.js";
 import {
   resolveAiProvider,
@@ -82,7 +126,9 @@ function buildOpenAiMessages(
   const messages: OpenAiMessage[] = [{ role: "system", content: systemPrompt }];
 
   const history = Array.isArray(request.history) ? request.history : [];
+  let userTurnCount = 0;
   for (const message of history) {
+    if (message.role === "user" && !message.hidden) userTurnCount++;
     if (message.hidden) continue;
 
     if (message.role === "assistant") {
@@ -122,6 +168,17 @@ function buildOpenAiMessages(
   if (finalUserMessage || fileContextText) {
     const content = [fileContextText, finalUserMessage].filter(Boolean).join("\n\n");
     messages.push({ role: "user", content });
+    userTurnCount++;
+  }
+
+  // Baustein 2: inject buchentwicklung reminder every N user turns
+  if (
+    normalizeText(request.mode) === BUCHENTWICKLUNG_MODE_ID &&
+    BUCHENTWICKLUNG_REMINDER_INTERVAL > 0 &&
+    userTurnCount > 0 &&
+    userTurnCount % BUCHENTWICKLUNG_REMINDER_INTERVAL === 0
+  ) {
+    messages.push({ role: "system", content: BUCHENTWICKLUNG_REMINDER });
   }
 
   return messages;
@@ -221,6 +278,10 @@ async function runChatStream(
     let tokenCount = 0;
     let fullAssistantText = "";
     const maxToolRounds = preview.maxToolRounds;
+    // Baustein 3: guardrail tracking
+    const isBuchentwicklung = normalizeText(request.mode) === BUCHENTWICKLUNG_MODE_ID;
+    let journalCallsThisTurn = 0;
+    let guardrailRetriesUsed = 0;
 
     while (toolRound < maxToolRounds) {
       if (!isStreamActive(streamId)) return;
@@ -337,6 +398,23 @@ async function runChatStream(
           return;
         }
 
+        // Baustein 3: guardrail check for buchentwicklung mode
+        if (isBuchentwicklung && guardrailRetriesUsed < BUCHENTWICKLUNG_GUARDRAIL_MAX_RETRY) {
+          const nudge = checkBuchentwicklungGuardrail(fullAssistantText, journalCallsThisTurn);
+          if (nudge) {
+            guardrailRetriesUsed++;
+            console.debug(`[chat] buchentwicklung guardrail fired (retry ${guardrailRetriesUsed}): ${nudge.slice(0, 80)}`);
+            conversationMessages.push({
+              role: "assistant",
+              content: roundAssistantText,
+            });
+            conversationMessages.push({ role: "system", content: nudge });
+            roundAssistantText = "";
+            toolRound++;
+            continue;
+          }
+        }
+
         emit({ type: "done", data: { fullAssistantText } });
         return;
       }
@@ -360,6 +438,13 @@ async function runChatStream(
       const executedResults: ToolExecutionResult[] = [];
       for (const toolCall of toolCalls) {
         executedResults.push(await executeToolCall(projectPath, toolCall, embeddingConfig));
+      }
+
+      // Baustein 3: count journal_log calls across all tool rounds
+      if (isBuchentwicklung) {
+        for (const tc of toolCalls) {
+          if (tc.function.name === "journal_log") journalCallsThisTurn++;
+        }
       }
 
       for (const r of executedResults) {

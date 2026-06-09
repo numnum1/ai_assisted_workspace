@@ -44,7 +44,7 @@ import {
   removeSubproject,
 } from "./services/subprojectService.js";
 import { listWikiFiles, searchWiki } from "./services/wikiService.js";
-import { readJournal } from "./services/journalService.js";
+import { readJournal, getUnsyncedJournalEntries, logSyncMarker } from "./services/journalService.js";
 import {
   previewChatContext,
   startChatStream,
@@ -174,6 +174,12 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle("journal:read", () => readJournal(getCurrentProjectPath()));
+  ipcMain.handle("journal:unsyncedEntries", () =>
+    getUnsyncedJournalEntries(getCurrentProjectPath()),
+  );
+  ipcMain.handle("journal:logSync", () =>
+    logSyncMarker(getCurrentProjectPath()),
+  );
 
   ipcMain.handle("glossary:get", () => getGlossary(getCurrentProjectPath()));
   ipcMain.handle(
