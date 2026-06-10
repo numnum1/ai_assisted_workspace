@@ -103,6 +103,17 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const saveTimer = useRef<number | null>(null);
 
+  type DragPos = { beatId: string; at: number; arcId: string };
+  const [dragPos, setDragPos] = useState<DragPos | null>(null);
+  const dragPosRef = useRef<DragPos | null>(null);
+  const dragRef = useRef<{
+    beatId: string;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    link: boolean;
+  } | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -311,28 +322,106 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
     }
 
     const height = LANE_TOP + Math.max(1, arcs.length) * LANE_H + 24;
-    return { timeline, arcs, beats, links, x, beatPos, height, span, ticks };
+    return { timeline, arcs, beats, links, x, laneCenter, beatPos, height, span, ticks };
   }, [data]);
 
+  // ── Coordinate helpers (client → SVG space) ────────────────────────
+  const clientToSvg = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const loc = pt.matrixTransform(ctm.inverse());
+    return { x: loc.x, y: loc.y };
+  };
+
+  const atFromX = (locX: number): number => {
+    if (!data) return 0;
+    const { start, end } = data.timeline;
+    const span = end - start;
+    if (span <= 0) return start;
+    const t = (locX - PLOT_X0) / (PLOT_X1 - PLOT_X0);
+    return Math.round(start + Math.max(0, Math.min(1, t)) * span);
+  };
+
+  const arcIdFromY = (locY: number): string | null => {
+    if (!data || data.arcs.length === 0) return null;
+    const idx = Math.max(
+      0,
+      Math.min(data.arcs.length - 1, Math.floor((locY - LANE_TOP) / LANE_H)),
+    );
+    return data.arcs[idx].id;
+  };
+
   /** Map a click on a lane to a rounded story-time value. */
-  const clientToAt = useCallback(
-    (evt: React.MouseEvent): number => {
-      const svg = svgRef.current;
-      if (!svg || !data) return data?.timeline.start ?? 0;
-      const pt = svg.createSVGPoint();
-      pt.x = evt.clientX;
-      pt.y = evt.clientY;
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return data.timeline.start;
-      const loc = pt.matrixTransform(ctm.inverse());
-      const { start, end } = data.timeline;
-      const span = end - start;
-      if (span <= 0) return start;
-      const t = (loc.x - PLOT_X0) / (PLOT_X1 - PLOT_X0);
-      return Math.round(start + Math.max(0, Math.min(1, t)) * span);
-    },
-    [data],
-  );
+  const clientToAt = (evt: React.MouseEvent): number => {
+    const loc = clientToSvg(evt.clientX, evt.clientY);
+    return loc ? atFromX(loc.x) : data?.timeline.start ?? 0;
+  };
+
+  /**
+   * Pointer-down on a beat: starts a potential drag. Movement past a small
+   * threshold becomes a drag (horizontal → time, vertical → lane); a release
+   * without movement is treated as a click (select / link).
+   */
+  const beginBeatDrag = (e: React.PointerEvent, beat: Beat) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    dragRef.current = {
+      beatId: beat.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      link: linkMode,
+    };
+    const move = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      if (!d.moved && Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) < 4) {
+        return;
+      }
+      if (d.link) return; // keep linking a pure click interaction
+      d.moved = true;
+      const loc = clientToSvg(ev.clientX, ev.clientY);
+      if (!loc) return;
+      const next: DragPos = {
+        beatId: d.beatId,
+        at: atFromX(loc.x),
+        arcId: arcIdFromY(loc.y) ?? beat.arcId,
+      };
+      dragPosRef.current = next;
+      setDragPos(next);
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      const d = dragRef.current;
+      dragRef.current = null;
+      const dp = dragPosRef.current;
+      if (d && d.moved && dp) {
+        updateBeat(d.beatId, { at: dp.at, arcId: dp.arcId });
+      } else if (d) {
+        handleBeatClick(d.beatId);
+      }
+      dragPosRef.current = null;
+      setDragPos(null);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  };
+
+  /** Beat position accounting for an in-progress drag. */
+  const posOf = (id: string): { x: number; y: number } | null => {
+    if (!layout) return null;
+    if (dragPos && dragPos.beatId === id) {
+      return { x: layout.x(dragPos.at), y: layout.laneCenter(dragPos.arcId) };
+    }
+    const p = layout.beatPos.get(id);
+    return p ? { x: p.x, y: p.y } : null;
+  };
 
   const handleBeatClick = useCallback(
     (beatId: string) => {
@@ -572,8 +661,8 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
 
                 {/* Cause → effect edges */}
                 {layout.links.map((link) => {
-                  const a = layout.beatPos.get(link.from);
-                  const b = layout.beatPos.get(link.to);
+                  const a = posOf(link.from);
+                  const b = posOf(link.to);
                   if (!a || !b) return null;
                   const style = LINK_STYLE[link.type];
                   const midX = (a.x + b.x) / 2;
@@ -599,40 +688,34 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
                   );
                 })}
 
-                {/* Beats */}
-                {[...layout.beatPos.values()].map(({ x, y, beat }) => {
-                  const arc = layout.arcs.find((a) => a.id === beat.arcId);
+                {/* Beats — drag to move (horizontal = Zeit, vertikal = Lane) */}
+                {[...layout.beatPos.values()].map((entry) => {
+                  const beat = entry.beat;
+                  const dragging = dragPos?.beatId === beat.id;
+                  const pos = dragging
+                    ? { x: layout.x(dragPos.at), y: layout.laneCenter(dragPos.arcId) }
+                    : { x: entry.x, y: entry.y };
+                  const shownArcId = dragging ? dragPos.arcId : beat.arcId;
+                  const arc = layout.arcs.find((a) => a.id === shownArcId);
                   const color = arc ? arcColor(arc) : "#888780";
                   const isSel = selection?.type === "beat" && selection.id === beat.id;
                   const isSource = linkSource === beat.id;
                   return (
-                    <g key={beat.id} style={{ cursor: "pointer" }}>
-                      {(isSel || isSource) && (
-                        <circle cx={x} cy={y} r={11} fill="none" stroke={color} strokeWidth={2} />
+                    <g
+                      key={beat.id}
+                      style={{ cursor: dragging ? "grabbing" : "grab" }}
+                      onPointerDown={(e) => beginBeatDrag(e, beat)}
+                    >
+                      {(isSel || isSource || dragging) && (
+                        <circle cx={pos.x} cy={pos.y} r={11} fill="none" stroke={color} strokeWidth={2} />
                       )}
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r={7}
-                        fill={color}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBeatClick(beat.id);
-                        }}
-                      />
-                      <text
-                        x={x}
-                        y={y - 14}
-                        textAnchor="middle"
-                        className="arc-beat-label"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBeatClick(beat.id);
-                        }}
-                      >
+                      <circle cx={pos.x} cy={pos.y} r={7} fill={color} />
+                      <text x={pos.x} y={pos.y - 14} textAnchor="middle" className="arc-beat-label">
                         {beat.title}
                       </text>
-                      <title>{beat.title} · {beat.at} {layout.timeline.unit}</title>
+                      <title>
+                        {beat.title} · {dragging ? dragPos.at : beat.at} {layout.timeline.unit}
+                      </title>
                     </g>
                   );
                 })}
