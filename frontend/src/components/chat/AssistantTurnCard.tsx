@@ -171,6 +171,21 @@ export function AssistantTurnCard({
     }
 
     if (su.type === "toolCall") {
+      // create_artifact produces an ```artifact fence as its tool result. Render it as the
+      // inline ArtifactCard (via ChatMessageMarkdown) instead of the raw tool-call chrome.
+      if (
+        su.toolCall.function.name === "create_artifact" &&
+        su.resultMsg?.content?.includes("```artifact")
+      ) {
+        return (
+          <div key={key} className="chat-message assistant">
+            <div className="chat-message-content chat-message-md">
+              <ChatMessageMarkdown content={su.resultMsg.content} />
+            </div>
+          </div>
+        );
+      }
+
       const isStreamingTool = streaming && su.resultMsg === undefined;
       return (
         <ToolCallDisplay

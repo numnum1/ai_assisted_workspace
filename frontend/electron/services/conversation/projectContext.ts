@@ -20,6 +20,8 @@ export interface ProjectConfigData {
 export interface PreviewBuildContext {
   projectPath: string | null;
   projectConfig?: ProjectConfigData | null;
+  /** Compact wiki inventory injected into the system prompt (the writing equivalent of a source tree). */
+  wikiIndex?: string;
 }
 
 export function normalizeText(value: string | null | undefined): string {

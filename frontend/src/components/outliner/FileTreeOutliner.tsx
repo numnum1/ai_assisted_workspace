@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type DragEvent, type MouseEvent } from 'react';
-import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, File, FolderOpen, RotateCcw } from 'lucide-react';
 import { filesApi, subprojectApi, chapterApi } from '../../api.ts';
 import { convertWikiOrFlatJsonToMarkdown } from '../../utils/legacyWikiJsonToMarkdown.ts';
 import type { FileNode, ChapterSummary, MetaSelection, OutlinerLevelConfig, ScrollTarget, GitStatus } from '../../types.ts';
@@ -850,6 +850,14 @@ export function FileTreeOutliner({
     <div className="file-tree-outliner outliner">
       <div className="outliner-header">
         <span className="outliner-header-title">Workspace</span>
+        <button
+          type="button"
+          className="outliner-reveal-btn"
+          onClick={refreshAfterMutation}
+          title="Ordnerstruktur neu laden"
+        >
+          <RotateCcw size={13} />
+        </button>
         {onRevealInExplorer && (
           <button type="button" className="outliner-reveal-btn" onClick={onRevealInExplorer} title="Im Explorer öffnen">
             <FolderOpen size={13} />

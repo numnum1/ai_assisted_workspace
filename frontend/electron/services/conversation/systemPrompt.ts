@@ -417,6 +417,21 @@ export function buildSystemPrompt(
     }
   }
 
+  // 3b. Wiki inventory — the structural overview that lets the AI work like a
+  // coding agent: it sees what already exists before creating or editing, so it
+  // avoids duplicates and notices contradictions instead of forking canon.
+  if (!request.quickChat) {
+    const wikiIndex = normalizeText(context.wikiIndex ?? "");
+    if (wikiIndex) {
+      sections.push(
+        "WIKI-BESTAND (bereits vorhandene Einträge — verschaffe dir hiermit einen Überblick, BEVOR du anlegst oder änderst):\n" +
+          wikiIndex +
+          "\n\nLege KEINE Dublette an, wenn ein Eintrag (auch unter einem Alias) bereits existiert — bearbeite stattdessen den bestehenden mit edit_file. " +
+          "Diese Liste ist nur eine Übersicht; für den vollständigen Inhalt eines Eintrags read_file nutzen.",
+      );
+    }
+  }
+
   // 4. Active tools
   if (!request.quickChat) {
     const activeTools = getActiveToolDefinitions(request);

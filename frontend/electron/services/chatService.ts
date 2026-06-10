@@ -13,6 +13,7 @@ import {
   getActiveToolDefinitions,
   resolveModeSystemPrompt,
 } from "./conversation/systemPrompt.js";
+import { buildWikiIndex, formatWikiIndex } from "./wikiService.js";
 
 // ── Buchentwicklung mode: reminder + guardrail constants ──────────────────────
 const BUCHENTWICKLUNG_MODE_ID = "buchentwicklung";
@@ -193,9 +194,21 @@ export async function previewChatContext(
   );
   const previewContext = await buildPreviewContext(projectPath, request);
 
+  // Wiki inventory — the writing equivalent of a source tree. Skipped for quick
+  // chat (ephemeral) and navi (customer consulting), which have no wiki context.
+  let wikiIndex = "";
+  if (!request.quickChat && request.sessionKind !== "navi") {
+    try {
+      wikiIndex = formatWikiIndex(await buildWikiIndex(projectPath));
+    } catch (error) {
+      console.warn(`[chat] wiki index build failed: ${String(error)}`);
+    }
+  }
+
   const context: PreviewBuildContext = {
     projectPath,
     projectConfig: previewContext.projectConfig,
+    wikiIndex,
   };
 
   const modeSystemPrompt = await resolveModeSystemPrompt(projectPath, request.mode);
@@ -282,6 +295,8 @@ async function runChatStream(
     const isBuchentwicklung = normalizeText(request.mode) === BUCHENTWICKLUNG_MODE_ID;
     let journalCallsThisTurn = 0;
     let guardrailRetriesUsed = 0;
+    // At most one artifact per user turn — Grok ignores prompt-level limits, so enforce here.
+    let artifactCreatedThisTurn = false;
 
     while (toolRound < maxToolRounds) {
       if (!isStreamActive(streamId)) return;
@@ -390,11 +405,21 @@ async function runChatStream(
         if (!isStreamActive(streamId)) return;
 
         if (tokenCount === 0 && !roundAssistantText.trim()) {
-          console.warn(
-            `[chat] MODEL_EMPTY_RESPONSE: toolRound=${toolRound}, tokenCount=${tokenCount}, ` +
-              `collectedToolCalls.size=${collectedToolCalls.size}`,
+          // Only a truly empty turn (no tool work at all) is an error. If the model already
+          // produced visible tool output this turn (e.g. an artifact card) and then completes
+          // without further prose, that is a valid end of turn — finish gracefully.
+          if (toolRound === 0) {
+            console.warn(
+              `[chat] MODEL_EMPTY_RESPONSE: toolRound=${toolRound}, tokenCount=${tokenCount}, ` +
+                `collectedToolCalls.size=${collectedToolCalls.size}`,
+            );
+            emit({ type: "error", data: { message: "MODEL_EMPTY_RESPONSE" } });
+            return;
+          }
+          console.debug(
+            `[chat] empty final completion after toolRound=${toolRound}; ending turn gracefully`,
           );
-          emit({ type: "error", data: { message: "MODEL_EMPTY_RESPONSE" } });
+          emit({ type: "done", data: { fullAssistantText } });
           return;
         }
 
@@ -437,7 +462,22 @@ async function runChatStream(
 
       const executedResults: ToolExecutionResult[] = [];
       for (const toolCall of toolCalls) {
-        executedResults.push(await executeToolCall(projectPath, toolCall, embeddingConfig));
+        // Enforce a single artifact per turn: reject any further create_artifact calls
+        // (whether parallel in this round or in a later round) without executing them.
+        if (toolCall.function.name === "create_artifact" && artifactCreatedThisTurn) {
+          executedResults.push({
+            toolCallId: toolCall.id,
+            name: toolCall.function.name,
+            description: describeStreamingToolCall(toolCall),
+            result:
+              "An artifact was already created in this turn. Only one artifact per turn is allowed — " +
+              "do not call create_artifact again; reply to the user in prose instead.",
+          });
+          continue;
+        }
+        const execResult = await executeToolCall(projectPath, toolCall, embeddingConfig);
+        if (toolCall.function.name === "create_artifact") artifactCreatedThisTurn = true;
+        executedResults.push(execResult);
       }
 
       // Baustein 3: count journal_log calls across all tool rounds
@@ -480,7 +520,13 @@ async function runChatStream(
         conversationMessages.push({
           role: "tool",
           tool_call_id: result.toolCallId,
-          content: result.result,
+          // The full artifact fence is sent to the UI via tool_history (rendered as a card).
+          // The model only needs a short confirmation — echoing the whole note back invites
+          // it to re-create the same artifact on the next round.
+          content:
+            result.name === "create_artifact" && result.result.startsWith("```artifact")
+              ? "The working note is now displayed to the user as an inline card. Do NOT create another artifact and do NOT repeat its content. Continue your reply to the user in normal prose (e.g. briefly point to the note and add any closing remarks)."
+              : result.result,
         });
       }
 
