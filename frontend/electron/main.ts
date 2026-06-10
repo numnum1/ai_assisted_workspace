@@ -45,6 +45,8 @@ import {
 } from "./services/subprojectService.js";
 import { listWikiFiles, searchWiki } from "./services/wikiService.js";
 import { readJournal, getUnsyncedJournalEntries, logSyncMarker } from "./services/journalService.js";
+import { readArcs, writeArcs } from "./services/arcService.js";
+import type { ArcData } from "../src/types.js";
 import {
   previewChatContext,
   startChatStream,
@@ -179,6 +181,11 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("journal:logSync", () =>
     logSyncMarker(getCurrentProjectPath()),
+  );
+
+  ipcMain.handle("arcs:read", () => readArcs(getCurrentProjectPath()));
+  ipcMain.handle("arcs:write", (_event, data: ArcData) =>
+    writeArcs(getCurrentProjectPath(), data),
   );
 
   ipcMain.handle("glossary:get", () => getGlossary(getCurrentProjectPath()));

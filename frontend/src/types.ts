@@ -94,6 +94,67 @@ export interface JournalData {
   conflicts: JournalConflict[];
 }
 
+/** Kind of arc — defines its lane identity and which wiki entity it tracks. */
+export type ArcKind = "story" | "character" | "relationship";
+
+/** A single tracked thread (story / character / relationship), drawn as one lane. */
+export interface Arc {
+  id: string;
+  kind: ArcKind;
+  title: string;
+  /** Wiki entry this arc tracks (story/character). Absent for free-standing arcs. */
+  wikiRef?: string;
+  /** Wiki entries that form a relationship arc (typically two). */
+  members?: string[];
+  /** Hex lane color; falls back to a kind default when absent. */
+  color?: string;
+  /** Vertical lane order, ascending top-to-bottom. */
+  order: number;
+}
+
+/** A key moment on an arc, positioned by story-time (`at`). */
+export interface Beat {
+  id: string;
+  arcId: string;
+  /** Story-time position on the shared timeline (unit defined by Timeline). */
+  at: number;
+  title: string;
+  /** Optional anchor to the scene/file where this beat is narrated. */
+  sceneRef?: string;
+  note?: string;
+}
+
+/** Typed cause→effect edge between two beats. */
+export type ArcLinkType = "enables" | "forces" | "prevents" | "triggers";
+
+export interface ArcLink {
+  id: string;
+  /** Source beat id (the cause). */
+  from: string;
+  /** Target beat id (the effect). */
+  to: string;
+  type: ArcLinkType;
+  note?: string;
+}
+
+/** Story-time axis definition for the arc workspace. */
+export interface Timeline {
+  /** Axis unit label, e.g. "Tag", "Jahr". */
+  unit: string;
+  start: number;
+  end: number;
+  /** Named fixed points rendered as vertical guides. */
+  markers: Array<{ at: number; label: string }>;
+}
+
+/** Full contents of the arc workspace (.assistant/arcs/). */
+export interface ArcData {
+  timeline: Timeline;
+  arcs: Arc[];
+  beats: Beat[];
+  links: ArcLink[];
+}
+
 export interface FileNode {
   name: string;
   path: string;

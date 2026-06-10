@@ -292,6 +292,10 @@ contextBridge.exposeInMainWorld("appBridge", {
     unsyncedEntries: () => ipcRenderer.invoke("journal:unsyncedEntries"),
     logSync: () => ipcRenderer.invoke("journal:logSync"),
   },
+  arcs: {
+    read: () => ipcRenderer.invoke("arcs:read"),
+    write: (data: unknown) => ipcRenderer.invoke("arcs:write", data),
+  },
   glossary: {
     get: () => ipcRenderer.invoke("glossary:get"),
     addEntry: (term: string, definition: string) =>

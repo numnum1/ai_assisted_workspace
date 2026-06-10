@@ -227,6 +227,12 @@ export interface AppBridge {
     }>;
     logSync: () => Promise<string>;
   };
+  arcs?: {
+    read: () => Promise<import('../types.ts').ArcData>;
+    write: (
+      data: import('../types.ts').ArcData,
+    ) => Promise<{ status: string }>;
+  };
   glossary?: {
     get: () => Promise<GlossaryData>;
     addEntry: (term: string, definition: string) => Promise<{ status: string }>;

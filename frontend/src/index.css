@@ -10627,3 +10627,340 @@ body.file-tree-native-dragging {
     color: var(--text);
     word-break: break-word;
 }
+
+/* ── Arc timeline workspace ───────────────────────────────────────── */
+.arc-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 32px;
+}
+
+.arc-dialog {
+    width: 96vw;
+    height: 94vh;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+
+.arc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.arc-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.arc-header-icon {
+    color: var(--accent);
+}
+
+.arc-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.arc-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.arc-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.arc-icon-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.arc-icon-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.arc-spin {
+    animation: glp-spin 0.8s linear infinite;
+}
+
+.arc-save-state {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 4px;
+}
+
+.arc-save-state--err {
+    color: var(--red);
+}
+
+.arc-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.arc-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+.arc-inline-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.arc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    background: var(--bg-primary);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.arc-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
+
+.arc-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.arc-btn--active {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.arc-btn--danger {
+    color: var(--red);
+    border-color: var(--red);
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+}
+
+.arc-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.arc-canvas-wrap {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    padding: 16px;
+}
+
+.arc-sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    overflow: auto;
+    padding: 14px;
+}
+
+.arc-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.arc-editor-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.arc-editor-title--sub {
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 6px;
+    color: var(--text-muted);
+}
+
+.arc-editor-desc {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.arc-editor-row {
+    display: flex;
+    gap: 8px;
+}
+
+.arc-editor-row > * {
+    flex: 1;
+}
+
+.arc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.arc-field-label {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.arc-input {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+    background: var(--bg-primary);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+.arc-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.arc-textarea {
+    min-height: 60px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.arc-color {
+    height: 32px;
+    padding: 2px;
+}
+
+.arc-marker-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.arc-marker-row > input:first-child {
+    width: 64px;
+    flex-shrink: 0;
+}
+
+.arc-state {
+    padding: 24px 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.arc-state--error {
+    color: var(--red);
+}
+
+.arc-state code {
+    font-size: 12px;
+    color: var(--text);
+}
+
+.arc-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.arc-axis-line {
+    stroke: var(--border);
+    stroke-width: 1;
+}
+
+.arc-axis-end {
+    fill: var(--text-muted);
+    font-size: 11px;
+}
+
+.arc-marker-line {
+    stroke: var(--text-muted);
+    stroke-opacity: 0.3;
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+
+.arc-marker-label {
+    fill: var(--text-muted);
+    font-size: 10px;
+}
+
+.arc-lane-name {
+    fill: var(--text-primary);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.arc-lane-kind {
+    fill: var(--text-muted);
+    font-size: 10px;
+}
+
+.arc-beat-label {
+    fill: var(--text-primary);
+    font-size: 10px;
+}
+
+.arc-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.arc-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.arc-legend-line {
+    display: inline-block;
+    width: 22px;
+    height: 0;
+    border-top-width: 2px;
+}

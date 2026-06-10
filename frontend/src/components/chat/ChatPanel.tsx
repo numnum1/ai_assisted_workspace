@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, BookText, ArchiveRestore } from "lucide-react";
+import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, BookText, ArchiveRestore, Waypoints } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -82,6 +82,8 @@ interface ChatPanelProps {
   chatDownloadEnabled?: boolean;
   /** Opens the read-only Journal panel (assistant-persisted facts). */
   onOpenJournal?: () => void;
+  /** Opens the arc timeline workspace (story/character/relationship arcs). */
+  onOpenArcs?: () => void;
   /** Starts the wiki-transfer guided thread (buchentwicklung mode only). */
   onStartSessionAbschluss?: () => void;
   /** Number of unsynced KANON entries; shows the "jetzt übertragen?" banner when >= threshold. */
@@ -163,6 +165,7 @@ export function ChatPanel({
   clearAllBrowserChatsDisabled = true,
   chatDownloadEnabled = false,
   onOpenJournal,
+  onOpenArcs,
   onStartSessionAbschluss,
   pendingAbschlussCount = 0,
   structureRoot = null,
@@ -337,6 +340,16 @@ export function ChatPanel({
               title="Journal öffnen (Strg+Shift+J) — was die KI festgehalten hat"
             >
               <BookText size={14} />
+            </button>
+          )}
+          {onOpenArcs && (
+            <button
+              type="button"
+              className="chat-history-btn"
+              onClick={onOpenArcs}
+              title="Spannungsbögen öffnen (Strg+Shift+A) — Story-/Figuren-/Beziehungsbögen"
+            >
+              <Waypoints size={14} />
             </button>
           )}
           {selectedMode === "buchentwicklung" &&

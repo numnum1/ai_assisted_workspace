@@ -19,6 +19,7 @@ import type {
   LlmsListResponse,
   Conversation,
   JournalData,
+  ArcData,
 } from "./types.ts";
 import type {
   ChatStreamEvent,
@@ -794,6 +795,19 @@ export const journalApi = {
   logSync: async (): Promise<string> => {
     const api = getElectronApi();
     if (api?.journal) return api.journal.logSync();
+    throw new Error("Electron bridge not available");
+  },
+};
+
+export const arcApi = {
+  read: async (): Promise<ArcData> => {
+    const api = getElectronApi();
+    if (api?.arcs) return api.arcs.read();
+    throw new Error("Electron bridge not available");
+  },
+  write: async (data: ArcData): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.arcs) return api.arcs.write(data);
     throw new Error("Electron bridge not available");
   },
 };
