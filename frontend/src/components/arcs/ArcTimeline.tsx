@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Waypoints, RefreshCw, X, Plus, Link2, Trash2, ChevronUp, ChevronDown, Check } from "lucide-react";
 import { arcApi } from "../../api.ts";
 import type {
@@ -69,6 +77,31 @@ function niceStep(span: number, target = 22): number {
   return m * pow;
 }
 
+/**
+ * Resolve a free day for a beat within its lane — at most one beat per day per
+ * arc. Returns `desiredAt` if free, otherwise the nearest free day within the
+ * timeline bounds, or null if the lane is fully occupied.
+ */
+function resolveFreeDay(
+  beats: Beat[],
+  arcId: string,
+  desiredAt: number,
+  exceptId: string | null,
+  start: number,
+  end: number,
+): number | null {
+  const taken = new Set(
+    beats.filter((b) => b.arcId === arcId && b.id !== exceptId).map((b) => b.at),
+  );
+  if (!taken.has(desiredAt)) return desiredAt;
+  const reach = Math.max(0, end - start);
+  for (let r = 1; r <= reach; r++) {
+    if (desiredAt + r <= end && !taken.has(desiredAt + r)) return desiredAt + r;
+    if (desiredAt - r >= start && !taken.has(desiredAt - r)) return desiredAt - r;
+  }
+  return null;
+}
+
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID().slice(0, 8)
@@ -102,6 +135,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const beatEditorRef = useRef<BeatEditorHandle>(null);
 
   type DragPos = { beatId: string; at: number; arcId: string };
   const [dragPos, setDragPos] = useState<DragPos | null>(null);
@@ -142,10 +176,14 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
           onClose();
         }
       }
+      if (e.key === "F2" && selection?.type === "beat") {
+        e.preventDefault();
+        beatEditorRef.current?.focusName();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, linkMode]);
+  }, [open, onClose, linkMode, selection]);
 
   const scheduleSave = useCallback((next: ArcData) => {
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
@@ -225,22 +263,53 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
 
   const addBeat = useCallback(
     (arcId: string, at: number) => {
+      if (!data) return;
+      const free = resolveFreeDay(
+        data.beats,
+        arcId,
+        at,
+        null,
+        data.timeline.start,
+        data.timeline.end,
+      );
+      if (free === null) return; // lane has a beat on every day already
       const id = `b_${newId()}`;
       apply((d) => ({
         ...d,
-        beats: [...d.beats, { id, arcId, at, title: "Neuer Beat" }],
+        beats: [...d.beats, { id, arcId, at: free, title: "Neuer Beat" }],
       }));
       setSelection({ type: "beat", id });
     },
-    [apply],
+    [apply, data],
   );
 
   const updateBeat = useCallback(
     (id: string, patch: Partial<Beat>) =>
-      apply((d) => ({
-        ...d,
-        beats: d.beats.map((b) => (b.id === id ? { ...b, ...patch } : b)),
-      })),
+      apply((d) => {
+        const beat = d.beats.find((b) => b.id === id);
+        if (!beat) return d;
+        const nextArc = patch.arcId ?? beat.arcId;
+        let nextAt = patch.at ?? beat.at;
+        // Enforce one beat per day per lane when position/lane changes.
+        if (patch.at !== undefined || patch.arcId !== undefined) {
+          const free = resolveFreeDay(
+            d.beats,
+            nextArc,
+            nextAt,
+            id,
+            d.timeline.start,
+            d.timeline.end,
+          );
+          if (free === null) return d; // target lane is full — keep beat put
+          nextAt = free;
+        }
+        return {
+          ...d,
+          beats: d.beats.map((b) =>
+            b.id === id ? { ...b, ...patch, arcId: nextArc, at: nextAt } : b,
+          ),
+        };
+      }),
     [apply],
   );
 
@@ -387,11 +456,13 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
       d.moved = true;
       const loc = clientToSvg(ev.clientX, ev.clientY);
       if (!loc) return;
-      const next: DragPos = {
-        beatId: d.beatId,
-        at: atFromX(loc.x),
-        arcId: arcIdFromY(loc.y) ?? beat.arcId,
-      };
+      const arcId = arcIdFromY(loc.y) ?? beat.arcId;
+      const rawAt = atFromX(loc.x);
+      // Preview the day it will actually snap to (one beat per day per lane).
+      const free = data
+        ? resolveFreeDay(data.beats, arcId, rawAt, d.beatId, data.timeline.start, data.timeline.end)
+        : rawAt;
+      const next: DragPos = { beatId: d.beatId, at: free ?? rawAt, arcId };
       dragPosRef.current = next;
       setDragPos(next);
     };
@@ -728,6 +799,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
             {selectedBeat && (
               <BeatEditor
                 key={selectedBeat.id}
+                ref={beatEditorRef}
                 beat={selectedBeat}
                 arcs={data!.arcs}
                 unit={data!.timeline.unit}
@@ -798,24 +870,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function BeatEditor({
-  beat,
-  arcs,
-  unit,
-  onChange,
-  onDelete,
-}: {
-  beat: Beat;
-  arcs: Arc[];
-  unit: string;
-  onChange: (patch: Partial<Beat>) => void;
-  onDelete: () => void;
-}) {
+type BeatEditorHandle = { focusName: () => void };
+
+const BeatEditor = forwardRef<
+  BeatEditorHandle,
+  {
+    beat: Beat;
+    arcs: Arc[];
+    unit: string;
+    onChange: (patch: Partial<Beat>) => void;
+    onDelete: () => void;
+  }
+>(function BeatEditor({ beat, arcs, unit, onChange, onDelete }, ref) {
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  useImperativeHandle(ref, () => ({
+    focusName: () => {
+      nameRef.current?.focus();
+      nameRef.current?.select();
+    },
+  }));
   return (
     <div className="arc-editor">
       <div className="arc-editor-title">Beat</div>
       <Field label="Titel">
         <input
+          ref={nameRef}
           className="arc-input"
           value={beat.title}
           onChange={(e) => onChange({ title: e.target.value })}
@@ -862,7 +941,7 @@ function BeatEditor({
       </button>
     </div>
   );
-}
+});
 
 function ArcEditor({
   arc,
