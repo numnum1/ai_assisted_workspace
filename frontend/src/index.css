@@ -10914,6 +10914,17 @@ body.file-tree-native-dragging {
     font-size: 11px;
 }
 
+.arc-tick-line {
+    stroke: var(--text-muted);
+    stroke-opacity: 0.12;
+    stroke-width: 1;
+}
+
+.arc-tick-label {
+    fill: var(--text-muted);
+    font-size: 9px;
+}
+
 .arc-marker-line {
     stroke: var(--text-muted);
     stroke-opacity: 0.3;

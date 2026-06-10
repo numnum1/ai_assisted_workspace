@@ -25,7 +25,7 @@ function getArcsFilePath(projectRoot: string): string {
 const DEFAULT_TIMELINE: Timeline = {
   unit: "Tag",
   start: 0,
-  end: 100,
+  end: 21,
   markers: [],
 };
 

@@ -56,6 +56,19 @@ function arcColor(arc: Arc): string {
   return arc.color ?? KIND_COLOR[arc.kind];
 }
 
+/**
+ * Pick a "nice" tick step (1, 2, 5 × 10ⁿ) so the axis shows recognizable steps
+ * without overcrowding — aims for roughly `target` ticks across the span.
+ */
+function niceStep(span: number, target = 22): number {
+  const raw = span / target;
+  if (raw <= 1) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / pow;
+  const m = n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10;
+  return m * pow;
+}
+
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID().slice(0, 8)
@@ -287,8 +300,18 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
       beatPos.set(beat.id, { x: x(beat.at), y: laneCenter(beat.arcId), beat });
     }
 
+    // Axis tick steps so individual days (or a nice multiple) are visible.
+    const ticks: number[] = [];
+    if (span > 0) {
+      const step = niceStep(span);
+      const first = Math.ceil(timeline.start / step) * step;
+      for (let t = first; t <= timeline.end + 1e-9; t += step) {
+        ticks.push(Math.round(t * 1000) / 1000);
+      }
+    }
+
     const height = LANE_TOP + Math.max(1, arcs.length) * LANE_H + 24;
-    return { timeline, arcs, beats, links, x, beatPos, height, span };
+    return { timeline, arcs, beats, links, x, beatPos, height, span, ticks };
   }, [data]);
 
   /** Map a click on a lane to a rounded story-time value. */
@@ -459,12 +482,29 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
                 </defs>
 
                 <line x1={PLOT_X0} y1={AXIS_Y} x2={PLOT_X1} y2={AXIS_Y} className="arc-axis-line" />
-                <text x={PLOT_X0} y={AXIS_Y - 12} className="arc-axis-end">
-                  {layout.timeline.start} {layout.timeline.unit}
+                <text x={16} y={AXIS_Y - 12} className="arc-axis-end">
+                  {layout.timeline.unit}
                 </text>
-                <text x={PLOT_X1} y={AXIS_Y - 12} textAnchor="end" className="arc-axis-end">
-                  {layout.timeline.end} {layout.timeline.unit}
-                </text>
+                {/* Day-step grid so the timeline is readable at a glance */}
+                {layout.ticks.map((t, i) => (
+                  <g key={`t-${i}`}>
+                    <line
+                      x1={layout.x(t)}
+                      y1={AXIS_Y}
+                      x2={layout.x(t)}
+                      y2={layout.height - 16}
+                      className="arc-tick-line"
+                    />
+                    <text
+                      x={layout.x(t)}
+                      y={AXIS_Y - 12}
+                      textAnchor="middle"
+                      className="arc-tick-label"
+                    >
+                      {t}
+                    </text>
+                  </g>
+                ))}
                 {layout.timeline.markers.map((m, i) => (
                   <g key={`m-${i}`}>
                     <line
