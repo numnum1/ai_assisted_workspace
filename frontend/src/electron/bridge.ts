@@ -212,6 +212,7 @@ export interface AppBridge {
     write: (
       data: import('../types.ts').ArcData,
     ) => Promise<{ status: string }>;
+    coverage: () => Promise<import('../types.ts').ArcCoverage>;
   };
   snapshots?: {
     get: (id: string) => Promise<SnapshotData>;

@@ -15,7 +15,7 @@ import type {
   ArcKind,
   ArcLink,
   ArcLinkType,
-  Beat,
+  ArcPoint,
 } from "../../types.ts";
 
 interface ArcTimelineProps {
@@ -78,12 +78,12 @@ function niceStep(span: number, target = 22): number {
 }
 
 /**
- * Resolve a free day for a beat within its lane — at most one beat per day per
+ * Resolve a free day for a point within its lane — at most one point per day per
  * arc. Returns `desiredAt` if free, otherwise the nearest free day within the
  * timeline bounds, or null if the lane is fully occupied.
  */
 function resolveFreeDay(
-  beats: Beat[],
+  points: ArcPoint[],
   arcId: string,
   desiredAt: number,
   exceptId: string | null,
@@ -91,7 +91,7 @@ function resolveFreeDay(
   end: number,
 ): number | null {
   const taken = new Set(
-    beats.filter((b) => b.arcId === arcId && b.id !== exceptId).map((b) => b.at),
+    points.filter((b) => b.arcId === arcId && b.id !== exceptId).map((b) => b.at),
   );
   if (!taken.has(desiredAt)) return desiredAt;
   const reach = Math.max(0, end - start);
@@ -109,14 +109,14 @@ function newId(): string {
 }
 
 type Selection =
-  | { type: "beat"; id: string }
+  | { type: "point"; id: string }
   | { type: "arc"; id: string }
   | { type: "link"; id: string }
   | null;
 
 /**
  * Arc workspace: story / character / relationship arcs stacked as lanes over a
- * shared story-time axis, with typed cause→effect edges between beats.
+ * shared story-time axis, with typed cause→effect edges between points.
  * Editing writes through to .assistant/arcs/ (debounced autosave).
  */
 export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
@@ -127,6 +127,8 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [selection, setSelection] = useState<Selection>(null);
+  /** Point ids realized by at least one scene (computed coverage). */
+  const [coveredPoints, setCoveredPoints] = useState<Set<string>>(new Set());
   const [linkMode, setLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [showAddArc, setShowAddArc] = useState(false);
@@ -135,13 +137,13 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const saveTimer = useRef<number | null>(null);
-  const beatEditorRef = useRef<BeatEditorHandle>(null);
+  const pointEditorRef = useRef<ArcPointEditorHandle>(null);
 
-  type DragPos = { beatId: string; at: number; arcId: string };
+  type DragPos = { pointId: string; at: number; arcId: string };
   const [dragPos, setDragPos] = useState<DragPos | null>(null);
   const dragPosRef = useRef<DragPos | null>(null);
   const dragRef = useRef<{
-    beatId: string;
+    pointId: string;
     startX: number;
     startY: number;
     moved: boolean;
@@ -154,6 +156,13 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
     try {
       setData(await arcApi.read());
       setSelection(null);
+      // Coverage is best-effort: a failure here must not block the timeline.
+      try {
+        const cov = await arcApi.coverage();
+        setCoveredPoints(new Set(cov.points));
+      } catch {
+        setCoveredPoints(new Set());
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Arcs konnten nicht geladen werden.");
     } finally {
@@ -176,9 +185,9 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
           onClose();
         }
       }
-      if (e.key === "F2" && selection?.type === "beat") {
+      if (e.key === "F2" && selection?.type === "point") {
         e.preventDefault();
-        beatEditorRef.current?.focusName();
+        pointEditorRef.current?.focusName();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -237,12 +246,12 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
   const deleteArc = useCallback(
     (id: string) =>
       apply((d) => {
-        const beatIds = new Set(d.beats.filter((b) => b.arcId === id).map((b) => b.id));
+        const pointIds = new Set(d.points.filter((b) => b.arcId === id).map((b) => b.id));
         return {
           ...d,
           arcs: d.arcs.filter((a) => a.id !== id).map((a, i) => ({ ...a, order: i })),
-          beats: d.beats.filter((b) => b.arcId !== id),
-          links: d.links.filter((l) => !beatIds.has(l.from) && !beatIds.has(l.to)),
+          points: d.points.filter((b) => b.arcId !== id),
+          links: d.links.filter((l) => !pointIds.has(l.from) && !pointIds.has(l.to)),
         };
       }),
     [apply],
@@ -261,51 +270,51 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
     [apply],
   );
 
-  const addBeat = useCallback(
+  const addArcPoint = useCallback(
     (arcId: string, at: number) => {
       if (!data) return;
       const free = resolveFreeDay(
-        data.beats,
+        data.points,
         arcId,
         at,
         null,
         data.timeline.start,
         data.timeline.end,
       );
-      if (free === null) return; // lane has a beat on every day already
-      const id = `b_${newId()}`;
+      if (free === null) return; // lane has a point on every day already
+      const id = `p_${newId()}`;
       apply((d) => ({
         ...d,
-        beats: [...d.beats, { id, arcId, at: free, title: "Neuer Beat" }],
+        points: [...d.points, { id, arcId, at: free, title: "Neuer Punkt" }],
       }));
-      setSelection({ type: "beat", id });
+      setSelection({ type: "point", id });
     },
     [apply, data],
   );
 
-  const updateBeat = useCallback(
-    (id: string, patch: Partial<Beat>) =>
+  const updateArcPoint = useCallback(
+    (id: string, patch: Partial<ArcPoint>) =>
       apply((d) => {
-        const beat = d.beats.find((b) => b.id === id);
-        if (!beat) return d;
-        const nextArc = patch.arcId ?? beat.arcId;
-        let nextAt = patch.at ?? beat.at;
-        // Enforce one beat per day per lane when position/lane changes.
+        const point = d.points.find((b) => b.id === id);
+        if (!point) return d;
+        const nextArc = patch.arcId ?? point.arcId;
+        let nextAt = patch.at ?? point.at;
+        // Enforce one point per day per lane when position/lane changes.
         if (patch.at !== undefined || patch.arcId !== undefined) {
           const free = resolveFreeDay(
-            d.beats,
+            d.points,
             nextArc,
             nextAt,
             id,
             d.timeline.start,
             d.timeline.end,
           );
-          if (free === null) return d; // target lane is full — keep beat put
+          if (free === null) return d; // target lane is full — keep point put
           nextAt = free;
         }
         return {
           ...d,
-          beats: d.beats.map((b) =>
+          points: d.points.map((b) =>
             b.id === id ? { ...b, ...patch, arcId: nextArc, at: nextAt } : b,
           ),
         };
@@ -313,11 +322,11 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
     [apply],
   );
 
-  const deleteBeat = useCallback(
+  const deleteArcPoint = useCallback(
     (id: string) =>
       apply((d) => ({
         ...d,
-        beats: d.beats.filter((b) => b.id !== id),
+        points: d.points.filter((b) => b.id !== id),
         links: d.links.filter((l) => l.from !== id && l.to !== id),
       })),
     [apply],
@@ -360,7 +369,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
   // ── Layout ─────────────────────────────────────────────────────────
   const layout = useMemo(() => {
     if (!data) return null;
-    const { timeline, arcs, beats, links } = data;
+    const { timeline, arcs, points, links } = data;
     const span = timeline.end - timeline.start;
 
     const x = (at: number): number => {
@@ -374,10 +383,10 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
     const laneCenter = (arcId: string): number =>
       LANE_TOP + (laneIndex.get(arcId) ?? 0) * LANE_H + LANE_H / 2;
 
-    const beatPos = new Map<string, { x: number; y: number; beat: Beat }>();
-    for (const beat of beats) {
-      if (!laneIndex.has(beat.arcId)) continue;
-      beatPos.set(beat.id, { x: x(beat.at), y: laneCenter(beat.arcId), beat });
+    const pointPos = new Map<string, { x: number; y: number; point: ArcPoint }>();
+    for (const point of points) {
+      if (!laneIndex.has(point.arcId)) continue;
+      pointPos.set(point.id, { x: x(point.at), y: laneCenter(point.arcId), point });
     }
 
     // Axis tick steps so individual days (or a nice multiple) are visible.
@@ -391,7 +400,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
     }
 
     const height = LANE_TOP + Math.max(1, arcs.length) * LANE_H + 24;
-    return { timeline, arcs, beats, links, x, laneCenter, beatPos, height, span, ticks };
+    return { timeline, arcs, points, links, x, laneCenter, pointPos, height, span, ticks };
   }, [data]);
 
   // ── Coordinate helpers (client → SVG space) ────────────────────────
@@ -432,15 +441,15 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
   };
 
   /**
-   * Pointer-down on a beat: starts a potential drag. Movement past a small
+   * Pointer-down on a point: starts a potential drag. Movement past a small
    * threshold becomes a drag (horizontal → time, vertical → lane); a release
    * without movement is treated as a click (select / link).
    */
-  const beginBeatDrag = (e: React.PointerEvent, beat: Beat) => {
+  const beginArcPointDrag = (e: React.PointerEvent, point: ArcPoint) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     dragRef.current = {
-      beatId: beat.id,
+      pointId: point.id,
       startX: e.clientX,
       startY: e.clientY,
       moved: false,
@@ -456,13 +465,13 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
       d.moved = true;
       const loc = clientToSvg(ev.clientX, ev.clientY);
       if (!loc) return;
-      const arcId = arcIdFromY(loc.y) ?? beat.arcId;
+      const arcId = arcIdFromY(loc.y) ?? point.arcId;
       const rawAt = atFromX(loc.x);
-      // Preview the day it will actually snap to (one beat per day per lane).
+      // Preview the day it will actually snap to (one point per day per lane).
       const free = data
-        ? resolveFreeDay(data.beats, arcId, rawAt, d.beatId, data.timeline.start, data.timeline.end)
+        ? resolveFreeDay(data.points, arcId, rawAt, d.pointId, data.timeline.start, data.timeline.end)
         : rawAt;
-      const next: DragPos = { beatId: d.beatId, at: free ?? rawAt, arcId };
+      const next: DragPos = { pointId: d.pointId, at: free ?? rawAt, arcId };
       dragPosRef.current = next;
       setDragPos(next);
     };
@@ -473,9 +482,9 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
       dragRef.current = null;
       const dp = dragPosRef.current;
       if (d && d.moved && dp) {
-        updateBeat(d.beatId, { at: dp.at, arcId: dp.arcId });
+        updateArcPoint(d.pointId, { at: dp.at, arcId: dp.arcId });
       } else if (d) {
-        handleBeatClick(d.beatId);
+        handleArcPointClick(d.pointId);
       }
       dragPosRef.current = null;
       setDragPos(null);
@@ -484,29 +493,29 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
     document.addEventListener("pointerup", up);
   };
 
-  /** Beat position accounting for an in-progress drag. */
+  /** ArcPoint position accounting for an in-progress drag. */
   const posOf = (id: string): { x: number; y: number } | null => {
     if (!layout) return null;
-    if (dragPos && dragPos.beatId === id) {
+    if (dragPos && dragPos.pointId === id) {
       return { x: layout.x(dragPos.at), y: layout.laneCenter(dragPos.arcId) };
     }
-    const p = layout.beatPos.get(id);
+    const p = layout.pointPos.get(id);
     return p ? { x: p.x, y: p.y } : null;
   };
 
-  const handleBeatClick = useCallback(
-    (beatId: string) => {
+  const handleArcPointClick = useCallback(
+    (pointId: string) => {
       if (linkMode) {
         if (!linkSource) {
-          setLinkSource(beatId);
+          setLinkSource(pointId);
         } else {
-          addLink(linkSource, beatId);
+          addLink(linkSource, pointId);
           setLinkSource(null);
           setLinkMode(false);
         }
         return;
       }
-      setSelection({ type: "beat", id: beatId });
+      setSelection({ type: "point", id: pointId });
     },
     [linkMode, linkSource, addLink],
   );
@@ -514,8 +523,11 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
   if (!open) return null;
 
   const isEmpty = !loading && !error && data !== null && data.arcs.length === 0;
-  const selectedBeat =
-    selection?.type === "beat" ? data?.beats.find((b) => b.id === selection.id) : undefined;
+  const openCount = data
+    ? data.points.filter((p) => !coveredPoints.has(p.id)).length
+    : 0;
+  const selectedArcPoint =
+    selection?.type === "point" ? data?.points.find((b) => b.id === selection.id) : undefined;
   const selectedArc =
     selection?.type === "arc" ? data?.arcs.find((a) => a.id === selection.id) : undefined;
   const selectedLink =
@@ -537,6 +549,14 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
             </h2>
             {saving && <span className="arc-save-state">speichert…</span>}
             {saveError && <span className="arc-save-state arc-save-state--err">{saveError}</span>}
+            {data && data.points.length > 0 && (
+              <span
+                className="arc-save-state"
+                title="Punkte, die noch von keiner Szene erfüllt werden"
+              >
+                {openCount > 0 ? `${openCount} offen` : "alle erfüllt"}
+              </span>
+            )}
           </div>
           <div className="arc-header-actions">
             <button
@@ -566,7 +586,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
               setLinkMode((v) => !v);
               setLinkSource(null);
             }}
-            disabled={!data || data.beats.length < 2}
+            disabled={!data || data.points.length < 2}
           >
             <Link2 size={14} /> Verknüpfen
           </button>
@@ -600,9 +620,9 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
           <span className="arc-hint">
             {linkMode
               ? linkSource
-                ? "Ziel-Beat anklicken (Ursache → Wirkung)"
-                : "Ursache-Beat anklicken"
-              : "Klicke in eine Lane, um einen Beat anzulegen."}
+                ? "Ziel-Punkt anklicken (Ursache → Wirkung)"
+                : "Ursache-Punkt anklicken"
+              : "Klicke in eine Lane, um einen Punkt anzulegen."}
           </span>
         </div>
 
@@ -680,7 +700,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
                   </g>
                 ))}
 
-                {/* Lanes — click to add a beat, click label to select arc */}
+                {/* Lanes — click to add a point, click label to select arc */}
                 {layout.arcs.map((arc, i) => {
                   const top = LANE_TOP + i * LANE_H;
                   const color = arcColor(arc);
@@ -696,7 +716,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
                         fill={color}
                         opacity={0.08}
                         style={{ cursor: "copy" }}
-                        onClick={(e) => addBeat(arc.id, clientToAt(e))}
+                        onClick={(e) => addArcPoint(arc.id, clientToAt(e))}
                       />
                       <line
                         x1={PLOT_X0}
@@ -759,33 +779,49 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
                   );
                 })}
 
-                {/* Beats — drag to move (horizontal = Zeit, vertikal = Lane) */}
-                {[...layout.beatPos.values()].map((entry) => {
-                  const beat = entry.beat;
-                  const dragging = dragPos?.beatId === beat.id;
+                {/* ArcPoints — drag to move (horizontal = Zeit, vertikal = Lane) */}
+                {[...layout.pointPos.values()].map((entry) => {
+                  const point = entry.point;
+                  const dragging = dragPos?.pointId === point.id;
                   const pos = dragging
                     ? { x: layout.x(dragPos.at), y: layout.laneCenter(dragPos.arcId) }
                     : { x: entry.x, y: entry.y };
-                  const shownArcId = dragging ? dragPos.arcId : beat.arcId;
+                  const shownArcId = dragging ? dragPos.arcId : point.arcId;
                   const arc = layout.arcs.find((a) => a.id === shownArcId);
                   const color = arc ? arcColor(arc) : "#888780";
-                  const isSel = selection?.type === "beat" && selection.id === beat.id;
-                  const isSource = linkSource === beat.id;
+                  const isSel = selection?.type === "point" && selection.id === point.id;
+                  const isSource = linkSource === point.id;
+                  // Realized by a scene = solid dot; still open = dashed ring.
+                  const covered = coveredPoints.has(point.id);
                   return (
                     <g
-                      key={beat.id}
+                      key={point.id}
                       style={{ cursor: dragging ? "grabbing" : "grab" }}
-                      onPointerDown={(e) => beginBeatDrag(e, beat)}
+                      onPointerDown={(e) => beginArcPointDrag(e, point)}
                     >
                       {(isSel || isSource || dragging) && (
                         <circle cx={pos.x} cy={pos.y} r={11} fill="none" stroke={color} strokeWidth={2} />
                       )}
-                      <circle cx={pos.x} cy={pos.y} r={7} fill={color} />
-                      <text x={pos.x} y={pos.y - 14} textAnchor="middle" className="arc-beat-label">
-                        {beat.title}
+                      {covered ? (
+                        <circle cx={pos.x} cy={pos.y} r={7} fill={color} />
+                      ) : (
+                        <circle
+                          cx={pos.x}
+                          cy={pos.y}
+                          r={7}
+                          fill={color}
+                          fillOpacity={0.15}
+                          stroke={color}
+                          strokeWidth={2}
+                          strokeDasharray="2.5 2"
+                        />
+                      )}
+                      <text x={pos.x} y={pos.y - 14} textAnchor="middle" className="arc-point-label">
+                        {point.title}
                       </text>
                       <title>
-                        {beat.title} · {dragging ? dragPos.at : beat.at} {layout.timeline.unit}
+                        {point.title} · {dragging ? dragPos.at : point.at} {layout.timeline.unit}
+                        {covered ? "" : " · offen (keine Szene)"}
                       </title>
                     </g>
                   );
@@ -796,16 +832,16 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
 
           {/* Sidebar editor */}
           <aside className="arc-sidebar">
-            {selectedBeat && (
-              <BeatEditor
-                key={selectedBeat.id}
-                ref={beatEditorRef}
-                beat={selectedBeat}
+            {selectedArcPoint && (
+              <ArcPointEditor
+                key={selectedArcPoint.id}
+                ref={pointEditorRef}
+                point={selectedArcPoint}
                 arcs={data!.arcs}
                 unit={data!.timeline.unit}
-                onChange={(patch) => updateBeat(selectedBeat.id, patch)}
+                onChange={(patch) => updateArcPoint(selectedArcPoint.id, patch)}
                 onDelete={() => {
-                  deleteBeat(selectedBeat.id);
+                  deleteArcPoint(selectedArcPoint.id);
                   setSelection(null);
                 }}
               />
@@ -826,7 +862,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
               <LinkEditor
                 key={selectedLink.id}
                 link={selectedLink}
-                beats={data!.beats}
+                points={data!.points}
                 onChange={(patch) => updateLink(selectedLink.id, patch)}
                 onDelete={() => {
                   deleteLink(selectedLink.id);
@@ -853,6 +889,25 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
               {LINK_STYLE[type].label}
             </span>
           ))}
+          <span className="arc-legend-item arc-legend-item--coverage">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+              <circle cx="8" cy="8" r="5" fill="currentColor" />
+            </svg>
+            erfüllt
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+              <circle
+                cx="8"
+                cy="8"
+                r="5"
+                fill="currentColor"
+                fillOpacity={0.15}
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeDasharray="2.5 2"
+              />
+            </svg>
+            offen
+          </span>
         </div>
       </div>
     </div>
@@ -870,18 +925,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-type BeatEditorHandle = { focusName: () => void };
+type ArcPointEditorHandle = { focusName: () => void };
 
-const BeatEditor = forwardRef<
-  BeatEditorHandle,
+const ArcPointEditor = forwardRef<
+  ArcPointEditorHandle,
   {
-    beat: Beat;
+    point: ArcPoint;
     arcs: Arc[];
     unit: string;
-    onChange: (patch: Partial<Beat>) => void;
+    onChange: (patch: Partial<ArcPoint>) => void;
     onDelete: () => void;
   }
->(function BeatEditor({ beat, arcs, unit, onChange, onDelete }, ref) {
+>(function ArcPointEditor({ point, arcs, unit, onChange, onDelete }, ref) {
   const nameRef = useRef<HTMLInputElement | null>(null);
   useImperativeHandle(ref, () => ({
     focusName: () => {
@@ -891,12 +946,12 @@ const BeatEditor = forwardRef<
   }));
   return (
     <div className="arc-editor">
-      <div className="arc-editor-title">Beat</div>
+      <div className="arc-editor-title">Punkt</div>
       <Field label="Titel">
         <input
           ref={nameRef}
           className="arc-input"
-          value={beat.title}
+          value={point.title}
           onChange={(e) => onChange({ title: e.target.value })}
         />
       </Field>
@@ -904,14 +959,14 @@ const BeatEditor = forwardRef<
         <input
           className="arc-input"
           type="number"
-          value={beat.at}
+          value={point.at}
           onChange={(e) => onChange({ at: Number(e.target.value) })}
         />
       </Field>
       <Field label="Bogen">
         <select
           className="arc-input"
-          value={beat.arcId}
+          value={point.arcId}
           onChange={(e) => onChange({ arcId: e.target.value })}
         >
           {arcs.map((a) => (
@@ -921,23 +976,15 @@ const BeatEditor = forwardRef<
           ))}
         </select>
       </Field>
-      <Field label="Szenen-Anker (Pfad, optional)">
-        <input
-          className="arc-input"
-          value={beat.sceneRef ?? ""}
-          placeholder="structure/…/szene.md"
-          onChange={(e) => onChange({ sceneRef: e.target.value || undefined })}
-        />
-      </Field>
       <Field label="Notiz">
         <textarea
           className="arc-input arc-textarea"
-          value={beat.note ?? ""}
+          value={point.note ?? ""}
           onChange={(e) => onChange({ note: e.target.value || undefined })}
         />
       </Field>
       <button type="button" className="arc-btn arc-btn--danger" onClick={onDelete}>
-        <Trash2 size={14} /> Beat löschen
+        <Trash2 size={14} /> Punkt löschen
       </button>
     </div>
   );
@@ -1010,16 +1057,16 @@ function ArcEditor({
 
 function LinkEditor({
   link,
-  beats,
+  points,
   onChange,
   onDelete,
 }: {
   link: ArcLink;
-  beats: Beat[];
+  points: ArcPoint[];
   onChange: (patch: Partial<ArcLink>) => void;
   onDelete: () => void;
 }) {
-  const nameOf = (id: string) => beats.find((b) => b.id === id)?.title ?? "?";
+  const nameOf = (id: string) => points.find((b) => b.id === id)?.title ?? "?";
   return (
     <div className="arc-editor">
       <div className="arc-editor-title">Verknüpfung</div>
@@ -1074,7 +1121,7 @@ function TimelineEditor({
   return (
     <div className="arc-editor">
       <div className="arc-editor-title">Zeitachse</div>
-      <p className="arc-editor-desc">Wähle einen Bogen, Beat oder eine Verknüpfung, um sie zu bearbeiten.</p>
+      <p className="arc-editor-desc">Wähle einen Bogen, ArcPoint oder eine Verknüpfung, um sie zu bearbeiten.</p>
       <Field label="Einheit">
         <input
           className="arc-input"

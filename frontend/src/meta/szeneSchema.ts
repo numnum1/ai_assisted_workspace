@@ -15,5 +15,7 @@ export const szeneSchema: MetaTypeSchema = {
 
     { key: 'pov', label: 'POV', type: 'input', defaultValue: '' },
     { key: 'tone', label: 'Stimmung', type: 'input', placeholder: '', defaultValue: '' },
+
+    { key: 'arcRefs', label: 'Erfüllt Punkte / Bögen', type: 'arcref', placeholder: '@ für Punkt oder Bogen…', defaultValue: '' },
   ],
 };

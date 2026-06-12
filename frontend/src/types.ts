@@ -83,26 +83,30 @@ export interface Arc {
   order: number;
 }
 
-/** A key moment on an arc, positioned by story-time (`at`). */
-export interface Beat {
+/**
+ * A user-placed marker on an arc, positioned by story-time (`at`) — "here
+ * something important happens". This is the planning unit of the arc workspace,
+ * deliberately *not* a narrative "beat": the story plan (declaration) never
+ * references the prose that realizes it; book structure points back to it.
+ * UI label: „Punkt".
+ */
+export interface ArcPoint {
   id: string;
   arcId: string;
   /** Story-time position on the shared timeline (unit defined by Timeline). */
   at: number;
   title: string;
-  /** Optional anchor to the scene/file where this beat is narrated. */
-  sceneRef?: string;
   note?: string;
 }
 
-/** Typed cause→effect edge between two beats. */
+/** Typed cause→effect edge between two arc points. */
 export type ArcLinkType = "enables" | "forces" | "prevents" | "triggers";
 
 export interface ArcLink {
   id: string;
-  /** Source beat id (the cause). */
+  /** Source arc-point id (the cause). */
   from: string;
-  /** Target beat id (the effect). */
+  /** Target arc-point id (the effect). */
   to: string;
   type: ArcLinkType;
   note?: string;
@@ -122,8 +126,21 @@ export interface Timeline {
 export interface ArcData {
   timeline: Timeline;
   arcs: Arc[];
-  beats: Beat[];
+  points: ArcPoint[];
   links: ArcLink[];
+}
+
+/**
+ * Which arcs/points are realized by the book — the computed "coverage" of the
+ * plan. Derived by scanning structure metadata for references back to the arc
+ * workspace (never stored on the arc side). Ids absent here are unrealized,
+ * like an unimplemented header method.
+ */
+export interface ArcCoverage {
+  /** Arc ids referenced by at least one structure node. */
+  arcs: string[];
+  /** Arc-point ids referenced by at least one structure node. */
+  points: string[];
 }
 
 export interface FileNode {

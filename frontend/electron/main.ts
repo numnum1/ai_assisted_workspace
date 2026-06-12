@@ -44,7 +44,7 @@ import {
   removeSubproject,
 } from "./services/subprojectService.js";
 import { listWikiFiles, searchWiki } from "./services/wikiService.js";
-import { readArcs, writeArcs } from "./services/arcService.js";
+import { readArcs, writeArcs, computeArcCoverage } from "./services/arcService.js";
 import type { ArcData } from "../src/types.js";
 import {
   previewChatContext,
@@ -173,6 +173,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle("arcs:write", (_event, data: ArcData) =>
     writeArcs(getCurrentProjectPath(), data),
   );
+  ipcMain.handle("arcs:coverage", () => computeArcCoverage(getCurrentProjectPath()));
 
   ipcMain.handle("chat:previewContext", (_event, body) =>
     previewChatContext(getCurrentProjectPath(), body),

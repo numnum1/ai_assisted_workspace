@@ -19,6 +19,7 @@ import type {
   LlmsListResponse,
   Conversation,
   ArcData,
+  ArcCoverage,
 } from "./types.ts";
 import type {
   ChatStreamEvent,
@@ -759,6 +760,11 @@ export const arcApi = {
   write: async (data: ArcData): Promise<{ status: string }> => {
     const api = getElectronApi();
     if (api?.arcs) return api.arcs.write(data);
+    throw new Error("Electron bridge not available");
+  },
+  coverage: async (): Promise<ArcCoverage> => {
+    const api = getElectronApi();
+    if (api?.arcs) return api.arcs.coverage();
     throw new Error("Electron bridge not available");
   },
 };

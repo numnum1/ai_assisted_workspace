@@ -1,6 +1,7 @@
 import { wikiInputRenderer } from './wikiinput.tsx';
 import { wikiTextareaRenderer } from './wikitextarea.tsx';
 import { wikiListRenderer } from './wikilist.tsx';
+import { arcRefRenderer } from './arcref.tsx';
 import { selectorRenderer } from './selector.tsx';
 import type { FieldRenderer } from '../metaSchema.ts';
 
@@ -17,6 +18,7 @@ export const fieldTypeDefinitions: FieldTypeDef[] = [
   { id: 'wikitextarea',   label: 'Fließtext (mit Wiki-Links)',   renderer: wikiTextareaRenderer, availableInWikiEditor: true  },
   { id: 'largetextarea',  label: 'Fließtext groß (mit Wiki-Links)', renderer: wikiTextareaRenderer, availableInWikiEditor: true  },
   { id: 'wikilist',       label: 'Wiki-Liste',                   renderer: wikiListRenderer,     availableInWikiEditor: false },
+  { id: 'arcref',         label: 'Arc-Bezug (Punkte/Bögen)',     renderer: arcRefRenderer,       availableInWikiEditor: false },
   { id: 'selector',       label: 'Dropdown',                     renderer: selectorRenderer,     availableInWikiEditor: false },
 ];
 

@@ -290,6 +290,7 @@ contextBridge.exposeInMainWorld("appBridge", {
   arcs: {
     read: () => ipcRenderer.invoke("arcs:read"),
     write: (data: unknown) => ipcRenderer.invoke("arcs:write", data),
+    coverage: () => ipcRenderer.invoke("arcs:coverage"),
   },
   subproject: {
     info: (path: string) => ipcRenderer.invoke("subproject:info", path),
