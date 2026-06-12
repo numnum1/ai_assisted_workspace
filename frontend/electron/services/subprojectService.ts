@@ -136,10 +136,11 @@ export async function initSubproject(
   await ensureDirectory(folderPath);
 
   const markerPath = path.join(folderPath, SUBPROJECT_MARKER_FILE);
+  const normalizedName = name.trim();
   const marker: SubprojectMarker = {
     type: normalizeType(type),
     workspaceMode: normalizeType(type),
-    name: normalizeName(name),
+    ...(normalizedName ? { name: normalizedName } : {}),
   };
 
   await fs.writeFile(markerPath, `${JSON.stringify(marker, null, 2)}\n`, 'utf8');

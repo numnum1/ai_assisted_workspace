@@ -59,6 +59,7 @@ import {
   llmApi,
   vectorApi,
   chatApi,
+  gitApi,
 } from "./api.ts";
 
 import { usePreferences } from "./hooks/usePreferences.ts";
@@ -1285,23 +1286,47 @@ function App() {
           importFileInputRef.current?.click();
         },
       },
-      hasUncommitted
-        ? {
-            id: "git-commit",
-            label: "Commit",
-            icon: <GitCommitHorizontal size={16} />,
-            handler: () => {},
-          }
-        : {
-            id: "git-sync",
-            label: "Sync",
-            icon: <RefreshCw size={16} />,
-            badge: syncBadge,
-            handler: () => {},
-          },
+      ...(gitStatus?.isRepo === false
+        ? [
+            {
+              id: "git-init",
+              label: "Git Repository initialisieren",
+              icon: <GitCommitHorizontal size={16} />,
+              handler: () => {
+                void (async () => {
+                  try {
+                    await gitApi.init();
+                    await fetchGitState();
+                  } catch (err) {
+                    window.alert(
+                      err instanceof Error
+                        ? err.message
+                        : "Git-Init fehlgeschlagen",
+                    );
+                  }
+                })();
+              },
+            } satisfies CommandAction,
+          ]
+        : [
+            hasUncommitted
+              ? {
+                  id: "git-commit",
+                  label: "Commit",
+                  icon: <GitCommitHorizontal size={16} />,
+                  handler: () => {},
+                }
+              : {
+                  id: "git-sync",
+                  label: "Sync",
+                  icon: <RefreshCw size={16} />,
+                  badge: syncBadge,
+                  handler: () => {},
+                },
+          ]),
     ];
     return actions;
-  }, [hasUncommitted, syncBadge]);
+  }, [hasUncommitted, syncBadge, gitStatus?.isRepo, fetchGitState]);
 
   const showMetaChrome =
     selectedMeta != null &&
