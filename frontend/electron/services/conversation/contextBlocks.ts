@@ -3,7 +3,6 @@ import {
   normalizeText,
   estimateTokens,
   readProjectConfig,
-  readGlossaryContent,
   buildFileTreeListing,
   readReferencedProjectFile,
   type ProjectConfigData,
@@ -177,14 +176,6 @@ export async function buildPreviewContext(
     );
     if (workspaceModeBlock) blocks.push(workspaceModeBlock);
   }
-
-  const glossaryContent = await readGlossaryContent(projectPath);
-  const glossaryBlock = createContextBlock(
-    "glossary",
-    "Glossary (.assistant/glossary.md)",
-    glossaryContent,
-  );
-  if (glossaryBlock) blocks.push(glossaryBlock);
 
   if (projectPath) {
     const treeLines = await buildFileTreeListing(projectPath, projectPath);

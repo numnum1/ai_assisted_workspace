@@ -21,11 +21,73 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
       type: "function",
       function: {
         name: "read_file",
-        description: "Read a project file by relative path.",
+        description:
+          "Read a project file by relative path. " +
+          "Optionally pass offset (1-based start line) and limit (number of lines) " +
+          "to read only a slice — e.g. after grep reports a hit at a specific line.",
         parameters: {
           type: "object",
-          properties: { path: { type: "string" } },
+          properties: {
+            path: { type: "string" },
+            offset: {
+              type: "number",
+              description: "1-based line number to start reading from.",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of lines to read from offset.",
+            },
+          },
           required: ["path"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "grep",
+        description:
+          "Exact regular-expression search across project files. Returns WHERE a " +
+          "pattern occurs (path:line: text), not whole files — then use read_file " +
+          "with offset/limit to read just that slice. " +
+          "Deterministic and exact: the right tool for resolving a name or alias to " +
+          "the wiki file that defines it (e.g. grep '\\\\bWill\\\\b' in wiki/), where " +
+          "semantic_search would be unreliable. " +
+          "output_mode 'files_with_matches' (default-ish) lists matching files, " +
+          "'content' lists matching lines, 'count' lists match counts per file. " +
+          "Use glob to restrict files (e.g. 'wiki/**/*.md' or '*.md').",
+        parameters: {
+          type: "object",
+          properties: {
+            pattern: {
+              type: "string",
+              description: "Regular expression to search for.",
+            },
+            glob: {
+              type: "string",
+              description:
+                "Optional path glob filter, e.g. '*.md' or 'wiki/**/*.md'. A pattern without '/' matches the file name in any directory.",
+            },
+            output_mode: {
+              type: "string",
+              enum: ["content", "files_with_matches", "count"],
+              description:
+                "content = matching lines, files_with_matches = file paths, count = matches per file. Defaults to content.",
+            },
+            case_insensitive: {
+              type: "boolean",
+              description: "Match case-insensitively. Defaults to false.",
+            },
+            context_lines: {
+              type: "number",
+              description: "Lines of context before and after each match (content mode), 0–10.",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of results to return.",
+            },
+          },
+          required: ["pattern"],
         },
       },
     },
@@ -90,71 +152,6 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
             new: { type: "string", description: "Replacement string." },
           },
           required: ["path", "old", "new"],
-        },
-      },
-    },
-  ],
-  glossary: [
-    {
-      type: "function",
-      function: {
-        name: "glossary_add",
-        description: "Add a term to the local glossary.",
-        parameters: {
-          type: "object",
-          properties: {
-            term: { type: "string" },
-            definition: { type: "string" },
-          },
-          required: ["term", "definition"],
-        },
-      },
-    },
-  ],
-  chronist: [
-    {
-      type: "function",
-      function: {
-        name: "journal_log",
-        description:
-          "Record a canonical story fact immediately and without asking the user. " +
-          "Use type KANON for confirmed decisions, NEU for newly mentioned entities (characters, places, items), " +
-          "WIDERSPRUCH for contradictions with existing wiki content, IDEE for speculative ideas that are NOT canon yet. " +
-          "Call this proactively whenever a durable fact emerges in the conversation.",
-        parameters: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              enum: ["KANON", "NEU", "WIDERSPRUCH", "IDEE"],
-              description: "Category of the journal entry.",
-            },
-            text: {
-              type: "string",
-              description: "Short, precise description of the fact or entity.",
-            },
-          },
-          required: ["type", "text"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "flag_conflict",
-        description:
-          "Flag a contradiction between a new fact and the existing wiki. " +
-          "Writes the conflict to .assistant/journal/_conflicts.md WITHOUT modifying the wiki. " +
-          "Always call this instead of silently overwriting canon when facts disagree.",
-        parameters: {
-          type: "object",
-          properties: {
-            description: {
-              type: "string",
-              description: "Clear description of the conflict (what differs and where).",
-            },
-          },
-          required: ["description"],
         },
       },
     },
@@ -354,14 +351,13 @@ export function buildSystemPrompt(
   if (!request.quickChat && request.sessionKind !== "navi") {
     sections.push(
       "ARBEITSWEISE (gilt unabhängig vom gewählten Modus):\n" +
-        "- Der Chat ist flüchtig und KEIN Wissensspeicher. Dauerhaftes gehört in Dateien: das Wiki (Markdown unter wiki/) und das Journal.\n" +
-        "- Sobald ein dauerhafter Fakt, eine Entscheidung oder eine neue Entität entsteht: sofort journal_log() aufrufen (type KANON oder NEU) — ohne zu fragen.\n" +
-        "- Reine Idee/Spekulation: journal_log(type=IDEE) optional, aber NICHT ins Wiki schreiben.\n" +
-        "- Widerspruch zu bestehendem Wiki-Inhalt: flag_conflict() aufrufen, das Wiki NICHT überschreiben.\n" +
-        "- Sobald ein Thema rund ist: Kanon in die passenden Wiki-Dateien übertragen — edit_file für gezielte Änderungen an bestehenden Einträgen, write_file für neue Einträge/Stubs.\n" +
-        "- Wiki-Format: pro Entität eine Markdown-Datei in der passenden Kategorie (z. B. wiki/characters/, wiki/locations/, wiki/organizations/), Dateiname kebab-case. Frontmatter mit id, type, aliases, tags und einer einsätzigen summary. Falls vorhanden, orientiere dich vor dem Anlegen am Format in wiki/<kategorie>/README.md (einmal read_file genügt).\n" +
-        "- Analysen oder Zwischenstände, die (noch) kein Kanon sind: create_artifact() — bleibt im Chat, geht NICHT ins Wiki. create_artifact() schreibt KEINE Datei und ist kein Ersatz für journal_log().\n" +
-        "- Falls in einer Antwort etwas persistiert wurde, schließe mit einer kurzen Transparenz-Zeile: \"📝 Gesichert: <was>\" — oder \"⚠️ Konflikt: <kurz>\". Wurde nichts persistiert, lass die Zeile weg.",
+        "- Der Chat ist flüchtig und KEIN Wissensspeicher. Dauerhaftes gehört ins Wiki (Markdown unter wiki/).\n" +
+        "- Sobald ein dauerhafter Fakt, eine Entscheidung oder eine neue Entität entsteht: sofort ins Wiki schreiben — ohne zu fragen. edit_file für gezielte Änderungen an bestehenden Einträgen, write_file für neue Einträge/Stubs.\n" +
+        "- Bevor du anlegst oder änderst: mit grep/semantic_search prüfen, ob die Entität (auch unter einem Alias) schon existiert — keine Dubletten. Bei Bedarf den bestehenden Eintrag mit edit_file ergänzen.\n" +
+        "- Wiki-Format: pro Entität eine Markdown-Datei in der passenden Kategorie (z. B. wiki/characters/, wiki/locations/, wiki/organizations/), Dateiname kebab-case. Frontmatter mit id, type, aliases, tags und einer einsätzigen summary. Aliase/Spitznamen gehören in das aliases-Feld (so sind sie per grep auflösbar). Falls vorhanden, orientiere dich vor dem Anlegen am Format in wiki/<kategorie>/README.md (einmal read_file genügt).\n" +
+        "- Reine Idee/Spekulation, die noch nicht Kanon ist: NICHT ins Wiki schreiben.\n" +
+        "- Analysen oder Zwischenstände, die (noch) kein Kanon sind: create_artifact() — bleibt im Chat, geht NICHT ins Wiki und schreibt keine Datei.\n" +
+        "- Falls in einer Antwort etwas ins Wiki geschrieben wurde, schließe mit einer kurzen Transparenz-Zeile: \"📝 Gesichert: <was>\". Wurde nichts geschrieben, lass die Zeile weg.",
     );
   }
 

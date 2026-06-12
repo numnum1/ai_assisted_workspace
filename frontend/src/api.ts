@@ -18,22 +18,12 @@ import type {
   LlmPublic,
   LlmsListResponse,
   Conversation,
-  JournalData,
   ArcData,
 } from "./types.ts";
 import type {
   ChatStreamEvent,
   FileContentResult as ElectronFileContentResult,
 } from "./electron/bridge.ts";
-
-type GlossaryEntryDto = { term: string; definition: string };
-
-type GlossaryApiResponse = {
-  content: string;
-  exists: boolean;
-  prefixMarkdown?: string;
-  entries?: GlossaryEntryDto[];
-};
 import {
   buildConversationById,
   effectiveSavedToProject,
@@ -686,27 +676,6 @@ export const wikiApi = {
   },
 };
 
-export const glossaryApi = {
-  get: async (): Promise<GlossaryApiResponse> => {
-    const api = getElectronApi();
-    if (api?.glossary) return api.glossary.get();
-    throw new Error("Electron bridge not available");
-  },
-  addEntry: async (
-    term: string,
-    definition: string,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.glossary) return api.glossary.addEntry(term, definition);
-    throw new Error("Electron bridge not available");
-  },
-  deleteEntry: async (term: string): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.glossary) return api.glossary.deleteEntry(term);
-    throw new Error("Electron bridge not available");
-  },
-};
-
 export interface ContextBlock {
   type: string;
   label: string;
@@ -777,24 +746,6 @@ export const snapshotsApi = {
   revert: async (id: string): Promise<SnapshotRevertResponse> => {
     const api = getElectronApi();
     if (api?.snapshots) return api.snapshots.revert(id);
-    throw new Error("Electron bridge not available");
-  },
-};
-
-export const journalApi = {
-  read: async (): Promise<JournalData> => {
-    const api = getElectronApi();
-    if (api?.journal) return api.journal.read();
-    throw new Error("Electron bridge not available");
-  },
-  unsyncedEntries: async (): Promise<{ entries: Array<{ date: string; time: string; type: string; text: string }>; lastSyncAt: string | null }> => {
-    const api = getElectronApi();
-    if (api?.journal) return api.journal.unsyncedEntries();
-    throw new Error("Electron bridge not available");
-  },
-  logSync: async (): Promise<string> => {
-    const api = getElectronApi();
-    if (api?.journal) return api.journal.logSync();
     throw new Error("Electron bridge not available");
   },
 };

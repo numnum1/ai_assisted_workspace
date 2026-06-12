@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { FileText, ChevronDown, ChevronRight, Eye, Copy, Check } from 'lucide-react';
 import type { ContextInfo } from '../../types.ts';
-import { GlossarContextView } from './GlossarContextView.tsx';
 
 export interface ContextBlock {
   type: string;
@@ -30,7 +29,6 @@ function typeIcon(type: string): string {
   switch (type) {
     case 'mode': return '⚙️';
     case 'workspace-mode': return '🗂️';
-    case 'glossary': return '📖';
     case 'structure': return '🏗️';
     case 'file-tree': return '📁';
     case 'file': return '📄';
@@ -54,7 +52,6 @@ export function ContextBar({
   const [blocks, setBlocks] = useState<ContextBlock[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
-  const [glossaryExpanded, setGlossaryExpanded] = useState(false);
   const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
   const [systemPromptCopied, setSystemPromptCopied] = useState(false);
 
@@ -198,24 +195,6 @@ export function ContextBar({
                   )}
                 </div>
               )}
-
-              <div className="context-block">
-                <div
-                  className="context-block-header"
-                  onClick={() => setGlossaryExpanded((v) => !v)}
-                >
-                  <span className="context-block-expand">
-                    {glossaryExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                  </span>
-                  <span className="context-block-icon">{typeIcon('glossary')}</span>
-                  <span className="context-block-label">Glossar</span>
-                </div>
-                {glossaryExpanded && (
-                  <div className="context-block-content context-block-content--glossary">
-                    <GlossarContextView expanded={glossaryExpanded} />
-                  </div>
-                )}
-              </div>
 
               <div className="context-inspector-section-title">Kontext-Blöcke</div>
               {loading && !blocks && (

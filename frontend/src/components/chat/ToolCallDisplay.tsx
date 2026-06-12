@@ -45,9 +45,9 @@ export function ToolCallDisplay({
   const getIcon = () => {
     if (name.includes('write') || name.includes('edit')) return <Edit3 size={16} />;
     if (name.includes('read') || name.includes('wiki_read')) return <FileText size={16} />;
-    if (name.includes('search') || name.includes('search_project')) return <Search size={16} />;
+    if (name === 'grep' || name.includes('search') || name.includes('search_project')) return <Search size={16} />;
     if (name.includes('web')) return <Globe size={16} />;
-    if (name.includes('glossary') || name.includes('wiki')) return <BookOpen size={16} />;
+    if (name.includes('wiki')) return <BookOpen size={16} />;
     if (name.includes('clarification')) return <AlertCircle size={16} />;
     if (name.includes('propose_guided_thread') || name.includes('guided_thread')) return <GitBranch size={16} />;
     return <Play size={16} />;

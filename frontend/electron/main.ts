@@ -44,7 +44,6 @@ import {
   removeSubproject,
 } from "./services/subprojectService.js";
 import { listWikiFiles, searchWiki } from "./services/wikiService.js";
-import { readJournal, getUnsyncedJournalEntries, logSyncMarker } from "./services/journalService.js";
 import { readArcs, writeArcs } from "./services/arcService.js";
 import type { ArcData } from "../src/types.js";
 import {
@@ -57,11 +56,6 @@ import {
   evaluateNaviSimulation,
   type EvaluateNaviSimulationRequest,
 } from "./services/chatService.js";
-import {
-  addGlossaryEntry,
-  deleteGlossaryEntry,
-  getGlossary,
-} from "./services/glossaryService.js";
 import {
   createProvider,
   deleteProvider,
@@ -175,27 +169,9 @@ function registerIpcHandlers(): void {
     searchWiki(getCurrentProjectPath(), query, limit),
   );
 
-  ipcMain.handle("journal:read", () => readJournal(getCurrentProjectPath()));
-  ipcMain.handle("journal:unsyncedEntries", () =>
-    getUnsyncedJournalEntries(getCurrentProjectPath()),
-  );
-  ipcMain.handle("journal:logSync", () =>
-    logSyncMarker(getCurrentProjectPath()),
-  );
-
   ipcMain.handle("arcs:read", () => readArcs(getCurrentProjectPath()));
   ipcMain.handle("arcs:write", (_event, data: ArcData) =>
     writeArcs(getCurrentProjectPath(), data),
-  );
-
-  ipcMain.handle("glossary:get", () => getGlossary(getCurrentProjectPath()));
-  ipcMain.handle(
-    "glossary:addEntry",
-    (_event, term: string, definition: string) =>
-      addGlossaryEntry(getCurrentProjectPath(), term, definition),
-  );
-  ipcMain.handle("glossary:deleteEntry", (_event, term: string) =>
-    deleteGlossaryEntry(getCurrentProjectPath(), term),
   );
 
   ipcMain.handle("chat:previewContext", (_event, body) =>

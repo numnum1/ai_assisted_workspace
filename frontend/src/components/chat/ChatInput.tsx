@@ -12,9 +12,7 @@ import {
   Globe,
   FolderOpen,
   Sparkles,
-  ScrollText,
   ListChecks,
-  NotebookPen,
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
 import { wikiApi } from "../../api.ts";
@@ -67,8 +65,6 @@ const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "web", label: "Web-Suche", icon: Globe },
   { id: "dateisystem", label: "Dateisystem", icon: FolderOpen },
   { id: "assistant", label: "Assistent", icon: Sparkles },
-  { id: "glossary", label: "Glossar (KI)", icon: ScrollText },
-  { id: "chronist", label: "Journal (KI)", icon: NotebookPen },
 ];
 
 function ToolkitMenuButton({

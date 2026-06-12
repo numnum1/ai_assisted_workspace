@@ -59,12 +59,7 @@ import {
   llmApi,
   vectorApi,
   chatApi,
-  journalApi,
 } from "./api.ts";
-
-const BUCHENTWICKLUNG_MODE_ID = "buchentwicklung";
-/** Show the "übertragen?" banner when this many unsynced KANON entries exist. */
-const BUCHENTWICKLUNG_ABSCHLUSS_THRESHOLD = 5;
 
 import { usePreferences } from "./hooks/usePreferences.ts";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
@@ -82,7 +77,6 @@ import { useSimulationRunner } from "./hooks/useSimulationRunner.ts";
 import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { EditorTabs } from "./components/editor/EditorTabs.tsx";
 import { SearchPanel } from "./components/editor/SearchPanel.tsx";
-import { JournalPanel } from "./components/journal/JournalPanel.tsx";
 import { ArcTimeline } from "./components/arcs/ArcTimeline.tsx";
 import { WikiContentBrowser } from "./components/wiki/WikiContentBrowser.tsx";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
@@ -112,7 +106,6 @@ import {
   cancelGuidedAgentKickoffIfPendingMismatchesActive,
   clearPendingGuidedAgentKickoff,
   hasPendingGuidedAgentKickoffFor,
-  scheduleGuidedAgentPresetKickoff,
   tryMarkGuidedAgentKickoffStarted,
 } from "./components/chat/guidedAgentKickoff.ts";
 import { hasThreadResultFence, parseThreadResult } from "./components/chat/threadResultUtils.ts";
@@ -216,8 +209,6 @@ function App() {
   const [rulesEnabled, setRulesEnabled] = useState(loadInitialRulesEnabled);
   const [chatDownloadFeatureEnabled, setChatDownloadFeatureEnabled] =
     useState(false);
-  /** Number of unsynced KANON entries; drives the "jetzt übertragen?" banner. */
-  const [abschlussHintCount, setAbschlussHintCount] = useState(0);
 
   // Apply user appearance preferences as CSS variables on the document root
   useEffect(() => {
@@ -421,16 +412,7 @@ function App() {
         return;
       }
 
-      // Baustein 5: check unsynced KANON count after each buchentwicklung turn
       if (meta.sessionKind === "standard") {
-        const conv = history.conversations.find(
-          (c) => c.id === meta.conversationId,
-        );
-        if (conv?.mode === BUCHENTWICKLUNG_MODE_ID) {
-          journalApi.unsyncedEntries().then(({ entries }) => {
-            setAbschlussHintCount(entries.length);
-          }).catch(() => {/* ignore */});
-        }
         return;
       }
 
@@ -465,12 +447,6 @@ function App() {
             });
             if (history.activeId !== parentId) {
               history.switchConversation(parentId);
-            }
-            // Baustein 5: write SYNC marker after wiki-transfer thread completes
-            const parentConv = history.conversations.find((c) => c.id === parentId);
-            if (parentConv?.mode === BUCHENTWICKLUNG_MODE_ID || thisConv?.mode === BUCHENTWICKLUNG_MODE_ID) {
-              journalApi.logSync().catch(() => {/* ignore */});
-              setAbschlussHintCount(0);
             }
           }
         }
@@ -967,7 +943,6 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [journalOpen, setJournalOpen] = useState(false);
   const [arcsOpen, setArcsOpen] = useState(false);
   const [contentBrowserOpen, setContentBrowserOpen] = useState(false);
 
@@ -1039,10 +1014,6 @@ function App() {
       if (e.ctrlKey && e.shiftKey && e.key === "F") {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
-      }
-      if (e.ctrlKey && e.shiftKey && e.key === "J") {
-        e.preventDefault();
-        setJournalOpen((prev) => !prev);
       }
       if (e.ctrlKey && e.shiftKey && e.key === "A") {
         e.preventDefault();
@@ -1626,56 +1597,6 @@ function App() {
     handleModeChange,
   });
 
-  // Baustein 4: start wiki-transfer guided thread from unsynced journal entries
-  const handleStartSessionAbschluss = useCallback(async () => {
-    const { entries } = await journalApi.unsyncedEntries();
-    if (entries.length === 0) return;
-
-    const steeringLines = [
-      "## Wiki-Abschluss: Journal-Einträge übertragen\n",
-      "Für jeden der folgenden Einträge:\n",
-      "1. `semantic_search` + ggf. `read_file`: Existiert die Entität bereits (inkl. Aliases)?",
-      "2. Existiert → `edit_file` (gezielt ergänzen, bestehende Struktur respektieren). Neu → `write_file` gemäß Frontmatter-Konvention im passenden Kategorie-Ordner (`wiki/characters/`, `wiki/locations/`, usw.).",
-      "3. Widerspricht der Beschluss bestehendem Wiki-Inhalt → `flag_conflict`, NICHT überschreiben.",
-      "4. `IDEE`-Einträge: kein Wiki-Write, nur im Journal belassen.",
-      "5. Zum Schluss `report_thread_result` mit der Liste aller geschriebenen/geänderten Dateien und offener Konflikte.\n",
-      "### Zu übertragende Einträge\n",
-      ...entries.map((e) => `- **${e.type}** [${e.date} ${e.time}]: ${e.text}`),
-    ];
-    const steeringPlanMarkdown = steeringLines.join("\n");
-
-    if (chat.messages.length === 0) {
-      // No messages yet — start a fresh guided conversation instead of a thread
-      handleNewChat({ title: "Wiki-Abschluss", sessionKind: "guided", initialSteeringPlan: steeringPlanMarkdown });
-      setAbschlussHintCount(0);
-      return;
-    }
-    const newConvId = handleAcceptGuidedThreadFromOffer(
-      chat.messages.length - 1,
-      {
-        threadTitle: "Wiki-Abschluss",
-        steeringPlanMarkdown,
-        modeId: BUCHENTWICKLUNG_MODE_ID,
-      },
-    );
-    if (newConvId) {
-      scheduleGuidedAgentPresetKickoff(newConvId);
-    }
-    setAbschlussHintCount(0);
-  }, [handleAcceptGuidedThreadFromOffer, handleNewChat, chat.messages.length]);
-
-  // Baustein 5: check unsynced entries when mode changes away from buchentwicklung
-  const prevSelectedModeRef = useRef(selectedMode);
-  useEffect(() => {
-    const prev = prevSelectedModeRef.current;
-    prevSelectedModeRef.current = selectedMode;
-    if (prev === BUCHENTWICKLUNG_MODE_ID && selectedMode !== BUCHENTWICKLUNG_MODE_ID) {
-      journalApi.unsyncedEntries().then(({ entries }) => {
-        setAbschlussHintCount(entries.length);
-      }).catch(() => {/* ignore */});
-    }
-  }, [selectedMode]);
-
   const handleCreateSimulation = useCallback(
     async (result: SimulationSetupResult) => {
       setSimulationSetupOpen(false);
@@ -2062,10 +1983,7 @@ function App() {
                   !project.projectPath || !history.hydrated
                 }
                 chatDownloadEnabled={chatDownloadFeatureEnabled}
-                onOpenJournal={() => setJournalOpen(true)}
                 onOpenArcs={() => setArcsOpen(true)}
-                onStartSessionAbschluss={handleStartSessionAbschluss}
-                pendingAbschlussCount={abschlussHintCount}
                 structureRoot={chapter.structureRoot}
                 activeSelection={activeSelection}
                 onDismissSelection={handleDismissSelection}
@@ -2123,7 +2041,6 @@ function App() {
         </Panel>
       </Group>
 
-      <JournalPanel open={journalOpen} onClose={() => setJournalOpen(false)} />
       <ArcTimeline open={arcsOpen} onClose={() => setArcsOpen(false)} />
       {contentBrowserOpen && (
         <WikiContentBrowser

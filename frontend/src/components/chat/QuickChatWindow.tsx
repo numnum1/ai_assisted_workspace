@@ -181,19 +181,6 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
       );
     }
     const { msg, originalIdx, visIdx } = su;
-    if (msg.role === 'tool' && msg.content?.startsWith('glossary_add:success:')) {
-      const term = msg.content.slice('glossary_add:success:'.length);
-      return (
-        <div key={`g-${originalIdx}-${mapIdx}`} className="quick-chat-glossary">
-          <span className="quick-chat-glossary-icon" aria-hidden>
-            📖
-          </span>
-          <span>
-            Glossar: <strong>{term}</strong>
-          </span>
-        </div>
-      );
-    }
     if (msg.role === 'tool' && msg.toolCallId) {
       const attached = toolResultShownInAssistantTurns(renderUnits, msg.toolCallId);
       if (attached) return null;

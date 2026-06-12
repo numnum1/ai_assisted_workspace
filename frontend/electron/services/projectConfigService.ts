@@ -125,7 +125,7 @@ const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
 
 const DEFAULT_MODES: Mode[] = [
   // Modes ONLY personalize the persona/task framing. The working method
-  // (chat is disposable, durable facts go to wiki/journal) is baseline behavior
+  // (chat is disposable, durable facts go to the wiki) is baseline behavior
   // defined in buildSystemPrompt — deliberately NOT repeated per mode.
   {
     id: "review",
@@ -173,12 +173,11 @@ const DEFAULT_MODES: Mode[] = [
       "**Beschluss-Ritual (verbindlich):** Beende jeden Themenblock mit einem expliziten Beschlussvorschlag in genau diesem Format:\n" +
       "`Festhalten als Kanon? → [ein prägnanter Satz, der den Beschluss vollständig wiedergibt]`\n\n" +
       "**Mechanische Regeln (kein Ermessen):**\n" +
-      "- User bestätigt einen Beschlussvorschlag (\"ja\", \"passt\", \"festhalten\" o. Ä.) → rufe SOFORT `journal_log(KANON)` mit dem Beschlusssatz auf, bevor du irgendetwas anderes tust. Taucht im Beschluss eine neue Entität auf → zusätzlich `journal_log(NEU)`.\n" +
-      "- Eine spekulative Idee wird besprochen, aber nicht bestätigt → `journal_log(IDEE)`.\n" +
-      "- Etwas widerspricht bekanntem Kanon → `journal_log(WIDERSPRUCH)` und weise den Autor darauf hin.\n" +
-      "- Schreibe im Gesprächsfluss KEINE Wiki-Dateien (`write_file`/`edit_file`). Das erledigt der Sitzungsabschluss.\n\n" +
+      "- User bestätigt einen Beschlussvorschlag (\"ja\", \"passt\", \"festhalten\" o. Ä.) → schreibe den Beschluss SOFORT ins Wiki, bevor du irgendetwas anderes tust: `edit_file` für bestehende Einträge, `write_file` für neue. Prüfe vorher mit `grep`/`semantic_search`, ob die Entität (auch unter einem Alias) schon existiert — keine Dubletten.\n" +
+      "- Eine spekulative Idee wird besprochen, aber nicht bestätigt → NICHT ins Wiki schreiben; halte sie nur in der Liste offener Punkte.\n" +
+      "- Etwas widerspricht bekanntem Kanon → weise den Autor darauf hin und überschreibe den bestehenden Eintrag NICHT ungefragt.\n\n" +
       "**Statuszeile (verbindlich):** Beende JEDE Antwort mit einer letzten Zeile in genau diesem Format:\n" +
-      "`STATUS: offen` (Thema noch in Diskussion) oder `STATUS: beschlossen` (in diesem Turn wurde mindestens ein Beschluss geloggt).",
+      "`STATUS: offen` (Thema noch in Diskussion) oder `STATUS: beschlossen` (in diesem Turn wurde mindestens ein Beschluss ins Wiki geschrieben).",
     autoIncludes: [],
     color: "#c2410c",
     useReasoning: false,

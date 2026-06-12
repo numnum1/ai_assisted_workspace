@@ -23,15 +23,14 @@ const BUCHENTWICKLUNG_REMINDER_INTERVAL = 6;
 const BUCHENTWICKLUNG_GUARDRAIL_MAX_RETRY = 1;
 
 const BUCHENTWICKLUNG_REMINDER =
-  "Erinnerung: (1) Beschluss vom Autor bestätigt → sofort `journal_log(KANON)` aufrufen. " +
+  "Erinnerung: (1) Beschluss vom Autor bestätigt → sofort ins Wiki schreiben (`write_file`/`edit_file`). " +
   "(2) Jeden Themenblock mit `Festhalten als Kanon? → …` abschließen. " +
-  "(3) Jede Antwort endet mit `STATUS: offen` oder `STATUS: beschlossen`. " +
-  "(4) Keine Wiki-Writes im Gesprächsfluss.";
+  "(3) Jede Antwort endet mit `STATUS: offen` oder `STATUS: beschlossen`.";
 
 /** Returns a guardrail nudge message if the assistant response violates buchentwicklung rules, or null if fine. */
 function checkBuchentwicklungGuardrail(
   fullAssistantText: string,
-  journalCallsThisTurn: number,
+  wikiWritesThisTurn: number,
 ): string | null {
   const lines = fullAssistantText.trimEnd().split(/\r?\n/);
   let lastNonEmpty = "";
@@ -49,10 +48,10 @@ function checkBuchentwicklungGuardrail(
     );
   }
 
-  if (statusMatch[1].toLowerCase() === "beschlossen" && journalCallsThisTurn === 0) {
+  if (statusMatch[1].toLowerCase() === "beschlossen" && wikiWritesThisTurn === 0) {
     return (
-      "Du hast STATUS: beschlossen markiert, aber in diesem Turn keinen journal_log aufgerufen. " +
-      "Hole den `journal_log(KANON)`-Aufruf jetzt nach, bevor du weiter antwortest."
+      "Du hast STATUS: beschlossen markiert, aber in diesem Turn nichts ins Wiki geschrieben. " +
+      "Schreibe den Beschluss jetzt mit `write_file`/`edit_file` in die passende Wiki-Datei, bevor du weiter antwortest."
     );
   }
 
@@ -293,7 +292,7 @@ async function runChatStream(
     const maxToolRounds = preview.maxToolRounds;
     // Baustein 3: guardrail tracking
     const isBuchentwicklung = normalizeText(request.mode) === BUCHENTWICKLUNG_MODE_ID;
-    let journalCallsThisTurn = 0;
+    let wikiWritesThisTurn = 0;
     let guardrailRetriesUsed = 0;
     // At most one artifact per user turn — Grok ignores prompt-level limits, so enforce here.
     let artifactCreatedThisTurn = false;
@@ -428,7 +427,7 @@ async function runChatStream(
 
         // Baustein 3: guardrail check for buchentwicklung mode
         if (isBuchentwicklung && guardrailRetriesUsed < BUCHENTWICKLUNG_GUARDRAIL_MAX_RETRY) {
-          const nudge = checkBuchentwicklungGuardrail(fullAssistantText, journalCallsThisTurn);
+          const nudge = checkBuchentwicklungGuardrail(fullAssistantText, wikiWritesThisTurn);
           if (nudge) {
             guardrailRetriesUsed++;
             console.debug(`[chat] buchentwicklung guardrail fired (retry ${guardrailRetriesUsed}): ${nudge.slice(0, 80)}`);
@@ -483,10 +482,12 @@ async function runChatStream(
         executedResults.push(execResult);
       }
 
-      // Baustein 3: count journal_log calls across all tool rounds
+      // Baustein 3: count wiki writes across all tool rounds
       if (isBuchentwicklung) {
         for (const tc of toolCalls) {
-          if (tc.function.name === "journal_log") journalCallsThisTurn++;
+          if (tc.function.name === "write_file" || tc.function.name === "edit_file") {
+            wikiWritesThisTurn++;
+          }
         }
       }
 

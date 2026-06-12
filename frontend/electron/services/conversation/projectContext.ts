@@ -61,10 +61,6 @@ export function getProjectConfigPath(projectPath: string): string {
   return path.join(getAssistantDir(projectPath), "project.json");
 }
 
-export function getGlossaryPath(projectPath: string): string {
-  return path.join(getAssistantDir(projectPath), "glossary.md");
-}
-
 export function ensureProjectPath(projectPath: string | null): string {
   if (!projectPath) {
     throw new Error("Kein Projektpfad verfügbar.");
@@ -136,21 +132,6 @@ export async function readProjectConfig(
           }
         : undefined,
   };
-}
-
-export async function readGlossaryContent(
-  projectPath: string | null,
-): Promise<string> {
-  if (!projectPath) return "";
-  const glossaryPath = getGlossaryPath(projectPath);
-  if (!(await pathExists(glossaryPath))) {
-    return "";
-  }
-  try {
-    return (await fs.readFile(glossaryPath, "utf8")).trim();
-  } catch {
-    return "";
-  }
 }
 
 export async function buildFileTreeListing(

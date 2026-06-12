@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, BookText, ArchiveRestore, Waypoints } from "lucide-react";
+import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, Waypoints } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -83,14 +83,8 @@ interface ChatPanelProps {
   onClearAllBrowserChats?: () => void;
   clearAllBrowserChatsDisabled?: boolean;
   chatDownloadEnabled?: boolean;
-  /** Opens the read-only Journal panel (assistant-persisted facts). */
-  onOpenJournal?: () => void;
   /** Opens the arc timeline workspace (story/character/relationship arcs). */
   onOpenArcs?: () => void;
-  /** Starts the wiki-transfer guided thread (buchentwicklung mode only). */
-  onStartSessionAbschluss?: () => void;
-  /** Number of unsynced KANON entries; shows the "jetzt übertragen?" banner when >= threshold. */
-  pendingAbschlussCount?: number;
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
@@ -169,10 +163,7 @@ export function ChatPanel({
   onClearAllBrowserChats,
   clearAllBrowserChatsDisabled = true,
   chatDownloadEnabled = false,
-  onOpenJournal,
   onOpenArcs,
-  onStartSessionAbschluss,
-  pendingAbschlussCount = 0,
   structureRoot = null,
   activeSelection = null,
   onDismissSelection,
@@ -337,16 +328,6 @@ export function ChatPanel({
               ))}
             </select>
           )}
-          {onOpenJournal && (
-            <button
-              type="button"
-              className="chat-history-btn"
-              onClick={onOpenJournal}
-              title="Journal öffnen (Strg+Shift+J) — was die KI festgehalten hat"
-            >
-              <BookText size={14} />
-            </button>
-          )}
           {onOpenArcs && (
             <button
               type="button"
@@ -357,18 +338,6 @@ export function ChatPanel({
               <Waypoints size={14} />
             </button>
           )}
-          {selectedMode === "buchentwicklung" &&
-            activeSessionKind === "standard" &&
-            onStartSessionAbschluss && (
-              <button
-                type="button"
-                className="chat-history-btn"
-                onClick={() => void onStartSessionAbschluss()}
-                title="Beschlüsse ins Wiki übertragen (Sitzungsabschluss)"
-              >
-                <ArchiveRestore size={14} />
-              </button>
-            )}
           {activeIsThread && onSummarizeToParent && (
             <button
               type="button"
@@ -465,23 +434,6 @@ export function ChatPanel({
           onClose={() => setHistoryOpen(false)}
         />
       )}
-
-      {selectedMode === "buchentwicklung" &&
-        pendingAbschlussCount >= 5 &&
-        onStartSessionAbschluss && (
-          <div className="chat-abschluss-banner">
-            <span>
-              {pendingAbschlussCount} Beschluss{pendingAbschlussCount === 1 ? "" : "e"} noch nicht im Wiki
-            </span>
-            <button
-              type="button"
-              className="chat-abschluss-banner-btn"
-              onClick={() => void onStartSessionAbschluss()}
-            >
-              Jetzt übertragen
-            </button>
-          </div>
-        )}
 
       <div className="chat-panel-body">
         <ChatPane

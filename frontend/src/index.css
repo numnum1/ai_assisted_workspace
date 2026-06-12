@@ -2391,34 +2391,6 @@ body.file-tree-native-dragging {
     font-size: var(--pref-chat-font-size);
 }
 
-.chat-abschluss-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 12px;
-  background: color-mix(in srgb, #c2410c 15%, var(--bg-secondary, #1e1e1e));
-  border-bottom: 1px solid color-mix(in srgb, #c2410c 40%, transparent);
-  font-size: 12px;
-  color: var(--text-secondary, #aaa);
-  flex-shrink: 0;
-}
-
-.chat-abschluss-banner-btn {
-  padding: 3px 10px;
-  font-size: 11px;
-  border-radius: 4px;
-  border: 1px solid color-mix(in srgb, #c2410c 60%, transparent);
-  background: color-mix(in srgb, #c2410c 20%, transparent);
-  color: #f97316;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.chat-abschluss-banner-btn:hover {
-  background: color-mix(in srgb, #c2410c 35%, transparent);
-}
-
 .chat-panel-body {
     display: flex;
     flex: 1;
@@ -2533,128 +2505,6 @@ body.file-tree-native-dragging {
     font-size: 11px;
     opacity: 0.7;
     max-width: 280px;
-}
-
-.glossary-selection-popup {
-    position: absolute;
-    transform: translateX(-50%) translateY(-100%);
-    background: var(--surface2, #313244);
-    border: 1px solid var(--border, #45475a);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    z-index: 200;
-    white-space: nowrap;
-}
-
-.glossary-selection-btn {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: none;
-    border: none;
-    padding: 6px 12px;
-    color: var(--text-primary, #cdd6f4);
-    font-size: 0.82rem;
-    cursor: pointer;
-    border-radius: 6px;
-}
-
-.glossary-selection-btn:hover {
-    background: var(--surface3, #45475a);
-}
-
-.glossary-save-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 500;
-}
-
-.glossary-save-dialog {
-    background: var(--surface1, #1e1e2e);
-    border: 1px solid var(--border, #45475a);
-    border-radius: 10px;
-    padding: 20px;
-    width: 380px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-}
-
-.glossary-save-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-primary, #cdd6f4);
-}
-
-.glossary-save-label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 0.8rem;
-    color: var(--text-muted, #888);
-}
-
-.glossary-save-input,
-.glossary-save-textarea {
-    background: var(--surface2, #313244);
-    border: 1px solid var(--border, #45475a);
-    border-radius: 6px;
-    color: var(--text-primary, #cdd6f4);
-    padding: 6px 8px;
-    font-size: 0.85rem;
-    resize: vertical;
-    outline: none;
-    font-family: inherit;
-}
-
-.glossary-save-input:focus,
-.glossary-save-textarea:focus {
-    border-color: var(--accent, #89b4fa);
-}
-
-.glossary-save-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
-
-.glossary-save-cancel {
-    background: none;
-    border: 1px solid var(--border, #45475a);
-    border-radius: 6px;
-    color: var(--text-muted, #888);
-    padding: 5px 14px;
-    font-size: 0.82rem;
-    cursor: pointer;
-}
-
-.glossary-save-cancel:hover {
-    background: var(--surface2, #313244);
-}
-
-.glossary-save-confirm {
-    background: var(--accent, #89b4fa);
-    border: none;
-    border-radius: 6px;
-    color: #1e1e2e;
-    padding: 5px 14px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.glossary-save-confirm:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.glossary-save-confirm:not(:disabled):hover {
-    filter: brightness(1.1);
 }
 
 /* ÔöÇÔöÇÔöÇ Search Panel ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
@@ -3127,50 +2977,6 @@ body.file-tree-native-dragging {
 .change-card-btn--revert:not(:disabled):hover {
     background: var(--red, #f38ba8);
     color: #1e1e2e;
-}
-
-/* ÔöÇÔöÇÔöÇ Glossary Indicator ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
-
-.glossary-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    margin: 2px 0;
-    font-size: 0.78rem;
-    color: var(--text-muted, #888);
-    border-left: 2px solid var(--accent, #89b4fa);
-}
-
-.glossary-indicator-icon {
-    flex-shrink: 0;
-}
-
-.glossary-indicator-text strong {
-    color: var(--text-primary, #cdd6f4);
-}
-
-.journal-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    margin: 2px 0;
-    font-size: 0.78rem;
-    color: var(--text-muted, #888);
-    border-left: 2px solid var(--green, #a6e3a1);
-}
-
-.journal-indicator--conflict {
-    border-left-color: var(--red, #f38ba8);
-}
-
-.journal-indicator-icon {
-    flex-shrink: 0;
-}
-
-.journal-indicator-text strong {
-    color: var(--text-primary, #cdd6f4);
 }
 
 .chat-message {
@@ -6156,17 +5962,6 @@ body.file-tree-native-dragging {
     min-height: min-content;
 }
 
-.quick-chat-glossary {
-    font-size: 12px;
-    color: var(--text-muted);
-    padding: 4px 0;
-    align-self: stretch;
-}
-
-.quick-chat-glossary-icon {
-    margin-right: 6px;
-}
-
 .quick-chat-tool {
     font-size: 12px;
     color: var(--green);
@@ -6573,10 +6368,6 @@ body.file-tree-native-dragging {
     flex: 1;
 }
 
-.context-block-content--glossary {
-    max-height: 240px;
-}
-
 .context-block-content--system-prompt {
     max-height: 280px;
     overflow: auto;
@@ -6584,158 +6375,6 @@ body.file-tree-native-dragging {
 
 .context-inspector-blocks-inner .context-block:last-child {
     border-bottom: none;
-}
-
-/* Glossar (Konversations-Inspector) */
-.glossar-context-view {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.glossar-context-view-toolbar {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.glossar-context-view-refresh {
-    background: none;
-    border: none;
-    color: var(--text-muted, #888);
-    cursor: pointer;
-    font-size: 0.85rem;
-    padding: 0 4px;
-    line-height: 1;
-}
-
-.glossar-context-view-refresh:not(:disabled):hover {
-    color: var(--text-primary, #cdd6f4);
-}
-
-.glossar-context-view-refresh:disabled {
-    cursor: default;
-    opacity: 0.6;
-}
-
-.glossar-context-view-loading {
-    font-size: 0.75rem;
-    color: var(--text-muted, #888);
-    font-style: italic;
-}
-
-.glossar-context-view-error {
-    font-size: 0.75rem;
-    color: var(--red, #f38ba8);
-}
-
-.glossar-context-view-empty {
-    margin: 0;
-    font-size: 0.75rem;
-    color: var(--text-muted, #888);
-    font-style: italic;
-}
-
-.glossar-context-view-body {
-    font-size: 0.75rem;
-    line-height: 1.45;
-    color: var(--text-secondary, #bac2de);
-}
-
-.glossar-context-view-body p {
-    margin: 0 0 0.5em;
-}
-
-.glossar-context-view-body p:last-child {
-    margin-bottom: 0;
-}
-
-.glossar-context-view-body ul,
-.glossar-context-view-body ol {
-    margin: 0 0 0.5em;
-    padding-left: 1.25em;
-}
-
-.glossar-context-view-body code {
-    font-family: var(--font-mono, monospace);
-    font-size: 0.9em;
-    background: var(--surface2, #313244);
-    padding: 0.1em 0.35em;
-    border-radius: 3px;
-}
-
-.glossar-context-view-prefix {
-    margin-bottom: 0.5em;
-}
-
-.glossar-context-view-prefix p {
-    margin: 0 0 0.35em;
-}
-
-.glossar-context-view-entry-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.glossar-context-view-entry {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    margin: 0 0 0.4em;
-    padding: 0;
-}
-
-.glossar-context-view-entry:last-child {
-    margin-bottom: 0;
-}
-
-.glossar-context-view-entry-text {
-    flex: 1;
-    min-width: 0;
-}
-
-.glossar-context-view-entry-term {
-    font-weight: 600;
-    color: var(--text-primary, #cdd6f4);
-}
-
-.glossar-context-view-entry-sep {
-    color: var(--text-secondary, #bac2de);
-}
-
-.glossar-context-view-entry-def {
-    color: var(--text-secondary, #bac2de);
-}
-
-.glossar-context-view-entry-def p {
-    display: inline;
-    margin: 0;
-}
-
-.glossar-context-view-entry-def p:not(:last-child)::after {
-    content: " ";
-}
-
-.glossar-context-view-entry-remove {
-    flex-shrink: 0;
-    align-self: flex-start;
-    background: none;
-    border: none;
-    color: var(--text-muted, #888);
-    cursor: pointer;
-    font-size: 1rem;
-    line-height: 1;
-    padding: 0 2px;
-    margin-top: -1px;
-}
-
-.glossar-context-view-entry-remove:not(:disabled):hover {
-    color: var(--red, #f38ba8);
-}
-
-.glossar-context-view-entry-remove:disabled {
-    cursor: default;
-    opacity: 0.55;
 }
 
 .context-block {

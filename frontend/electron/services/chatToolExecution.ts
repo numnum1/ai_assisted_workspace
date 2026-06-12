@@ -6,8 +6,12 @@ import {
   resolveProjectPath,
 } from "./conversation/projectContext.js";
 import { semanticSearch, type EmbeddingConfig } from "./vectorService.js";
+import {
+  grepProject,
+  formatGrepResult,
+  type GrepOutputMode,
+} from "./grepService.js";
 import { createSnapshot } from "./snapshotService.js";
-import { appendJournalEntry, appendConflict } from "./journalService.js";
 import { safeJsonParse } from "./openAiClient.js";
 import type { ToolCall } from "../../src/types.js";
 
@@ -30,6 +34,8 @@ function isEnoent(err: unknown): boolean {
 async function readProjectFile(
   projectPath: string | null,
   relativePath: string,
+  offset?: number,
+  limit?: number,
 ): Promise<string> {
   const targetPath = resolveProjectPath(projectPath, relativePath);
   console.debug(
@@ -46,35 +52,16 @@ async function readProjectFile(
     throw e;
   }
   if (!stat.isFile()) throw new Error(`Not a file: ${relativePath}`);
-  return fs.readFile(targetPath, "utf8");
-}
+  const content = await fs.readFile(targetPath, "utf8");
 
-async function addGlossaryEntryLocally(
-  projectPath: string | null,
-  term: string,
-  definition: string,
-): Promise<string> {
-  const root = ensureProjectPath(projectPath);
-  const glossaryPath = path.join(root, ".assistant", "glossary.md");
-  await fs.mkdir(path.dirname(glossaryPath), { recursive: true });
+  const hasOffset = typeof offset === "number" && Number.isFinite(offset);
+  const hasLimit = typeof limit === "number" && Number.isFinite(limit);
+  if (!hasOffset && !hasLimit) return content;
 
-  const normalizedTerm = normalizeText(term);
-  const normalizedDefinition = normalizeText(definition);
-  if (!normalizedTerm || !normalizedDefinition) {
-    throw new Error("Glossary term and definition are required.");
-  }
-
-  let existing = "";
-  try {
-    existing = await fs.readFile(glossaryPath, "utf8");
-  } catch {
-    existing = "";
-  }
-
-  const entry = `- **${normalizedTerm}**: ${normalizedDefinition}`;
-  const next = existing.trim() ? `${existing.trim()}\n${entry}\n` : `${entry}\n`;
-  await fs.writeFile(glossaryPath, next, "utf8");
-  return `glossary_add:success:${normalizedTerm}`;
+  const lines = content.split(/\r\n|\r|\n/);
+  const start = hasOffset ? Math.max(0, Math.floor(offset) - 1) : 0;
+  const end = hasLimit ? start + Math.max(0, Math.floor(limit)) : lines.length;
+  return lines.slice(start, end).join("\n");
 }
 
 async function writeProjectFile(
@@ -208,8 +195,8 @@ export function buildThreadResultFence(args: {
 export function describeStreamingToolCall(toolCall: ToolCall): string {
   const name = toolCall.function.name;
   if (name === "read_file") return "Lese Datei";
+  if (name === "grep") return "Durchsuche Dateien (grep)";
   if (name === "semantic_search") return "Semantische Suche";
-  if (name === "glossary_add") return "Ergänze Glossar";
   if (name === "write_file") return "Schreibe Datei";
   if (name === "edit_file") return "Bearbeite Datei";
   if (name === "ask_clarification") return "Stelle Rückfrage";
@@ -217,8 +204,6 @@ export function describeStreamingToolCall(toolCall: ToolCall): string {
   if (name === "propose_guided_thread") return "Biete Guided Thread an";
   if (name === "report_thread_result") return "Übermittle Thread-Ergebnis";
   if (name === "create_artifact") return "Erstelle Arbeitsnotiz";
-  if (name === "journal_log") return "Notiere ins Journal";
-  if (name === "flag_conflict") return "Markiere Widerspruch";
   return `Tool: ${name}`;
 }
 
@@ -233,7 +218,22 @@ export async function executeToolCall(
   let result = "";
   if (name === "read_file") {
     const filePath = normalizeText(String(args.path ?? ""));
-    result = await readProjectFile(projectPath, filePath);
+    const offset = typeof args.offset === "number" ? args.offset : undefined;
+    const limit = typeof args.limit === "number" ? args.limit : undefined;
+    result = await readProjectFile(projectPath, filePath, offset, limit);
+  } else if (name === "grep") {
+    const pattern = typeof args.pattern === "string" ? args.pattern : "";
+    const rawMode = typeof args.output_mode === "string" ? args.output_mode : "content";
+    const outputMode: GrepOutputMode =
+      rawMode === "files_with_matches" || rawMode === "count" ? rawMode : "content";
+    const grepResult = await grepProject(projectPath, pattern, {
+      glob: typeof args.glob === "string" ? args.glob : undefined,
+      outputMode,
+      caseInsensitive: args.case_insensitive === true,
+      contextLines: typeof args.context_lines === "number" ? args.context_lines : undefined,
+      limit: typeof args.limit === "number" ? args.limit : undefined,
+    });
+    result = formatGrepResult(grepResult);
   } else if (name === "semantic_search") {
     const query = normalizeText(String(args.query ?? ""));
     const limit = typeof args.limit === "number" ? Math.round(args.limit) : 10;
@@ -251,10 +251,6 @@ export async function executeToolCall(
       }
       result = JSON.stringify(payload);
     }
-  } else if (name === "glossary_add") {
-    const term = normalizeText(String(args.term ?? ""));
-    const definition = normalizeText(String(args.definition ?? ""));
-    result = await addGlossaryEntryLocally(projectPath, term, definition);
   } else if (name === "write_file") {
     const filePath = normalizeText(String(args.path ?? ""));
     const content = typeof args.content === "string" ? args.content : "";
@@ -297,14 +293,6 @@ export async function executeToolCall(
     const meta: Record<string, string> = { title };
     if (id) meta.id = id;
     result = `\`\`\`artifact\n${JSON.stringify(meta)}\n\n${content}\n\`\`\``;
-  } else if (name === "journal_log") {
-    const type = normalizeText(String(args.type ?? "KANON"));
-    const text = typeof args.text === "string" ? args.text : String(args.text ?? "");
-    result = await appendJournalEntry(projectPath, type, text);
-  } else if (name === "flag_conflict") {
-    const description =
-      typeof args.description === "string" ? args.description : String(args.description ?? "");
-    result = await appendConflict(projectPath, description);
   } else {
     throw new Error(`Unknown tool: ${name}`);
   }

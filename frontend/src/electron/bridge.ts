@@ -52,18 +52,6 @@ export interface WikiSearchResult {
   snippet: string;
 }
 
-export interface GlossaryEntry {
-  term: string;
-  definition: string;
-}
-
-export interface GlossaryData {
-  content: string;
-  exists: boolean;
-  prefixMarkdown?: string;
-  entries?: GlossaryEntry[];
-}
-
 export interface SnapshotData {
   id: string;
   path: string;
@@ -219,24 +207,11 @@ export interface AppBridge {
     listFiles: () => Promise<string[]>;
     search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
   };
-  journal?: {
-    read: () => Promise<import('../types.ts').JournalData>;
-    unsyncedEntries: () => Promise<{
-      entries: Array<{ date: string; time: string; type: string; text: string }>;
-      lastSyncAt: string | null;
-    }>;
-    logSync: () => Promise<string>;
-  };
   arcs?: {
     read: () => Promise<import('../types.ts').ArcData>;
     write: (
       data: import('../types.ts').ArcData,
     ) => Promise<{ status: string }>;
-  };
-  glossary?: {
-    get: () => Promise<GlossaryData>;
-    addEntry: (term: string, definition: string) => Promise<{ status: string }>;
-    deleteEntry: (term: string) => Promise<{ status: string }>;
   };
   snapshots?: {
     get: (id: string) => Promise<SnapshotData>;

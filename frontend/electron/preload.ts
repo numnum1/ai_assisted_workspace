@@ -287,21 +287,9 @@ contextBridge.exposeInMainWorld("appBridge", {
     search: (query: string, limit?: number) =>
       ipcRenderer.invoke("wiki:search", query, limit),
   },
-  journal: {
-    read: () => ipcRenderer.invoke("journal:read"),
-    unsyncedEntries: () => ipcRenderer.invoke("journal:unsyncedEntries"),
-    logSync: () => ipcRenderer.invoke("journal:logSync"),
-  },
   arcs: {
     read: () => ipcRenderer.invoke("arcs:read"),
     write: (data: unknown) => ipcRenderer.invoke("arcs:write", data),
-  },
-  glossary: {
-    get: () => ipcRenderer.invoke("glossary:get"),
-    addEntry: (term: string, definition: string) =>
-      ipcRenderer.invoke("glossary:addEntry", term, definition),
-    deleteEntry: (term: string) =>
-      ipcRenderer.invoke("glossary:deleteEntry", term),
   },
   subproject: {
     info: (path: string) => ipcRenderer.invoke("subproject:info", path),

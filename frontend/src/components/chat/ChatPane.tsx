@@ -15,7 +15,6 @@ import type {
   SimulationConfig,
 } from "../../types.ts";
 import { SimulationContextBanner } from "../simulation/SimulationContextBanner.tsx";
-import { glossaryApi } from "../../api.ts";
 import { ChatInput } from "./ChatInput.tsx";
 import { ChatComposerCard } from "./ChatComposerCard.tsx";
 import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
@@ -268,16 +267,6 @@ export function ChatPane({
     () => new Set<string>(),
   );
   const [bulkDismissIds, setBulkDismissIds] = useState(() => new Set<string>());
-  const [glossaryPopup, setGlossaryPopup] = useState<{
-    x: number;
-    y: number;
-    selectedText: string;
-  } | null>(null);
-  const [glossaryForm, setGlossaryForm] = useState<{
-    term: string;
-    definition: string;
-  } | null>(null);
-  const [glossarySaving, setGlosarySaving] = useState(false);
   const [clarificationOtherOpen, setClarificationOtherOpen] = useState(false);
 
   const agentMode = activeSessionKind === "guided";
@@ -293,13 +282,6 @@ export function ChatPane({
     autoScrollActiveRef.current = true;
     prevLastVisibleRoleRef.current = undefined;
   }, [conversationId]);
-
-  useEffect(() => {
-    if (disabledToolkits.has("glossary")) {
-      setGlossaryPopup(null);
-      setGlossaryForm(null);
-    }
-  }, [disabledToolkits]);
 
   // Scroll to bottom when conversation switches or messages first load
   useLayoutEffect(() => {
@@ -594,45 +576,6 @@ export function ChatPane({
     [onEditMessage],
   );
 
-  const handleMessagesMouseUp = useCallback(() => {
-    if (disabledToolkits.has("glossary")) {
-      setGlossaryPopup(null);
-      return;
-    }
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      setGlossaryPopup(null);
-      return;
-    }
-    const text = selection.toString().trim();
-    if (!text || text.length < 2) {
-      setGlossaryPopup(null);
-      return;
-    }
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    const paneRect = paneRef.current?.getBoundingClientRect();
-    if (!paneRect) return;
-    setGlossaryPopup({
-      x: rect.left - paneRect.left + rect.width / 2,
-      y: rect.top - paneRect.top - 8,
-      selectedText: text,
-    });
-  }, [disabledToolkits]);
-
-  const handleSaveToGlossary = async () => {
-    if (!glossaryForm) return;
-    setGlosarySaving(true);
-    try {
-      await glossaryApi.addEntry(glossaryForm.term, glossaryForm.definition);
-    } finally {
-      setGlosarySaving(false);
-      setGlossaryForm(null);
-      setGlossaryPopup(null);
-      window.getSelection()?.removeAllRanges();
-    }
-  };
-
   return (
     <div ref={paneRef} className="chat-pane">
       <div className="chat-panel-body-main">
@@ -640,7 +583,6 @@ export function ChatPane({
           messages={messages}
           readOnly={false}
           scrollRef={messagesScrollRef}
-          onMouseUp={handleMessagesMouseUp}
           streaming={streaming}
           error={error}
           toolActivity={toolActivity}
@@ -760,90 +702,6 @@ export function ChatPane({
         onFetchContextBlocks={onFetchContextBlocks}
       />
 
-      {glossaryPopup && !glossaryForm && !disabledToolkits.has("glossary") && (
-        <div
-          className="glossary-selection-popup"
-          style={{ left: glossaryPopup.x, top: glossaryPopup.y }}
-        >
-          <button
-            className="glossary-selection-btn"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setGlossaryForm({
-                term: glossaryPopup.selectedText,
-                definition: "",
-              });
-            }}
-          >
-            📖 Als Glossar-Begriff speichern
-          </button>
-        </div>
-      )}
-
-      {glossaryForm && !disabledToolkits.has("glossary") && (
-        <div
-          className="glossary-save-overlay"
-          onClick={() => {
-            setGlossaryForm(null);
-            setGlossaryPopup(null);
-          }}
-        >
-          <div
-            className="glossary-save-dialog"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="glossary-save-title">Glossar-Eintrag speichern</div>
-            <label className="glossary-save-label">
-              Begriff
-              <input
-                className="glossary-save-input"
-                value={glossaryForm.term}
-                onChange={(e) =>
-                  setGlossaryForm({ ...glossaryForm, term: e.target.value })
-                }
-                autoFocus
-              />
-            </label>
-            <label className="glossary-save-label">
-              Definition
-              <textarea
-                className="glossary-save-textarea"
-                value={glossaryForm.definition}
-                onChange={(e) =>
-                  setGlossaryForm({
-                    ...glossaryForm,
-                    definition: e.target.value,
-                  })
-                }
-                rows={3}
-                placeholder="Kurze Erklärung..."
-              />
-            </label>
-            <div className="glossary-save-actions">
-              <button
-                className="glossary-save-cancel"
-                onClick={() => {
-                  setGlossaryForm(null);
-                  setGlossaryPopup(null);
-                }}
-              >
-                Abbrechen
-              </button>
-              <button
-                className="glossary-save-confirm"
-                disabled={
-                  !glossaryForm.term.trim() ||
-                  !glossaryForm.definition.trim() ||
-                  glossarySaving
-                }
-                onClick={handleSaveToGlossary}
-              >
-                {glossarySaving ? "Speichere…" : "Speichern"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -62,7 +62,6 @@ const TOOLKIT_LABELS: Record<ChatToolkitId, string> = {
   web: "Websuche",
   dateisystem: "Dateisystem",
   assistant: "Assistant-Tools",
-  glossary: "Glossar (KI)",
 };
 
 interface LlmFormState {
