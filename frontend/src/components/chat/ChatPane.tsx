@@ -11,6 +11,7 @@ import type {
   SelectionContext,
   ChatSessionKind,
   ContextInfo,
+  ReasoningEffort,
   SimulationConfig,
 } from "../../types.ts";
 import { SimulationContextBanner } from "../simulation/SimulationContextBanner.tsx";
@@ -151,6 +152,8 @@ export interface ChatPaneProps {
   focusTriggerRef?: React.MutableRefObject<(() => void) | null>;
   useReasoning?: boolean;
   onToggleReasoning?: () => void;
+  reasoningEffort?: ReasoningEffort;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
   disabledToolkits?: ReadonlySet<string>;
   onToggleToolkit?: (kitId: string) => void;
   rulesEnabled?: boolean;
@@ -215,6 +218,8 @@ export function ChatPane({
   focusTriggerRef,
   useReasoning = false,
   onToggleReasoning,
+  reasoningEffort = "medium",
+  onReasoningEffortChange,
   disabledToolkits = new Set<string>(),
   onToggleToolkit,
   rulesEnabled = true,
@@ -731,6 +736,8 @@ export function ChatPane({
             structureRoot={structureRoot}
             useReasoning={useReasoning && reasoningAvailable}
             onToggleReasoning={agentMode ? undefined : onToggleReasoning}
+            reasoningEffort={reasoningEffort}
+            onReasoningEffortChange={agentMode ? undefined : onReasoningEffortChange}
             disabledToolkits={disabledToolkits}
             onToggleToolkit={agentMode ? undefined : onToggleToolkit}
             rulesEnabled={rulesEnabled}

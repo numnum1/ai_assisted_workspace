@@ -251,6 +251,9 @@ export interface ChatMessage {
   };
 }
 
+/** Reasoning effort level passed to the API as `reasoning_effort` when reasoning is active. */
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
 export interface ChatRequest {
   message: string;
   activeFieldKey?: string | null;
@@ -258,6 +261,8 @@ export interface ChatRequest {
   referencedFiles: string[];
   history: ChatMessage[];
   useReasoning?: boolean;
+  /** Effort hint for the reasoning model; only applied when {@link useReasoning} is true. */
+  reasoningEffort?: ReasoningEffort;
   /** Quick Chat: minimal context, web search only, no project tools. */
   quickChat?: boolean;
   /**

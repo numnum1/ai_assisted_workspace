@@ -1,5 +1,7 @@
 import type { Layout } from "react-resizable-panels";
-import { CHAT_TOOLKIT_IDS } from "../types.ts";
+import { CHAT_TOOLKIT_IDS, type ReasoningEffort } from "../types.ts";
+
+const REASONING_EFFORTS: readonly ReasoningEffort[] = ["low", "medium", "high"];
 
 const LLM_PREFS_KEY = "chat-llm-prefs";
 const CHAT_DISABLED_TOOLKITS_KEY = "chat-disabled-toolkits";
@@ -61,6 +63,7 @@ export function saveRulesEnabled(enabled: boolean) {
 export function loadLlmPrefs(): {
   llmId: string | null;
   useReasoning: boolean;
+  reasoningEffort: ReasoningEffort;
 } | null {
   try {
     const raw = localStorage.getItem(LLM_PREFS_KEY);
@@ -69,18 +72,26 @@ export function loadLlmPrefs(): {
       llmId: string | null;
       useReasoning: boolean;
       useWebSearch?: boolean;
+      reasoningEffort?: ReasoningEffort;
     };
-    return { llmId: parsed.llmId, useReasoning: parsed.useReasoning };
+    const reasoningEffort = REASONING_EFFORTS.includes(parsed.reasoningEffort as ReasoningEffort)
+      ? (parsed.reasoningEffort as ReasoningEffort)
+      : "medium";
+    return { llmId: parsed.llmId, useReasoning: parsed.useReasoning, reasoningEffort };
   } catch {
     return null;
   }
 }
 
-export function saveLlmPrefs(llmId: string | undefined, useReasoning: boolean) {
+export function saveLlmPrefs(
+  llmId: string | undefined,
+  useReasoning: boolean,
+  reasoningEffort: ReasoningEffort,
+) {
   try {
     localStorage.setItem(
       LLM_PREFS_KEY,
-      JSON.stringify({ llmId: llmId ?? null, useReasoning }),
+      JSON.stringify({ llmId: llmId ?? null, useReasoning, reasoningEffort }),
     );
   } catch {
     // localStorage full or unavailable — silently ignore

@@ -9,6 +9,7 @@ import type {
   LlmPublic,
   ChatSessionKind,
   ContextInfo,
+  ReasoningEffort,
   SimulationConfig,
 } from "../../types.ts";
 import { ModeSelector } from "./ModeSelector.tsx";
@@ -46,6 +47,8 @@ interface ChatPanelProps {
   activeConversationId: string;
   useReasoning: boolean;
   onToggleReasoning: () => void;
+  reasoningEffort?: ReasoningEffort;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
   disabledToolkits?: ReadonlySet<string>;
   onToggleToolkit?: (kitId: string) => void;
   rulesEnabled?: boolean;
@@ -140,6 +143,8 @@ export function ChatPanel({
   activeConversationId,
   useReasoning,
   onToggleReasoning,
+  reasoningEffort = "medium",
+  onReasoningEffortChange,
   disabledToolkits = new Set<string>(),
   onToggleToolkit,
   rulesEnabled = true,
@@ -504,6 +509,8 @@ export function ChatPanel({
           focusTriggerRef={chatFocusTriggerRef}
           useReasoning={useReasoning}
           onToggleReasoning={onToggleReasoning}
+          reasoningEffort={reasoningEffort}
+          onReasoningEffortChange={onReasoningEffortChange}
           disabledToolkits={disabledToolkits}
           onToggleToolkit={onToggleToolkit}
           rulesEnabled={rulesEnabled}

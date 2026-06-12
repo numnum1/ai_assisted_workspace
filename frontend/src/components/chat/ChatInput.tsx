@@ -18,10 +18,50 @@ import {
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
 import { wikiApi } from "../../api.ts";
-import type { SelectionContext } from "../../types.ts";
+import type { ReasoningEffort, SelectionContext } from "../../types.ts";
 import { CHAT_TOOLKIT_IDS } from "../../types.ts";
 
 const EMPTY_DISABLED_TOOLKITS = new Set<string>();
+
+const REASONING_EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Med" },
+  { value: "high", label: "High" },
+];
+
+/** Segmented control for picking the reasoning effort; shown only while reasoning is active. */
+function ReasoningEffortSelector({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ReasoningEffort;
+  onChange: (effort: ReasoningEffort) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className="chat-reasoning-effort"
+      role="group"
+      aria-label="Reasoning-Aufwand"
+      title="Reasoning-Aufwand"
+    >
+      {REASONING_EFFORT_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          className={`chat-reasoning-effort-btn${value === opt.value ? " active" : ""}`}
+          onClick={() => onChange(opt.value)}
+          disabled={disabled}
+          aria-pressed={value === opt.value}
+          title={`Reasoning-Aufwand: ${opt.label}`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "web", label: "Web-Suche", icon: Globe },
@@ -196,6 +236,9 @@ interface ChatInputProps {
   /** Whether the reasoning model should be used for this message */
   useReasoning?: boolean;
   onToggleReasoning?: () => void;
+  /** Current reasoning effort level; only relevant while {@link useReasoning} is active. */
+  reasoningEffort?: ReasoningEffort;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
   /** Toolkit ids whose tools are omitted for requests (see CHAT_TOOLKIT_IDS). */
   disabledToolkits?: ReadonlySet<string>;
   onToggleToolkit?: (kitId: string) => void;
@@ -230,6 +273,8 @@ export function ChatInput({
   structureRoot = null,
   useReasoning = false,
   onToggleReasoning,
+  reasoningEffort = "medium",
+  onReasoningEffortChange,
   disabledToolkits = EMPTY_DISABLED_TOOLKITS,
   onToggleToolkit,
   reasoningAvailable = true,
@@ -637,6 +682,17 @@ export function ChatInput({
               <Zap size={15} />
             </button>
           )}
+          {onToggleReasoning &&
+            reasoningAvailable &&
+            fastAvailable &&
+            useReasoning &&
+            onReasoningEffortChange && (
+              <ReasoningEffortSelector
+                value={reasoningEffort}
+                onChange={onReasoningEffortChange}
+                disabled={streaming}
+              />
+            )}
           {onToggleRules && (
             <button
               type="button"
@@ -765,6 +821,16 @@ export function ChatInput({
                         >
                           <Zap size={15} />
                         </button>
+                      )}
+                    {onToggleReasoning &&
+                      reasoningAvailable &&
+                      fastAvailable &&
+                      useReasoning &&
+                      onReasoningEffortChange && (
+                        <ReasoningEffortSelector
+                          value={reasoningEffort}
+                          onChange={onReasoningEffortChange}
+                        />
                       )}
                     {onToggleRules && (
                       <button

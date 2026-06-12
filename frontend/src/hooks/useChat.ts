@@ -5,6 +5,7 @@ import type {
   ChatSessionKind,
   ContextInfo,
   NaviContext,
+  ReasoningEffort,
   SelectionContext,
   SimulationConfig,
 } from '../types.ts';
@@ -16,6 +17,7 @@ export interface EditMessageSendParams {
   mode: string;
   referencedFiles: string[];
   useReasoning?: boolean;
+  reasoningEffort?: ReasoningEffort;
   llmId?: string;
   selectionContext?: SelectionContext;
   activeFieldKey?: string | null;
@@ -56,6 +58,8 @@ export interface SendMessageOptions {
   };
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
+  /** Effort hint for the reasoning model; only applied when reasoning is active. */
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface UseChatOptions {
@@ -264,6 +268,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         referencedFiles,
         history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
         useReasoning: useReasoning ?? false,
+        ...(sendOpts?.reasoningEffort ? { reasoningEffort: sendOpts.reasoningEffort } : {}),
         llmId: llmId,
         ...(disabledToolkits != null && disabledToolkits.length > 0
           ? { disabledToolkits: [...disabledToolkits] }
@@ -377,6 +382,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         referencedFiles: sendParams.referencedFiles,
         history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
         useReasoning: sendParams.useReasoning ?? false,
+        ...(sendParams.reasoningEffort ? { reasoningEffort: sendParams.reasoningEffort } : {}),
         llmId: sendParams.llmId,
         ...(sendParams.disabledToolkits != null && sendParams.disabledToolkits.length > 0
           ? { disabledToolkits: [...sendParams.disabledToolkits] }

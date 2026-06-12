@@ -9,7 +9,7 @@ import { chatApi, type ContextBlock } from '../api.ts';
 import { buildNextMainChatRequest } from '../components/chat/contextPreviewRequest.ts';
 import { getEffectiveChatExecution } from '../components/chat/chatAgentUtils.ts';
 import { effectiveChatModeIdForRequest } from '../components/chat/effectiveChatModeForRequest.ts';
-import type { ChatMessage, Conversation, ContextInfo, Mode, SelectionContext, ChatSessionKind } from '../types.ts';
+import type { ChatMessage, Conversation, ContextInfo, Mode, ReasoningEffort, SelectionContext, ChatSessionKind } from '../types.ts';
 import { useChat } from './useChat.ts';
 
 type UseChatInstance = ReturnType<typeof useChat>;
@@ -22,6 +22,7 @@ export interface UseConversationModelParams {
   modes: Mode[];
   modeLlmId: string | undefined;
   useReasoning: boolean;
+  reasoningEffort: ReasoningEffort;
   disabledToolkits: ReadonlySet<string>;
   rulesDisabled: boolean;
   referencedFiles: string[];
@@ -56,6 +57,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     modes,
     modeLlmId,
     useReasoning,
+    reasoningEffort,
     disabledToolkits,
     rulesDisabled,
     referencedFiles,
@@ -220,6 +222,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         {
           ...(clarificationData != null ? { clarificationData } : {}),
           ...(rulesDisabled ? { rulesDisabled: true } : {}),
+          ...(exec.useReasoning ? { reasoningEffort } : {}),
         },
       );
       patchConversation(activeConversationId, { mode: modeId });
@@ -232,6 +235,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       modes,
       modeLlmId,
       useReasoning,
+      reasoningEffort,
       disabledToolkits,
       referencedFiles,
       activeSelection,
@@ -257,6 +261,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         mode: modeId,
         referencedFiles,
         useReasoning: exec.useReasoning,
+        ...(exec.useReasoning ? { reasoningEffort } : {}),
         llmId: exec.llmId,
         selectionContext: activeSelection ?? undefined,
         activeFieldKey: focusedFieldKey ?? null,
@@ -276,6 +281,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       modes,
       modeLlmId,
       useReasoning,
+      reasoningEffort,
       disabledToolkits,
       referencedFiles,
       activeSelection,

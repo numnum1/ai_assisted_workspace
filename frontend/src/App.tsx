@@ -47,6 +47,7 @@ import type {
   AltVersionSession,
   LlmPublic,
   ChatSessionKind,
+  ReasoningEffort,
 } from "./types.ts";
 import type { NewChatConfirmPayload } from "./components/chat/NewChatDialog.tsx";
 import { CHAT_TOOLKIT_IDS } from "./types.ts";
@@ -202,6 +203,7 @@ function App() {
   const [simulationSetupOpen, setSimulationSetupOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState("review");
   const [useReasoning, setUseReasoning] = useState(false);
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
   const [quickChatOpen, setQuickChatOpen] = useState(false);
   const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
@@ -271,6 +273,10 @@ function App() {
 
   const handleToggleReasoning = useCallback(
     () => setUseReasoning((v) => !v),
+    [],
+  );
+  const handleReasoningEffortChange = useCallback(
+    (effort: ReasoningEffort) => setReasoningEffort(effort),
     [],
   );
   const handleToggleToolkit = useCallback((kitId: string) => {
@@ -356,7 +362,8 @@ function App() {
     const providers = llmsRef.current;
     const prefs = loadLlmPrefs();
     if (!prefs) return;
-    const { llmId, useReasoning: savedReasoning } = prefs;
+    const { llmId, useReasoning: savedReasoning, reasoningEffort: savedEffort } = prefs;
+    setReasoningEffort(savedEffort);
     if (llmId !== null) {
       const llm = providers.find((l) => l.id === llmId);
       if (llm) {
@@ -868,8 +875,8 @@ function App() {
 
   useEffect(() => {
     if (!prefsHydratedRef.current) return;
-    saveLlmPrefs(modeLlmId, useReasoning);
-  }, [modeLlmId, useReasoning]);
+    saveLlmPrefs(modeLlmId, useReasoning, reasoningEffort);
+  }, [modeLlmId, useReasoning, reasoningEffort]);
 
   useEffect(() => {
     saveDisabledToolkits(disabledToolkits);
@@ -1354,6 +1361,7 @@ function App() {
     modes,
     modeLlmId,
     useReasoning,
+    reasoningEffort,
     disabledToolkits,
     rulesDisabled: !rulesEnabled,
     referencedFiles: refs.referencedFiles,
@@ -2006,6 +2014,8 @@ function App() {
                 activeConversationId={history.activeId}
                 useReasoning={useReasoning}
                 onToggleReasoning={handleToggleReasoning}
+                reasoningEffort={reasoningEffort}
+                onReasoningEffortChange={handleReasoningEffortChange}
                 disabledToolkits={disabledToolkits}
                 onToggleToolkit={handleToggleToolkit}
                 rulesEnabled={rulesEnabled}

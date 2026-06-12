@@ -313,6 +313,9 @@ async function runChatStream(
           model: endpoint.model,
           stream: true,
           messages: conversationMessages,
+          ...(request.useReasoning && request.reasoningEffort
+            ? { reasoning_effort: request.reasoningEffort }
+            : {}),
           ...(getActiveToolDefinitions(request).length > 0
             ? { tools: getActiveToolDefinitions(request) }
             : {}),

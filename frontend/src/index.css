@@ -5764,6 +5764,53 @@ body.file-tree-native-dragging {
     cursor: default;
 }
 
+.chat-reasoning-effort {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.chat-reasoning-effort-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 100%;
+    padding: 0 7px;
+    border: none;
+    border-right: 1px solid var(--border);
+    background: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background 0.15s,
+        color 0.15s;
+}
+
+.chat-reasoning-effort-btn:last-child {
+    border-right: none;
+}
+
+.chat-reasoning-effort-btn:hover:not(:disabled):not(.active) {
+    color: var(--accent);
+}
+
+.chat-reasoning-effort-btn.active {
+    background: var(--accent);
+    color: var(--bg-tertiary);
+}
+
+.chat-reasoning-effort-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
 .chat-rules-btn {
     display: flex;
     align-items: center;
