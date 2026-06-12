@@ -289,8 +289,12 @@ export async function gitStatus(
   const prefix = computePrefix(workTree, projectPath);
   const git = makeGit(workTree);
   const s = await git.status();
+  const isInternalFile = (p: string) =>
+    p.replace(/\\/g, "/").split("/").pop() === ".subproject.json";
   const toNorm = (arr: string[] | undefined) =>
-    filterAndStrip((arr ?? []).map((p) => p.replace(/\\/g, "/")), prefix);
+    filterAndStrip((arr ?? []).map((p) => p.replace(/\\/g, "/")), prefix).filter(
+      (p) => !isInternalFile(p),
+    );
 
   const added = toNorm(s.created);
   const modified = toNorm(s.modified);
