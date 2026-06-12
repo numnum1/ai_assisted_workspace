@@ -1015,7 +1015,7 @@ function App() {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
       }
-      if (e.ctrlKey && e.shiftKey && e.key === "A") {
+      if (e.ctrlKey && e.shiftKey && e.key === "B") {
         e.preventDefault();
         setArcsOpen((prev) => !prev);
       }

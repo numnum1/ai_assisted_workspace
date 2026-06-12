@@ -333,7 +333,7 @@ export function ChatPanel({
               type="button"
               className="chat-history-btn"
               onClick={onOpenArcs}
-              title="Spannungsbögen öffnen (Strg+Shift+A) — Story-/Figuren-/Beziehungsbögen"
+              title="Spannungsbögen öffnen (Strg+Shift+B) — Story-/Figuren-/Beziehungsbögen"
             >
               <Waypoints size={14} />
             </button>
