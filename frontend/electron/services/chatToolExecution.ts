@@ -203,7 +203,6 @@ export function describeStreamingToolCall(toolCall: ToolCall): string {
   if (name === "ask_yes_no") return "Ja/Nein-Frage";
   if (name === "propose_guided_thread") return "Biete Guided Thread an";
   if (name === "report_thread_result") return "Übermittle Thread-Ergebnis";
-  if (name === "create_artifact") return "Erstelle Arbeitsnotiz";
   return `Tool: ${name}`;
 }
 
@@ -286,13 +285,6 @@ export async function executeToolCall(
     });
     if (!fence) throw new Error("report_thread_result requires a non-empty summary.");
     result = fence;
-  } else if (name === "create_artifact") {
-    const title = normalizeText(String(args.title ?? "Arbeitsnotiz"));
-    const content = typeof args.content === "string" ? args.content : "";
-    const id = typeof args.id === "string" && args.id ? args.id : undefined;
-    const meta: Record<string, string> = { title };
-    if (id) meta.id = id;
-    result = `\`\`\`artifact\n${JSON.stringify(meta)}\n\n${content}\n\`\`\``;
   } else {
     throw new Error(`Unknown tool: ${name}`);
   }

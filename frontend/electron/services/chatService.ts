@@ -294,8 +294,6 @@ async function runChatStream(
     const isBuchentwicklung = normalizeText(request.mode) === BUCHENTWICKLUNG_MODE_ID;
     let wikiWritesThisTurn = 0;
     let guardrailRetriesUsed = 0;
-    // At most one artifact per user turn — Grok ignores prompt-level limits, so enforce here.
-    let artifactCreatedThisTurn = false;
 
     while (toolRound < maxToolRounds) {
       if (!isStreamActive(streamId)) return;
@@ -464,21 +462,7 @@ async function runChatStream(
 
       const executedResults: ToolExecutionResult[] = [];
       for (const toolCall of toolCalls) {
-        // Enforce a single artifact per turn: reject any further create_artifact calls
-        // (whether parallel in this round or in a later round) without executing them.
-        if (toolCall.function.name === "create_artifact" && artifactCreatedThisTurn) {
-          executedResults.push({
-            toolCallId: toolCall.id,
-            name: toolCall.function.name,
-            description: describeStreamingToolCall(toolCall),
-            result:
-              "An artifact was already created in this turn. Only one artifact per turn is allowed — " +
-              "do not call create_artifact again; reply to the user in prose instead.",
-          });
-          continue;
-        }
         const execResult = await executeToolCall(projectPath, toolCall, embeddingConfig);
-        if (toolCall.function.name === "create_artifact") artifactCreatedThisTurn = true;
         executedResults.push(execResult);
       }
 
@@ -524,13 +508,7 @@ async function runChatStream(
         conversationMessages.push({
           role: "tool",
           tool_call_id: result.toolCallId,
-          // The full artifact fence is sent to the UI via tool_history (rendered as a card).
-          // The model only needs a short confirmation — echoing the whole note back invites
-          // it to re-create the same artifact on the next round.
-          content:
-            result.name === "create_artifact" && result.result.startsWith("```artifact")
-              ? "The working note is now displayed to the user as an inline card. Do NOT create another artifact and do NOT repeat its content. Continue your reply to the user in normal prose (e.g. briefly point to the note and add any closing remarks)."
-              : result.result,
+          content: result.result,
         });
       }
 

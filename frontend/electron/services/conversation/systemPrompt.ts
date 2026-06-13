@@ -156,37 +156,6 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
       },
     },
   ],
-  artifacts: [
-    {
-      type: "function",
-      function: {
-        name: "create_artifact",
-        description:
-          "Create a temporary working note that appears as an inline card in the chat. " +
-          "Use for structured analysis (character motivations, scene breakdowns, comparisons) " +
-          "that is NOT canon and should NOT go to the wiki. " +
-          "Lives in the conversation history, not on disk.",
-        parameters: {
-          type: "object",
-          properties: {
-            title: {
-              type: "string",
-              description: "Short title shown in the card header.",
-            },
-            content: {
-              type: "string",
-              description: "Full markdown content of the working note.",
-            },
-            id: {
-              type: "string",
-              description: "Optional stable identifier in kebab-case (e.g. 'motivations-shalltear').",
-            },
-          },
-          required: ["title", "content"],
-        },
-      },
-    },
-  ],
   assistant: [
     {
       type: "function",
@@ -356,7 +325,7 @@ export function buildSystemPrompt(
         "- Bevor du anlegst oder änderst: mit grep/semantic_search prüfen, ob die Entität (auch unter einem Alias) schon existiert — keine Dubletten. Bei Bedarf den bestehenden Eintrag mit edit_file ergänzen.\n" +
         "- Wiki-Format: pro Entität eine Markdown-Datei in der passenden Kategorie (z. B. wiki/characters/, wiki/locations/, wiki/organizations/), Dateiname kebab-case. Frontmatter mit id, type, aliases, tags und einer einsätzigen summary. Aliase/Spitznamen gehören in das aliases-Feld (so sind sie per grep auflösbar). Falls vorhanden, orientiere dich vor dem Anlegen am Format in wiki/<kategorie>/README.md (einmal read_file genügt).\n" +
         "- Reine Idee/Spekulation, die noch nicht Kanon ist: NICHT ins Wiki schreiben.\n" +
-        "- Analysen oder Zwischenstände, die (noch) kein Kanon sind: create_artifact() — bleibt im Chat, geht NICHT ins Wiki und schreibt keine Datei.\n" +
+        "- Analysen oder Zwischenstände, die (noch) kein Kanon sind: einfach im Chat als Prosa beantworten — NICHT ins Wiki schreiben und keine Datei anlegen.\n" +
         "- Falls in einer Antwort etwas ins Wiki geschrieben wurde, schließe mit einer kurzen Transparenz-Zeile: \"📝 Gesichert: <was>\". Wurde nichts geschrieben, lass die Zeile weg.",
     );
   }
