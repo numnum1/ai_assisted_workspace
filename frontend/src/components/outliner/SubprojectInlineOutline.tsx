@@ -290,9 +290,9 @@ export function SubprojectInlineOutline({
     [structures, runWithRoot, subprojectPath, loadStructure, onStructureMutated],
   );
 
-  const handleSceneDragStart = useCallback((e: DragEvent, chapterId: string, sceneId: string) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', `scene:${chapterId}:${sceneId}`);
+  const handleSceneDragStart = useCallback((e: DragEvent, chapterId: string, sceneId: string, sceneTitle: string) => {
+    e.dataTransfer.effectAllowed = 'copyMove';
+    e.dataTransfer.setData('text/plain', `scene:${chapterId}:${sceneId}:${encodeURIComponent(sceneTitle)}`);
     setDragScene({ chapterId, sceneId });
   }, []);
 
@@ -448,7 +448,7 @@ export function SubprojectInlineOutline({
                         className={`outliner-node outliner-scene file-tree-subproject-outline-node${isActiveScene ? ' active' : ''}${isDragging ? ' outliner-scene-dragging' : ''}${isDropTarget ? ' outliner-scene-droptarget' : ''}`}
                         style={{ paddingLeft: padLeft(baseDepth + 2) }}
                         draggable
-                        onDragStart={(e) => handleSceneDragStart(e, chapter.id, scene.id)}
+                        onDragStart={(e) => handleSceneDragStart(e, chapter.id, scene.id, scene.meta.title)}
                         onDragOver={(e) => handleSceneDragOver(e, chapter.id, scene.id)}
                         onDrop={(e) => void handleSceneDrop(e, chapter.id, scene.id)}
                         onDragEnd={handleSceneDragEnd}

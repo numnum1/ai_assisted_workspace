@@ -313,7 +313,10 @@ export function buildSystemPrompt(
     );
   }
 
-  // 1b. Working method — baseline persistence behavior, independent of the chosen mode.
+  // 1b. Language — always respond in German regardless of the LLM's training defaults.
+  sections.push("Antworte immer auf Deutsch, unabhängig von der Sprache dieser Anweisung oder des Nutzers.");
+
+  // 1c. Working method — baseline persistence behavior, independent of the chosen mode.
   // The mode only personalizes the persona/task framing; HOW the app works (chat is
   // disposable, durable facts go to files) is defined here for every writing session.
   // Skipped for quick chat (ephemeral) and navi (customer-consulting) sessions.

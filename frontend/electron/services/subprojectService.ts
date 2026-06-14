@@ -87,14 +87,6 @@ function normalizeType(type: string): string {
   return value;
 }
 
-function normalizeName(name: string): string {
-  const value = name.trim();
-  if (!value) {
-    throw new Error('Subproject name must not be empty.');
-  }
-  return value;
-}
-
 export async function getSubprojectInfo(
   projectRoot: string | null,
   relativePath: string,

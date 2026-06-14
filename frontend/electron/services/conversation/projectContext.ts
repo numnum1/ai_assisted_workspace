@@ -180,10 +180,20 @@ export function sliceByLineRange(
 export async function readReferencedProjectFile(
   projectPath: string | null,
   reference: string,
-): Promise<{ path: string; content: string } | null> {
+): Promise<{ path: string; content: string; label?: string } | null> {
   if (!projectPath) return null;
   const trimmed = normalizeText(reference);
   if (!trimmed) return null;
+
+  if (trimmed.startsWith("scene:")) {
+    const parts = trimmed.split(":");
+    // format: scene:{chapterId}:{sceneId}[:{encodedTitle}]
+    if (parts.length < 3) return null;
+    const chapterId = parts[1];
+    const sceneId = parts[2];
+    if (!chapterId || !sceneId || /[/\\]/.test(chapterId) || /[/\\]/.test(sceneId)) return null;
+    return readSceneReference(projectPath, chapterId, sceneId);
+  }
 
   const match = /^(.*?)(?::(\d+)-(\d+))?$/.exec(trimmed);
   if (!match) return null;
@@ -205,4 +215,51 @@ export async function readReferencedProjectFile(
   } catch {
     return null;
   }
+}
+
+async function readSceneReference(
+  projectPath: string,
+  chapterId: string,
+  sceneId: string,
+): Promise<{ path: string; content: string; label: string } | null> {
+  const chapterDir = path.join(projectPath, ".project", "chapter", chapterId);
+  const sceneMetaPath = path.join(chapterDir, `${sceneId}.json`);
+  const sceneContentDir = path.join(chapterDir, sceneId);
+
+  let sceneTitle = "Szene";
+  try {
+    const raw = await fs.readFile(sceneMetaPath, "utf8");
+    const meta = JSON.parse(raw) as { title?: string };
+    if (meta.title) sceneTitle = meta.title;
+  } catch { /* use fallback */ }
+
+  let entries: import("node:fs").Dirent[] = [];
+  try {
+    entries = await fs.readdir(sceneContentDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const actions: { sortOrder: number; content: string }[] = [];
+  for (const ent of entries) {
+    if (!ent.isFile() || !ent.name.endsWith(".json")) continue;
+    const actionId = ent.name.slice(0, -5);
+    let sortOrder = 0;
+    try {
+      const raw = await fs.readFile(path.join(sceneContentDir, ent.name), "utf8");
+      const meta = JSON.parse(raw) as { sortOrder?: number };
+      sortOrder = meta.sortOrder ?? 0;
+    } catch { /* keep 0 */ }
+    let content = "";
+    try {
+      content = await fs.readFile(path.join(sceneContentDir, `${actionId}.md`), "utf8");
+    } catch { /* empty */ }
+    actions.push({ sortOrder, content });
+  }
+
+  actions.sort((a, b) => a.sortOrder - b.sortOrder);
+  const content = actions.map(a => a.content.trim()).filter(Boolean).join("\n\n");
+  if (!content) return null;
+
+  return { path: `scene:${chapterId}:${sceneId}`, content, label: sceneTitle };
 }

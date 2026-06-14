@@ -217,7 +217,7 @@ export async function buildPreviewContext(
     includedFiles.add(reference);
     const referencedBlock = createContextBlock(
       "file",
-      `Referenced: ${reference}`,
+      `Referenced: ${fileData.label ?? reference}`,
       fileData.content,
     );
     if (referencedBlock) blocks.push(referencedBlock);

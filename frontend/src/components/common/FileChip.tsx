@@ -1,4 +1,4 @@
-import { X, FileText, Folder } from "lucide-react";
+import { X, FileText, Folder, BookOpen } from "lucide-react";
 
 interface FileChipProps {
   path: string;
@@ -7,6 +7,23 @@ interface FileChipProps {
 }
 
 export function FileChip({ path, onRemove, readonly = false }: FileChipProps) {
+  if (path.startsWith("scene:")) {
+    const parts = path.split(":");
+    const encodedTitle = parts[3];
+    const displayName = encodedTitle ? decodeURIComponent(encodedTitle) : "Szene";
+    return (
+      <span className="file-chip" data-testid="FileChip" title={path}>
+        <BookOpen size={12} />
+        <span className="file-chip-name">{displayName}</span>
+        {!readonly && onRemove && (
+          <button className="file-chip-remove" onClick={() => onRemove(path)} title="Remove">
+            <X size={12} />
+          </button>
+        )}
+      </span>
+    );
+  }
+
   const isDirectory = path.endsWith("/");
   const segments = path.replace(/\/+$/, "").split("/");
   const displayName = segments.pop() || path;

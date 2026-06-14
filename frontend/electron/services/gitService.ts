@@ -342,12 +342,29 @@ export async function gitCommit(
   const prefix = computePrefix(workTree, projectPath);
   const git = makeGit(workTree);
 
+  const stageFile = async (repoPath: string, deleted: boolean): Promise<void> => {
+    if (deleted) {
+      // git add fails for missing files; use add -u to stage the deletion
+      await git.raw(["add", "-u", "--", repoPath]);
+    } else {
+      await git.add(repoPath);
+    }
+  };
+
   if (files == null || files.length === 0) {
     const st = await git.status();
+    const deletedPaths = new Set(
+      (st.deleted ?? []).map((p) => p.replace(/\\/g, "/")),
+    );
+    const seen = new Set<string>();
     const collect: string[] = [];
     const addAll = (arr: string[] | undefined) => {
       for (const f of arr ?? []) {
-        collect.push(f.replace(/\\/g, "/"));
+        const n = f.replace(/\\/g, "/");
+        if (!seen.has(n)) {
+          seen.add(n);
+          collect.push(n);
+        }
       }
     };
     addAll(st.modified);
@@ -355,25 +372,27 @@ export async function gitCommit(
     addAll(st.not_added);
     addAll(st.conflicted);
     addAll(st.created);
-    const stagedPaths = new Set<string>();
     for (const row of st.files ?? []) {
-      if (row.path) {
-        stagedPaths.add(row.path.replace(/\\/g, "/"));
-      }
+      if (row.path) addAll([row.path]);
     }
-    addAll([...stagedPaths]);
     if (collect.length === 0) {
       const pattern = prefix === "" ? "." : prefix.replace(/\/+$/, "");
       await git.add(pattern);
     } else {
       for (const f of collect) {
-        await git.add(prefix === "" ? f : `${prefix}${f}`);
+        const repoPath = prefix === "" ? f : `${prefix}${f}`;
+        await stageFile(repoPath, deletedPaths.has(f));
       }
     }
   } else {
+    const st = await git.status();
+    const deletedPaths = new Set(
+      (st.deleted ?? []).map((p) => p.replace(/\\/g, "/")),
+    );
     for (const f of files) {
       const rel = f.replace(/\\/g, "/");
-      await git.add(prefix === "" ? rel : `${prefix}${rel}`);
+      const repoPath = prefix === "" ? rel : `${prefix}${rel}`;
+      await stageFile(repoPath, deletedPaths.has(rel));
     }
   }
 
