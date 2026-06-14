@@ -400,6 +400,20 @@ export function buildSystemPrompt(
     }
   }
 
+  // 3c. Book chapter index — maps chapter/scene titles to the exact UUID-based file paths.
+  // Without this the AI can only find .json metadata but not the .md prose content.
+  if (!request.quickChat) {
+    const chapterIndex = normalizeText(context.chapterIndex ?? "");
+    if (chapterIndex) {
+      sections.push(
+        "BUCHSTRUKTUR (Kapitel und Szenen mit Inhaltspfaden für read_file):\n" +
+          chapterIndex +
+          "\n\nUm den Prosa-Inhalt einer Szene zu lesen: read_file mit dem angegebenen Pfad aufrufen. " +
+          "Leere Szenen ('(leer)') enthalten noch keinen Text.",
+      );
+    }
+  }
+
   // 4. Active tools
   if (!request.quickChat) {
     const activeTools = getActiveToolDefinitions(request);

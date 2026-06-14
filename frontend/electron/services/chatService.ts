@@ -14,6 +14,7 @@ import {
   resolveModeSystemPrompt,
 } from "./conversation/systemPrompt.js";
 import { buildWikiIndex, formatWikiIndex } from "./wikiService.js";
+import { buildBookChapterIndex } from "./conversation/projectContext.js";
 import { resolveEmbeddingCredentials } from "./aiProviderService.js";
 import {
   resolveAiProvider,
@@ -148,10 +149,20 @@ export async function previewChatContext(
     }
   }
 
+  let chapterIndex = "";
+  if (!request.quickChat && request.sessionKind !== "navi") {
+    try {
+      chapterIndex = await buildBookChapterIndex(projectPath ?? "");
+    } catch (error) {
+      console.warn(`[chat] chapter index build failed: ${String(error)}`);
+    }
+  }
+
   const context: PreviewBuildContext = {
     projectPath,
     projectConfig: previewContext.projectConfig,
     wikiIndex,
+    chapterIndex,
   };
 
   const modeSystemPrompt = await resolveModeSystemPrompt(projectPath, request.mode);

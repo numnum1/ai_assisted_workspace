@@ -22,6 +22,8 @@ export interface PreviewBuildContext {
   projectConfig?: ProjectConfigData | null;
   /** Compact wiki inventory injected into the system prompt (the writing equivalent of a source tree). */
   wikiIndex?: string;
+  /** Book chapter structure: maps human-readable titles to UUID-based file paths for read_file. */
+  chapterIndex?: string;
 }
 
 export function normalizeText(value: string | null | undefined): string {
@@ -215,6 +217,133 @@ export async function readReferencedProjectFile(
   } catch {
     return null;
   }
+}
+
+async function buildChapterEntriesForBook(
+  projectPath: string,
+  bookRelPath: string | null,
+): Promise<Array<{ title: string; sortOrder: number; scenes: Array<{ title: string; sortOrder: number; contentPaths: string[] }> }>> {
+  const bookRoot = bookRelPath ? path.join(projectPath, bookRelPath) : projectPath;
+  const chapterDir = path.join(bookRoot, ".project", "chapter");
+
+  let chapterEntries: import("node:fs").Dirent[];
+  try {
+    chapterEntries = await fs.readdir(chapterDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const chapters: Array<{ title: string; sortOrder: number; scenes: Array<{ title: string; sortOrder: number; contentPaths: string[] }> }> = [];
+
+  for (const entry of chapterEntries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    const chapterId = entry.name.slice(0, -5);
+
+    let chapterTitle = "(ohne Titel)";
+    let chapterSortOrder = 0;
+    try {
+      const raw = await fs.readFile(path.join(chapterDir, entry.name), "utf8");
+      const meta = JSON.parse(raw) as { title?: string; sortOrder?: number };
+      if (meta.title) chapterTitle = meta.title;
+      chapterSortOrder = meta.sortOrder ?? 0;
+    } catch { /* keep defaults */ }
+
+    const sceneDir = path.join(chapterDir, chapterId);
+    const scenes: Array<{ title: string; sortOrder: number; contentPaths: string[] }> = [];
+
+    try {
+      const sceneEntries = await fs.readdir(sceneDir, { withFileTypes: true });
+      for (const sceneEntry of sceneEntries) {
+        if (!sceneEntry.isFile() || !sceneEntry.name.endsWith(".json")) continue;
+        const sceneId = sceneEntry.name.slice(0, -5);
+
+        let sceneTitle = "(ohne Titel)";
+        let sceneSortOrder = 0;
+        try {
+          const raw = await fs.readFile(path.join(sceneDir, sceneEntry.name), "utf8");
+          const meta = JSON.parse(raw) as { title?: string; sortOrder?: number };
+          if (meta.title) sceneTitle = meta.title;
+          sceneSortOrder = meta.sortOrder ?? 0;
+        } catch { /* keep defaults */ }
+
+        const actionDir = path.join(sceneDir, sceneId);
+        const contentPaths: { sortOrder: number; relPath: string }[] = [];
+        try {
+          const actionEntries = await fs.readdir(actionDir, { withFileTypes: true });
+          for (const actionEntry of actionEntries) {
+            if (!actionEntry.isFile() || !actionEntry.name.endsWith(".json")) continue;
+            const actionId = actionEntry.name.slice(0, -5);
+            const mdPath = path.join(actionDir, `${actionId}.md`);
+            let actionSortOrder = 0;
+            try {
+              const raw = await fs.readFile(path.join(actionDir, actionEntry.name), "utf8");
+              const meta = JSON.parse(raw) as { sortOrder?: number };
+              actionSortOrder = meta.sortOrder ?? 0;
+            } catch { /* keep 0 */ }
+            try {
+              await fs.access(mdPath);
+              const relPath = path.relative(projectPath, mdPath).replace(/\\/g, "/");
+              contentPaths.push({ sortOrder: actionSortOrder, relPath });
+            } catch { /* md file missing */ }
+          }
+        } catch { /* no action dir */ }
+
+        contentPaths.sort((a, b) => a.sortOrder - b.sortOrder);
+        scenes.push({ title: sceneTitle, sortOrder: sceneSortOrder, contentPaths: contentPaths.map(c => c.relPath) });
+      }
+    } catch { /* no scene dir */ }
+
+    scenes.sort((a, b) => a.sortOrder - b.sortOrder);
+    chapters.push({ title: chapterTitle, sortOrder: chapterSortOrder, scenes });
+  }
+
+  chapters.sort((a, b) => a.sortOrder - b.sortOrder);
+  return chapters;
+}
+
+export async function buildBookChapterIndex(projectPath: string): Promise<string> {
+  if (!projectPath) return "";
+
+  const lines: string[] = [];
+
+  // Root project chapters
+  const rootChapters = await buildChapterEntriesForBook(projectPath, null);
+  if (rootChapters.length > 0) {
+    for (const ch of rootChapters) {
+      lines.push(`Kapitel "${ch.title}"`);
+      for (const sc of ch.scenes) {
+        const paths = sc.contentPaths.length > 0 ? sc.contentPaths.join(", ") : "(leer)";
+        lines.push(`  Szene "${sc.title}" → ${paths}`);
+      }
+    }
+  }
+
+  // Book subprojects
+  try {
+    const topEntries = await fs.readdir(projectPath, { withFileTypes: true });
+    for (const entry of topEntries) {
+      if (!entry.isDirectory()) continue;
+      try {
+        const subJsonPath = path.join(projectPath, entry.name, ".subproject.json");
+        const raw = await fs.readFile(subJsonPath, "utf8");
+        const meta = JSON.parse(raw) as { type?: string; name?: string };
+        if (meta.type !== "book") continue;
+        const bookName = meta.name ?? entry.name;
+        const chapters = await buildChapterEntriesForBook(projectPath, entry.name);
+        if (chapters.length === 0) continue;
+        lines.push(`Buch "${bookName}" (${entry.name}/)`);
+        for (const ch of chapters) {
+          lines.push(`  Kapitel "${ch.title}"`);
+          for (const sc of ch.scenes) {
+            const paths = sc.contentPaths.length > 0 ? sc.contentPaths.join(", ") : "(leer)";
+            lines.push(`    Szene "${sc.title}" → ${paths}`);
+          }
+        }
+      } catch { /* not a book subproject or unreadable */ }
+    }
+  } catch { /* can't read project dir */ }
+
+  return lines.join("\n");
 }
 
 async function readSceneReference(
