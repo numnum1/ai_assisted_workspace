@@ -23,7 +23,7 @@ interface ActionEditorProps {
   onAltVersion?: (session: AltVersionSession) => void;
 }
 
-export const ActionEditor = memo(function ActionEditor({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL, onAltVersion }: ActionEditorProps) {
+function ActionEditorImpl({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL, onAltVersion }: ActionEditorProps) {
   const readingThemeOverrides = useMemo(() => ({
     fontSize: `${fontSize}px`,
     padding: `16px ${padding}px`,
@@ -55,4 +55,20 @@ export const ActionEditor = memo(function ActionEditor({ actionId, content, colo
       style={editorStyle}
     />
   );
-});
+}
+
+/**
+ * Compare only the data props. The callback props (onChange/onSave/onCtrlL/onAltVersion)
+ * are recreated as fresh inline closures by the parent on every keystroke, but are
+ * functionally invariant (their captured ids are constant and the underlying handlers
+ * are stable). Ignoring their identity keeps this editor from re-rendering when an
+ * *unrelated* action in the same chapter is edited — that defeated memoization was the
+ * main cause of typing lag in chapters with many actions.
+ */
+export const ActionEditor = memo(ActionEditorImpl, (prev, next) =>
+  prev.actionId === next.actionId &&
+  prev.content === next.content &&
+  prev.fontSize === next.fontSize &&
+  prev.padding === next.padding &&
+  prev.colors === next.colors,
+);

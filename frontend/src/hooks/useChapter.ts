@@ -33,6 +33,13 @@ export function useChapter() {
   const structureRootRef = useRef<string | null>(null);
   const lastPositionRef = useRef<{ chapterId: string; sceneId?: string; actionId?: string } | null>(null);
 
+  // Per-keystroke edits are buffered here and committed to `actionContents` state on a
+  // debounce, so continuous typing does not re-render the whole App tree on every keystroke.
+  // `actionContents` is only used to seed the editor's initial doc and to drive dirty
+  // indicators — the live text lives in CodeMirror — so a short commit delay is invisible.
+  const pendingContentRef = useRef<Map<string, string>>(new Map());
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [structureRoot, setStructureRootState] = useState<string | null>(null);
   const [activeSubprojectType, setActiveSubprojectType] = useState<string | null>(null);
 
@@ -128,6 +135,11 @@ export function useChapter() {
       };
       persistPosition();
 
+      pendingContentRef.current.clear();
+      if (commitTimerRef.current) {
+        clearTimeout(commitTimerRef.current);
+        commitTimerRef.current = null;
+      }
       setActiveChapter(chapter);
       setActionContents(new Map(entries));
       setEditorPosition({ chapterId: id, sceneId: initialScrollTarget?.sceneId, actionId: initialScrollTarget?.actionId });
@@ -139,25 +151,46 @@ export function useChapter() {
 
   // ─── Action content management ─────────────────────────────────────────────
 
-  const updateActionContent = useCallback((chapterId: string, sceneId: string, actionId: string, content: string) => {
-    const key = actionKey(chapterId, sceneId, actionId);
+  /** Flush buffered edits into state. Returns immediately if nothing is pending. */
+  const commitPendingContent = useCallback(() => {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    if (pendingContentRef.current.size === 0) return;
+    const pending = pendingContentRef.current;
+    pendingContentRef.current = new Map();
     setActionContents(prev => {
       const next = new Map(prev);
-      next.set(key, { content, dirty: true });
+      for (const [key, content] of pending) {
+        next.set(key, { content, dirty: true });
+      }
       return next;
     });
   }, []);
 
+  const updateActionContent = useCallback((chapterId: string, sceneId: string, actionId: string, content: string) => {
+    const key = actionKey(chapterId, sceneId, actionId);
+    pendingContentRef.current.set(key, content);
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = setTimeout(commitPendingContent, 250);
+  }, [commitPendingContent]);
+
   const saveAction = useCallback(async (chapterId: string, sceneId: string, actionId: string) => {
     const key = actionKey(chapterId, sceneId, actionId);
     const entry = actionContents.get(key);
-    if (!entry || !entry.dirty) return;
+    // Prefer the live buffer: the latest keystrokes may not be committed to state yet.
+    const pending = pendingContentRef.current.get(key);
+    const content = pending ?? entry?.content;
+    const isDirty = pending !== undefined || entry?.dirty;
+    if (content === undefined || !isDirty) return;
     const root = sr();
     try {
-      await chapterApi.saveActionContent(chapterId, sceneId, actionId, entry.content, root);
+      await chapterApi.saveActionContent(chapterId, sceneId, actionId, content, root);
+      pendingContentRef.current.delete(key);
       setActionContents(prev => {
         const next = new Map(prev);
-        next.set(key, { ...entry, dirty: false });
+        next.set(key, { content, dirty: false });
         return next;
       });
     } catch (err) {
@@ -173,13 +206,18 @@ export function useChapter() {
       for (const action of scene.actions) {
         const key = actionKey(activeChapter.id, scene.id, action.id);
         const entry = actionContents.get(key);
-        if (entry?.dirty) {
+        // Prefer the live buffer over committed state for the latest keystrokes.
+        const pending = pendingContentRef.current.get(key);
+        const content = pending ?? entry?.content;
+        const isDirty = pending !== undefined || entry?.dirty;
+        if (isDirty && content !== undefined) {
           saves.push(
-            chapterApi.saveActionContent(activeChapter.id, scene.id, action.id, entry.content, root)
+            chapterApi.saveActionContent(activeChapter.id, scene.id, action.id, content, root)
               .then(() => {
+                pendingContentRef.current.delete(key);
                 setActionContents(prev => {
                   const next = new Map(prev);
-                  next.set(key, { ...entry, dirty: false });
+                  next.set(key, { content, dirty: false });
                   return next;
                 });
               })
@@ -321,6 +359,7 @@ export function useChapter() {
     try {
       await chapterApi.deleteAction(chapterId, sceneId, actionId, root);
       const key = actionKey(chapterId, sceneId, actionId);
+      pendingContentRef.current.delete(key);
       setActionContents(prev => {
         const next = new Map(prev);
         next.delete(key);
@@ -383,6 +422,11 @@ export function useChapter() {
   }, [activeChapter, openChapter, sr]);
 
   const closeChapter = useCallback(() => {
+    pendingContentRef.current.clear();
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
     setActiveChapter(null);
     setActionContents(new Map());
     setEditorPosition(null);
