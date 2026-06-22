@@ -232,7 +232,7 @@ export async function buildWikiIndex(
     }
     const fm = parseFrontmatter(content);
     entries.push({
-      path: relativePath,
+      path: `wiki/${relativePath}`,
       category: categoryOf(relativePath),
       name: inferTitle(relativePath, content),
       summary: fm.summary ?? '',
