@@ -14,6 +14,8 @@ import {
   Sparkles,
   ListChecks,
   Waypoints,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
 import { wikiApi } from "../../api.ts";
@@ -291,6 +293,7 @@ export function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const [expandOpen, setExpandOpen] = useState(false);
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
   const [ac, setAc] = useState<{
     query: string;
     atIndex: number;
@@ -662,76 +665,88 @@ export function ChatInput({
           />
           <button
             type="button"
-            className="chat-expand-btn"
-            onClick={() => setExpandOpen(true)}
-            title="Prompt-Fenster öffnen (großes Eingabefeld)"
-            disabled={streaming}
+            className="chat-toolbar-collapse-btn"
+            onClick={() => setToolbarCollapsed((c) => !c)}
+            title={toolbarCollapsed ? "Toolbar einblenden" : "Toolbar ausblenden"}
           >
-            <Maximize2 size={14} />
+            {toolbarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
           </button>
-          {onToggleReasoning && reasoningAvailable && fastAvailable && (
-            <button
-              type="button"
-              className={`chat-reasoning-btn${useReasoning ? " active" : ""}`}
-              onClick={onToggleReasoning}
-              title={
-                useReasoning
-                  ? "Reasoning-Modell aktiv — klicken zum Deaktivieren"
-                  : "Reasoning-Modell aktivieren"
-              }
-              disabled={streaming}
-            >
-              <Zap size={15} />
-            </button>
-          )}
-          {onToggleReasoning &&
-            reasoningAvailable &&
-            fastAvailable &&
-            useReasoning &&
-            onReasoningEffortChange && (
-              <ReasoningEffortSelector
-                value={reasoningEffort}
-                onChange={onReasoningEffortChange}
+          {!toolbarCollapsed && (
+            <>
+              <button
+                type="button"
+                className="chat-expand-btn"
+                onClick={() => setExpandOpen(true)}
+                title="Prompt-Fenster öffnen (großes Eingabefeld)"
                 disabled={streaming}
+              >
+                <Maximize2 size={14} />
+              </button>
+              {onToggleReasoning && reasoningAvailable && fastAvailable && (
+                <button
+                  type="button"
+                  className={`chat-reasoning-btn${useReasoning ? " active" : ""}`}
+                  onClick={onToggleReasoning}
+                  title={
+                    useReasoning
+                      ? "Reasoning-Modell aktiv — klicken zum Deaktivieren"
+                      : "Reasoning-Modell aktivieren"
+                  }
+                  disabled={streaming}
+                >
+                  <Zap size={15} />
+                </button>
+              )}
+              {onToggleReasoning &&
+                reasoningAvailable &&
+                fastAvailable &&
+                useReasoning &&
+                onReasoningEffortChange && (
+                  <ReasoningEffortSelector
+                    value={reasoningEffort}
+                    onChange={onReasoningEffortChange}
+                    disabled={streaming}
+                  />
+                )}
+              {onToggleRules && (
+                <button
+                  type="button"
+                  className={`chat-rules-btn${rulesEnabled ? " active" : ""}`}
+                  onClick={onToggleRules}
+                  title={
+                    rulesEnabled
+                      ? "KI-Regeln aktiv — klicken zum Deaktivieren"
+                      : "KI-Regeln deaktiviert — klicken zum Aktivieren"
+                  }
+                  disabled={streaming}
+                >
+                  <ListChecks size={15} />
+                  <span className="chat-rules-btn-label">KI-Regeln</span>
+                </button>
+              )}
+              {onToggleClaudePrep && (
+                <button
+                  type="button"
+                  className={`chat-rules-btn${claudePrep ? " active" : ""}`}
+                  onClick={onToggleClaudePrep}
+                  title={
+                    claudePrep
+                      ? "Claude Code Aufbereitung aktiv — klicken zum Deaktivieren"
+                      : "Claude Code Aufbereitung inaktiv — klicken zum Aktivieren"
+                  }
+                  disabled={streaming}
+                >
+                  <Waypoints size={15} />
+                  <span className="chat-rules-btn-label">CC Prep</span>
+                </button>
+              )}
+              <ToolkitMenuButton
+                disabledToolkits={disabledToolkits}
+                onToggleToolkit={onToggleToolkit}
+                streaming={streaming}
               />
-            )}
-          {onToggleRules && (
-            <button
-              type="button"
-              className={`chat-rules-btn${rulesEnabled ? " active" : ""}`}
-              onClick={onToggleRules}
-              title={
-                rulesEnabled
-                  ? "KI-Regeln aktiv — klicken zum Deaktivieren"
-                  : "KI-Regeln deaktiviert — klicken zum Aktivieren"
-              }
-              disabled={streaming}
-            >
-              <ListChecks size={15} />
-              <span className="chat-rules-btn-label">KI-Regeln</span>
-            </button>
+            </>
           )}
-          {onToggleClaudePrep && (
-            <button
-              type="button"
-              className={`chat-rules-btn${claudePrep ? " active" : ""}`}
-              onClick={onToggleClaudePrep}
-              title={
-                claudePrep
-                  ? "Claude Code Aufbereitung aktiv — klicken zum Deaktivieren"
-                  : "Claude Code Aufbereitung inaktiv — klicken zum Aktivieren"
-              }
-              disabled={streaming}
-            >
-              <Waypoints size={15} />
-              <span className="chat-rules-btn-label">CC Prep</span>
-            </button>
-          )}
-          <ToolkitMenuButton
-            disabledToolkits={disabledToolkits}
-            onToggleToolkit={onToggleToolkit}
-            streaming={streaming}
-          />
           {streaming ? (
             <button
               className="chat-send-btn stop"

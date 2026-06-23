@@ -5399,6 +5399,31 @@ body.file-tree-native-dragging {
 }
 
 /* Expand button (opens large prompt modal) */
+.chat-toolbar-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+        color 0.15s,
+        border-color 0.15s,
+        opacity 0.15s;
+    opacity: 0.5;
+}
+
+.chat-toolbar-collapse-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    opacity: 1;
+}
+
 .chat-expand-btn {
     display: flex;
     align-items: center;
