@@ -6046,6 +6046,130 @@ body.file-tree-native-dragging {
     background: var(--red);
 }
 
+/* ==================== Quick Notes ==================== */
+
+.quick-notes-window {
+    position: fixed;
+    z-index: 10050;
+    width: 384px;
+    height: min(420px, calc(100vh - 24px));
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+.quick-notes-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border);
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.quick-notes-header:active {
+    cursor: grabbing;
+}
+
+.quick-notes-grip {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.quick-notes-title {
+    font-weight: 600;
+    font-size: 13px;
+    flex: 1;
+}
+
+.quick-notes-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.quick-notes-status--error {
+    color: var(--red);
+}
+
+.quick-notes-spin {
+    animation: quick-notes-spin 0.8s linear infinite;
+}
+
+@keyframes quick-notes-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.quick-notes-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.85;
+}
+
+.quick-notes-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.quick-notes-icon-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text);
+}
+
+.quick-notes-banner {
+    font-size: 11px;
+    padding: 6px 10px;
+    background: rgba(243, 139, 168, 0.12);
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.quick-notes-banner code {
+    font-size: 10px;
+}
+
+.quick-notes-textarea {
+    flex: 1;
+    resize: none;
+    border: none;
+    padding: 12px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    background: var(--bg-primary);
+    color: var(--text);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.quick-notes-textarea:focus {
+    outline: none;
+}
+
+.quick-notes-textarea:disabled {
+    opacity: 0.6;
+}
+
 /* ==================== Chat Autocomplete ==================== */
 
 .ac-dropdown {

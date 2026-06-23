@@ -85,6 +85,7 @@ import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
 import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
 import { AlternativeVersionPanel } from "./components/editor/AlternativeVersionPanel.tsx";
 import { QuickChatWindow } from "./components/chat/QuickChatWindow.tsx";
+import { QuickNotesWindow } from "./components/notes/QuickNotesWindow.tsx";
 import {
   ensureSteeringPlanMarkedComplete,
   parseSteeringPlanFromAssistant,
@@ -199,6 +200,7 @@ function App() {
   const [useReasoning, setUseReasoning] = useState(false);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
   const [quickChatOpen, setQuickChatOpen] = useState(false);
+  const [quickNotesOpen, setQuickNotesOpen] = useState(false);
   const [webSearchAvailable, setWebSearchAvailable] = useState(false);
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
   const [llms, setLlms] = useState<LlmPublic[]>([]);
@@ -1068,6 +1070,12 @@ function App() {
       if (e.altKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();
         setQuickChatOpen((v) => !v);
+        return;
+      }
+
+      if (e.altKey && (e.key === "n" || e.key === "N")) {
+        e.preventDefault();
+        setQuickNotesOpen((v) => !v);
         return;
       }
 
@@ -2144,6 +2152,12 @@ function App() {
         llms={llms}
         webSearchAvailable={webSearchAvailable}
         disabledToolkits={disabledToolkits}
+      />
+
+      <QuickNotesWindow
+        open={quickNotesOpen}
+        onClose={() => setQuickNotesOpen(false)}
+        projectPath={project.projectPath ?? null}
       />
 
       <input
