@@ -29,6 +29,7 @@ export type StreamCallbacks = {
   onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[]) => void;
   onNaviStep?: (label: string | null) => void;
   onNaviContext?: (ctx: NaviContext) => void;
+  onClaudeBriefing?: (briefing: string) => void;
 };
 
 function assistantMessage(
@@ -191,5 +192,7 @@ export function attachAssistantStream(
         }
       : undefined,
     cbs.onNaviContext,
+    cbs.onClaudeBriefing,
+    (msg: string) => { cbs.setToolActivity(msg); },
   );
 }

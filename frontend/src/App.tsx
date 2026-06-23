@@ -400,6 +400,9 @@ function App() {
     onNaviContext: (ctx, conversationId) => {
       history.patchConversation(conversationId, { naviContext: ctx });
     },
+    onClaudeBriefing: (briefing, conversationId) => {
+      history.patchConversation(conversationId, { claudeBriefing: briefing });
+    },
     onAssistantResponseComplete: (fullText, meta) => {
       // Simulation auto-runner: after Navi finished a turn in a simulation,
       // queue the next simulated-merchant reply (the effect below sends it).
@@ -1349,6 +1352,12 @@ function App() {
     mainChatComposerDraftRef.current = "";
   }, [history.activeId]);
 
+  const handleToggleClaudePrep = useCallback(() => {
+    const conv = history.activeConversation;
+    if (!conv) return;
+    history.patchConversation(conv.id, { claudePrep: !conv.claudePrep });
+  }, [history.activeConversation, history.patchConversation]);
+
   const conversation = useConversationModel({
     projectPath: project.projectPath,
     activeConversation: history.activeConversation,
@@ -1966,6 +1975,8 @@ function App() {
                 onToggleToolkit={handleToggleToolkit}
                 rulesEnabled={rulesEnabled}
                 onToggleRules={handleToggleRules}
+                claudePrep={history.activeConversation?.claudePrep ?? false}
+                onToggleClaudePrep={handleToggleClaudePrep}
                 reasoningAvailable={reasoningAvailable}
                 fastAvailable={fastAvailable}
                 onModeChange={handleModeChange}

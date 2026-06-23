@@ -45,6 +45,8 @@ export interface ChatStreamSessionMeta {
   naviCurrentProblemInterpretation?: string;
   naviProblemQueue?: string[];
   simulationConfig?: SimulationConfig;
+  claudePrep?: boolean;
+  claudeBriefing?: string;
 }
 
 /** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. guided preset bootstrap). */
@@ -73,6 +75,7 @@ export interface UseChatOptions {
   onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[], conversationId: string) => void;
   onNaviStep?: (label: string | null) => void;
   onNaviContext?: (ctx: NaviContext, conversationId: string) => void;
+  onClaudeBriefing?: (briefing: string, conversationId: string) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -102,7 +105,11 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
       ...simPart,
     };
   }
-  return { sessionKind: 'standard', ...simPart };
+  const claudePart = {
+    ...(meta.claudePrep ? { claudePrep: true as const } : {}),
+    ...(meta.claudeBriefing ? { claudeBriefing: meta.claudeBriefing } : {}),
+  };
+  return { sessionKind: 'standard', ...simPart, ...claudePart };
 }
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, options?: UseChatOptions) {
@@ -133,6 +140,8 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   onNaviStepRef.current = options?.onNaviStep;
   const onNaviContextRef = useRef(options?.onNaviContext);
   onNaviContextRef.current = options?.onNaviContext;
+  const onClaudeBriefingRef = useRef(options?.onClaudeBriefing);
+  onClaudeBriefingRef.current = options?.onClaudeBriefing;
   const [naviStep, setNaviStep] = useState<string | null>(null);
   const [naviStepForCard, setNaviStepForCard] = useState<string | null>(null);
 
@@ -248,6 +257,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           ? (ctx: NaviContext) => onNaviContextRef.current!(ctx, naviConversationId)
           : undefined;
 
+      const onClaudeBriefingCb = onClaudeBriefingRef.current
+        ? (briefing: string) => onClaudeBriefingRef.current!(briefing, naviConversationId)
+        : undefined;
+
       const streamCbs: StreamCallbacks = {
         ...streamCbsBase,
         ...(onNaviState ? { onNaviState } : {}),
@@ -255,6 +268,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         ...(onNaviTipsCoveredCb ? { onNaviTipsCovered: onNaviTipsCoveredCb } : {}),
         ...(onNaviProblemsCb ? { onNaviProblems: onNaviProblemsCb } : {}),
         ...(onNaviContextCb ? { onNaviContext: onNaviContextCb } : {}),
+        ...(onClaudeBriefingCb ? { onClaudeBriefing: onClaudeBriefingCb } : {}),
         onNaviStep: (label) => {
           setNaviStep(label);
           if (label !== null) setNaviStepForCard(label);

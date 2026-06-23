@@ -13,6 +13,7 @@ import {
   FolderOpen,
   Sparkles,
   ListChecks,
+  Waypoints,
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
 import { wikiApi } from "../../api.ts";
@@ -254,6 +255,9 @@ interface ChatInputProps {
   /** Whether project KI-Regeln are currently active (injected into system prompt). */
   rulesEnabled?: boolean;
   onToggleRules?: () => void;
+  /** When true, Claude Code runs a preparation step before the first chat turn. */
+  claudePrep?: boolean;
+  onToggleClaudePrep?: () => void;
 }
 
 export function ChatInput({
@@ -282,6 +286,8 @@ export function ChatInput({
   onDraftChange,
   rulesEnabled = true,
   onToggleRules,
+  claudePrep = false,
+  onToggleClaudePrep,
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const [expandOpen, setExpandOpen] = useState(false);
@@ -703,6 +709,22 @@ export function ChatInput({
             >
               <ListChecks size={15} />
               <span className="chat-rules-btn-label">KI-Regeln</span>
+            </button>
+          )}
+          {onToggleClaudePrep && (
+            <button
+              type="button"
+              className={`chat-rules-btn${claudePrep ? " active" : ""}`}
+              onClick={onToggleClaudePrep}
+              title={
+                claudePrep
+                  ? "Claude Code Aufbereitung aktiv — klicken zum Deaktivieren"
+                  : "Claude Code Aufbereitung inaktiv — klicken zum Aktivieren"
+              }
+              disabled={streaming}
+            >
+              <Waypoints size={15} />
+              <span className="chat-rules-btn-label">CC Prep</span>
             </button>
           )}
           <ToolkitMenuButton

@@ -53,6 +53,8 @@ interface ChatPanelProps {
   onToggleToolkit?: (kitId: string) => void;
   rulesEnabled?: boolean;
   onToggleRules?: () => void;
+  claudePrep?: boolean;
+  onToggleClaudePrep?: () => void;
   onModeChange: (mode: string) => void;
   onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
@@ -143,6 +145,8 @@ export function ChatPanel({
   onToggleToolkit,
   rulesEnabled = true,
   onToggleRules,
+  claudePrep = false,
+  onToggleClaudePrep,
   onModeChange,
   onSend,
   onStop,
@@ -467,6 +471,8 @@ export function ChatPanel({
           onToggleToolkit={onToggleToolkit}
           rulesEnabled={rulesEnabled}
           onToggleRules={onToggleRules}
+          claudePrep={claudePrep}
+          onToggleClaudePrep={onToggleClaudePrep}
           reasoningAvailable={reasoningAvailable}
           fastAvailable={fastAvailable}
           activeSelection={activeSelection}

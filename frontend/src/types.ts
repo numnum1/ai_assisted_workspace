@@ -286,6 +286,10 @@ export interface ChatRequest {
   naviProblemQueue?: string[];
   /** When set, injects simulation context (goal + cast) into the system prompt. */
   simulationConfig?: SimulationConfig;
+  /** When true, runs a Claude Code preparation step before the first chat turn. */
+  claudePrep?: boolean;
+  /** Briefing produced by the Claude Code preparation step; injected into the system prompt. */
+  claudeBriefing?: string;
 }
 
 export interface ContextInfo {
@@ -372,6 +376,10 @@ export interface Conversation {
   naviProblemQueue?: string[];
   /** When set, this conversation is a simulation session with a goal and cast. */
   simulationConfig?: SimulationConfig;
+  /** When true, Claude Code runs a preparation step before the first chat turn. */
+  claudePrep?: boolean;
+  /** Briefing produced by Claude Code prep; injected into the system prompt on every turn. */
+  claudeBriefing?: string;
 }
 
 /** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */

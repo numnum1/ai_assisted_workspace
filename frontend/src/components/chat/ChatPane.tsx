@@ -157,6 +157,8 @@ export interface ChatPaneProps {
   onToggleToolkit?: (kitId: string) => void;
   rulesEnabled?: boolean;
   onToggleRules?: () => void;
+  claudePrep?: boolean;
+  onToggleClaudePrep?: () => void;
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
   activeSelection?: SelectionContext | null;
@@ -223,6 +225,8 @@ export function ChatPane({
   onToggleToolkit,
   rulesEnabled = true,
   onToggleRules,
+  claudePrep = false,
+  onToggleClaudePrep,
   reasoningAvailable = true,
   fastAvailable = true,
   activeSelection = null,
@@ -684,6 +688,8 @@ export function ChatPane({
             onToggleToolkit={agentMode ? undefined : onToggleToolkit}
             rulesEnabled={rulesEnabled}
             onToggleRules={agentMode ? undefined : onToggleRules}
+            claudePrep={claudePrep}
+            onToggleClaudePrep={agentMode ? undefined : onToggleClaudePrep}
             reasoningAvailable={reasoningAvailable}
             fastAvailable={fastAvailable}
             activeSelection={activeSelection}

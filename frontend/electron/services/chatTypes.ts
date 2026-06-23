@@ -30,7 +30,9 @@ export type ChatStreamEvent =
   | { type: "navi_tips_covered"; data: { coveredIds: string[] } }
   | { type: "navi_problems"; data: { current: string; interpretation?: string; queue: string[] } }
   | { type: "navi_step"; data: { label: string | null } }
-  | { type: "navi_context"; data: import("../../src/types.js").NaviContext };
+  | { type: "navi_context"; data: import("../../src/types.js").NaviContext }
+  | { type: "claude_briefing"; data: { briefing: string } }
+  | { type: "claude_prep_status"; data: { message: string } };
 
 export interface ChatStreamStartResult {
   streamId: string;

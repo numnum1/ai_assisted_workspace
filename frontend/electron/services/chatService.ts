@@ -33,6 +33,7 @@ import {
   type ToolExecutionResult,
 } from "./chatToolExecution.js";
 import { runNaviChatStream } from "./conversation/naviChat.js";
+import { runClaudeCodePrep } from "./claudeCodeService.js";
 
 export type { ContextBlock };
 export type {
@@ -211,14 +212,39 @@ export function stopChatStream(streamId: string): { status: string } {
 async function runChatStream(
   streamId: string,
   projectPath: string | null,
-  request: ChatRequest,
+  requestIn: ChatRequest,
   emit: (event: ChatStreamEvent) => void,
 ): Promise<void> {
-  if (request.sessionKind === "navi") {
-    return runNaviChatStream(streamId, projectPath, request, emit);
+  if (requestIn.sessionKind === "navi") {
+    return runNaviChatStream(streamId, projectPath, requestIn, emit);
   }
 
+  let request = requestIn;
+
   try {
+    // Claude Code preparation step: runs once on the first message of a chat
+    // to gather relevant wiki context before handing off to Grok.
+    if (
+      request.claudePrep &&
+      !request.claudeBriefing &&
+      request.history.length === 0 &&
+      projectPath
+    ) {
+      emit({ type: "claude_prep_status", data: { message: "Kontext wird aufbereitet…" } });
+      try {
+        const briefing = await runClaudeCodePrep({
+          projectPath,
+          userRequest: request.message,
+        });
+        if (briefing && isStreamActive(streamId)) {
+          emit({ type: "claude_briefing", data: { briefing } });
+          request = { ...request, claudeBriefing: briefing };
+        }
+      } catch (prepErr) {
+        console.warn("[chat] Claude Code prep failed (non-fatal):", prepErr);
+      }
+    }
+
     const provider = await resolveAiProvider(request.llmId);
     const endpoint = resolveProviderEndpoint(provider, request.useReasoning);
     const preview = await previewChatContext(projectPath, request);

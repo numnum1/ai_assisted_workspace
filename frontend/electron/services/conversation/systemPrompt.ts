@@ -458,6 +458,15 @@ export function buildSystemPrompt(
     sections.push(guidedLines.join("\n"));
   }
 
+  // 5b. Claude Code briefing — context prepared before this turn by Claude Code.
+  // Injected verbatim; contains focused wiki facts relevant to the user's request.
+  if (!request.quickChat && request.claudeBriefing) {
+    sections.push(
+      "AUFBEREITETER KONTEXT (von Claude Code für dieses Gespräch zusammengestellt):\n\n" +
+        request.claudeBriefing,
+    );
+  }
+
   // 6. Reasoning hint
   if (request.useReasoning) {
     sections.push(

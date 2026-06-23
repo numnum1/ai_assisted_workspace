@@ -206,6 +206,8 @@ export function useConversationModel(p: UseConversationModelParams) {
         ...(c?.naviCurrentProblemInterpretation ? { naviCurrentProblemInterpretation: c.naviCurrentProblemInterpretation } : {}),
         ...(c?.naviProblemQueue?.length ? { naviProblemQueue: c.naviProblemQueue } : {}),
         ...(c?.simulationConfig ? { simulationConfig: c.simulationConfig } : {}),
+        ...(c?.claudePrep ? { claudePrep: true as const } : {}),
+        ...(c?.claudeBriefing ? { claudeBriefing: c.claudeBriefing } : {}),
       };
       chat.sendMessage(
         message,

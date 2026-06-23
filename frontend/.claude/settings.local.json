@@ -21,7 +21,8 @@
       "Bash(cd \"M:\\\\Benutzer\\\\marcm\\\\Projekte\\\\OL\")",
       "Bash(dir /b)",
       "Bash(find \"M:\\\\projects\\\\markdown_editor\\\\markdown_project\" -name \"agents.json\" -o -name \".assistant\" -type d 2>/dev/null | head -20)",
-      "Bash(findstr /s \"buildPreviewContext\\\\|readGlossaryContent\\\\|buildFileTreeListing\" electron\\\\services\\\\*.ts)"
+      "Bash(findstr /s \"buildPreviewContext\\\\|readGlossaryContent\\\\|buildFileTreeListing\" electron\\\\services\\\\*.ts)",
+      "Bash(claude *)"
     ]
   }
 }
