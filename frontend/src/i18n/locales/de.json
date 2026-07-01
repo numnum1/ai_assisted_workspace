@@ -35,7 +35,19 @@
     "send": "Senden (Enter)",
     "stop": "Stop",
     "webSearchNotConfigured": "Websuche nicht konfiguriert — setze",
-    "webSearchInBackend": "im Backend."
+    "webSearchInBackend": "im Backend.",
+    "newChatDialog": {
+      "title": "Neuen Chat starten",
+      "hint": "Mit „Neuer Chat starten" bleibt der aktuelle Chat unter dem Namen im Verlauf. Mit „Verwerfen" wird er gelöscht und erscheint dort nicht.",
+      "namePlaceholder": "Name des Chats…",
+      "sessionKind": "Sitzungsart",
+      "standard": "Standard — freies Gespräch wie bisher",
+      "guided": "Geführte Sitzung (Agent) — Arbeitsplan, Modus und Tool-Toggles werden für diese Sitzung gespeichert (LLM aus dem Modus)",
+      "navi": "Navi — KI-Berater für Händler in NRW, führt durch eine strukturierte Software-Beratung",
+      "templateOptional": "Vorlage (optional)",
+      "startChat": "Neuer Chat",
+      "discard": "Verwerfen"
+    }
   },
   "modes": {
     "storyReview": {

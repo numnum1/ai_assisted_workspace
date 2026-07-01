@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Trash2, X } from "lucide-react";
 import type { AgentPreset, ChatSessionKind } from "../../types.ts";
 
@@ -26,6 +27,7 @@ export function NewChatDialog({
   onDiscard,
   onCancel,
 }: NewChatDialogProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(currentTitle);
   const [sessionKind, setSessionKind] = useState<ChatSessionKind>("standard");
   const [agentPresetId, setAgentPresetId] = useState("");
@@ -66,34 +68,33 @@ export function NewChatDialog({
       >
         <div className="new-chat-dialog-header">
           <span id="new-chat-dialog-title" className="new-chat-dialog-title">
-            Neuen Chat starten
+            {t("chat.newChatDialog.title")}
           </span>
           <button
             type="button"
             className="new-chat-dialog-close"
             onClick={onCancel}
-            title="Abbrechen"
+            title={t("common.cancel")}
           >
             <X size={14} />
           </button>
         </div>
 
-        <div className="new-chat-dialog-body">
-          <p className="new-chat-dialog-hint">
-            Mit „Neuer Chat starten“ bleibt der aktuelle Chat unter dem Namen im
-            Verlauf. Mit „Verwerfen“ wird er gelöscht und erscheint dort nicht.
+        <div className=”new-chat-dialog-body”>
+          <p className=”new-chat-dialog-hint”>
+            {t(“chat.newChatDialog.hint”)}
           </p>
           <input
             ref={inputRef}
-            className="new-chat-dialog-input"
+            className=”new-chat-dialog-input”
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Name des Chats…"
+            placeholder={t(“chat.newChatDialog.namePlaceholder”)}
           />
           <fieldset className="new-chat-dialog-session-fieldset">
             <legend className="new-chat-dialog-session-legend">
-              Sitzungsart
+              {t("chat.newChatDialog.sessionKind")}
             </legend>
             <label className="new-chat-dialog-radio-row">
               <input
@@ -106,7 +107,7 @@ export function NewChatDialog({
                 }}
               />
               <span>
-                <strong>Standard</strong> — freies Gespräch wie bisher
+                <strong>Standard</strong> — {t("chat.newChatDialog.standard")}
               </span>
             </label>
             <label className="new-chat-dialog-radio-row">
@@ -117,9 +118,7 @@ export function NewChatDialog({
                 onChange={() => setSessionKind("guided")}
               />
               <span>
-                <strong>Geführte Sitzung (Agent)</strong> — Arbeitsplan, Modus
-                und Tool-Toggles werden für diese Sitzung gespeichert (LLM aus
-                dem Modus)
+                <strong>{t("chat.newChatDialog.guided")}</strong>
               </span>
             </label>
             <label className="new-chat-dialog-radio-row">
@@ -133,8 +132,7 @@ export function NewChatDialog({
                 }}
               />
               <span>
-                <strong>Navi</strong> — KI-Berater für Händler in NRW, führt
-                durch eine strukturierte Software-Beratung
+                <strong>Navi</strong> — {t("chat.newChatDialog.navi")}
               </span>
             </label>
           </fieldset>
@@ -146,7 +144,7 @@ export function NewChatDialog({
                     className="new-chat-dialog-plan-label"
                     htmlFor="new-chat-agent-preset"
                   >
-                    Vorlage (optional)
+                    {t("chat.newChatDialog.templateOptional")}
                   </label>
                   <select
                     id="new-chat-agent-preset"
@@ -184,17 +182,17 @@ export function NewChatDialog({
             className="new-chat-dialog-btn-secondary"
             onClick={onCancel}
           >
-            Abbrechen
+            {t("common.cancel")}
           </button>
           <div className="new-chat-dialog-footer-actions">
             <button
               type="button"
               className="new-chat-dialog-btn-danger"
               onClick={handleDiscard}
-              title="Aktuellen Chat löschen und neu starten"
+              title={t("chat.newChatDialog.discardHint") || "Delete and start new"}
             >
               <Trash2 size={13} />
-              Verwerfen
+              {t("chat.newChatDialog.discard")}
             </button>
             <button
               type="button"
@@ -202,7 +200,7 @@ export function NewChatDialog({
               onClick={handleConfirm}
             >
               <Plus size={13} />
-              Neuer Chat starten
+              {t("chat.newChatDialog.title")}
             </button>
           </div>
         </div>

@@ -35,7 +35,19 @@
     "send": "Send (Enter)",
     "stop": "Stop",
     "webSearchNotConfigured": "Web search not configured — set",
-    "webSearchInBackend": "in the backend."
+    "webSearchInBackend": "in the backend.",
+    "newChatDialog": {
+      "title": "Start New Chat",
+      "hint": "\"Start New Chat\" keeps the current chat under the entered name in your history. \"Discard\" deletes it and it won't appear in history.",
+      "namePlaceholder": "Chat name…",
+      "sessionKind": "Session Type",
+      "standard": "Standard — free conversation as usual",
+      "guided": "Guided Session (Agent) — work plan, mode, and tool toggles are saved for this session (LLM from mode)",
+      "navi": "Navi — AI advisor for retailers, guides through structured software consulting",
+      "templateOptional": "Template (optional)",
+      "startChat": "New Chat",
+      "discard": "Discard"
+    }
   },
   "modes": {
     "storyReview": {
