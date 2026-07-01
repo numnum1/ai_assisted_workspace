@@ -1,0 +1,145 @@
+{
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "delete": "Löschen",
+    "add": "Hinzufügen"
+  },
+  "appearance": {
+    "title": "Darstellung",
+    "colorScheme": "Farbschema",
+    "dark": "Dunkel",
+    "light": "Hell",
+    "fontFamily": "Schriftart",
+    "chatFontSize": "Chat-Schriftgröße",
+    "sizeValue": "{{size}} px",
+    "previewText": "Die schnelle braune Katze springt über den faulen Hund. The quick brown fox jumps over the lazy dog.",
+    "language": "Sprache",
+    "deutsch": "Deutsch",
+    "english": "English",
+    "keyboard": "Tastenkürzel"
+  },
+  "chat": {
+    "ai": "KI",
+    "user": "Du",
+    "context": "Kontext",
+    "clearHistory": "Verlauf leeren",
+    "emptyMessage": "Kurze Fragen, Begriffe oder Formulierungen — ohne Projekt-Kontext. Mit Websuche (wenn konfiguriert).",
+    "connectionErrorLabel": "Verbindungsproblem",
+    "connectionErrorText": "Die KI-API ist nicht erreichbar.",
+    "connectionErrorHint": "Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.",
+    "modelEmptyResponse": "Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).",
+    "retry": "Erneut versuchen",
+    "messagePlaceholder": "Nachricht…",
+    "send": "Senden (Enter)",
+    "stop": "Stop",
+    "webSearchNotConfigured": "Websuche nicht konfiguriert — setze",
+    "webSearchInBackend": "im Backend."
+  },
+  "modes": {
+    "storyReview": {
+      "name": "Story-Review",
+      "prompt": "Hilf beim Story-Review: analysiere Aufbau, Spannungsbogen, Figuren, Motivation und Logik — klar, konkret und konstruktiv."
+    },
+    "develop": {
+      "name": "Story entwickeln",
+      "prompt": "Hilf, die Geschichte weiterzuentwickeln: stelle gezielte Fragen, biete Alternativen an und denke Figuren, Konflikte und Plot gemeinsam mit dem Autor weiter."
+    },
+    "brainstorm": {
+      "name": "Brainstorm",
+      "prompt": "Sei ein kreativer Sparringspartner. Liefere viele Ideen, ungewöhnliche Richtungen und Was-wäre-wenn-Szenarien."
+    },
+    "spelling": {
+      "name": "Rechtschreibung",
+      "prompt": "Mach eine Rechtschreib- und Grammatikprüfung. Korrigiere Fehler, ohne Stil oder Inhalt zu verändern, und liste die Korrektionen knapp auf."
+    },
+    "bookDevelopment": {
+      "name": "Buchentwicklung",
+      "prompt": "Du entwickelst mit dem Autor die Story-Bibel (Figuren, Orte, Plot, Themen, Weltregeln) — du schreibst keine Kapitel aus. Arbeite ein Thema pro Block, stelle gezielte Fragen und denke Figuren, Konflikte und Plot gemeinsam mit dem Autor weiter. Führe sichtbar eine Liste offener Fragen mit und arbeite sie nacheinander ab."
+    },
+    "prosaSketch": {
+      "name": "Prosa-Skizze",
+      "prompt": "Du arbeitest mit dem Autor an explorativer Prosa — Szenen-Skizzen und Entwürfen, die er schreibt, um eine Idee auszuprobieren, nicht um fertigen Text zu liefern. Behandle jede Skizze als Experiment über die Geschichte: Lies sie nicht als Text (kein Lektorat, keine Stil- oder Formulierungskritik), sondern frage, welche Idee, Dynamik oder Frage sie erprobt. Bewerte diese Entwicklungsidee — was sie trägt, was sie eröffnet oder verbaut, wo der vielversprechende Kern steckt — und denke die Geschichte von dort aus weiter mit gezielten Was-wäre-wenn-Optionen. Du darfst selbst kurze Prosa-Fragmente skizzieren, um eine Richtung zu testen — als Denkangebot, nicht als fertigen Text. Prüfe die Skizze gegen die bestehende Story-Bibel und weise auf Widersprüche hin, ohne die Exploration zu blockieren. Behandle Skizzen-Inhalte als vorläufig: Sie sind noch kein Kanon — benenne, was Kanon würde, falls der Autor die Idee behält, aber dräng es nicht ins Wiki, solange es Exploration bleibt. Arbeite eine Skizze pro Block."
+    },
+    "editor": {
+      "name": "Lektor",
+      "prompt": "Du bewertest Prosa ausschließlich auf Wirkungsebene — als Leser, nicht als Stilpolizei. Beantworte für jeden Text konkret: Wo wird es langweilig und warum (fehlender Sog, keine Frage im Raum, zu viel Erklärung)? Wo verliert man den Faden? Was zieht einen rein? Wie ist das Tempo — schleppt sich etwas oder hetzt es? Ist jederzeit klar, was passiert und wen es betrifft? Gibt es einen Grund, weiterzulesen? Benenne Stellen im Text konkret (zitiere kurz). Sei direkt und ehrlich — kein falsches Lob, kein Weichspülen. Standardmäßig diagnostizierst du nur — der Autor entscheidet, was er damit macht. Wenn er ausdrücklich darum bittet, darfst du einzelne Stellen umformulieren oder eine alternative Version einer Szene schreiben."
+    },
+    "navi": {
+      "name": "KI Navi",
+      "prompt": "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler. Deine Aufgabe: herausfinden, ob und wie KI oder Software dem Händler bei seinem konkreten Problem wirklich helfen kann – ehrlich und auf Basis seiner tatsächlichen Situation. Du verkaufst kein bestimmtes Produkt und drängst zu keinem Umbau seines bestehenden Systems. Wenn KI oder Software nicht weiterhilft, sagst du das offen."
+    },
+    "bookChat": {
+      "name": "Buchchat",
+      "prompt": "Du bist ein entspannter Gesprächspartner rund ums Buchschreiben. Kein Programm, keine Strategie — einfach reden. Antworte locker und natürlich auf das, was der Autor sagt."
+    }
+  },
+  "workspaceModes": {
+    "standard": {
+      "name": "Standard",
+      "rootMetaLabel": "Projekt-Metadaten",
+      "levels": {
+        "chapter": {
+          "label": "Ordner",
+          "labelNew": "Neuer Ordner"
+        },
+        "scene": {
+          "label": "Datei",
+          "labelNew": "Neue Datei"
+        },
+        "action": {
+          "label": "Abschnitt",
+          "labelNew": "Neuer Abschnitt"
+        }
+      }
+    },
+    "book": {
+      "name": "Buch",
+      "rootMetaLabel": "Buch-Metadaten",
+      "levels": {
+        "chapter": {
+          "label": "Kapitel",
+          "labelNew": "Neues Kapitel"
+        },
+        "scene": {
+          "label": "Szene",
+          "labelNew": "Neue Szene"
+        },
+        "action": {
+          "label": "Aktion",
+          "labelNew": "Neue Aktion"
+        }
+      }
+    },
+    "music": {
+      "name": "Musik",
+      "rootMetaLabel": "Song-Metadaten",
+      "levels": {
+        "chapter": {
+          "label": "Song",
+          "labelNew": "Neuer Song"
+        },
+        "scene": {
+          "label": "Part",
+          "labelNew": "Neuer Part"
+        },
+        "action": {
+          "label": "Zeile",
+          "labelNew": "Neue Zeile"
+        }
+      }
+    }
+  },
+  "settings": {
+    "general": {
+      "aiRules": "KI-Regeln",
+      "maxToolRounds": "Max. Tool-Runden",
+      "threadSummaryLlm": "LLM für Thread-Zusammenfassung",
+      "defaultLlm": "Standard (erstes LLM)",
+      "workspacePluginsHint": "Workspace plugins",
+      "newRule": "Neue Regel",
+      "addRule": "Regel hinzufügen"
+    }
+  }
+}

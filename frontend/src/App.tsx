@@ -49,8 +49,6 @@ import type {
   ChatSessionKind,
   ReasoningEffort,
 } from "./types.ts";
-import type { NewChatConfirmPayload } from "./components/chat/NewChatDialog.tsx";
-import { CHAT_TOOLKIT_IDS } from "./types.ts";
 import {
   modesApi,
   projectApi,
@@ -63,6 +61,7 @@ import {
 } from "./api.ts";
 
 import { usePreferences } from "./hooks/usePreferences.ts";
+import { useTranslation } from "react-i18next";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import { useProject } from "./hooks/useProject.ts";
 import { useChapter } from "./hooks/useChapter.ts";
@@ -190,6 +189,7 @@ function App() {
   const chapter = useChapter();
   const refs = useReferencedFiles();
   const { preferences, updatePreferences } = usePreferences();
+  const { i18n } = useTranslation();
   const chatFontSizePxRef = useRef(preferences.appearance.chatFontSizePx ?? 14);
   chatFontSizePxRef.current = preferences.appearance.chatFontSizePx ?? 14;
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -230,6 +230,14 @@ function App() {
     }
     document.body.classList.toggle("theme-light", a.theme === "light");
   }, [preferences]);
+
+  // Sync language preference with i18next
+  useEffect(() => {
+    const lang = preferences.language ?? "de";
+    if (i18n.language !== lang) {
+      void i18n.changeLanguage(lang);
+    }
+  }, [preferences.language, i18n]);
 
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */

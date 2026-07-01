@@ -561,5 +561,6 @@ export interface AppearancePreferences {
 export interface AppPreferences {
   version: 1;
   appearance: AppearancePreferences;
+  language?: 'de' | 'en';
 }
 

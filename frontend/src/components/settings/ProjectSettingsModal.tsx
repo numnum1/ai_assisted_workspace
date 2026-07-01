@@ -575,6 +575,16 @@ export function ProjectSettingsModal({
   const [naviWorkPlanDraft, setNaviWorkPlanDraft] = useState<Record<string, string[]>>({});
   const [naviPlanHintsDraft, setNaviPlanHintsDraft] = useState<Record<string, { include: string[]; exclude: string[] }>>({});
 
+  const normalizePlanHints = (
+    hints: Record<string, { include?: string[]; exclude?: string[] }> | undefined,
+  ): Record<string, { include: string[]; exclude: string[] }> => {
+    const out: Record<string, { include: string[]; exclude: string[] }> = {};
+    for (const [sid, v] of Object.entries(hints ?? {})) {
+      out[sid] = { include: v.include ?? [], exclude: v.exclude ?? [] };
+    }
+    return out;
+  };
+
   // Modes
   const [modes, setModes] = useState<Mode[]>([]);
   const [modeForm, setModeForm] = useState<ModeForm | null>(null);
@@ -706,7 +716,7 @@ export function ProjectSettingsModal({
         setConfig(cfg);
         setNaviInstructionDraft(cfg.naviInstructions ?? {});
         setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
-        setNaviPlanHintsDraft(cfg.naviPlanHints ?? {});
+        setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
         setModes(mds);
         setAgents(agentList);
       } else {
@@ -741,7 +751,7 @@ export function ProjectSettingsModal({
       setConfig(cfg);
       setNaviInstructionDraft(cfg.naviInstructions ?? {});
       setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
-      setNaviPlanHintsDraft(cfg.naviPlanHints ?? {});
+      setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -2206,7 +2216,7 @@ export function ProjectSettingsModal({
                         setConfig(saved);
                         setNaviInstructionDraft(saved.naviInstructions ?? {});
                         setNaviWorkPlanDraft(saved.naviWorkPlans ?? {});
-                        setNaviPlanHintsDraft(saved.naviPlanHints ?? {});
+                        setNaviPlanHintsDraft(normalizePlanHints(saved.naviPlanHints));
                         setConfigSaved(true);
                         setTimeout(() => setConfigSaved(false), 2000);
                         onGeneralConfigSaved?.();

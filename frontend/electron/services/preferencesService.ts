@@ -39,6 +39,7 @@ const DEFAULT_APPEARANCE: Required<AppearancePreferences> = {
 const DEFAULT_PREFERENCES: AppPreferences = {
   version: 1,
   appearance: { ...DEFAULT_APPEARANCE },
+  language: "de",
 };
 
 function mergeWithDefaults(raw: Partial<AppPreferences>): AppPreferences {
@@ -48,6 +49,7 @@ function mergeWithDefaults(raw: Partial<AppPreferences>): AppPreferences {
       ...DEFAULT_APPEARANCE,
       ...(raw.appearance ?? {}),
     },
+    language: raw.language ?? "de",
   };
 }
 
@@ -77,6 +79,7 @@ export async function patchPreferences(
       ...current.appearance,
       ...(patch.appearance ?? {}),
     },
+    language: patch.language ?? current.language ?? "de",
   };
   await fs.writeFile(
     getPreferencesFilePath(),

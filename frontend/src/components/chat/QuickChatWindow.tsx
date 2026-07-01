@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, GripHorizontal, Trash2, Send, Square } from 'lucide-react';
 import type { LlmPublic } from '../../types.ts';
 import { projectConfigApi } from '../../api.ts';
@@ -26,6 +27,7 @@ interface QuickChatWindowProps {
 }
 
 export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disabledToolkits = new Set<string>() }: QuickChatWindowProps) {
+  const { t } = useTranslation();
   const {
     messages,
     streaming,
@@ -175,7 +177,7 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
           key={`at-${originalIdx}-${visIdx}-${mapIdx}`}
           className="quick-chat-bubble quick-chat-bubble--assistant"
         >
-          <div className="quick-chat-bubble-label">KI</div>
+          <div className="quick-chat-bubble-label">{t("chat.ai")}</div>
           <div className="quick-chat-bubble-text">{msg.content}</div>
         </div>
       );
@@ -190,7 +192,7 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
         key={`tm-${originalIdx}-${visIdx}-${mapIdx}`}
         className={`quick-chat-bubble quick-chat-bubble--${msg.role}`}
       >
-        <div className="quick-chat-bubble-label">KI</div>
+        <div className="quick-chat-bubble-label">{t("chat.ai")}</div>
         <div className="quick-chat-bubble-text">{msg.content}</div>
       </div>
     );
@@ -216,34 +218,33 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
       >
         <GripHorizontal size={16} className="quick-chat-grip" aria-hidden />
         <span className="quick-chat-title">Quick Chat</span>
-        <span className="quick-chat-hint" title="Tastenkürzel">
+        <span className="quick-chat-hint" title={t("appearance.keyboard")}>
           Alt+E
         </span>
         <button
           type="button"
           className="quick-chat-icon-btn"
           onClick={() => clearMessages()}
-          title="Verlauf leeren"
+          title={t("chat.clearHistory")}
           disabled={streaming}
         >
           <Trash2 size={15} />
         </button>
-        <button type="button" className="quick-chat-icon-btn" onClick={onClose} title="Schließen">
+        <button type="button" className="quick-chat-icon-btn" onClick={onClose} title={t("common.close")}>
           <X size={16} />
         </button>
       </div>
 
       {!webSearchAvailable && (
         <div className="quick-chat-banner">
-          Websuche nicht konfiguriert — setze <code>TAVILY_API_KEY</code> / <code>app.web-search.api-key</code> im
-          Backend.
+          {t("chat.webSearchNotConfigured")} <code>TAVILY_API_KEY</code> / <code>app.web-search.api-key</code> {t("chat.webSearchInBackend")}
         </div>
       )}
 
       <div className="quick-chat-messages">
         {messages.filter((m) => !m.hidden).length === 0 && (
           <p className="quick-chat-empty">
-            Kurze Fragen, Begriffe oder Formulierungen — ohne Projekt-Kontext. Mit Websuche (wenn konfiguriert).
+            {t("chat.emptyMessage")}
           </p>
         )}
         {renderUnits.map((unit, mapIdx) => {
@@ -258,9 +259,24 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
               </Fragment>
             );
           }
+          if (unit.type === 'userTurn') {
+            return (
+              <Fragment key={`turn-${unit.originalIndices.join('-')}-${mapIdx}`}>
+                {unit.messages.map(({ msg, originalIdx, visIdx }) => (
+                  <div
+                    key={`m-${originalIdx}-${visIdx}-${mapIdx}`}
+                    className={`quick-chat-bubble quick-chat-bubble--${msg.role}`}
+                  >
+                    <div className="quick-chat-bubble-label">{t("chat.user")}</div>
+                    <div className="quick-chat-bubble-text">{msg.content}</div>
+                  </div>
+                ))}
+              </Fragment>
+            );
+          }
           const { msg, originalIdx, visIdx } = unit;
           const label =
-            msg.role === 'user' ? 'Du' : msg.role === 'system' ? 'Kontext' : 'KI';
+            msg.role === 'user' ? t("chat.user") : msg.role === 'system' ? t("chat.context") : t("chat.ai");
           return (
             <div
               key={`m-${originalIdx}-${visIdx}-${mapIdx}`}
@@ -278,18 +294,18 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
           <div className="quick-chat-error">
             {error === 'NETWORK_ERROR' ? (
               <>
-                <strong>Verbindungsproblem:</strong> Die KI-API ist nicht erreichbar.
+                <strong>{t("chat.connectionErrorLabel")}:</strong> {t("chat.connectionErrorText")}
                 <br />
-                Bitte VPN-Verbindung prüfen — aktive VPN-Verbindungen können die DNS-Auflösung blockieren.
+                {t("chat.connectionErrorHint")}
               </>
             ) : error === 'MODEL_EMPTY_RESPONSE' ? (
-              'Das Modell hat keine Antwort geliefert (Kontext zu lang oder Inhaltsfilter).'
+              t("chat.modelEmptyResponse")
             ) : (
               error
             )}
             {(error === 'MODEL_EMPTY_RESPONSE' || error === 'NETWORK_ERROR') && (
               <button className="quick-chat-retry-btn" onClick={retry}>
-                Erneut versuchen
+                {t("chat.retry")}
               </button>
             )}
           </div>
@@ -308,7 +324,7 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
               handleSend();
             }
           }}
-          placeholder="Nachricht…"
+          placeholder={t("chat.messagePlaceholder")}
           disabled={streaming}
           rows={2}
         />
@@ -317,7 +333,7 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
             type="button"
             className="quick-chat-send stop"
             onClick={() => stopStreaming()}
-            title="Stop"
+            title={t("chat.stop")}
           >
             <Square size={16} />
           </button>
@@ -327,7 +343,7 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
             className="quick-chat-send"
             onClick={handleSend}
             disabled={!draft.trim()}
-            title="Senden (Enter)"
+            title={t("chat.send")}
           >
             <Send size={16} />
           </button>

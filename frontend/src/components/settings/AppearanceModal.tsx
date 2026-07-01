@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { AppPreferences, AppearancePreferences } from "../../types.ts";
 import "./AppearanceModal.css";
 
@@ -24,6 +25,7 @@ export function AppearanceModal({
   onUpdate,
   onClose,
 }: AppearanceModalProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<AppearancePreferences>({
     ...preferences.appearance,
   });
@@ -38,6 +40,10 @@ export function AppearanceModal({
     void onUpdate({ appearance: next });
   };
 
+  const handleLanguageChange = (lang: 'de' | 'en') => {
+    void onUpdate({ language: lang });
+  };
+
   const fontSizePx = draft.chatFontSizePx ?? 14;
 
   return (
@@ -46,19 +52,19 @@ export function AppearanceModal({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Darstellungseinstellungen"
+      aria-label={t("appearance.title")}
     >
       <div
         className="appearance-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="appearance-modal-header">
-          <span className="appearance-modal-title">Darstellung</span>
+          <span className="appearance-modal-title">{t("appearance.title")}</span>
           <button
             type="button"
             className="appearance-modal-close"
             onClick={onClose}
-            title="Schließen (Esc)"
+            title={t("common.close") + " (Esc)"}
           >
             <X size={16} />
           </button>
@@ -67,19 +73,36 @@ export function AppearanceModal({
         <div className="appearance-modal-body">
           {/* Theme */}
           <section className="appearance-section">
-            <div className="appearance-section-label">Farbschema</div>
+            <div className="appearance-section-label">{t("appearance.colorScheme")}</div>
             <div className="appearance-theme-row">
-              {(["dark", "light"] as const).map((t) => (
+              {(["dark", "light"] as const).map((theme) => (
                 <button
-                  key={t}
+                  key={theme}
                   type="button"
-                  className={`appearance-theme-btn${draft.theme === t ? " active" : ""}`}
-                  onClick={() => handleChange({ theme: t })}
+                  className={`appearance-theme-btn${draft.theme === theme ? " active" : ""}`}
+                  onClick={() => handleChange({ theme })}
                 >
                   <span
-                    className={`appearance-theme-swatch appearance-theme-swatch--${t}`}
+                    className={`appearance-theme-swatch appearance-theme-swatch--${theme}`}
                   />
-                  {t === "dark" ? "Dunkel" : "Hell"}
+                  {theme === "dark" ? t("appearance.dark") : t("appearance.light")}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Language */}
+          <section className="appearance-section">
+            <div className="appearance-section-label">{t("appearance.language")}</div>
+            <div className="appearance-theme-row">
+              {(["de", "en"] as const).map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  className={`appearance-theme-btn${(preferences.language ?? "de") === lang ? " active" : ""}`}
+                  onClick={() => handleLanguageChange(lang)}
+                >
+                  {lang === "de" ? t("appearance.deutsch") : t("appearance.english")}
                 </button>
               ))}
             </div>
@@ -88,7 +111,7 @@ export function AppearanceModal({
           {/* Font family */}
           <section className="appearance-section">
             <label className="appearance-section-label" htmlFor="pref-font-family">
-              Schriftart
+              {t("appearance.fontFamily")}
             </label>
             <select
               id="pref-font-family"
@@ -106,8 +129,7 @@ export function AppearanceModal({
               className="appearance-preview-text"
               style={{ fontFamily: draft.fontFamily }}
             >
-              Die schnelle braune Katze springt über den faulen Hund. The quick
-              brown fox jumps over the lazy dog.
+              {t("appearance.previewText")}
             </p>
           </section>
 
@@ -117,7 +139,7 @@ export function AppearanceModal({
               className="appearance-section-label"
               htmlFor="pref-chat-font-size"
             >
-              Chat-Schriftgröße&ensp;
+              {t("appearance.chatFontSize")}&ensp;
               <span className="appearance-size-value">{fontSizePx} px</span>
             </label>
             <div className="appearance-slider-row">
@@ -140,7 +162,7 @@ export function AppearanceModal({
               className="appearance-preview-text"
               style={{ fontSize: fontSizePx }}
             >
-              So sieht der Chat-Text bei dieser Größe aus.
+              {t("appearance.previewText")}
             </p>
           </section>
         </div>

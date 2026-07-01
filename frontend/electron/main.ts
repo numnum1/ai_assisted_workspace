@@ -712,6 +712,17 @@ function createWindow(): void {
       error instanceof Error ? error.stack ?? error.message : error,
     );
   });
+  win.webContents.setWindowOpenHandler(() => ({
+    action: "allow",
+    overrideBrowserWindowOptions: {
+      webPreferences: {
+        preload: path.join(__dirname, "preload.cjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    },
+  }));
   // win.webContents.openDevTools();
 
   if (!app.isPackaged) {

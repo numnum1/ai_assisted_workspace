@@ -15,6 +15,7 @@ const DEFAULT_PREFERENCES: AppPreferences = {
     chatFontSizePx: 14,
     theme: "dark",
   },
+  language: "de",
 };
 
 export function usePreferences(): UsePreferencesResult {

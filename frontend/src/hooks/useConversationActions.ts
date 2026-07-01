@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { Conversation, Mode, LlmPublic, ChatSessionKind } from "../types.ts";
+import type { Mode, LlmPublic, ChatSessionKind } from "../types.ts";
 import type { NewChatConfirmPayload } from "../components/chat/NewChatDialog.tsx";
 import {
   applyGuidedAgentFromNewChatDialog,

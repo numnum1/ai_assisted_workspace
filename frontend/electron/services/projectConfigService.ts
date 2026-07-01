@@ -218,6 +218,15 @@ const DEFAULT_MODES: Mode[] = [
     color: "#2563eb",
     useReasoning: false,
   },
+  {
+    id: "buchchat",
+    name: "Buchchat",
+    systemPrompt:
+      "Du bist ein entspannter Gesprächspartner rund ums Buchschreiben. Kein Programm, keine Strategie — einfach reden. Antworte locker und natürlich auf das, was der Autor sagt.",
+    autoIncludes: [],
+    color: "#6366f1",
+    useReasoning: false,
+  },
 ];
 
 async function exists(targetPath: string): Promise<boolean> {
