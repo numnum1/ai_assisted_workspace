@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
 import {
   Send,
@@ -37,12 +38,13 @@ function ReasoningEffortSelector({
   onChange: (effort: ReasoningEffort) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className="chat-reasoning-effort"
       role="group"
-      aria-label="Reasoning-Aufwand"
-      title="Reasoning-Aufwand"
+      aria-label={t("reasoning.effort")}
+      title={t("reasoning.effort")}
     >
       {REASONING_EFFORT_OPTIONS.map((opt) => (
         <button
@@ -61,10 +63,11 @@ function ReasoningEffortSelector({
   );
 }
 
-const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: "web", label: "Web-Suche", icon: Globe },
-  { id: "dateisystem", label: "Dateisystem", icon: FolderOpen },
-  { id: "assistant", label: "Assistent", icon: Sparkles },
+// Note: This is populated dynamically in ToolkitMenuButton to use i18n
+const TOOLKIT_ROWS_BASE: { id: string; icon: LucideIcon }[] = [
+  { id: "web", icon: Globe },
+  { id: "dateisystem", icon: FolderOpen },
+  { id: "assistant", icon: Sparkles },
 ];
 
 function ToolkitMenuButton({
@@ -76,8 +79,14 @@ function ToolkitMenuButton({
   onToggleToolkit?: (kitId: string) => void;
   streaming: boolean;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const TOOLKIT_ROWS = TOOLKIT_ROWS_BASE.map(row => ({
+    ...row,
+    label: t(`toolkits.${row.id === 'web' ? 'webSearch' : row.id === 'dateisystem' ? 'filesystem' : 'assistant'}`)
+  }));
 
   useEffect(() => {
     if (!open) return;
@@ -110,10 +119,10 @@ function ToolkitMenuButton({
 
   const title =
     n === 0
-      ? "Toolkits — alle aktiv (klicken für Einstellungen)"
+      ? t("toolkits.allActive")
       : n === total
-        ? "Toolkits — alle aus (klicken für Einstellungen)"
-        : `Toolkits — ${total - n} von ${total} aktiv (klicken für Einstellungen)`;
+        ? t("toolkits.allDisabled")
+        : t("toolkits.partial", { active: total - n, total });
 
   return (
     <div ref={wrapRef} className="chat-toolkit-wrap">

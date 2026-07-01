@@ -141,5 +141,19 @@
       "newRule": "New Rule",
       "addRule": "Add Rule"
     }
+  },
+  "reasoning": {
+    "effort": "Reasoning effort",
+    "low": "Low",
+    "medium": "Med",
+    "high": "High"
+  },
+  "toolkits": {
+    "webSearch": "Web Search",
+    "filesystem": "Filesystem",
+    "assistant": "Assistant",
+    "allActive": "Toolkits — all active (click for settings)",
+    "allDisabled": "Toolkits — all disabled (click for settings)",
+    "partial": "Toolkits — {{active}} of {{total}} active (click for settings)"
   }
 }
