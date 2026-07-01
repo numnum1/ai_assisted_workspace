@@ -80,8 +80,8 @@ export function NewChatDialog({
           </button>
         </div>
 
-        <div className=”new-chat-dialog-body”>
-          <p className=”new-chat-dialog-hint”>
+        <div className="new-chat-dialog-body">
+          <p className="new-chat-dialog-hint">
             {t(“chat.newChatDialog.hint”)}
           </p>
           <input

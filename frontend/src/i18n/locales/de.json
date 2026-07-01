@@ -38,7 +38,7 @@
     "webSearchInBackend": "im Backend.",
     "newChatDialog": {
       "title": "Neuen Chat starten",
-      "hint": "Mit „Neuer Chat starten" bleibt der aktuelle Chat unter dem Namen im Verlauf. Mit „Verwerfen" wird er gelöscht und erscheint dort nicht.",
+      "hint": "Mit \"Neuer Chat starten\" bleibt der aktuelle Chat unter dem Namen im Verlauf. Mit \"Verwerfen\" wird er gelöscht und erscheint dort nicht.",
       "namePlaceholder": "Name des Chats…",
       "sessionKind": "Sitzungsart",
       "standard": "Standard — freies Gespräch wie bisher",
