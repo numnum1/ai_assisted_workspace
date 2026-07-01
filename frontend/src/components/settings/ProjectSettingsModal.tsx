@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Settings,
   X,
@@ -177,6 +178,7 @@ function RulesEditor({
   onChange: (rules: ProjectRule[]) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   const [selectedIdx, setSelectedIdx] = useState<number | null>(
     rules.length > 0 ? 0 : null,
   );
@@ -196,7 +198,7 @@ function RulesEditor({
   };
 
   const addRule = () => {
-    const newRule: ProjectRule = { name: "Neue Regel", body: "" };
+    const newRule: ProjectRule = { name: t("settings.general.newRule"), body: "" };
     const updated = [...rules, newRule];
     onChange(updated);
     selectRule(updated.length - 1, updated);
@@ -227,7 +229,7 @@ function RulesEditor({
               selectRule(i);
             }}
           >
-            <span className="ps-rules-list-name">{rule.name || "Unbenannt"}</span>
+            <span className="ps-rules-list-name">{rule.name || t("settings.general.unnamed")}</span>
             {!disabled && (
               <button
                 className="ps-rules-list-delete"
@@ -235,7 +237,7 @@ function RulesEditor({
                   e.stopPropagation();
                   deleteRule(i);
                 }}
-                title="Regel löschen"
+                title={t("settings.general.deleteRule")}
               >
                 <Trash2 size={12} />
               </button>
@@ -243,11 +245,11 @@ function RulesEditor({
           </div>
         ))}
         {rules.length === 0 && (
-          <span className="ps-rules-empty">Keine Regeln</span>
+          <span className="ps-rules-empty">{t("settings.general.noRules")}</span>
         )}
         {!disabled && (
           <button className="ps-rules-add-btn" onClick={addRule}>
-            <Plus size={12} /> Regel hinzufügen
+            <Plus size={12} /> {t("settings.general.addRule")}
           </button>
         )}
       </div>
@@ -259,7 +261,7 @@ function RulesEditor({
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             onBlur={() => commitEdit(editName, editBody)}
-            placeholder="Regelname"
+            placeholder={t("settings.general.ruleName")}
             disabled={disabled}
           />
           <textarea
@@ -267,7 +269,7 @@ function RulesEditor({
             value={editBody}
             onChange={(e) => setEditBody(e.target.value)}
             onBlur={() => commitEdit(editName, editBody)}
-            placeholder="Regeltext…"
+            placeholder={t("settings.general.ruleText")}
             disabled={disabled}
           />
         </div>
@@ -547,6 +549,7 @@ export function ProjectSettingsModal({
   onGeneralConfigSaved,
   onWorkspacePluginsChanged,
 }: ProjectSettingsModalProps) {
+  const { t } = useTranslation();
   const { preferences } = usePreferences();
   const uiTheme: "light" | "dark" =
     preferences.appearance.theme === "light" ? "light" : "dark";
@@ -1217,11 +1220,11 @@ export function ProjectSettingsModal({
                   }}
                 >
                   {t === "general" ? (
-                    "General"
+                    t("settings.tabs.general")
                   ) : t === "quickChat" ? (
-                    "Quick Chat"
+                    t("settings.tabs.quickChat")
                   ) : t === "modes" ? (
-                    `Modes (${modes.length})`
+                    t("settings.tabs.modes", { count: modes.length })
                   ) : t === "agents" ? (
                     <>
                       <Bot
@@ -1232,14 +1235,14 @@ export function ProjectSettingsModal({
                           marginRight: 4,
                         }}
                       />
-                      Agenten ({agents.length})
+                      {t("settings.tabs.agents", { count: agents.length })}
                     </>
                   ) : t === "navi" ? (
-                    "Navi"
+                    t("settings.tabs.navi")
                   ) : t === "workspacePlugins" ? (
-                    "Workspace plugins"
+                    t("settings.tabs.workspacePlugins")
                   ) : (
-                    `LLMs (${llmsState?.providers?.length ?? 0})`
+                    t("settings.tabs.aiProviders", { count: llmsState?.providers?.length ?? 0 })
                   )}
                 </button>
               ))}
@@ -1280,7 +1283,7 @@ export function ProjectSettingsModal({
             {/* General tab */}
             {initialized && tab === "general" && (
               <div className="ps-tab-content">
-                <label className="ps-label">Project Name</label>
+                <label className="ps-label">{t("settings.general.projectName")}</label>
                 <input
                   className="ps-input"
                   value={config.name}
@@ -1290,7 +1293,7 @@ export function ProjectSettingsModal({
                   placeholder="My Project"
                 />
 
-                <label className="ps-label">Description</label>
+                <label className="ps-label">{t("settings.general.description")}</label>
                 <input
                   className="ps-input"
                   value={config.description}
@@ -1300,9 +1303,9 @@ export function ProjectSettingsModal({
                   placeholder="Short description of the project"
                 />
 
-                <label className="ps-label">Default mode</label>
+                <label className="ps-label">{t("settings.general.defaultMode")}</label>
                 <p className="ps-hint">
-                  Selected automatically when you open the app (by mode id).
+                  {t("settings.general.defaultModeHint")}
                 </p>
                 <select
                   className="ps-input"
@@ -1330,10 +1333,9 @@ export function ProjectSettingsModal({
                   unter <strong>Workspace plugins</strong>.
                 </p>
 
-                <label className="ps-label">Always Include Files</label>
+                <label className="ps-label">{t("settings.general.alwaysIncludeFiles")}</label>
                 <p className="ps-hint">
-                  These files are always added to the AI context, regardless of
-                  mode.
+                  {t("settings.general.alwaysIncludeHint")}
                 </p>
                 <TagListEditor
                   items={config.alwaysInclude}

@@ -132,14 +132,34 @@
     }
   },
   "settings": {
+    "tabs": {
+      "general": "General",
+      "quickChat": "Quick Chat",
+      "modes": "Modes ({{count}})",
+      "agents": "Agents ({{count}})",
+      "navi": "Navi",
+      "workspacePlugins": "Workspace plugins",
+      "aiProviders": "LLMs ({{count}})"
+    },
     "general": {
+      "projectName": "Project Name",
+      "description": "Description",
+      "defaultMode": "Default Mode",
+      "defaultModeHint": "Selected automatically when you open the app (by mode id).",
+      "alwaysIncludeFiles": "Always Include Files",
+      "alwaysIncludeHint": "These files are always added to the AI context, regardless of mode.",
       "aiRules": "AI Rules",
       "maxToolRounds": "Max. Tool Rounds",
       "threadSummaryLlm": "LLM for Thread Summary",
       "defaultLlm": "Default (first LLM)",
       "workspacePluginsHint": "Workspace plugins",
       "newRule": "New Rule",
-      "addRule": "Add Rule"
+      "addRule": "Add Rule",
+      "unnamed": "Unnamed",
+      "noRules": "No rules",
+      "deleteRule": "Delete rule",
+      "ruleName": "Rule name",
+      "ruleText": "Rule text…"
     }
   },
   "reasoning": {

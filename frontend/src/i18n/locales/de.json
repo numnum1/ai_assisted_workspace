@@ -132,14 +132,34 @@
     }
   },
   "settings": {
+    "tabs": {
+      "general": "Allgemein",
+      "quickChat": "Quick Chat",
+      "modes": "Modi ({{count}})",
+      "agents": "Agenten ({{count}})",
+      "navi": "Navi",
+      "workspacePlugins": "Workspace plugins",
+      "aiProviders": "LLMs ({{count}})"
+    },
     "general": {
+      "projectName": "Projektname",
+      "description": "Beschreibung",
+      "defaultMode": "Standard-Modus",
+      "defaultModeHint": "Wird automatisch ausgewählt, wenn die App öffnet (nach Modus-ID).",
+      "alwaysIncludeFiles": "Dateien immer einbeziehen",
+      "alwaysIncludeHint": "Diese Dateien werden immer zum KI-Kontext hinzugefügt, unabhängig vom Modus.",
       "aiRules": "KI-Regeln",
       "maxToolRounds": "Max. Tool-Runden",
       "threadSummaryLlm": "LLM für Thread-Zusammenfassung",
       "defaultLlm": "Standard (erstes LLM)",
       "workspacePluginsHint": "Workspace plugins",
       "newRule": "Neue Regel",
-      "addRule": "Regel hinzufügen"
+      "addRule": "Regel hinzufügen",
+      "unnamed": "Unbenannt",
+      "noRules": "Keine Regeln",
+      "deleteRule": "Regel löschen",
+      "ruleName": "Regelname",
+      "ruleText": "Regeltext…"
     }
   },
   "reasoning": {
