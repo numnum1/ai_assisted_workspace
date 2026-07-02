@@ -1682,6 +1682,13 @@ body.file-tree-native-dragging {
     color: #c89846;
 }
 
+/* Night mode (alt palette): cool blue accent */
+.chapter-view-night-alt .editor-mode-btn.active {
+    background: rgba(88, 166, 255, 0.15);
+    border-color: #58a6ff;
+    color: #58a6ff;
+}
+
 .chapter-view .editor-save-btn {
     color: var(--rm-text-muted, #6b6560);
     border-color: var(--rm-border, #ddd8cf);
@@ -1728,6 +1735,17 @@ body.file-tree-native-dragging {
 }
 
 .chapter-view-night .editor-close-btn:hover {
+    background: rgba(200, 80, 80, 0.15);
+    border-color: rgba(200, 80, 80, 0.4);
+    color: #c86060;
+}
+
+.chapter-view-night-alt .editor-close-btn {
+    color: #7d8590;
+    border-color: rgba(201, 209, 217, 0.2);
+}
+
+.chapter-view-night-alt .editor-close-btn:hover {
     background: rgba(200, 80, 80, 0.15);
     border-color: rgba(200, 80, 80, 0.4);
     color: #c86060;
@@ -1878,6 +1896,12 @@ body.file-tree-native-dragging {
     background: rgba(200, 155, 70, 0.15);
     border-color: #c89846;
     color: #c89846;
+}
+
+.song-view-night-alt .song-view-btn.active {
+    background: rgba(88, 166, 255, 0.15);
+    border-color: #58a6ff;
+    color: #58a6ff;
 }
 
 .song-view-close-btn:hover {

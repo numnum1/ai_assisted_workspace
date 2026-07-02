@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, MoveHorizontal, MoveVertical, X, Music, Eye, EyeOff } from 'lucide-react';
+import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, Music, Eye, EyeOff } from 'lucide-react';
 import { ActionEditor } from '../components/editor/ActionEditor.tsx';
 import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
 import type { ActionEditorColors } from '../components/editor/ActionEditor.tsx';
@@ -9,6 +9,7 @@ const FONT_SIZE_KEY = 'music-font-size';
 const PADDING_KEY = 'music-padding';
 const LINE_HEIGHT_KEY = 'music-line-height';
 const NIGHT_MODE_KEY = 'music-night-mode';
+const NIGHT_VARIANT_KEY = 'music-night-variant';
 const HIDE_METATAGS_KEY = 'music-hide-metatags';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 48;
@@ -30,6 +31,16 @@ const NIGHT_COLORS: ActionEditorColors = {
   caretColor:     '#c8a870',
   selectionColor: 'rgba(200,155,70,0.35)',
 };
+
+/** Alternative night palette: cool slate/blue instead of the warm amber default. */
+const NIGHT_COLORS_ALT: ActionEditorColors = {
+  bg:             '#0d1117',
+  text:           '#c9d1d9',
+  caretColor:     '#58a6ff',
+  selectionColor: 'rgba(56,139,253,0.35)',
+};
+
+const NIGHT_PALETTES = [NIGHT_COLORS, NIGHT_COLORS_ALT];
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
   return `${chapterId}/${sceneId}/${actionId}`;
@@ -64,6 +75,10 @@ export function MusicProjectEditor({
   const [nightMode, setNightMode] = useState<boolean>(() =>
     localStorage.getItem(NIGHT_MODE_KEY) === 'true'
   );
+  const [nightVariant, setNightVariant] = useState<number>(() => {
+    const stored = Number(localStorage.getItem(NIGHT_VARIANT_KEY));
+    return NIGHT_PALETTES[stored] ? stored : 0;
+  });
   const [hideMetatags, setHideMetatags] = useState<boolean>(() =>
     localStorage.getItem(HIDE_METATAGS_KEY) === 'true'
   );
@@ -77,7 +92,7 @@ export function MusicProjectEditor({
     enabled: editorMode === 'prose',
   });
 
-  const colors = nightMode ? NIGHT_COLORS : DAY_COLORS;
+  const colors = nightMode ? NIGHT_PALETTES[nightVariant] : DAY_COLORS;
 
   const registerRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) nodeRefs.current.set(key, el);
@@ -88,6 +103,7 @@ export function MusicProjectEditor({
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
   useEffect(() => { localStorage.setItem(LINE_HEIGHT_KEY, String(lineHeight)); }, [lineHeight]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
+  useEffect(() => { localStorage.setItem(NIGHT_VARIANT_KEY, String(nightVariant)); }, [nightVariant]);
   useEffect(() => { localStorage.setItem(HIDE_METATAGS_KEY, String(hideMetatags)); }, [hideMetatags]);
 
   useEffect(() => {
@@ -144,15 +160,16 @@ export function MusicProjectEditor({
     );
   }
 
-  const toolbarBg = nightMode ? '#120a04' : '#ebe5db';
-  const toolbarBorder = nightMode ? 'rgba(223,201,156,0.2)' : 'rgba(44,42,37,0.18)';
-  const accentColor = nightMode ? '#c8a870' : '#2c2a25';
-  const mutedColor = nightMode ? '#9a7d50' : '#6b6560';
-  const metatagColor = nightMode ? '#c89846' : '#8b7355';
+  const nightAlt = nightMode && nightVariant === 1;
+  const toolbarBg = nightAlt ? '#0a0e14' : nightMode ? '#120a04' : '#ebe5db';
+  const toolbarBorder = nightAlt ? 'rgba(201,209,217,0.2)' : nightMode ? 'rgba(223,201,156,0.2)' : 'rgba(44,42,37,0.18)';
+  const accentColor = nightAlt ? '#58a6ff' : nightMode ? '#c8a870' : '#2c2a25';
+  const mutedColor = nightAlt ? '#7d8590' : nightMode ? '#9a7d50' : '#6b6560';
+  const metatagColor = nightAlt ? '#58a6ff' : nightMode ? '#c89846' : '#8b7355';
 
   return (
     <div
-      className={`song-view${nightMode ? ' song-view-night' : ''}`}
+      className={`song-view${nightMode ? ' song-view-night' : ''}${nightAlt ? ' song-view-night-alt' : ''}`}
       style={{ backgroundColor: colors.bg, color: colors.text } as React.CSSProperties}
     >
       {/* Toolbar */}
@@ -206,6 +223,16 @@ export function MusicProjectEditor({
           >
             {nightMode ? <Sun size={14} /> : <Moon size={14} />}
           </button>
+          {nightMode && (
+            <button
+              className="song-view-btn"
+              onClick={() => setNightVariant(prev => (prev + 1) % NIGHT_PALETTES.length)}
+              title="Nachtmodus-Palette wechseln"
+              style={{ color: mutedColor, borderColor: toolbarBorder }}
+            >
+              <Palette size={14} />
+            </button>
+          )}
           <button
             className="song-view-btn"
             onClick={onSaveAll}

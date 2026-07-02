@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
 import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
@@ -9,6 +9,7 @@ const FONT_SIZE_KEY = 'reading-font-size';
 const PADDING_KEY = 'reading-padding';
 const LINE_HEIGHT_KEY = 'reading-line-height';
 const NIGHT_MODE_KEY = 'reading-night-mode';
+const NIGHT_VARIANT_KEY = 'reading-night-variant';
 const COLLAPSED_SCENES_KEY = 'chapter-collapsed-scenes';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 64;
@@ -30,6 +31,16 @@ const NIGHT_COLORS: ActionEditorColors = {
   caretColor:     '#c8a870',
   selectionColor: 'rgba(200,155,70,0.35)',
 };
+
+/** Alternative night palette: cool slate/blue instead of the warm amber default. */
+const NIGHT_COLORS_ALT: ActionEditorColors = {
+  bg:             '#0d1117',
+  text:           '#c9d1d9',
+  caretColor:     '#58a6ff',
+  selectionColor: 'rgba(56,139,253,0.35)',
+};
+
+const NIGHT_PALETTES = [NIGHT_COLORS, NIGHT_COLORS_ALT];
 
 interface ChapterViewProps {
   /** Reading view: one prose block per scene (e.g. Musik-Strophen). */
@@ -82,6 +93,10 @@ export function ChapterView({
   const [nightMode, setNightMode] = useState<boolean>(() =>
     localStorage.getItem(NIGHT_MODE_KEY) === 'true'
   );
+  const [nightVariant, setNightVariant] = useState<number>(() => {
+    const stored = Number(localStorage.getItem(NIGHT_VARIANT_KEY));
+    return NIGHT_PALETTES[stored] ? stored : 0;
+  });
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -103,7 +118,7 @@ export function ChapterView({
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
 
-  const colors = nightMode ? NIGHT_COLORS : DAY_COLORS;
+  const colors = nightMode ? NIGHT_PALETTES[nightVariant] : DAY_COLORS;
 
   const toggleSceneCollapsed = useCallback((sceneId: string) => {
     setCollapsedScenes(prev => {
@@ -131,6 +146,7 @@ export function ChapterView({
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
   useEffect(() => { localStorage.setItem(LINE_HEIGHT_KEY, String(lineHeight)); }, [lineHeight]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
+  useEffect(() => { localStorage.setItem(NIGHT_VARIANT_KEY, String(nightVariant)); }, [nightVariant]);
 
   useEffect(() => {
     setPadding(p => (p > paddingSliderMax ? paddingSliderMax : p));
@@ -183,13 +199,14 @@ export function ChapterView({
     onScrollTargetConsumed();
   }, [scrollTarget, onScrollTargetConsumed]);
 
-  const headerBg = nightMode ? '#120a04' : '#ebe5db';
-  const borderColor = nightMode ? 'rgba(223,201,156,0.2)' : 'rgba(44,42,37,0.18)';
-  const mutedText = nightMode ? '#9a7d50' : '#6b6560';
+  const nightAlt = nightMode && nightVariant === 1;
+  const headerBg = nightAlt ? '#0a0e14' : nightMode ? '#120a04' : '#ebe5db';
+  const borderColor = nightAlt ? 'rgba(201,209,217,0.2)' : nightMode ? 'rgba(223,201,156,0.2)' : 'rgba(44,42,37,0.18)';
+  const mutedText = nightAlt ? '#7d8590' : nightMode ? '#9a7d50' : '#6b6560';
 
   return (
     <div
-      className={`chapter-view${nightMode ? ' chapter-view-night' : ''}`}
+      className={`chapter-view${nightMode ? ' chapter-view-night' : ''}${nightAlt ? ' chapter-view-night-alt' : ''}`}
       style={{ backgroundColor: colors.bg, color: colors.text } as React.CSSProperties}
     >
       {/* Toolbar */}
@@ -230,6 +247,15 @@ export function ChapterView({
           >
             {nightMode ? <Sun size={14} /> : <Moon size={14} />}
           </button>
+          {nightMode && (
+            <button
+              className="editor-mode-btn"
+              onClick={() => setNightVariant(prev => (prev + 1) % NIGHT_PALETTES.length)}
+              title="Nachtmodus-Palette wechseln"
+            >
+              <Palette size={14} />
+            </button>
+          )}
           <button
             className="editor-save-btn"
             onClick={onSaveAll}
