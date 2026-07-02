@@ -164,6 +164,16 @@ export function ChapterView({
     return () => window.removeEventListener('keydown', handler);
   }, [onSaveAll]);
 
+  const adjustFontSize = useCallback((delta: number) => {
+    setFontSize(prev => {
+      const next = delta > 0 ? Math.min(prev + 1, 30) : Math.max(prev - 1, 10);
+      if (fontSizeTimerRef.current) clearTimeout(fontSizeTimerRef.current);
+      setFontSizeIndicator(next);
+      fontSizeTimerRef.current = setTimeout(() => setFontSizeIndicator(null), 1000);
+      return next;
+    });
+  }, []);
+
   // Ctrl+Scroll for font size
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -171,17 +181,26 @@ export function ChapterView({
     const handleWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      setFontSize(prev => {
-        const next = e.deltaY < 0 ? Math.min(prev + 1, 30) : Math.max(prev - 1, 10);
-        if (fontSizeTimerRef.current) clearTimeout(fontSizeTimerRef.current);
-        setFontSizeIndicator(next);
-        fontSizeTimerRef.current = setTimeout(() => setFontSizeIndicator(null), 1000);
-        return next;
-      });
+      adjustFontSize(e.deltaY < 0 ? 1 : -1);
     };
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
-  }, []);
+  }, [adjustFontSize]);
+
+  // Numpad +/- for font size
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === 'NumpadAdd') {
+        e.preventDefault();
+        adjustFontSize(1);
+      } else if (e.code === 'NumpadSubtract') {
+        e.preventDefault();
+        adjustFontSize(-1);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [adjustFontSize]);
 
   // Scroll to target when it changes
   useEffect(() => {
