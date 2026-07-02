@@ -66,7 +66,6 @@ export function wikiListRenderer({ field, value, onChange, onCommit }: FieldRend
 
   const [inputVal, setInputVal] = useState("");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionStart, setMentionStart] = useState(0);
   const [filteredFiles, setFilteredFiles] = useState<WikiFile[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [cacheReady, setCacheReady] = useState(_cache !== null);
@@ -144,7 +143,6 @@ export function wikiListRenderer({ field, value, onChange, onCommit }: FieldRend
       }
 
       const fragment = textBefore.slice(atIdx + 1);
-      setMentionStart(atIdx);
       setMentionQuery(fragment);
       calcDropdownTop();
 

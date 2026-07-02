@@ -87,6 +87,17 @@ interface ModeForm {
   llmId: string;
 }
 
+/** Fills in missing include/exclude arrays so editors can rely on them always being defined. */
+function normalizePlanHints(
+  hints: Record<string, { include?: string[]; exclude?: string[] }> | undefined,
+): Record<string, { include: string[]; exclude: string[] }> {
+  const out: Record<string, { include: string[]; exclude: string[] }> = {};
+  for (const [sid, v] of Object.entries(hints ?? {})) {
+    out[sid] = { include: v.include ?? [], exclude: v.exclude ?? [] };
+  }
+  return out;
+}
+
 /** Next free mode id: `{sourceId}-kopie`, `{sourceId}-kopie-2`, … */
 function suggestDuplicateModeId(
   sourceId: string,
@@ -706,7 +717,7 @@ export function ProjectSettingsModal({
         setConfig(cfg);
         setNaviInstructionDraft(cfg.naviInstructions ?? {});
         setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
-        setNaviPlanHintsDraft(cfg.naviPlanHints ?? {});
+        setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
         setModes(mds);
         setAgents(agentList);
       } else {
@@ -741,7 +752,7 @@ export function ProjectSettingsModal({
       setConfig(cfg);
       setNaviInstructionDraft(cfg.naviInstructions ?? {});
       setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
-      setNaviPlanHintsDraft(cfg.naviPlanHints ?? {});
+      setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -2206,7 +2217,7 @@ export function ProjectSettingsModal({
                         setConfig(saved);
                         setNaviInstructionDraft(saved.naviInstructions ?? {});
                         setNaviWorkPlanDraft(saved.naviWorkPlans ?? {});
-                        setNaviPlanHintsDraft(saved.naviPlanHints ?? {});
+                        setNaviPlanHintsDraft(normalizePlanHints(saved.naviPlanHints));
                         setConfigSaved(true);
                         setTimeout(() => setConfigSaved(false), 2000);
                         onGeneralConfigSaved?.();

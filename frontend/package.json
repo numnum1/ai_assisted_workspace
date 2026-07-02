@@ -15,9 +15,34 @@
     "build:electron-preload": "esbuild electron/preload.ts --bundle --platform=node --format=cjs --outfile=dist-electron/electron/preload.cjs --external:electron",
     "build:desktop": "npm run build && npm run build:electron",
     "start:electron": "electron dist-electron/electron/main.js",
+    "dist:win": "npm run build:desktop && electron-builder --win nsis",
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.markdownproject.app",
+    "productName": "Markdown Project",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",

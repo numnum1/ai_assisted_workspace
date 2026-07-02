@@ -258,6 +258,21 @@ export function QuickChatWindow({ open, onClose, llms, webSearchAvailable, disab
               </Fragment>
             );
           }
+          if (unit.type === 'userTurn') {
+            return (
+              <Fragment key={`turn-${unit.originalIndices.join('-')}-${mapIdx}`}>
+                {unit.messages.map(({ msg, originalIdx, visIdx }) => (
+                  <div
+                    key={`m-${originalIdx}-${visIdx}-${mapIdx}`}
+                    className={`quick-chat-bubble quick-chat-bubble--${msg.role}`}
+                  >
+                    <div className="quick-chat-bubble-label">Du</div>
+                    <div className="quick-chat-bubble-text">{msg.content}</div>
+                  </div>
+                ))}
+              </Fragment>
+            );
+          }
           const { msg, originalIdx, visIdx } = unit;
           const label =
             msg.role === 'user' ? 'Du' : msg.role === 'system' ? 'Kontext' : 'KI';
