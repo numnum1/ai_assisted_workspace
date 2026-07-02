@@ -80,6 +80,10 @@ import {
   listSimulationBooks,
 } from "./services/simulationService.js";
 import {
+  runEnsembleScene,
+  type EnsembleRunRequest,
+} from "./services/ensembleService.js";
+import {
   listPersonas,
   readPersona,
   writePersona,
@@ -600,6 +604,23 @@ function registerIpcHandlers(): void {
     (_event, req: EvaluateNaviSimulationRequest) =>
       evaluateNaviSimulation(req),
   );
+
+  ipcMain.handle("ensemble:run", (event, req: EnsembleRunRequest) => {
+    const runId = `ens-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const send = (payload: Record<string, unknown>) =>
+      event.sender.send("ensemble:event", { runId, ...payload });
+    void runEnsembleScene(getCurrentProjectPath(), req, (ev) => send(ev))
+      .then((result) => send({ phase: "done", result }))
+      .catch((err) =>
+        send({
+          phase: "error",
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    return { runId };
+  });
 
   ipcMain.handle("persona:list", () => listPersonas());
   ipcMain.handle("persona:read", (_event, id: string) => readPersona(id));

@@ -6,6 +6,8 @@ import type {
   ChapterSummary,
   ChatMessage,
   ChatRequest,
+  EnsembleProgressEvent,
+  EnsembleRunRequest,
   FileNode,
   GitCommit,
   GitStatus,
@@ -412,6 +414,13 @@ export interface AppBridge {
       transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
       llmId?: string | null;
     }) => Promise<{ score: number; report: string }>;
+  };
+  ensemble?: {
+    run: (req: EnsembleRunRequest) => Promise<{ runId: string }>;
+    onEvent: (
+      runId: string,
+      listener: (ev: EnsembleProgressEvent) => void,
+    ) => { unsubscribe: () => void };
   };
   persona?: {
     list: () => Promise<Persona[]>;

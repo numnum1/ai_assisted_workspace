@@ -1812,6 +1812,7 @@ function App() {
                   }}
                   onExpand={() => setMetaExpanded(true)}
                   onFocusField={handleOpenFieldEditor}
+                  onOpenFile={(path) => void fileEditor.openFile(path)}
                 />
               </div>
             )}
@@ -1882,6 +1883,7 @@ function App() {
                   onClose={() => setMetaExpanded(false)}
                   expanded={true}
                   onFocusField={handleOpenFieldEditor}
+                  onOpenFile={(path) => void fileEditor.openFile(path)}
                 />
               </div>
             ) : !chapter.activeChapter ? (

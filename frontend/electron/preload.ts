@@ -235,6 +235,27 @@ contextBridge.exposeInMainWorld("appBridge", {
     evaluateRun: (req: unknown) =>
       ipcRenderer.invoke("simulation:evaluateRun", req),
   },
+  ensemble: {
+    run: (req: unknown) => ipcRenderer.invoke("ensemble:run", req),
+    onEvent: (runId: string, listener: (payload: unknown) => void) => {
+      const wrapped = (_event: unknown, payload: unknown) => {
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "runId" in payload &&
+          (payload as { runId?: unknown }).runId === runId
+        ) {
+          listener(payload);
+        }
+      };
+      ipcRenderer.on("ensemble:event", wrapped);
+      return {
+        unsubscribe: () => {
+          ipcRenderer.removeListener("ensemble:event", wrapped);
+        },
+      };
+    },
+  },
   persona: {
     list: () => ipcRenderer.invoke("persona:list"),
     read: (id: string) => ipcRenderer.invoke("persona:read", id),

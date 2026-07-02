@@ -61,6 +61,63 @@ export interface SimulationConfig {
   personaPrompt?: string;
 }
 
+/** One character in an ensemble scene run (played by its own LLM agent). */
+export interface EnsembleCharacterInput {
+  /** Relative wiki path, e.g. `wiki/characters/mara-voss.md`. */
+  wikiPath: string;
+  /** Speaker label shown in the transcript. */
+  name: string;
+}
+
+/** Scene context handed to the director + character agents. */
+export interface EnsembleSceneContext {
+  title?: string;
+  location?: string;
+  time?: string;
+  initialSituation?: string;
+  goal?: string;
+  tone?: string;
+  pov?: string;
+}
+
+/** Request to play out a scene as a director-orchestrated multi-agent ensemble. */
+export interface EnsembleRunRequest {
+  scene: EnsembleSceneContext;
+  characters: EnsembleCharacterInput[];
+  /** Result file name slug (maps to `.assistant/ensembles/<resultFile>.md`). */
+  resultFile: string;
+  /** Provider to use; falls back to the default provider. */
+  llmId?: string | null;
+  /** Hard cap on beats (director may end earlier). */
+  maxBeats?: number;
+}
+
+/** A single beat in an ensemble transcript. */
+export interface EnsembleBeat {
+  kind: "dialogue" | "narration";
+  /** Character name, or `Erzähler` for narration. */
+  speaker: string;
+  content: string;
+  /** Optional stage direction / action beat. */
+  action?: string;
+}
+
+/** Result of a finished ensemble run: raw screenplay + prose rewrite. */
+export interface EnsembleRunResult {
+  beats: EnsembleBeat[];
+  screenplay: string;
+  prose: string;
+  /** Relative path of the written result file, if persisted. */
+  path?: string;
+}
+
+/** Live progress event streamed while a scene is played out. */
+export type EnsembleProgressEvent =
+  | { phase: "beat"; index: number; beat: EnsembleBeat }
+  | { phase: "prose" }
+  | { phase: "done"; result: EnsembleRunResult }
+  | { phase: "error"; message: string };
+
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
 export type ChatSessionKind = 'standard' | 'guided' | 'navi';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
