@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, MoveHorizontal, X, Music, Eye, EyeOff } from 'lucide-react';
+import { Save, Moon, Sun, MoveHorizontal, MoveVertical, X, Music, Eye, EyeOff } from 'lucide-react';
 import { ActionEditor } from '../components/editor/ActionEditor.tsx';
 import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
 import type { ActionEditorColors } from '../components/editor/ActionEditor.tsx';
@@ -7,10 +7,15 @@ import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../hooks/useR
 
 const FONT_SIZE_KEY = 'music-font-size';
 const PADDING_KEY = 'music-padding';
+const LINE_HEIGHT_KEY = 'music-line-height';
 const NIGHT_MODE_KEY = 'music-night-mode';
 const HIDE_METATAGS_KEY = 'music-hide-metatags';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 48;
+const DEFAULT_LINE_HEIGHT = 1.5;
+const LINE_HEIGHT_MIN = 1.1;
+const LINE_HEIGHT_MAX = 2.4;
+const LINE_HEIGHT_STEP = 0.1;
 
 const DAY_COLORS: ActionEditorColors = {
   bg:             '#f5f0e8',
@@ -52,6 +57,10 @@ export function MusicProjectEditor({
     const stored = localStorage.getItem(PADDING_KEY);
     return stored ? Number(stored) : DEFAULT_PADDING;
   });
+  const [lineHeight, setLineHeight] = useState<number>(() => {
+    const stored = localStorage.getItem(LINE_HEIGHT_KEY);
+    return stored ? Number(stored) : DEFAULT_LINE_HEIGHT;
+  });
   const [nightMode, setNightMode] = useState<boolean>(() =>
     localStorage.getItem(NIGHT_MODE_KEY) === 'true'
   );
@@ -77,6 +86,7 @@ export function MusicProjectEditor({
 
   useEffect(() => { localStorage.setItem(FONT_SIZE_KEY, String(fontSize)); }, [fontSize]);
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
+  useEffect(() => { localStorage.setItem(LINE_HEIGHT_KEY, String(lineHeight)); }, [lineHeight]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
   useEffect(() => { localStorage.setItem(HIDE_METATAGS_KEY, String(hideMetatags)); }, [hideMetatags]);
 
@@ -166,6 +176,18 @@ export function MusicProjectEditor({
               step={READING_PADDING_SLIDER_STEP}
               value={padding}
               onChange={e => setPadding(Number(e.target.value))}
+            />
+          </div>
+          <div className="reading-padding-control" title="Zeilenabstand" style={{ color: mutedColor }}>
+            <MoveVertical size={12} />
+            <input
+              type="range"
+              className="reading-padding-slider"
+              min={LINE_HEIGHT_MIN}
+              max={LINE_HEIGHT_MAX}
+              step={LINE_HEIGHT_STEP}
+              value={lineHeight}
+              onChange={e => setLineHeight(Number(e.target.value))}
             />
           </div>
           <button
@@ -261,6 +283,7 @@ export function MusicProjectEditor({
                       colors={colors}
                       fontSize={fontSize}
                       padding={padding}
+                      lineHeight={lineHeight}
                       onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}
                       onCtrlL={onCtrlL}

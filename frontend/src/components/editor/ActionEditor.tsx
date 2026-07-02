@@ -15,6 +15,7 @@ interface ActionEditorProps {
   colors: ActionEditorColors;
   fontSize: number;
   padding: number;
+  lineHeight?: number;
   onChange: (content: string) => void;
   onSave: () => void;
   /** Called on Ctrl+L with the selected text and a function to apply a replacement */
@@ -23,15 +24,16 @@ interface ActionEditorProps {
   onAltVersion?: (session: AltVersionSession) => void;
 }
 
-function ActionEditorImpl({ actionId, content, colors, fontSize, padding, onChange, onSave, onCtrlL, onAltVersion }: ActionEditorProps) {
+function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHeight, onChange, onSave, onCtrlL, onAltVersion }: ActionEditorProps) {
   const readingThemeOverrides = useMemo(() => ({
     fontSize: `${fontSize}px`,
     padding: `16px ${padding}px`,
+    ...(lineHeight != null ? { lineHeight: `${lineHeight}` } : {}),
     backgroundColor: colors.bg,
     textColor: colors.text,
     caretColor: colors.caretColor,
     selectionColor: colors.selectionColor,
-  }), [fontSize, padding, colors.bg, colors.text, colors.caretColor, colors.selectionColor]);
+  }), [fontSize, padding, lineHeight, colors.bg, colors.text, colors.caretColor, colors.selectionColor]);
 
   const editorStyle = useMemo(() => ({ backgroundColor: colors.bg }), [colors.bg]);
 
@@ -70,5 +72,6 @@ export const ActionEditor = memo(ActionEditorImpl, (prev, next) =>
   prev.content === next.content &&
   prev.fontSize === next.fontSize &&
   prev.padding === next.padding &&
+  prev.lineHeight === next.lineHeight &&
   prev.colors === next.colors,
 );
