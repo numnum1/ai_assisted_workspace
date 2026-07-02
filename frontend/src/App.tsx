@@ -49,8 +49,6 @@ import type {
   ChatSessionKind,
   ReasoningEffort,
 } from "./types.ts";
-import type { NewChatConfirmPayload } from "./components/chat/NewChatDialog.tsx";
-import { CHAT_TOOLKIT_IDS } from "./types.ts";
 import {
   modesApi,
   projectApi,
