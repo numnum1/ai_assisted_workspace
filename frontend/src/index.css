@@ -979,11 +979,13 @@ body.file-tree-native-dragging {
     font-size: 12px;
 }
 
-.outliner-scene[draggable="true"] {
+.outliner-scene[draggable="true"],
+.outliner-chapter[draggable="true"] {
     cursor: grab;
 }
 
-.outliner-scene[draggable="true"]:active {
+.outliner-scene[draggable="true"]:active,
+.outliner-chapter[draggable="true"]:active {
     cursor: grabbing;
 }
 

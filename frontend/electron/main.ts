@@ -516,6 +516,17 @@ function registerIpcHandlers(): void {
     },
   );
   ipcMain.handle(
+    "chapter:reorderChapters",
+    async (_event, ids: string[], structureRoot?: string | null) => {
+      await chapterService.reorderChapters(
+        getCurrentProjectPath(),
+        ids,
+        structureRoot ?? null,
+      );
+      return { status: "reordered" };
+    },
+  );
+  ipcMain.handle(
     "chapter:reorderScenes",
     async (
       _event,

@@ -182,6 +182,8 @@ contextBridge.exposeInMainWorld("appBridge", {
         content,
         structureRoot ?? null,
       ),
+    reorderChapters: (ids: string[], structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:reorderChapters", ids, structureRoot ?? null),
     reorderScenes: (
       chapterId: string,
       ids: string[],

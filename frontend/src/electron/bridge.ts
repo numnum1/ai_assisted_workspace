@@ -362,6 +362,10 @@ export interface AppBridge {
       content: string,
       structureRoot?: string | null,
     ) => Promise<{ status: string }>;
+    reorderChapters: (
+      ids: string[],
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
     reorderScenes: (
       chapterId: string,
       ids: string[],

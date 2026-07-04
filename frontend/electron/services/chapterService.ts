@@ -290,6 +290,10 @@ export async function listChapters(
     }
   }
   chapters.sort((c1, c2) => {
+    const byOrder = (c1.meta?.sortOrder ?? 0) - (c2.meta?.sortOrder ?? 0);
+    if (byOrder !== 0) {
+      return byOrder;
+    }
     const byKey = compareNaturalStrings(
       chapterSortKey(c1),
       chapterSortKey(c2),
@@ -599,6 +603,25 @@ export async function writeActionContent(
   await fs.mkdir(path.dirname(p), { recursive: true });
   await fs.writeFile(p, content, "utf8");
   logTrace("Finished writeActionContent");
+}
+
+export async function reorderChapters(
+  projectPath: string | null,
+  orderedIds: string[],
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(`Received request reorderChapters n=${orderedIds.length}`);
+  const root = ensureProjectRoot(projectPath);
+  for (let i = 0; i < orderedIds.length; i++) {
+    const chapterId = orderedIds[i]!;
+    const metaPath = await chapterMetaPath(root, workspaceRoot, chapterId);
+    if (await pathExists(metaPath)) {
+      const meta = await readMetaFile(metaPath);
+      meta.sortOrder = i;
+      await writeMetaFile(metaPath, meta);
+    }
+  }
+  logTrace("Finished reorderChapters");
 }
 
 export async function reorderScenes(

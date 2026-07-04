@@ -62,9 +62,13 @@ export function SubprojectInlineOutline({
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  // Drag-and-drop state (scenes only)
+  // Drag-and-drop state (scenes)
   const [dragScene, setDragScene] = useState<{ chapterId: string; sceneId: string } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ chapterId: string; sceneId: string } | null>(null);
+
+  // Drag-and-drop state (chapters)
+  const [dragChapterId, setDragChapterId] = useState<string | null>(null);
+  const [dropChapterId, setDropChapterId] = useState<string | null>(null);
 
   const rootActive = activeStructureRoot === subprojectPath;
   const activeSceneId = editorPosition?.sceneId;
@@ -334,6 +338,46 @@ export function SubprojectInlineOutline({
     setDropTarget(null);
   }, []);
 
+  const handleChapterDragStart = useCallback((e: DragEvent, chapterId: string) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `chapter:${chapterId}`);
+    setDragChapterId(chapterId);
+  }, []);
+
+  const handleChapterDragOver = useCallback((e: DragEvent, chapterId: string) => {
+    if (!dragChapterId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setDropChapterId(chapterId);
+  }, [dragChapterId]);
+
+  const handleChapterDrop = useCallback(async (e: DragEvent, targetChapterId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sourceId = dragChapterId;
+    setDragChapterId(null);
+    setDropChapterId(null);
+    if (!sourceId || !chapterSummaries || sourceId === targetChapterId) return;
+    const ids = chapterSummaries.map((c) => c.id);
+    const fromIdx = ids.indexOf(sourceId);
+    const toIdx = ids.indexOf(targetChapterId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const newIds = [...ids];
+    newIds.splice(fromIdx, 1);
+    newIds.splice(toIdx, 0, sourceId);
+    await runWithRoot(async () => {
+      await chapterApi.reorderChapters(newIds, subprojectPath);
+    });
+    onStructureMutated();
+  }, [dragChapterId, chapterSummaries, runWithRoot, subprojectPath, onStructureMutated]);
+
+  const handleChapterDragEnd = useCallback(() => {
+    setDragChapterId(null);
+    setDropChapterId(null);
+  }, []);
+
   const onChapterChevron = useCallback(
     (e: MouseEvent, chapterId: string) => {
       e.stopPropagation();
@@ -386,11 +430,19 @@ export function SubprojectInlineOutline({
         const isExpanded = expandedChapters.has(chapter.id);
         const chapterData = structures.get(chapter.id) ?? null;
 
+        const isChapterDragging = dragChapterId === chapter.id;
+        const isChapterDropTarget = dropChapterId === chapter.id && !isChapterDragging;
+
         return (
           <div key={chapter.id}>
             <div
-              className={`outliner-node outliner-chapter file-tree-subproject-outline-node${isActiveChapter ? ' active' : ''}`}
+              className={`outliner-node outliner-chapter file-tree-subproject-outline-node${isActiveChapter ? ' active' : ''}${isChapterDragging ? ' outliner-scene-dragging' : ''}${isChapterDropTarget ? ' outliner-scene-droptarget' : ''}`}
               style={{ paddingLeft: padLeft(baseDepth + 1) }}
+              draggable
+              onDragStart={(e) => handleChapterDragStart(e, chapter.id)}
+              onDragOver={(e) => handleChapterDragOver(e, chapter.id)}
+              onDrop={(e) => void handleChapterDrop(e, chapter.id)}
+              onDragEnd={handleChapterDragEnd}
               onContextMenu={(e) => openCtx(e, { type: 'chapter', chapterId: chapter.id })}
             >
               <span className="outliner-arrow outliner-arrow-btn" onClick={(e) => onChapterChevron(e, chapter.id)}>

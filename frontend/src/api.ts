@@ -590,6 +590,14 @@ export const chapterApi = {
     throw new Error("Electron bridge not available");
   },
 
+  reorderChapters: async (
+    ids: string[],
+    structureRoot?: string | null,
+  ): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.reorderChapters(ids, structureRoot);
+    throw new Error("Electron bridge not available");
+  },
   reorderScenes: async (
     chapterId: string,
     ids: string[],
