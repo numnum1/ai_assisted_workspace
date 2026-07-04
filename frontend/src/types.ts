@@ -593,6 +593,17 @@ export interface ChapterNode {
   scenes: SceneNode[];
 }
 
+export interface ChapterActionFilePath {
+  sceneId: string;
+  actionId: string;
+  relPath: string;
+}
+
+export interface ChapterFilePaths {
+  chapterDirRelPath: string;
+  actions: ChapterActionFilePath[];
+}
+
 export interface ScrollTarget {
   sceneId?: string;
   actionId?: string;

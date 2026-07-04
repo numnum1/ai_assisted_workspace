@@ -828,6 +828,34 @@ body.file-tree-native-dragging {
     background: var(--bg-tertiary);
 }
 
+.markdown-file-editor-diff-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.markdown-file-editor-diff-exit {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.markdown-file-editor-diff-exit:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
 .markdown-file-editor-shadow-dot {
     position: absolute;
     top: 4px;
@@ -1515,6 +1543,34 @@ body.file-tree-native-dragging {
     display: flex;
     align-items: center;
     gap: 6px;
+}
+
+.chapter-view-diff-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.chapter-view-diff-exit {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.chapter-view-diff-exit:hover {
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .chapter-view-scroll {
@@ -7153,73 +7209,6 @@ body.file-tree-native-dragging {
     font-size: 12px;
     line-height: 1.6;
     background: var(--bg-primary);
-    tab-size: 4;
-}
-
-/* ==================== Standalone file viewer page ==================== */
-
-.file-viewer-page {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    overflow: hidden;
-}
-
-.file-viewer-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-
-.file-viewer-name {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--text-primary);
-}
-
-.file-viewer-meta {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-family: monospace;
-}
-
-.file-viewer-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    flex: 1;
-    color: var(--text-muted);
-    font-size: 13px;
-}
-
-.file-viewer-error {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #e06c75;
-    font-size: 13px;
-    padding: 32px;
-}
-
-.file-viewer-content {
-    flex: 1;
-    overflow: auto;
-    margin: 0;
-    padding: 16px;
-    font-family: monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--text-primary);
-    background: var(--bg-primary);
-    white-space: pre;
     tab-size: 4;
 }
 

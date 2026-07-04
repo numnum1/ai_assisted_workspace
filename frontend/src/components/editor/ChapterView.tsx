@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight, History } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
+import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
 import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../../hooks/useReadingPaddingMax.ts';
@@ -46,6 +47,8 @@ interface ChapterViewProps {
   /** Reading view: one prose block per scene (e.g. Musik-Strophen). */
   proseLeafAtScene?: boolean;
   chapter: ChapterNode;
+  /** Subproject/workspace root the chapter lives under (null = project root). Used to resolve git history paths. */
+  structureRoot?: string | null;
   actionContents: Map<string, { content: string; dirty: boolean }>;
   scrollTarget: ScrollTarget | null;
   hasDirtyActions: boolean;
@@ -66,6 +69,7 @@ function actionKey(chapterId: string, sceneId: string, actionId: string): string
 export function ChapterView({
   proseLeafAtScene = false,
   chapter,
+  structureRoot = null,
   actionContents,
   scrollTarget,
   hasDirtyActions,
@@ -97,6 +101,8 @@ export function ChapterView({
     const stored = Number(localStorage.getItem(NIGHT_VARIANT_KEY));
     return NIGHT_PALETTES[stored] ? stored : 0;
   });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [chapterDiff, setChapterDiff] = useState<{ label: string; contents: Map<string, string> } | null>(null);
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -132,6 +138,10 @@ export function ChapterView({
   useEffect(() => {
     localStorage.setItem(`${COLLAPSED_SCENES_KEY}-${chapter.id}`, JSON.stringify([...collapsedScenes]));
   }, [chapter.id, collapsedScenes]);
+
+  useEffect(() => {
+    setChapterDiff(null);
+  }, [chapter.id]);
 
   const registerRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) {
@@ -284,6 +294,13 @@ export function ChapterView({
             <Save size={14} />
           </button>
           <button
+            className="editor-mode-btn"
+            onClick={() => setHistoryOpen(true)}
+            title="Git-Verlauf des Kapitels"
+          >
+            <History size={14} />
+          </button>
+          <button
             className="editor-close-btn"
             onClick={onClose}
             title="Datei schließen"
@@ -292,6 +309,15 @@ export function ChapterView({
           </button>
         </div>
       </div>
+
+      {chapterDiff && (
+        <div className="chapter-view-diff-banner">
+          <span>Vergleich mit {chapterDiff.label}</span>
+          <button type="button" className="chapter-view-diff-exit" onClick={() => setChapterDiff(null)}>
+            Vergleich beenden
+          </button>
+        </div>
+      )}
 
       {/* Scrollable content */}
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
@@ -360,6 +386,7 @@ export function ChapterView({
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}
                       onCtrlL={onCtrlL}
                       onAltVersion={onAltVersion}
+                      diffOriginal={chapterDiff?.contents.get(`${scene.id}/${action.id}`) ?? null}
                     />
                   </div>
                 )
@@ -374,6 +401,15 @@ export function ChapterView({
         <div className="reading-font-indicator">
           {fontSizeIndicator}px
         </div>
+      )}
+
+      {historyOpen && (
+        <ChapterHistoryModal
+          chapter={chapter}
+          structureRoot={structureRoot}
+          onClose={() => setHistoryOpen(false)}
+          onOpenDiff={(contents, label) => setChapterDiff({ contents, label })}
+        />
       )}
     </div>
   );

@@ -1215,6 +1215,21 @@ function App() {
 
   const fileEditor = useFileTabs(project.projectPath ?? null);
 
+  const [fileDiffView, setFileDiffView] = useState<{
+    path: string;
+    content: string;
+    label: string;
+  } | null>(null);
+
+  const handleOpenFileDiff = useCallback(
+    (path: string, originalContent: string, label: string) => {
+      chapter.closeChapter();
+      void fileEditor.openFile(path);
+      setFileDiffView({ path, content: originalContent, label });
+    },
+    [chapter, fileEditor],
+  );
+
   const commandActions: CommandAction[] = useMemo(() => {
     const actions: CommandAction[] = [
       ...(isRunningInElectron()
@@ -1682,6 +1697,7 @@ function App() {
         onGitRefresh={fetchGitState}
         gitStatus={gitStatus ?? undefined}
         onAuthRequired={showCredentialsDialog}
+        onOpenFileDiff={handleOpenFileDiff}
       />
 
       <Group
@@ -1899,12 +1915,22 @@ function App() {
                   fetchGitState();
                 }}
                 onClearError={fileEditor.clearError}
-                onCloseFile={fileEditor.closeFile}
+                onCloseFile={() => {
+                  setFileDiffView(null);
+                  fileEditor.closeFile();
+                }}
                 onCtrlL={handleCtrlL}
                 onAltVersion={handleAltVersion}
                 scrollToLine={fileEditor.pendingScroll?.line}
                 scrollNonce={fileEditor.pendingScroll?.nonce}
                 onScrollHandled={fileEditor.clearPendingScroll}
+                diffOriginal={
+                  fileDiffView && fileDiffView.path === fileEditor.selectedPath
+                    ? fileDiffView.content
+                    : null
+                }
+                diffLabel={fileDiffView?.label}
+                onExitDiff={() => setFileDiffView(null)}
               />
             ) : (
               <MediaProjectEditor
@@ -1913,6 +1939,7 @@ function App() {
                   workspaceModeSchema?.proseLeafLevel === "scene"
                 }
                 chapter={chapter.activeChapter}
+                structureRoot={chapter.structureRoot}
                 actionContents={chapter.actionContents}
                 scrollTarget={chapter.scrollTarget}
                 hasDirtyActions={chapter.hasDirtyActions}
@@ -2113,6 +2140,7 @@ function App() {
         <FileHistoryModal
           filePath={fileHistoryPath}
           onClose={() => setFileHistoryPath(null)}
+          onOpenDiff={handleOpenFileDiff}
         />
       )}
 

@@ -2,6 +2,7 @@ import type {
   ActionNode,
   AgentPreset,
   AppPreferences,
+  ChapterFilePaths,
   ChapterNode,
   ChapterSummary,
   ChatMessage,
@@ -301,6 +302,10 @@ export interface AppBridge {
       chapterId: string,
       structureRoot?: string | null,
     ) => Promise<ChapterNode>;
+    getFilePaths: (
+      chapterId: string,
+      structureRoot?: string | null,
+    ) => Promise<ChapterFilePaths>;
     create: (
       title: string,
       structureRoot?: string | null,

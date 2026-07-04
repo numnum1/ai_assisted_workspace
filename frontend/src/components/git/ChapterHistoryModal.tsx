@@ -1,31 +1,41 @@
 import { useState, useEffect } from 'react';
 import { X, Clock, User, ExternalLink, Loader } from 'lucide-react';
-import { gitApi } from '../../api.ts';
-import type { GitCommit } from '../../types.ts';
+import { gitApi, chapterApi } from '../../api.ts';
+import type { GitCommit, ChapterNode, ChapterFilePaths } from '../../types.ts';
 
-interface FileHistoryModalProps {
-  filePath: string;
+interface ChapterHistoryModalProps {
+  chapter: ChapterNode;
+  structureRoot: string | null;
   onClose: () => void;
-  /** Called once the content at a commit has been fetched; the caller shows the diff inline in the editor. */
-  onOpenDiff: (filePath: string, originalContent: string, label: string) => void;
+  /** Called once the content of every scene/action at a commit has been fetched (keyed by `sceneId/actionId`); the caller shows the diff inline per scene block. */
+  onOpenDiff: (contentByAction: Map<string, string>, label: string) => void;
 }
 
-export function FileHistoryModal({ filePath, onClose, onOpenDiff }: FileHistoryModalProps) {
+function actionKey(sceneId: string, actionId: string): string {
+  return `${sceneId}/${actionId}`;
+}
+
+export function ChapterHistoryModal({ chapter, structureRoot, onClose, onOpenDiff }: ChapterHistoryModalProps) {
+  const [filePaths, setFilePaths] = useState<ChapterFilePaths | null>(null);
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openingHash, setOpeningHash] = useState<string | null>(null);
 
-  const fileName = filePath.split('/').pop() ?? filePath;
+  const chapterTitle = chapter.meta.title || chapter.id;
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    gitApi.fileHistory(filePath)
+    chapterApi.getFilePaths(chapter.id, structureRoot)
+      .then((paths) => {
+        setFilePaths(paths);
+        return gitApi.fileHistory(paths.chapterDirRelPath);
+      })
       .then(setCommits)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load history'))
       .finally(() => setLoading(false));
-  }, [filePath]);
+  }, [chapter.id, structureRoot]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -38,18 +48,22 @@ export function FileHistoryModal({ filePath, onClose, onOpenDiff }: FileHistoryM
   const shortHash = (hash: string) => hash.substring(0, 8);
 
   const handleOpenCommit = async (commit: GitCommit) => {
+    if (!filePaths) return;
     setOpeningHash(commit.hash);
     setError(null);
     try {
-      const result = await gitApi.fileAtCommit(filePath, commit.hash);
-      if (!result.exists) {
-        setError('File did not exist at this commit.');
-        return;
-      }
-      onOpenDiff(filePath, result.content, shortHash(commit.hash));
+      const results = await Promise.all(
+        filePaths.actions.map((a) => gitApi.fileAtCommit(a.relPath, commit.hash)),
+      );
+      const contentByAction = new Map<string, string>();
+      filePaths.actions.forEach((a, idx) => {
+        const result = results[idx];
+        if (result.exists) contentByAction.set(actionKey(a.sceneId, a.actionId), result.content);
+      });
+      onOpenDiff(contentByAction, shortHash(commit.hash));
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load file at this commit');
+      setError(err instanceof Error ? err.message : 'Failed to load chapter content at this commit');
     } finally {
       setOpeningHash(null);
     }
@@ -60,9 +74,9 @@ export function FileHistoryModal({ filePath, onClose, onOpenDiff }: FileHistoryM
       <div className="file-history-modal" onClick={(e) => e.stopPropagation()}>
         <div className="file-history-header">
           <span className="file-history-title">
-            History — <span className="file-history-filename">{fileName}</span>
+            Verlauf — <span className="file-history-filename">{chapterTitle}</span>
           </span>
-          <button className="file-history-close-btn" onClick={onClose} title="Close">
+          <button className="file-history-close-btn" onClick={onClose} title="Schließen">
             <X size={16} />
           </button>
         </div>
@@ -70,14 +84,14 @@ export function FileHistoryModal({ filePath, onClose, onOpenDiff }: FileHistoryM
         {loading && (
           <div className="file-history-loading">
             <Loader size={18} className="file-history-spinner" />
-            <span>Loading history...</span>
+            <span>Lade Verlauf…</span>
           </div>
         )}
 
         {error && <div className="file-history-error">{error}</div>}
 
         {!loading && !error && commits.length === 0 && (
-          <div className="file-history-empty">No commits found for this file.</div>
+          <div className="file-history-empty">Keine Commits für dieses Kapitel gefunden.</div>
         )}
 
         {!loading && commits.length > 0 && (
@@ -101,7 +115,7 @@ export function FileHistoryModal({ filePath, onClose, onOpenDiff }: FileHistoryM
                     className="file-history-open-btn"
                     onClick={() => handleOpenCommit(commit)}
                     disabled={openingHash !== null}
-                    title="Show diff against this commit in the editor"
+                    title="Diff zu diesem Commit in den Szenen anzeigen"
                   >
                     {openingHash === commit.hash ? (
                       <Loader size={12} className="file-history-spinner" />

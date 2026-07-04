@@ -10,6 +10,7 @@ import type {
   ProjectConfig,
   ChapterSummary,
   ChapterNode,
+  ChapterFilePaths,
   SceneNode,
   ActionNode,
   NodeMeta,
@@ -443,6 +444,14 @@ export const chapterApi = {
   ): Promise<ChapterNode> => {
     const api = getElectronApi();
     if (api?.chapter) return api.chapter.getStructure(id, structureRoot);
+    throw new Error("Electron bridge not available");
+  },
+  getFilePaths: async (
+    id: string,
+    structureRoot?: string | null,
+  ): Promise<ChapterFilePaths> => {
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.getFilePaths(id, structureRoot);
     throw new Error("Electron bridge not available");
   },
   create: async (

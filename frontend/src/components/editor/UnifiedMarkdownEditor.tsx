@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { EditorState, Compartment, EditorSelection } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
+import { unifiedMergeView } from '@codemirror/merge';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { createReadingTheme } from './readingTheme';
 import { hideMarksExtension } from './hideMarksExtension';
@@ -29,6 +30,8 @@ export interface MarkdownEditorConfig {
   enableGermanQuotes?: boolean;
   /** Passed as editorId in the SelectionContext for onCtrlL. Default: 'file' */
   editorId?: 'file' | 'chapter';
+  /** When set, shows an inline diff of the current document against this original text (e.g. an older git revision). */
+  diffOriginal?: string | null;
 }
 
 export interface UnifiedMarkdownEditorProps extends MarkdownEditorConfig {
@@ -96,10 +99,12 @@ export function UnifiedMarkdownEditor({
   onScrollHandled,
   className,
   style,
+  diffOriginal = null,
 }: UnifiedMarkdownEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const themeCompartment = useRef(new Compartment());
+  const diffCompartment = useRef(new Compartment());
 
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
@@ -229,6 +234,7 @@ export function UnifiedMarkdownEditor({
           }
         }),
         themeCompartment.current.of(buildDynamicExtensions()),
+        diffCompartment.current.of(diffOriginal != null ? unifiedMergeView({ original: diffOriginal }) : []),
       ],
     });
 
@@ -266,6 +272,16 @@ export function UnifiedMarkdownEditor({
       effects: themeCompartment.current.reconfigure(buildDynamicExtensions()),
     });
   }, [buildDynamicExtensions]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: diffCompartment.current.reconfigure(
+        diffOriginal != null ? unifiedMergeView({ original: diffOriginal }) : [],
+      ),
+    });
+  }, [diffOriginal]);
 
   useEffect(() => {
     if (scrollNonce == null || scrollToLine == null) return;

@@ -9,6 +9,7 @@ export function DefaultMediaProjectEditor({
   editorMode,
   proseLeafAtScene,
   chapter,
+  structureRoot,
   actionContents,
   scrollTarget,
   hasDirtyActions,
@@ -26,6 +27,7 @@ export function DefaultMediaProjectEditor({
       <ChapterView
         proseLeafAtScene={proseLeafAtScene}
         chapter={chapter}
+        structureRoot={structureRoot}
         actionContents={actionContents}
         scrollTarget={scrollTarget}
         hasDirtyActions={hasDirtyActions}

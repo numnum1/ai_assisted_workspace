@@ -7,6 +7,8 @@ export interface MediaProjectEditorProps {
   /** Prose body is one block per scene (no visible action tier in the tree). */
   proseLeafAtScene?: boolean;
   chapter: ChapterNode;
+  /** Subproject/workspace root the chapter lives under (null = project root). Used to resolve git history paths. */
+  structureRoot?: string | null;
   actionContents: Map<string, { content: string; dirty: boolean }>;
   scrollTarget: ScrollTarget | null;
   hasDirtyActions: boolean;

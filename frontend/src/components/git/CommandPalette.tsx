@@ -29,6 +29,7 @@ interface CommandPaletteProps {
   onGitRefresh?: () => void;
   gitStatus?: GitStatus;
   onAuthRequired?: (retry: () => void) => void;
+  onOpenFileDiff: (filePath: string, originalContent: string, label: string) => void;
 }
 
 type FileChangeType = "M" | "A" | "D" | "?";
@@ -48,6 +49,7 @@ export function CommandPalette({
   onGitRefresh,
   gitStatus,
   onAuthRequired,
+  onOpenFileDiff,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -297,6 +299,10 @@ export function CommandPalette({
         <FileHistoryModal
           filePath={historyFilePath}
           onClose={() => setHistoryFilePath(null)}
+          onOpenDiff={(filePath, originalContent, label) => {
+            onOpenFileDiff(filePath, originalContent, label);
+            onClose();
+          }}
         />
       )}
       <div

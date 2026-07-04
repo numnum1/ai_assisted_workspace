@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type {
   ActionNode,
+  ChapterFilePaths,
   ChapterNode,
   ChapterSummary,
   NodeMeta,
@@ -367,6 +368,47 @@ export async function getChapterStructure(
   chapter.scenes.sort((a, b) => a.meta.sortOrder - b.meta.sortOrder);
   logTrace(`Finished getChapterStructure: scenes=${chapter.scenes.length}`);
   return chapter;
+}
+
+/**
+ * Relative (git-worktree-friendly) paths for the chapter's own directory and every
+ * action `.md` file within it, in scene/action order. Used by the git history view to
+ * fetch a combined commit list (`git log -- <dir>`) and per-commit prose content
+ * (`git show <hash>:<relPath>`) without leaking absolute filesystem paths to the renderer.
+ */
+export async function getChapterFilePaths(
+  projectPath: string | null,
+  chapterId: string,
+  workspaceRoot: string | null,
+): Promise<ChapterFilePaths> {
+  const root = ensureProjectRoot(projectPath);
+  const chapter = await getChapterStructure(root, chapterId, workspaceRoot);
+  const cDir = await chapterDir(root, workspaceRoot, chapterId);
+  const toRelPath = (absPath: string) =>
+    path.relative(root, absPath).split(path.sep).join("/");
+
+  const actions: ChapterFilePaths["actions"] = [];
+  for (const scene of chapter.scenes) {
+    for (const action of scene.actions) {
+      const absPath = await actionContentPath(
+        root,
+        workspaceRoot,
+        chapterId,
+        scene.id,
+        action.id,
+      );
+      actions.push({
+        sceneId: scene.id,
+        actionId: action.id,
+        relPath: toRelPath(absPath),
+      });
+    }
+  }
+
+  return {
+    chapterDirRelPath: toRelPath(cDir),
+    actions,
+  };
 }
 
 export async function createChapter(

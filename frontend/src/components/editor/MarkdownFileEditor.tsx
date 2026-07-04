@@ -20,6 +20,11 @@ interface MarkdownFileEditorProps {
   scrollToLine?: number;
   scrollNonce?: number;
   onScrollHandled?: () => void;
+  /** When set, shows an inline diff of the current document against this older revision. */
+  diffOriginal?: string | null;
+  /** Short label for the revision being compared against (e.g. a commit hash). */
+  diffLabel?: string;
+  onExitDiff?: () => void;
 }
 
 export function MarkdownFileEditor({
@@ -37,6 +42,9 @@ export function MarkdownFileEditor({
   scrollToLine,
   scrollNonce,
   onScrollHandled,
+  diffOriginal = null,
+  diffLabel,
+  onExitDiff,
 }: MarkdownFileEditorProps) {
   if (!path) {
     return (
@@ -86,6 +94,17 @@ export function MarkdownFileEditor({
         </button>
       </div>
 
+      {diffOriginal != null && (
+        <div className="markdown-file-editor-diff-banner">
+          <span>Vergleich mit {diffLabel ?? 'älterer Version'}</span>
+          {onExitDiff && (
+            <button type="button" className="markdown-file-editor-diff-exit" onClick={onExitDiff}>
+              Vergleich beenden
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="markdown-file-editor-body">
         <UnifiedMarkdownEditor
           instanceKey={path}
@@ -103,6 +122,7 @@ export function MarkdownFileEditor({
           scrollToLine={scrollToLine}
           scrollNonce={scrollNonce}
           onScrollHandled={onScrollHandled}
+          diffOriginal={diffOriginal}
           className="markdown-file-editor-cm"
         />
       </div>

@@ -331,6 +331,15 @@ function registerIpcHandlers(): void {
       ),
   );
   ipcMain.handle(
+    "chapter:filePaths",
+    (_event, chapterId: string, structureRoot?: string | null) =>
+      chapterService.getChapterFilePaths(
+        getCurrentProjectPath(),
+        chapterId,
+        structureRoot ?? null,
+      ),
+  );
+  ipcMain.handle(
     "chapter:create",
     (_event, title: string, structureRoot?: string | null) =>
       chapterService.createChapter(

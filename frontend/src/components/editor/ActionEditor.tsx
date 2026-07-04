@@ -22,9 +22,11 @@ interface ActionEditorProps {
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
   /** Called on Ctrl+Alt+A to open the alternative version panel */
   onAltVersion?: (session: AltVersionSession) => void;
+  /** When set, shows an inline diff of this action's content against this older revision. */
+  diffOriginal?: string | null;
 }
 
-function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHeight, onChange, onSave, onCtrlL, onAltVersion }: ActionEditorProps) {
+function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHeight, onChange, onSave, onCtrlL, onAltVersion, diffOriginal = null }: ActionEditorProps) {
   const readingThemeOverrides = useMemo(() => ({
     fontSize: `${fontSize}px`,
     padding: `16px ${padding}px`,
@@ -53,6 +55,7 @@ function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHe
       alwaysShowMarkdownStylingCharacters={false}
       alwaysShowHtmlComments={false}
       showReferencesAsLinks
+      diffOriginal={diffOriginal}
       className="action-editor-cm-wrap"
       style={editorStyle}
     />
@@ -73,5 +76,6 @@ export const ActionEditor = memo(ActionEditorImpl, (prev, next) =>
   prev.fontSize === next.fontSize &&
   prev.padding === next.padding &&
   prev.lineHeight === next.lineHeight &&
-  prev.colors === next.colors,
+  prev.colors === next.colors &&
+  prev.diffOriginal === next.diffOriginal,
 );

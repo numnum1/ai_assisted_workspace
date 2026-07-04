@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("chapter:list", structureRoot ?? null),
     getStructure: (chapterId: string, structureRoot?: string | null) =>
       ipcRenderer.invoke("chapter:getStructure", chapterId, structureRoot ?? null),
+    getFilePaths: (chapterId: string, structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:filePaths", chapterId, structureRoot ?? null),
     create: (title: string, structureRoot?: string | null) =>
       ipcRenderer.invoke("chapter:create", title, structureRoot ?? null),
     updateMeta: (
