@@ -4481,17 +4481,21 @@ body.file-tree-native-dragging {
 }
 
 .wf-batch-composer--compact {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
     box-sizing: border-box;
     width: 100%;
     padding: 4px 8px;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: color-mix(in srgb, var(--text-muted) 5%, var(--bg-primary));
+}
+
+.wf-batch-composer-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
 }
 
 .wf-batch-composer-summary {
@@ -4504,6 +4508,55 @@ body.file-tree-native-dragging {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.wf-batch-composer-summary--toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.wf-batch-composer-summary--toggle:hover {
+    color: var(--text-primary);
+}
+
+.wf-batch-composer-filelist {
+    list-style: none;
+    margin: 6px 0 2px;
+    padding: 6px 0 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wf-batch-composer-fileitem {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-primary);
+}
+
+.wf-batch-composer-fileicon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.wf-batch-composer-filepath {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono, monospace);
 }
 
 .wf-batch-composer-actions {
