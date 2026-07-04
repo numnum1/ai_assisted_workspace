@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X, Clock, User, ExternalLink, Loader, ArrowLeft } from 'lucide-react';
-import { gitApi } from '../../api.ts';
+import { gitApi, filesApi } from '../../api.ts';
 import type { GitCommit } from '../../types.ts';
+import { type DiffLine, computeDiff, collapseDiff } from '../../utils/diffUtils.ts';
 
 interface FileHistoryModalProps {
   filePath: string;
@@ -14,7 +15,7 @@ export function FileHistoryModal({ filePath, onClose }: FileHistoryModalProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [viewingCommit, setViewingCommit] = useState<GitCommit | null>(null);
-  const [viewContent, setViewContent] = useState<string | null>(null);
+  const [diffLines, setDiffLines] = useState<DiffLine[] | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
 
@@ -44,11 +45,18 @@ export function FileHistoryModal({ filePath, onClose }: FileHistoryModalProps) {
     if (!viewingCommit) return;
     setViewLoading(true);
     setViewError(null);
-    setViewContent(null);
-    gitApi.fileAtCommit(filePath, viewingCommit.hash)
-      .then((result) => {
-        if (!result.exists) setViewError('File did not exist at this commit.');
-        else setViewContent(result.content);
+    setDiffLines(null);
+    Promise.all([
+      gitApi.fileAtCommit(filePath, viewingCommit.hash),
+      filesApi.getContent(filePath).catch(() => ({ content: '' })),
+    ])
+      .then(([atCommit, current]) => {
+        if (!atCommit.exists) {
+          setViewError('File did not exist at this commit.');
+          return;
+        }
+        const raw = computeDiff(atCommit.content, current.content ?? '');
+        setDiffLines(collapseDiff(raw));
       })
       .catch((err) => setViewError(err instanceof Error ? err.message : 'Failed to load file'))
       .finally(() => setViewLoading(false));
@@ -61,6 +69,10 @@ export function FileHistoryModal({ filePath, onClose }: FileHistoryModalProps) {
   const shortHash = (hash: string) => hash.substring(0, 8);
 
   if (viewingCommit) {
+    const addedCount = diffLines?.filter((l) => l.type === 'added').length ?? 0;
+    const removedCount = diffLines?.filter((l) => l.type === 'removed').length ?? 0;
+    const hasChanges = addedCount > 0 || removedCount > 0;
+
     return (
       <div className="file-history-overlay" onClick={onClose}>
         <div className="file-history-modal" onClick={(e) => e.stopPropagation()}>
@@ -70,8 +82,14 @@ export function FileHistoryModal({ filePath, onClose }: FileHistoryModalProps) {
             </button>
             <div className="file-history-viewer-title">
               <span className="file-history-title">{fileName}</span>
-              <span className="file-history-viewer-commit">{shortHash(viewingCommit.hash)} — {viewingCommit.message}</span>
+              <span className="file-history-viewer-commit">{shortHash(viewingCommit.hash)} — {viewingCommit.message} → aktuell</span>
             </div>
+            {diffLines && (
+              <span className="change-card-stats">
+                {addedCount > 0 && <span className="change-card-added">+{addedCount}</span>}
+                {removedCount > 0 && <span className="change-card-removed">−{removedCount}</span>}
+              </span>
+            )}
             <button className="file-history-close-btn" onClick={onClose} title="Close">
               <X size={16} />
             </button>
@@ -80,14 +98,33 @@ export function FileHistoryModal({ filePath, onClose }: FileHistoryModalProps) {
           {viewLoading && (
             <div className="file-history-loading">
               <Loader size={18} className="file-history-spinner" />
-              <span>Loading file...</span>
+              <span>Loading diff...</span>
             </div>
           )}
 
           {viewError && <div className="file-history-error">{viewError}</div>}
 
-          {!viewLoading && !viewError && viewContent !== null && (
-            <pre className="file-history-viewer">{viewContent}</pre>
+          {!viewLoading && !viewError && diffLines && !hasChanges && (
+            <div className="file-history-empty">No changes since this commit.</div>
+          )}
+
+          {!viewLoading && !viewError && diffLines && hasChanges && (
+            <div className="file-history-diff">
+              {diffLines.map((line, idx) => (
+                <div key={idx} className={`diff-line diff-line--${line.type}`}>
+                  <span className="diff-line-marker">
+                    {line.type === 'added' ? '+' : line.type === 'removed' ? '−' : ' '}
+                  </span>
+                  <span className="diff-line-content">
+                    {line.content === '…' ? (
+                      <em className="diff-ellipsis">…</em>
+                    ) : (
+                      line.content || ' '
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

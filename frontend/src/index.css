@@ -7145,17 +7145,14 @@ body.file-tree-native-dragging {
     background: var(--accent-dim);
 }
 
-.file-history-viewer {
+.file-history-diff {
     flex: 1;
     overflow: auto;
-    margin: 0;
-    padding: 16px;
+    padding: 8px 0;
     font-family: monospace;
     font-size: 12px;
     line-height: 1.6;
-    color: var(--text-primary);
     background: var(--bg-primary);
-    white-space: pre;
     tab-size: 4;
 }
 
