@@ -79,6 +79,37 @@ function buildFileTheme(layout: 'fixed' | 'auto'): Extension {
   );
 }
 
+/** Higher-contrast override for @codemirror/merge's default (very subtle) diff colors. */
+function buildDiffTheme(): Extension {
+  return EditorView.theme({
+    '.cm-deletedChunk': {
+      backgroundColor: 'rgba(220, 50, 47, 0.16)',
+    },
+    '.cm-deletedChunk .cm-deletedText, .cm-deletedLine del.cm-deletedText': {
+      background: 'rgba(220, 50, 47, 0.55)',
+      color: '#ffd7d3',
+      textDecoration: 'line-through',
+    },
+    '.cm-merge-b .cm-changedLine': {
+      backgroundColor: 'rgba(46, 204, 113, 0.16)',
+    },
+    '.cm-merge-b .cm-changedText, ins.cm-insertedLine': {
+      background: 'rgba(46, 204, 113, 0.6)',
+      color: 'inherit',
+    },
+    '.cm-deletedLineGutter': {
+      background: '#e5342f',
+    },
+    '.cm-merge-b .cm-changedLineGutter': {
+      background: '#28c76f',
+    },
+  });
+}
+
+function buildDiffExtensions(diffOriginal: string | null): Extension[] {
+  return diffOriginal != null ? [unifiedMergeView({ original: diffOriginal }), buildDiffTheme()] : [];
+}
+
 export function UnifiedMarkdownEditor({
   instanceKey,
   content,
@@ -234,7 +265,7 @@ export function UnifiedMarkdownEditor({
           }
         }),
         themeCompartment.current.of(buildDynamicExtensions()),
-        diffCompartment.current.of(diffOriginal != null ? unifiedMergeView({ original: diffOriginal }) : []),
+        diffCompartment.current.of(buildDiffExtensions(diffOriginal)),
       ],
     });
 
@@ -277,9 +308,7 @@ export function UnifiedMarkdownEditor({
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: diffCompartment.current.reconfigure(
-        diffOriginal != null ? unifiedMergeView({ original: diffOriginal }) : [],
-      ),
+      effects: diffCompartment.current.reconfigure(buildDiffExtensions(diffOriginal)),
     });
   }, [diffOriginal]);
 
