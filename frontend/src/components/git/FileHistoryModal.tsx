@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Clock, User, ExternalLink, Loader } from 'lucide-react';
+import { X, Clock, User, ExternalLink, Loader, ArrowLeft } from 'lucide-react';
 import { gitApi } from '../../api.ts';
 import type { GitCommit } from '../../types.ts';
 
@@ -12,6 +12,11 @@ export function FileHistoryModal({ filePath, onClose }: FileHistoryModalProps) {
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [viewingCommit, setViewingCommit] = useState<GitCommit | null>(null);
+  const [viewContent, setViewContent] = useState<string | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState<string | null>(null);
 
   const fileName = filePath.split('/').pop() ?? filePath;
 
@@ -26,22 +31,68 @@ export function FileHistoryModal({ filePath, onClose }: FileHistoryModalProps) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (viewingCommit) setViewingCommit(null);
+        else onClose();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, viewingCommit]);
+
+  useEffect(() => {
+    if (!viewingCommit) return;
+    setViewLoading(true);
+    setViewError(null);
+    setViewContent(null);
+    gitApi.fileAtCommit(filePath, viewingCommit.hash)
+      .then((result) => {
+        if (!result.exists) setViewError('File did not exist at this commit.');
+        else setViewContent(result.content);
+      })
+      .catch((err) => setViewError(err instanceof Error ? err.message : 'Failed to load file'))
+      .finally(() => setViewLoading(false));
+  }, [filePath, viewingCommit]);
 
   const handleOpenCommit = (commit: GitCommit) => {
-    const params = new URLSearchParams({
-      viewer: '1',
-      path: filePath,
-      hash: commit.hash,
-    });
-    window.open(`${window.location.pathname}?${params.toString()}`, '_blank');
+    setViewingCommit(commit);
   };
 
   const shortHash = (hash: string) => hash.substring(0, 8);
+
+  if (viewingCommit) {
+    return (
+      <div className="file-history-overlay" onClick={onClose}>
+        <div className="file-history-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="file-history-header">
+            <button className="file-history-back-btn" onClick={() => setViewingCommit(null)} title="Back to history">
+              <ArrowLeft size={16} />
+            </button>
+            <div className="file-history-viewer-title">
+              <span className="file-history-title">{fileName}</span>
+              <span className="file-history-viewer-commit">{shortHash(viewingCommit.hash)} — {viewingCommit.message}</span>
+            </div>
+            <button className="file-history-close-btn" onClick={onClose} title="Close">
+              <X size={16} />
+            </button>
+          </div>
+
+          {viewLoading && (
+            <div className="file-history-loading">
+              <Loader size={18} className="file-history-spinner" />
+              <span>Loading file...</span>
+            </div>
+          )}
+
+          {viewError && <div className="file-history-error">{viewError}</div>}
+
+          {!viewLoading && !viewError && viewContent !== null && (
+            <pre className="file-history-viewer">{viewContent}</pre>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="file-history-overlay" onClick={onClose}>
