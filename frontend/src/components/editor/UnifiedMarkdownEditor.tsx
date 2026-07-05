@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { CSSProperties } from 'react';
-import { EditorView, keymap, drawSelection } from '@codemirror/view';
+import { EditorView, keymap, drawSelection, Decoration } from '@codemirror/view';
+import type { DecorationSet } from '@codemirror/view';
 import { EditorState, Compartment, EditorSelection } from '@codemirror/state';
+import type { Range } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { unifiedMergeView } from '@codemirror/merge';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -34,6 +36,22 @@ export interface MarkdownEditorConfig {
   diffOriginal?: string | null;
 }
 
+/**
+ * A passage an AI comment refers to. Rendered as a coloured underline; the line
+ * it starts on gets `paddingTop` extra space above it so the comment card in the
+ * sidebar can align without overlapping its neighbours. Tagged in the DOM with
+ * `data-comment-anchor={id}` so the connector line can find its end coordinate.
+ */
+export interface CommentAnchorSpec {
+  id: string;
+  /** Verbatim text to underline (first occurrence in the doc). */
+  text: string;
+  /** Underline colour (any CSS colour). */
+  color: string;
+  /** Extra space (px) reserved above the anchor's line to make room for the card. */
+  paddingTop: number;
+}
+
 /** Imperative handle for programmatic edits from outside (e.g. accepting an AI suggestion). */
 export interface MarkdownEditorHandle {
   /**
@@ -59,6 +77,8 @@ export interface UnifiedMarkdownEditorProps extends MarkdownEditorConfig {
   onScrollHandled?: () => void;
   className?: string;
   style?: CSSProperties;
+  /** AI comment passages to underline + space out (see CommentAnchorSpec). */
+  commentAnchors?: CommentAnchorSpec[];
 }
 
 function buildFileTheme(layout: 'fixed' | 'auto'): Extension {
@@ -164,6 +184,47 @@ function buildDiffExtensions(diffOriginal: string | null): Extension[] {
   return diffOriginal != null ? [unifiedMergeView({ original: diffOriginal }), buildDiffTheme()] : [];
 }
 
+const EMPTY_ANCHORS: CommentAnchorSpec[] = [];
+
+/**
+ * Build underline marks + top-padding line decorations for the given anchors,
+ * recomputed from the live document so they track edits and disappear if the
+ * anchored text is gone (rather than pointing at the wrong place).
+ */
+function buildAnchorDecorations(view: EditorView, anchors: CommentAnchorSpec[]): DecorationSet {
+  const doc = view.state.doc;
+  const text = doc.toString();
+  const built: Range<Decoration>[] = [];
+  for (const a of anchors) {
+    if (!a.text) continue;
+    const from = text.indexOf(a.text);
+    if (from === -1) continue;
+    const to = from + a.text.length;
+    if (a.paddingTop > 0) {
+      const line = doc.lineAt(from);
+      built.push(
+        Decoration.line({
+          attributes: { style: `padding-top:${a.paddingTop}px` },
+        }).range(line.from),
+      );
+    }
+    built.push(
+      Decoration.mark({
+        attributes: {
+          style: `text-decoration: underline; text-decoration-color:${a.color}; text-decoration-thickness:2px; text-underline-offset:3px;`,
+          'data-comment-anchor': a.id,
+        },
+      }).range(from, to),
+    );
+  }
+  return Decoration.set(built, true);
+}
+
+function buildAnchorExtension(anchors: CommentAnchorSpec[]): Extension {
+  if (anchors.length === 0) return [];
+  return EditorView.decorations.of((view) => buildAnchorDecorations(view, anchors));
+}
+
 export const UnifiedMarkdownEditor = forwardRef<
   MarkdownEditorHandle,
   UnifiedMarkdownEditorProps
@@ -188,11 +249,13 @@ export const UnifiedMarkdownEditor = forwardRef<
   className,
   style,
   diffOriginal = null,
+  commentAnchors = EMPTY_ANCHORS,
 }: UnifiedMarkdownEditorProps, handleRef) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const themeCompartment = useRef(new Compartment());
   const diffCompartment = useRef(new Compartment());
+  const anchorCompartment = useRef(new Compartment());
 
   useImperativeHandle(handleRef, () => ({
     replaceExact(search, replacement) {
@@ -342,6 +405,7 @@ export const UnifiedMarkdownEditor = forwardRef<
         }),
         themeCompartment.current.of(buildDynamicExtensions()),
         diffCompartment.current.of(buildDiffExtensions(diffOriginal)),
+        anchorCompartment.current.of(buildAnchorExtension(commentAnchors)),
       ],
     });
 
@@ -387,6 +451,14 @@ export const UnifiedMarkdownEditor = forwardRef<
       effects: diffCompartment.current.reconfigure(buildDiffExtensions(diffOriginal)),
     });
   }, [diffOriginal]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: anchorCompartment.current.reconfigure(buildAnchorExtension(commentAnchors)),
+    });
+  }, [commentAnchors]);
 
   useEffect(() => {
     if (scrollNonce == null || scrollToLine == null) return;

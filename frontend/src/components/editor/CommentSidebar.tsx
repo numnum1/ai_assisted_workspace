@@ -31,11 +31,9 @@ interface CommentSidebarProps {
   onAccept: (id: string) => void;
 }
 
-const CARD_MIN_HEIGHT = 64;
-
 /**
- * Right-hand column that renders AI comment cards, each vertically aligned with
- * the passage it refers to. Cards that would overlap are pushed down.
+ * Right-hand column that renders AI comment cards at the vertical offsets
+ * computed by ChapterView (which spaces the text so cards never overlap).
  */
 export function CommentSidebar({
   comments,
@@ -50,17 +48,16 @@ export function CommentSidebar({
     return null;
   }
 
-  const positioned = avoidOverlap(comments);
-
   return (
     <div className="comment-sidebar" ref={sidebarRef} style={{ width }}>
       <div className="comment-sidebar-inner" style={{ height: contentHeight }}>
-        {positioned.map(({ comment, top, matched, canApply }) => {
+        {comments.map(({ comment, top, matched, canApply }) => {
           const color = categoryColor(categories, comment.category);
           const accepted = comment.accepted === true;
           return (
             <div
               key={comment.id}
+              data-card-id={comment.id}
               className={`comment-card${matched ? '' : ' comment-card-unmatched'}${accepted ? ' comment-card-accepted' : ''}`}
               style={{ top, borderLeftColor: color }}
             >
@@ -117,18 +114,4 @@ export function CommentSidebar({
       </div>
     </div>
   );
-}
-
-/** Push cards down so they never overlap, preserving their relative order. */
-function avoidOverlap(comments: PositionedComment[]): PositionedComment[] {
-  if (comments.length <= 1) return comments;
-  const sorted = [...comments].sort((a, b) => a.top - b.top);
-  const result = sorted.map((c) => ({ ...c }));
-  for (let i = 1; i < result.length; i++) {
-    const prevBottom = result[i - 1]!.top + CARD_MIN_HEIGHT;
-    if (result[i]!.top < prevBottom) {
-      result[i]!.top = prevBottom;
-    }
-  }
-  return result;
 }

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight, History, MessageSquareText, Sparkles, Loader2 } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
-import type { MarkdownEditorHandle } from './UnifiedMarkdownEditor';
+import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
-import { DEFAULT_COMMENT_CATEGORIES } from './commentCategories.ts';
+import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
 import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
 import { chapterApi, projectConfigApi } from '../../api.ts';
@@ -29,6 +29,24 @@ const COMMENT_SIDEBAR_MAX_WIDTH = 560;
 
 /** Minimum vertical span reserved per unmatched comment card. */
 const UNMATCHED_CARD_STEP = 72;
+
+/** Vertical gap (px) kept between stacked comment cards. */
+const CARD_GAP = 12;
+/** Fallback card height (px) used before a card has been measured in the DOM. */
+const CARD_HEIGHT_ESTIMATE = 96;
+/** Stable empty anchor list so actions without comments don't churn editor re-renders. */
+const EMPTY_ANCHORS: CommentAnchorSpec[] = [];
+
+/** A drawn connector from an underlined passage to its comment card. */
+interface CommentConnector {
+  id: string;
+  color: string;
+  /** Coordinates relative to the chapter-view-layout box. */
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
 
 /** Normalize text for fuzzy quote matching (case/whitespace-insensitive). */
 function normalizeForMatch(s: string): string {
@@ -174,6 +192,16 @@ export function ChapterView({
   // Imperative handles into each action's editor, keyed by action id — used to
   // apply an accepted suggestion directly to the live CodeMirror document.
   const actionHandles = useRef<Map<string, MarkdownEditorHandle>>(new Map());
+  // Underline/spacer anchors handed to each action's editor, keyed by action id.
+  const [anchorsByAction, setAnchorsByAction] = useState<Map<string, CommentAnchorSpec[]>>(new Map());
+  // Connector lines drawn from each underlined passage to its card.
+  const [connectors, setConnectors] = useState<CommentConnector[]>([]);
+  // Currently applied top-padding per comment id, so the layout pass can recover
+  // each anchor's natural (un-pushed) position and stay stable across reflows.
+  const anchorPushRef = useRef<Map<string, number>>(new Map());
+  // Signature of the last computed layout, to skip redundant state updates that
+  // would otherwise loop forever (padding → reflow → recompute → padding …).
+  const layoutSigRef = useRef<string>('');
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -354,67 +382,189 @@ export function ChapterView({
     [comments, chapter, actionContents, onActionSave, structureRoot],
   );
 
-  // Compute the vertical offset for each comment card by locating the action
-  // whose content contains the quote, then aligning to that action's DOM block.
-  const computeCommentPositions = useCallback(() => {
+  // Measure a rendered card's height (falls back to an estimate before it exists).
+  const measureCardHeight = useCallback((id: string): number => {
+    const el = commentSidebarRef.current?.querySelector<HTMLElement>(`[data-card-id="${id}"]`);
+    return el?.offsetHeight ?? CARD_HEIGHT_ESTIMATE;
+  }, []);
+
+  // Lay out comments: locate each quote's underlined span, space the text down
+  // just enough that cards don't overlap, position the cards at their (pushed)
+  // anchors, and compute the connector line for each. Runs in a rAF and is
+  // idempotent — it recovers each anchor's natural position from the padding it
+  // already applied, so repeated passes converge instead of drifting.
+  const computeLayout = useCallback(() => {
     const layout = layoutRef.current;
     const contentCol = contentColRef.current;
     if (!layout || !contentCol) return;
-    const layoutTop = layout.getBoundingClientRect().top;
+    const layoutRect = layout.getBoundingClientRect();
+    const layoutTop = layoutRect.top;
+    const layoutLeft = layoutRect.left;
     setContentHeight(contentCol.scrollHeight);
 
-    let unmatchedCursor = 0;
-    const result: PositionedComment[] = comments.map(comment => {
+    const sidebarEl = commentSidebarRef.current;
+    const cardLeftX = sidebarEl
+      ? sidebarEl.getBoundingClientRect().left - layoutLeft
+      : contentCol.getBoundingClientRect().right - layoutLeft;
+
+    interface Item {
+      comment: ChapterComment;
+      actionId: string;
+      anchorText: string;
+      color: string;
+      canApply: boolean;
+      measuredTop: number;
+      endX: number;
+      endYOffset: number; // vertical centre of the underline, relative to measuredTop
+      height: number;
+    }
+    const items: Item[] = [];
+    const unmatched: ChapterComment[] = [];
+
+    for (const comment of comments) {
       // After acceptance the quote is gone (replaced by the suggestion), so
       // anchor accepted cards to the suggestion text that now lives in the doc.
       const anchorText =
         comment.accepted && comment.suggestion ? comment.suggestion : comment.quote;
-      const q = normalizeForMatch(anchorText);
-      if (q) {
+      const color = categoryColor(categoryDefs, comment.category);
+      let item: Item | null = null;
+
+      if (anchorText) {
         for (const scene of chapter.scenes) {
           for (const action of scene.actions) {
             const entry = actionContents.get(actionKey(chapter.id, scene.id, action.id));
-            if (entry && normalizeForMatch(entry.content).includes(q)) {
-              const el = nodeRefs.current.get(`action-${action.id}`);
-              if (el) {
-                const anchorEl = findMatchingLine(el, q) ?? el;
-                const top = anchorEl.getBoundingClientRect().top - layoutTop;
-                // A suggestion can be applied only if the exact quote occurs
-                // once in this action (unambiguous replace target).
-                const canApply =
-                  !!comment.suggestion &&
-                  occursExactlyOnce(entry.content, comment.quote);
-                return { comment, top: Math.max(0, top), matched: true, canApply };
-              }
+            if (!entry || !entry.content.includes(anchorText)) continue;
+            const actionEl = nodeRefs.current.get(`action-${action.id}`);
+            if (!actionEl) break;
+
+            // Prefer the underline mark's exact geometry; fall back to the action
+            // block (e.g. on the very first pass before the mark is rendered).
+            const markEl = actionEl.querySelector<HTMLElement>(
+              `[data-comment-anchor="${comment.id}"]`,
+            );
+            let measuredTop: number;
+            let endX: number;
+            let endYOffset: number;
+            if (markEl) {
+              const rects = markEl.getClientRects();
+              const firstR = rects[0] ?? markEl.getBoundingClientRect();
+              const lastR = rects[rects.length - 1] ?? firstR;
+              measuredTop = firstR.top - layoutTop;
+              endX = lastR.right - layoutLeft;
+              endYOffset = lastR.top + lastR.height / 2 - layoutTop - measuredTop;
+            } else {
+              const anchorEl = findMatchingLine(actionEl, normalizeForMatch(anchorText)) ?? actionEl;
+              const r = anchorEl.getBoundingClientRect();
+              measuredTop = r.top - layoutTop;
+              endX = r.right - layoutLeft;
+              endYOffset = Math.min(r.height / 2, 10);
             }
+
+            item = {
+              comment,
+              actionId: action.id,
+              anchorText,
+              color,
+              canApply: !!comment.suggestion && occursExactlyOnce(entry.content, comment.quote),
+              measuredTop,
+              endX,
+              endYOffset,
+              height: measureCardHeight(comment.id),
+            };
+            break;
           }
+          if (item) break;
         }
       }
-      const top = unmatchedCursor;
-      unmatchedCursor += UNMATCHED_CARD_STEP;
-      return { comment, top, matched: false, canApply: false };
-    });
-    setPositioned(result);
-  }, [comments, chapter, actionContents]);
 
-  // Recompute positions on comment/geometry changes and when the editor resizes.
+      if (item) items.push(item);
+      else unmatched.push(comment);
+    }
+
+    // Order by vertical position (≈ document order) so pushes accumulate downward.
+    items.sort((a, b) => a.measuredTop - b.measuredTop);
+
+    const nextAnchors = new Map<string, CommentAnchorSpec[]>();
+    const nextPush = new Map<string, number>();
+    const nextConnectors: CommentConnector[] = [];
+    const positionedNew: PositionedComment[] = [];
+
+    let cumApplied = 0; // sum of already-applied padding for items processed so far
+    let sPrev = 0; // cumulative (desired − natural) for the previous item
+    let prevBottom = 0;
+
+    for (const it of items) {
+      const appliedOwn = anchorPushRef.current.get(it.comment.id) ?? 0;
+      const appliedOffset = cumApplied + appliedOwn;
+      const natural = it.measuredTop - appliedOffset;
+      cumApplied = appliedOffset;
+
+      const desired = Math.max(natural, prevBottom);
+      const sCur = desired - natural;
+      const ownPad = Math.max(0, sCur - sPrev);
+      sPrev = sCur;
+      prevBottom = desired + it.height + CARD_GAP;
+
+      nextPush.set(it.comment.id, ownPad);
+      const list = nextAnchors.get(it.actionId) ?? [];
+      list.push({ id: it.comment.id, text: it.anchorText, color: it.color, paddingTop: ownPad });
+      nextAnchors.set(it.actionId, list);
+
+      positionedNew.push({ comment: it.comment, top: desired, matched: true, canApply: it.canApply });
+      nextConnectors.push({
+        id: it.comment.id,
+        color: it.color,
+        x1: it.endX,
+        y1: desired + it.endYOffset,
+        x2: cardLeftX,
+        y2: desired + 14,
+      });
+    }
+
+    let cursor = prevBottom;
+    for (const comment of unmatched) {
+      positionedNew.push({ comment, top: cursor, matched: false, canApply: false });
+      cursor += UNMATCHED_CARD_STEP;
+    }
+
+    // Skip state updates when nothing meaningful changed, to break the
+    // padding→reflow→recompute feedback loop.
+    const sig = JSON.stringify({
+      a: [...nextAnchors.entries()].map(([k, v]) => [k, v.map(s => [s.id, Math.round(s.paddingTop)])]),
+      p: positionedNew.map(p => [p.comment.id, Math.round(p.top), p.matched, p.canApply]),
+      c: nextConnectors.map(c => [c.id, Math.round(c.x1), Math.round(c.y1), Math.round(c.x2), Math.round(c.y2)]),
+    });
+    if (sig === layoutSigRef.current) return;
+    layoutSigRef.current = sig;
+
+    anchorPushRef.current = nextPush;
+    setAnchorsByAction(nextAnchors);
+    setConnectors(nextConnectors);
+    setPositioned(positionedNew);
+  }, [comments, chapter, actionContents, categoryDefs, measureCardHeight]);
+
+  // Recompute layout on comment/geometry changes and when the editor resizes.
   useEffect(() => {
     if (comments.length === 0) {
+      layoutSigRef.current = '';
+      anchorPushRef.current = new Map();
       setPositioned([]);
+      setConnectors([]);
+      setAnchorsByAction(new Map());
       return;
     }
-    let raf = requestAnimationFrame(computeCommentPositions);
+    let raf = requestAnimationFrame(computeLayout);
     const contentCol = contentColRef.current;
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(computeCommentPositions);
+      raf = requestAnimationFrame(computeLayout);
     });
     if (contentCol) observer.observe(contentCol);
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [computeCommentPositions, comments.length, fontSize, padding, lineHeight, collapsedScenes]);
+  }, [computeLayout, comments.length, fontSize, padding, lineHeight, collapsedScenes]);
 
   const registerRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) {
@@ -761,6 +911,7 @@ export function ChapterView({
                       onCtrlL={onCtrlL}
                       onAltVersion={onAltVersion}
                       diffOriginal={chapterDiff?.contents.get(`${scene.id}/${action.id}`) ?? null}
+                      commentAnchors={anchorsByAction.get(action.id) ?? EMPTY_ANCHORS}
                     />
                   </div>
                 )
@@ -770,6 +921,24 @@ export function ChapterView({
         })}
         <div className="chapter-view-scroll-end" aria-hidden="true" />
         </div>
+        {sidebarVisible && connectors.length > 0 && (
+          <svg
+            className="comment-connector-layer"
+            style={{ height: contentHeight || '100%' }}
+            aria-hidden="true"
+          >
+            {connectors.map(c => (
+              <path
+                key={c.id}
+                d={`M ${c.x1} ${c.y1} C ${c.x1 + (c.x2 - c.x1) * 0.5} ${c.y1}, ${c.x1 + (c.x2 - c.x1) * 0.5} ${c.y2}, ${c.x2} ${c.y2}`}
+                fill="none"
+                stroke={c.color}
+                strokeWidth={1.5}
+                strokeOpacity={0.55}
+              />
+            ))}
+          </svg>
+        )}
         {sidebarVisible && (
           <>
             <div

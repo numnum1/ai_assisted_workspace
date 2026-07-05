@@ -1588,6 +1588,19 @@ body.file-tree-native-dragging {
     flex-direction: row;
     align-items: flex-start;
     min-height: 100%;
+    position: relative;
+}
+
+/* Overlay that draws connector lines from underlined passages to their cards.
+   Spans the whole layout width so it can cross the gap to the sidebar. */
+.comment-connector-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 5;
 }
 
 .chapter-view-content-col {

@@ -1,5 +1,5 @@
 import { memo, useMemo, forwardRef } from 'react';
-import { UnifiedMarkdownEditor, type MarkdownEditorHandle } from './UnifiedMarkdownEditor';
+import { UnifiedMarkdownEditor, type MarkdownEditorHandle, type CommentAnchorSpec } from './UnifiedMarkdownEditor';
 import type { SelectionContext, AltVersionSession } from '../../types.ts';
 
 export interface ActionEditorColors {
@@ -24,9 +24,11 @@ interface ActionEditorProps {
   onAltVersion?: (session: AltVersionSession) => void;
   /** When set, shows an inline diff of this action's content against this older revision. */
   diffOriginal?: string | null;
+  /** AI comment passages to underline + space out in this action's text. */
+  commentAnchors?: CommentAnchorSpec[];
 }
 
-const ActionEditorImpl = forwardRef<MarkdownEditorHandle, ActionEditorProps>(function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHeight, onChange, onSave, onCtrlL, onAltVersion, diffOriginal = null }: ActionEditorProps, ref) {
+const ActionEditorImpl = forwardRef<MarkdownEditorHandle, ActionEditorProps>(function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHeight, onChange, onSave, onCtrlL, onAltVersion, diffOriginal = null, commentAnchors }: ActionEditorProps, ref) {
   const readingThemeOverrides = useMemo(() => ({
     fontSize: `${fontSize}px`,
     padding: `16px ${padding}px`,
@@ -57,6 +59,7 @@ const ActionEditorImpl = forwardRef<MarkdownEditorHandle, ActionEditorProps>(fun
       alwaysShowHtmlComments={false}
       showReferencesAsLinks
       diffOriginal={diffOriginal}
+      commentAnchors={commentAnchors}
       className="action-editor-cm-wrap"
       style={editorStyle}
     />
@@ -78,5 +81,6 @@ export const ActionEditor = memo(ActionEditorImpl, (prev, next) =>
   prev.padding === next.padding &&
   prev.lineHeight === next.lineHeight &&
   prev.colors === next.colors &&
-  prev.diffOriginal === next.diffOriginal,
+  prev.diffOriginal === next.diffOriginal &&
+  prev.commentAnchors === next.commentAnchors,
 );
