@@ -23,6 +23,8 @@ interface CommentSidebarProps {
   categories: CommentCategoryDef[];
   /** Height of the scrollable editor content, so the sidebar can match it. */
   contentHeight: number;
+  /** Width (px) of the column, user-adjustable via the drag handle in ChapterView. */
+  width: number;
   sidebarRef: RefObject<HTMLDivElement | null>;
   onDismiss: (id: string) => void;
   /** Accept a comment's suggestion (replace the quoted text). */
@@ -39,6 +41,7 @@ export function CommentSidebar({
   comments,
   categories,
   contentHeight,
+  width,
   sidebarRef,
   onDismiss,
   onAccept,
@@ -50,7 +53,7 @@ export function CommentSidebar({
   const positioned = avoidOverlap(comments);
 
   return (
-    <div className="comment-sidebar" ref={sidebarRef}>
+    <div className="comment-sidebar" ref={sidebarRef} style={{ width }}>
       <div className="comment-sidebar-inner" style={{ height: contentHeight }}>
         {positioned.map(({ comment, top, matched, canApply }) => {
           const color = categoryColor(categories, comment.category);

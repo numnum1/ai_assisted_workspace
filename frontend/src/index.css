@@ -1596,7 +1596,6 @@ body.file-tree-native-dragging {
 }
 
 .comment-sidebar {
-    width: 280px;
     flex-shrink: 0;
     overflow: hidden;
     background: rgba(0, 0, 0, 0.03);
@@ -1606,6 +1605,32 @@ body.file-tree-native-dragging {
 .comment-sidebar-inner {
     position: relative;
     min-height: 100%;
+}
+
+.comment-sidebar-resize-handle {
+    width: 3px;
+    flex-shrink: 0;
+    background: var(--border);
+    transition: background 0.15s;
+    cursor: col-resize;
+    touch-action: none;
+}
+
+.comment-sidebar-resize-handle:hover,
+.comment-sidebar-resize-handle.active {
+    background: var(--accent);
+}
+
+.chapter-view-night .comment-sidebar-resize-handle,
+.chapter-view-night-alt .comment-sidebar-resize-handle {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.chapter-view-night .comment-sidebar-resize-handle:hover,
+.chapter-view-night .comment-sidebar-resize-handle.active,
+.chapter-view-night-alt .comment-sidebar-resize-handle:hover,
+.chapter-view-night-alt .comment-sidebar-resize-handle.active {
+    background: #c89846;
 }
 
 .comment-card {

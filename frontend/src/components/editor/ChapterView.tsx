@@ -22,6 +22,10 @@ const DEFAULT_LINE_HEIGHT = 1.5;
 const LINE_HEIGHT_MIN = 1.1;
 const LINE_HEIGHT_MAX = 2.4;
 const LINE_HEIGHT_STEP = 0.1;
+const COMMENT_SIDEBAR_WIDTH_KEY = 'comment-sidebar-width';
+const DEFAULT_COMMENT_SIDEBAR_WIDTH = 280;
+const COMMENT_SIDEBAR_MIN_WIDTH = 180;
+const COMMENT_SIDEBAR_MAX_WIDTH = 560;
 
 /** Minimum vertical span reserved per unmatched comment card. */
 const UNMATCHED_CARD_STEP = 72;
@@ -150,6 +154,13 @@ export function ChapterView({
   const [contentHeight, setContentHeight] = useState(0);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [commentPanelOpen, setCommentPanelOpen] = useState(false);
+  const [commentSidebarWidth, setCommentSidebarWidth] = useState<number>(() => {
+    const stored = Number(localStorage.getItem(COMMENT_SIDEBAR_WIDTH_KEY));
+    return stored >= COMMENT_SIDEBAR_MIN_WIDTH && stored <= COMMENT_SIDEBAR_MAX_WIDTH
+      ? stored
+      : DEFAULT_COMMENT_SIDEBAR_WIDTH;
+  });
+  const [resizingSidebar, setResizingSidebar] = useState(false);
   const [categoryDefs, setCategoryDefs] = useState<CommentCategoryDef[]>(DEFAULT_COMMENT_CATEGORIES);
   const [activeCategories, setActiveCategories] = useState<Set<CommentCategory>>(
     () => new Set(DEFAULT_COMMENT_CATEGORIES.map(c => c.id)),
@@ -419,6 +430,31 @@ export function ChapterView({
   useEffect(() => { localStorage.setItem(LINE_HEIGHT_KEY, String(lineHeight)); }, [lineHeight]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
   useEffect(() => { localStorage.setItem(NIGHT_VARIANT_KEY, String(nightVariant)); }, [nightVariant]);
+  useEffect(() => { localStorage.setItem(COMMENT_SIDEBAR_WIDTH_KEY, String(commentSidebarWidth)); }, [commentSidebarWidth]);
+
+  // Drag-resize the comment sidebar (mirrors the app-level resizable panels'
+  // drag behaviour, scoped to this local flex layout).
+  const handleSidebarResizeStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = commentSidebarWidth;
+    setResizingSidebar(true);
+    const handleMove = (moveEvent: PointerEvent) => {
+      const delta = startX - moveEvent.clientX;
+      const next = Math.min(
+        COMMENT_SIDEBAR_MAX_WIDTH,
+        Math.max(COMMENT_SIDEBAR_MIN_WIDTH, startWidth + delta),
+      );
+      setCommentSidebarWidth(next);
+    };
+    const handleUp = () => {
+      setResizingSidebar(false);
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  }, [commentSidebarWidth]);
 
   useEffect(() => {
     setPadding(p => (p > paddingSliderMax ? paddingSliderMax : p));
@@ -735,14 +771,22 @@ export function ChapterView({
         <div className="chapter-view-scroll-end" aria-hidden="true" />
         </div>
         {sidebarVisible && (
-          <CommentSidebar
-            comments={positioned}
-            categories={categoryDefs}
-            contentHeight={contentHeight}
-            sidebarRef={commentSidebarRef}
-            onDismiss={handleDismissComment}
-            onAccept={handleAcceptSuggestion}
-          />
+          <>
+            <div
+              className={`comment-sidebar-resize-handle${resizingSidebar ? ' active' : ''}`}
+              onPointerDown={handleSidebarResizeStart}
+              title="Kommentarspalte-Breite ziehen"
+            />
+            <CommentSidebar
+              comments={positioned}
+              categories={categoryDefs}
+              contentHeight={contentHeight}
+              sidebarRef={commentSidebarRef}
+              width={commentSidebarWidth}
+              onDismiss={handleDismissComment}
+              onAccept={handleAcceptSuggestion}
+            />
+          </>
         )}
        </div>
       </div>
