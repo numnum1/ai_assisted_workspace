@@ -774,6 +774,7 @@ export function ChapterView({
           <>
             <div
               className={`comment-sidebar-resize-handle${resizingSidebar ? ' active' : ''}`}
+              style={{ height: contentHeight || '100%' }}
               onPointerDown={handleSidebarResizeStart}
               title="Kommentarspalte-Breite ziehen"
             />
