@@ -21,7 +21,7 @@ export interface MarkdownEditorConfig {
   /** On non-active lines, show only the display name as an underlined link; hide @, brackets, and path. Default: false */
   showReferencesAsLinks?: boolean;
   /** Visual theme. Default: 'file' */
-  theme?: 'file' | 'reading';
+  theme?: 'file' | 'reading' | 'clean';
   /** Overrides for the reading theme (only applied when theme='reading'). */
   readingThemeOverrides?: Partial<ReadingThemeConfig>;
   /** Layout mode. 'fixed' fills container height with internal scroll; 'auto' expands to content. Default: 'fixed' */
@@ -77,6 +77,50 @@ function buildFileTheme(layout: 'fixed' | 'auto'): Extension {
     },
     { dark: true },
   );
+}
+
+/** Clean, distraction-free theme: sans-serif prose look, no gutter, centered column, follows app light/dark vars. */
+function buildCleanTheme(layout: 'fixed' | 'auto'): Extension {
+  return EditorView.theme({
+    '&': {
+      height: layout === 'fixed' ? '100%' : 'auto',
+      fontSize: '16px',
+      backgroundColor: 'var(--bg-primary, #1e1e2e)',
+      color: 'var(--text-primary, #cdd6f4)',
+    },
+    '.cm-scroller': {
+      overflow: layout === 'fixed' ? 'auto' : 'visible',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      display: 'flex',
+      justifyContent: 'center',
+    },
+    '.cm-content': {
+      maxWidth: '760px',
+      width: '100%',
+      minHeight: '200px',
+      padding: '40px 8px',
+      lineHeight: '1.7',
+      caretColor: 'var(--text-primary, #cdd6f4)',
+    },
+    '.cm-line': {
+      padding: '0 2px',
+    },
+    '.cm-gutters': {
+      display: 'none',
+    },
+    '.cm-activeLine': {
+      backgroundColor: 'transparent',
+    },
+    '&.cm-focused .cm-activeLine': {
+      backgroundColor: 'var(--bg-hover, rgba(137, 180, 250, 0.08))',
+    },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+      backgroundColor: 'var(--accent-dim, rgba(137, 180, 250, 0.35))',
+    },
+    '.cm-selectionMatch': {
+      backgroundColor: 'var(--accent-dim, rgba(137, 180, 250, 0.15))',
+    },
+  });
 }
 
 /** Higher-contrast override for @codemirror/merge's default (very subtle) diff colors. */
@@ -152,6 +196,8 @@ export function UnifiedMarkdownEditor({
 
     if (theme === 'reading') {
       exts.push(createReadingTheme(readingThemeOverrides));
+    } else if (theme === 'clean') {
+      exts.push(buildCleanTheme(layout));
     } else {
       exts.push(buildFileTheme(layout));
     }

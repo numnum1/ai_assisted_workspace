@@ -113,7 +113,7 @@ export function MarkdownFileEditor({
           onSave={onSave}
           onCtrlL={onCtrlL}
           onAltVersion={onAltVersion}
-          theme="file"
+          theme="clean"
           layout="fixed"
           editorId="file"
           alwaysShowMarkdownStylingCharacters
