@@ -620,10 +620,13 @@ export async function generateChapterComments(
     "kurz und exakt aus dem Kapiteltext übernommen, damit sie eindeutig gefunden werden kann), " +
     "schreibst deine Anmerkung (Feld \"comment\") und ordnest eine Kategorie zu (Feld \"category\", " +
     `einer von genau diesen Kategorie-ids: ${categoryIdList}). ` +
+    "Wenn du eine konkrete bessere Formulierung vorschlagen kannst, gib sie im optionalen Feld " +
+    "\"suggestion\" an: der vollständige Ersatztext für exakt die zitierte Stelle (\"quote\"), " +
+    "sodass er diese 1:1 ersetzen kann. Ohne konkreten Ersatz lässt du \"suggestion\" weg. " +
     "Gib nur wirklich hilfreiche Anmerkungen; erfinde keine Textstellen. " +
     "Antworte ausschließlich mit einem JSON-Objekt in exakt diesem Format " +
     "(kein Markdown, kein Code-Block, kein Text davor oder danach):\n" +
-    '{"comments":[{"quote":"<wörtliches Zitat>","comment":"<Anmerkung>","category":"<kategorie-id>"}]}';
+    '{"comments":[{"quote":"<wörtliches Zitat>","comment":"<Anmerkung>","category":"<kategorie-id>","suggestion":"<optionaler Ersatztext>"}]}';
 
   const requestMessages = [
     { role: "system" as const, content: systemPrompt },
@@ -674,7 +677,17 @@ export async function generateChapterComments(
       typeof o.category === "string" && validIds.has(o.category)
         ? o.category
         : FALLBACK_CATEGORY;
-    comments.push({ id: randomUUID(), quote, comment, category });
+    const suggestion =
+      typeof o.suggestion === "string" && o.suggestion.trim()
+        ? o.suggestion
+        : undefined;
+    comments.push({
+      id: randomUUID(),
+      quote,
+      comment,
+      category,
+      ...(suggestion !== undefined ? { suggestion } : {}),
+    });
   }
 
   console.trace(

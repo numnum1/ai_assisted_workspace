@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight, History, MessageSquareText, Sparkles, Loader2 } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
+import type { MarkdownEditorHandle } from './UnifiedMarkdownEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
 import { DEFAULT_COMMENT_CATEGORIES } from './commentCategories.ts';
@@ -38,6 +39,14 @@ function normalizeForMatch(s: string): string {
  * quote referring to an off-screen paragraph won't have a `.cm-line` yet —
  * callers should fall back to the action block's own position in that case.
  */
+/** True if `needle` occurs exactly once in `haystack` (so a replace is unambiguous). */
+function occursExactlyOnce(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  const first = haystack.indexOf(needle);
+  if (first === -1) return false;
+  return haystack.indexOf(needle, first + needle.length) === -1;
+}
+
 function findMatchingLine(actionEl: HTMLElement, normalizedQuote: string): HTMLElement | null {
   const needle = normalizedQuote.slice(0, 40);
   if (!needle) return null;
@@ -151,6 +160,9 @@ export function ChapterView({
   const layoutRef = useRef<HTMLDivElement>(null);
   const contentColRef = useRef<HTMLDivElement>(null);
   const commentSidebarRef = useRef<HTMLDivElement>(null);
+  // Imperative handles into each action's editor, keyed by action id — used to
+  // apply an accepted suggestion directly to the live CodeMirror document.
+  const actionHandles = useRef<Map<string, MarkdownEditorHandle>>(new Map());
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -292,6 +304,45 @@ export function ChapterView({
     [chapter.id, structureRoot],
   );
 
+  // Apply a comment's suggestion: replace the quoted text in its action's live
+  // editor, then mark the comment accepted (it stays visible, struck through).
+  const handleAcceptSuggestion = useCallback(
+    (id: string) => {
+      const comment = comments.find(c => c.id === id);
+      if (!comment?.suggestion) return;
+
+      // Locate the action containing the quote and apply via its editor handle,
+      // so the change flows through onChange (dirty state) and undo history.
+      let applied = false;
+      for (const scene of chapter.scenes) {
+        for (const action of scene.actions) {
+          const entry = actionContents.get(actionKey(chapter.id, scene.id, action.id));
+          if (!entry || !occursExactlyOnce(entry.content, comment.quote)) continue;
+          const handle = actionHandles.current.get(action.id);
+          if (handle?.replaceExact(comment.quote, comment.suggestion)) {
+            onActionSave(chapter.id, scene.id, action.id);
+            applied = true;
+          }
+          break;
+        }
+        if (applied) break;
+      }
+      if (!applied) {
+        setCommentsError('Textstelle konnte nicht eindeutig ersetzt werden.');
+        return;
+      }
+
+      setComments(prev => {
+        const next = prev.map(c => (c.id === id ? { ...c, accepted: true } : c));
+        void chapterApi
+          .saveComments(chapter.id, next, structureRoot ?? undefined)
+          .catch(() => {});
+        return next;
+      });
+    },
+    [comments, chapter, actionContents, onActionSave, structureRoot],
+  );
+
   // Compute the vertical offset for each comment card by locating the action
   // whose content contains the quote, then aligning to that action's DOM block.
   const computeCommentPositions = useCallback(() => {
@@ -303,7 +354,11 @@ export function ChapterView({
 
     let unmatchedCursor = 0;
     const result: PositionedComment[] = comments.map(comment => {
-      const q = normalizeForMatch(comment.quote);
+      // After acceptance the quote is gone (replaced by the suggestion), so
+      // anchor accepted cards to the suggestion text that now lives in the doc.
+      const anchorText =
+        comment.accepted && comment.suggestion ? comment.suggestion : comment.quote;
+      const q = normalizeForMatch(anchorText);
       if (q) {
         for (const scene of chapter.scenes) {
           for (const action of scene.actions) {
@@ -313,7 +368,12 @@ export function ChapterView({
               if (el) {
                 const anchorEl = findMatchingLine(el, q) ?? el;
                 const top = anchorEl.getBoundingClientRect().top - layoutTop;
-                return { comment, top: Math.max(0, top), matched: true };
+                // A suggestion can be applied only if the exact quote occurs
+                // once in this action (unambiguous replace target).
+                const canApply =
+                  !!comment.suggestion &&
+                  occursExactlyOnce(entry.content, comment.quote);
+                return { comment, top: Math.max(0, top), matched: true, canApply };
               }
             }
           }
@@ -321,7 +381,7 @@ export function ChapterView({
       }
       const top = unmatchedCursor;
       unmatchedCursor += UNMATCHED_CARD_STEP;
-      return { comment, top, matched: false };
+      return { comment, top, matched: false, canApply: false };
     });
     setPositioned(result);
   }, [comments, chapter, actionContents]);
@@ -650,6 +710,10 @@ export function ChapterView({
                     onFocus={() => onEditorFocus?.(scene.id, action.id)}
                   >
                     <ActionEditor
+                      ref={el => {
+                        if (el) actionHandles.current.set(action.id, el);
+                        else actionHandles.current.delete(action.id);
+                      }}
                       actionId={`${chapter.id}-${scene.id}-${action.id}`}
                       content={content}
                       colors={colors}
@@ -677,6 +741,7 @@ export function ChapterView({
             contentHeight={contentHeight}
             sidebarRef={commentSidebarRef}
             onDismiss={handleDismissComment}
+            onAccept={handleAcceptSuggestion}
           />
         )}
        </div>

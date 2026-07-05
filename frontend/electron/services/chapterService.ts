@@ -468,7 +468,19 @@ function normalizeComment(raw: unknown): ChapterComment | null {
       ? o.category
       : "sonstiges";
   const id = typeof o.id === "string" && o.id.trim() ? o.id : randomUUID();
-  return { id, quote, comment, category };
+  const suggestion =
+    typeof o.suggestion === "string" && o.suggestion.trim()
+      ? o.suggestion
+      : undefined;
+  const accepted = o.accepted === true;
+  return {
+    id,
+    quote,
+    comment,
+    category,
+    ...(suggestion !== undefined ? { suggestion } : {}),
+    ...(accepted ? { accepted } : {}),
+  };
 }
 
 function normalizeComments(raw: unknown): ChapterComment[] {

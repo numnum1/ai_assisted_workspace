@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { CSSProperties } from 'react';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { EditorState, Compartment, EditorSelection } from '@codemirror/state';
@@ -32,6 +32,16 @@ export interface MarkdownEditorConfig {
   editorId?: 'file' | 'chapter';
   /** When set, shows an inline diff of the current document against this original text (e.g. an older git revision). */
   diffOriginal?: string | null;
+}
+
+/** Imperative handle for programmatic edits from outside (e.g. accepting an AI suggestion). */
+export interface MarkdownEditorHandle {
+  /**
+   * Replace the single exact occurrence of `search` with `replacement` in the
+   * live document. Returns false (and does nothing) if `search` is not found or
+   * appears more than once, so callers never overwrite an ambiguous match.
+   */
+  replaceExact: (search: string, replacement: string) => boolean;
 }
 
 export interface UnifiedMarkdownEditorProps extends MarkdownEditorConfig {
@@ -154,7 +164,10 @@ function buildDiffExtensions(diffOriginal: string | null): Extension[] {
   return diffOriginal != null ? [unifiedMergeView({ original: diffOriginal }), buildDiffTheme()] : [];
 }
 
-export function UnifiedMarkdownEditor({
+export const UnifiedMarkdownEditor = forwardRef<
+  MarkdownEditorHandle,
+  UnifiedMarkdownEditorProps
+>(function UnifiedMarkdownEditor({
   instanceKey,
   content,
   onChange,
@@ -175,11 +188,28 @@ export function UnifiedMarkdownEditor({
   className,
   style,
   diffOriginal = null,
-}: UnifiedMarkdownEditorProps) {
+}: UnifiedMarkdownEditorProps, handleRef) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const themeCompartment = useRef(new Compartment());
   const diffCompartment = useRef(new Compartment());
+
+  useImperativeHandle(handleRef, () => ({
+    replaceExact(search, replacement) {
+      const view = viewRef.current;
+      if (!view || !search) return false;
+      const doc = view.state.doc.toString();
+      const first = doc.indexOf(search);
+      if (first === -1) return false;
+      // Refuse ambiguous matches: a second occurrence means we can't be sure
+      // which span the comment referred to.
+      if (doc.indexOf(search, first + search.length) !== -1) return false;
+      view.dispatch({
+        changes: { from: first, to: first + search.length, insert: replacement },
+      });
+      return true;
+    },
+  }), []);
 
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
@@ -373,4 +403,4 @@ export function UnifiedMarkdownEditor({
   }, [scrollNonce, scrollToLine, onScrollHandled]);
 
   return <div ref={editorRef} className={className} style={style} />;
-}
+});

@@ -1,5 +1,5 @@
-import { memo, useMemo } from 'react';
-import { UnifiedMarkdownEditor } from './UnifiedMarkdownEditor';
+import { memo, useMemo, forwardRef } from 'react';
+import { UnifiedMarkdownEditor, type MarkdownEditorHandle } from './UnifiedMarkdownEditor';
 import type { SelectionContext, AltVersionSession } from '../../types.ts';
 
 export interface ActionEditorColors {
@@ -26,7 +26,7 @@ interface ActionEditorProps {
   diffOriginal?: string | null;
 }
 
-function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHeight, onChange, onSave, onCtrlL, onAltVersion, diffOriginal = null }: ActionEditorProps) {
+const ActionEditorImpl = forwardRef<MarkdownEditorHandle, ActionEditorProps>(function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHeight, onChange, onSave, onCtrlL, onAltVersion, diffOriginal = null }: ActionEditorProps, ref) {
   const readingThemeOverrides = useMemo(() => ({
     fontSize: `${fontSize}px`,
     padding: `16px ${padding}px`,
@@ -41,6 +41,7 @@ function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHe
 
   return (
     <UnifiedMarkdownEditor
+      ref={ref}
       instanceKey={actionId}
       content={content}
       onChange={onChange}
@@ -60,7 +61,7 @@ function ActionEditorImpl({ actionId, content, colors, fontSize, padding, lineHe
       style={editorStyle}
     />
   );
-}
+});
 
 /**
  * Compare only the data props. The callback props (onChange/onSave/onCtrlL/onAltVersion)

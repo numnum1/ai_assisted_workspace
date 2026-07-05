@@ -619,6 +619,16 @@ export interface ChapterComment {
   /** The AI's remark about the quoted passage. */
   comment: string;
   category: CommentCategory;
+  /**
+   * Optional concrete rewrite of the quoted passage that the user can accept.
+   * Only set when the AI proposes a replacement; a plain remark leaves it empty.
+   */
+  suggestion?: string;
+  /**
+   * True once the user has accepted the suggestion (its text was applied to the
+   * chapter). Accepted comments stay visible but struck through.
+   */
+  accepted?: boolean;
 }
 
 export interface ChapterActionFilePath {

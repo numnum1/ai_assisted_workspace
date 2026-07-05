@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { MessageSquareText, X } from 'lucide-react';
+import { MessageSquareText, X, Check } from 'lucide-react';
 import type { ChapterComment, CommentCategoryDef } from '../../types.ts';
 import { categoryColor, categoryLabel } from './commentCategories.ts';
 
@@ -10,6 +10,11 @@ export interface PositionedComment {
   top: number;
   /** Whether the quote was located in the chapter text. */
   matched: boolean;
+  /**
+   * True when the suggestion can be applied safely: the quote occurs exactly
+   * once in its action, so the replacement is unambiguous.
+   */
+  canApply: boolean;
 }
 
 interface CommentSidebarProps {
@@ -20,6 +25,8 @@ interface CommentSidebarProps {
   contentHeight: number;
   sidebarRef: RefObject<HTMLDivElement | null>;
   onDismiss: (id: string) => void;
+  /** Accept a comment's suggestion (replace the quoted text). */
+  onAccept: (id: string) => void;
 }
 
 const CARD_MIN_HEIGHT = 64;
@@ -34,6 +41,7 @@ export function CommentSidebar({
   contentHeight,
   sidebarRef,
   onDismiss,
+  onAccept,
 }: CommentSidebarProps) {
   if (comments.length === 0) {
     return null;
@@ -44,12 +52,13 @@ export function CommentSidebar({
   return (
     <div className="comment-sidebar" ref={sidebarRef}>
       <div className="comment-sidebar-inner" style={{ height: contentHeight }}>
-        {positioned.map(({ comment, top, matched }) => {
+        {positioned.map(({ comment, top, matched, canApply }) => {
           const color = categoryColor(categories, comment.category);
+          const accepted = comment.accepted === true;
           return (
             <div
               key={comment.id}
-              className={`comment-card${matched ? '' : ' comment-card-unmatched'}`}
+              className={`comment-card${matched ? '' : ' comment-card-unmatched'}${accepted ? ' comment-card-accepted' : ''}`}
               style={{ top, borderLeftColor: color }}
             >
               <div className="comment-card-icon" style={{ color }}>
@@ -73,6 +82,31 @@ export function CommentSidebar({
                   <div className="comment-card-quote">„{comment.quote}"</div>
                 )}
                 <div className="comment-card-text">{comment.comment}</div>
+                {comment.suggestion && (
+                  <div className="comment-card-suggestion">
+                    <div className="comment-card-suggestion-label">Vorschlag</div>
+                    <div className="comment-card-suggestion-text">{comment.suggestion}</div>
+                    {accepted ? (
+                      <div className="comment-card-accepted-badge">
+                        <Check size={11} /> Übernommen
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="comment-card-accept"
+                        onClick={() => onAccept(comment.id)}
+                        disabled={!canApply}
+                        title={
+                          canApply
+                            ? 'Vorschlag in den Text übernehmen'
+                            : 'Textstelle nicht eindeutig auffindbar — kann nicht automatisch übernommen werden'
+                        }
+                      >
+                        <Check size={11} /> Übernehmen
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );
