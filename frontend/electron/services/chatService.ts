@@ -1,4 +1,10 @@
-import type { ChatRequest, ChatMessage, ToolCall } from "../../src/types.js";
+import { randomUUID } from "node:crypto";
+import type {
+  ChatRequest,
+  ChatMessage,
+  ChapterComment,
+  ToolCall,
+} from "../../src/types.js";
 import {
   normalizeText,
   estimateTokens,
@@ -560,4 +566,119 @@ export async function generateThreadSummary(
     `[chat] generateThreadSummary finished, summary length=${summary.length}, title="${title}"`,
   );
   return { summary, title };
+}
+
+export interface ChapterCommentCategoryInput {
+  id: string;
+  promptFragment: string;
+}
+
+const FALLBACK_CATEGORY = "sonstiges";
+
+/**
+ * Ask the LLM to comment on a whole chapter. Returns structured comments, each
+ * anchored to a verbatim quote from the chapter text. Non-streaming, JSON-only
+ * response — mirrors {@link generateThreadSummary}.
+ *
+ * `categories` is the project's currently active (toggled) comment categories
+ * (see ProjectSettingsModal's "Kommentar-Kategorien" tab / commentCategories.ts
+ * defaults) — the LLM is told exactly these ids are valid, and any category it
+ * returns outside that set is coerced to "sonstiges".
+ */
+export async function generateChapterComments(
+  chapterText: string,
+  categories: ChapterCommentCategoryInput[],
+  freeText: string,
+  llmId?: string | null,
+): Promise<ChapterComment[]> {
+  const activeCategories = Array.isArray(categories) ? categories : [];
+  const validIds = new Set(activeCategories.map((c) => c.id));
+  validIds.add(FALLBACK_CATEGORY);
+  const free = typeof freeText === "string" ? freeText.trim() : "";
+  console.trace(
+    `[chat] generateChapterComments: llmId=${llmId ?? "(default)"}, ` +
+      `textLength=${chapterText.length}, categories=${activeCategories.length}, ` +
+      `freeText=${free ? `"${free.slice(0, 80)}"` : "(none)"}`,
+  );
+
+  const provider = await resolveAiProvider(llmId);
+  const endpoint = resolveProviderEndpoint(provider, false);
+
+  const focusSection = activeCategories.length
+    ? `Achte auf folgende Aspekte:\n${activeCategories.map((c) => `- (${c.id}) ${c.promptFragment}`).join("\n")}`
+    : "Achte auf Rechtschreibung, Lore-Konsistenz, Erzählhandwerk und Formulierung.";
+  const freeSection = free
+    ? `\n\nZusätzliche Anweisung des Nutzers:\n${free}`
+    : "";
+  const categoryIdList = [...validIds].map((id) => `"${id}"`).join(", ");
+
+  const systemPrompt =
+    "Du bist ein erfahrener Lektor. Du erhältst den vollständigen Text eines Buchkapitels " +
+    "und kommentierst gezielt einzelne Stellen. " +
+    `${focusSection}${freeSection}\n\n` +
+    "Für jede Anmerkung zitierst du wörtlich die betroffene Textstelle (Feld \"quote\", " +
+    "kurz und exakt aus dem Kapiteltext übernommen, damit sie eindeutig gefunden werden kann), " +
+    "schreibst deine Anmerkung (Feld \"comment\") und ordnest eine Kategorie zu (Feld \"category\", " +
+    `einer von genau diesen Kategorie-ids: ${categoryIdList}). ` +
+    "Gib nur wirklich hilfreiche Anmerkungen; erfinde keine Textstellen. " +
+    "Antworte ausschließlich mit einem JSON-Objekt in exakt diesem Format " +
+    "(kein Markdown, kein Code-Block, kein Text davor oder danach):\n" +
+    '{"comments":[{"quote":"<wörtliches Zitat>","comment":"<Anmerkung>","category":"<kategorie-id>"}]}';
+
+  const requestMessages = [
+    { role: "system" as const, content: systemPrompt },
+    { role: "user" as const, content: `=== Kapiteltext ===\n\n${chapterText}` },
+  ];
+
+  const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
+    body: JSON.stringify({ model: endpoint.model, stream: false, messages: requestMessages }),
+  });
+
+  if (!response.ok) {
+    let detail = `Chapter comments error: ${response.status}`;
+    try {
+      const body = await response.text();
+      if (body) detail += ` — ${body}`;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+
+  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const raw = json?.choices?.[0]?.message?.content?.trim() ?? "";
+  const jsonText = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+  let parsed: { comments?: unknown };
+  try {
+    parsed = JSON.parse(jsonText) as { comments?: unknown };
+  } catch {
+    console.warn(
+      "[chat] generateChapterComments: failed to parse JSON",
+      jsonText.slice(0, 200),
+    );
+    return [];
+  }
+
+  const list = Array.isArray(parsed.comments) ? parsed.comments : [];
+  const comments: ChapterComment[] = [];
+  for (const entry of list) {
+    if (!entry || typeof entry !== "object") continue;
+    const o = entry as Record<string, unknown>;
+    const comment = typeof o.comment === "string" ? o.comment.trim() : "";
+    if (!comment) continue;
+    const quote = typeof o.quote === "string" ? o.quote.trim() : "";
+    const category =
+      typeof o.category === "string" && validIds.has(o.category)
+        ? o.category
+        : FALLBACK_CATEGORY;
+    comments.push({ id: randomUUID(), quote, comment, category });
+  }
+
+  console.trace(
+    `[chat] generateChapterComments finished, comments=${comments.length}`,
+  );
+  return comments;
 }

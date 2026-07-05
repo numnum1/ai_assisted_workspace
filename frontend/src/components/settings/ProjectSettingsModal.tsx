@@ -30,6 +30,7 @@ import { NAVI_STATES } from "../../naviStateMachine.ts";
 import type { NaviState } from "../../naviStateMachine.ts";
 import { usePreferences } from "../../hooks/usePreferences.ts";
 import { effectiveModeColor } from "../chat/modeColorTheme.ts";
+import { CommentCategoriesTab } from "./CommentCategoriesTab.tsx";
 
 interface ProjectSettingsModalProps {
   onClose: () => void;
@@ -43,6 +44,7 @@ type Tab =
   | "general"
   | "quickChat"
   | "modes"
+  | "commentCategories"
   | "agents"
   | "navi"
   | "workspacePlugins"
@@ -1225,6 +1227,7 @@ export function ProjectSettingsModal({
                   "general",
                   "quickChat",
                   "modes",
+                  "commentCategories",
                   "agents",
                   "navi",
                   "workspacePlugins",
@@ -1249,6 +1252,8 @@ export function ProjectSettingsModal({
                     "Quick Chat"
                   ) : t === "modes" ? (
                     `Modes (${modes.length})`
+                  ) : t === "commentCategories" ? (
+                    "Kommentar-Kategorien"
                   ) : t === "agents" ? (
                     <>
                       <Bot
@@ -1877,6 +1882,12 @@ export function ProjectSettingsModal({
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {initialized && tab === "commentCategories" && (
+              <div className="ps-tab-content">
+                <CommentCategoriesTab />
               </div>
             )}
 

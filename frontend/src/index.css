@@ -1582,6 +1582,234 @@ body.file-tree-native-dragging {
     min-height: 80vh;
 }
 
+/* --- AI comment sidebar layout --- */
+.chapter-view-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    min-height: 100%;
+}
+
+.chapter-view-content-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.comment-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.03);
+    border-left: 1px solid rgba(44, 42, 37, 0.18);
+}
+
+.comment-sidebar-inner {
+    position: relative;
+    min-height: 100%;
+}
+
+.comment-card {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    padding: 7px 9px;
+    background: rgba(255, 255, 255, 0.55);
+    border-left: 3px solid #c4b8a0;
+    border-radius: 0 5px 5px 0;
+    font-size: 11.5px;
+    line-height: 1.4;
+    display: flex;
+    gap: 7px;
+    align-items: flex-start;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: top 0.15s ease;
+}
+
+.comment-card-unmatched {
+    opacity: 0.85;
+    border-left-style: dashed;
+}
+
+.comment-card-icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.comment-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.comment-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 3px;
+}
+
+.comment-card-category {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.comment-card-dismiss {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.5;
+}
+
+.comment-card-dismiss:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.comment-card-quote {
+    font-style: italic;
+    opacity: 0.7;
+    margin-bottom: 3px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 3.2em;
+    overflow: hidden;
+}
+
+.comment-card-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: inherit;
+}
+
+/* Night-mode variants: match the warm/cool chapter palettes. */
+.chapter-view-night .comment-sidebar {
+    background: rgba(255, 255, 255, 0.02);
+    border-left-color: rgba(223, 201, 156, 0.2);
+}
+
+.chapter-view-night .comment-card {
+    background: rgba(223, 201, 156, 0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.chapter-view-night-alt .comment-sidebar {
+    border-left-color: rgba(201, 209, 217, 0.2);
+}
+
+.chapter-view-night-alt .comment-card {
+    background: rgba(88, 166, 255, 0.08);
+}
+
+/* --- Comment control popover in the toolbar --- */
+.comment-menu-anchor {
+    position: relative;
+    display: inline-flex;
+}
+
+.comment-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 50;
+    width: 280px;
+    padding: 10px;
+    background: var(--bg-primary, #1e1e2e);
+    color: var(--text-primary, #cdd6f4);
+    border: 1px solid var(--border, #313244);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comment-menu-title {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.comment-menu-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.comment-chip {
+    padding: 3px 9px;
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--border, #313244);
+    border-radius: 12px;
+    color: var(--text-secondary, #a6adc8);
+    cursor: pointer;
+}
+
+.comment-chip.active {
+    background: rgba(137, 180, 250, 0.08);
+}
+
+.comment-menu-freetext {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    font-size: 11.5px;
+    font-family: inherit;
+    background: var(--bg-secondary, #181825);
+    color: var(--text-primary, #cdd6f4);
+    border: 1px solid var(--border, #313244);
+    border-radius: 6px;
+    resize: vertical;
+}
+
+.comment-menu-error {
+    font-size: 11px;
+    color: #e06c75;
+    word-break: break-word;
+}
+
+.comment-menu-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.comment-menu-run {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    font-size: 12px;
+    background: var(--accent, #89b4fa);
+    color: #1e1e2e;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.comment-menu-run:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.comment-spin {
+    animation: comment-spin 0.9s linear infinite;
+}
+
+@keyframes comment-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Section separators: centered title with horizontal lines */
 .section-separator {
     display: flex;

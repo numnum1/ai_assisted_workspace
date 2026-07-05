@@ -3,7 +3,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { NodeMeta } from "../src/types.js";
+import type { ChapterComment, NodeMeta } from "../src/types.js";
 import {
   browseForProject,
   getCurrentProject,
@@ -24,8 +24,10 @@ import {
 import {
   deleteProjectAgent as removeAgentPreset,
   deleteProjectMode as removeProjectMode,
+  deleteProjectCommentCategory as removeCommentCategory,
   getProjectConfig,
   getProjectConfigStatus,
+  getProjectCommentCategories as listCommentCategories,
   getWorkspaceMode,
   getWorkspaceModesDataDir,
   initProjectConfig,
@@ -37,7 +39,9 @@ import {
   saveProjectAgent as saveAgentPreset,
   updateProjectConfig as saveProjectConfig,
   saveProjectMode,
+  saveProjectCommentCategory,
   resetProjectModes,
+  resetProjectCommentCategories,
 } from "./services/projectConfigService.js";
 import {
   getSubprojectInfo,
@@ -52,6 +56,8 @@ import {
   startChatStream,
   stopChatStream,
   generateThreadSummary,
+  generateChapterComments,
+  type ChapterCommentCategoryInput,
   generateSimulatedUserReply,
   type SimulatedUserReplyRequest,
   evaluateNaviSimulation,
@@ -364,6 +370,58 @@ function registerIpcHandlers(): void {
         structureRoot ?? null,
       );
       return { status: "updated" };
+    },
+  );
+  ipcMain.handle(
+    "chapter:getComments",
+    (_event, chapterId: string, structureRoot?: string | null) =>
+      chapterService.readChapterComments(
+        getCurrentProjectPath(),
+        chapterId,
+        structureRoot ?? null,
+      ),
+  );
+  ipcMain.handle(
+    "chapter:saveComments",
+    async (
+      _event,
+      chapterId: string,
+      comments: unknown,
+      structureRoot?: string | null,
+    ) => {
+      await chapterService.writeChapterComments(
+        getCurrentProjectPath(),
+        chapterId,
+        (comments as ChapterComment[]) ?? [],
+        structureRoot ?? null,
+      );
+      return { status: "saved" };
+    },
+  );
+  ipcMain.handle(
+    "chapter:generateComments",
+    async (
+      _event,
+      chapterId: string,
+      chapterText: string,
+      categories: ChapterCommentCategoryInput[],
+      freeText: string,
+      llmId?: string | null,
+      structureRoot?: string | null,
+    ) => {
+      const comments = await generateChapterComments(
+        chapterText,
+        Array.isArray(categories) ? categories : [],
+        typeof freeText === "string" ? freeText : "",
+        llmId ?? null,
+      );
+      await chapterService.writeChapterComments(
+        getCurrentProjectPath(),
+        chapterId,
+        comments,
+        structureRoot ?? null,
+      );
+      return comments;
     },
   );
   ipcMain.handle(
@@ -722,6 +780,20 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("projectConfig:resetModes", () =>
     resetProjectModes(getCurrentProjectPath()),
+  );
+  ipcMain.handle("projectConfig:getCommentCategories", () =>
+    listCommentCategories(getCurrentProjectPath()),
+  );
+  ipcMain.handle(
+    "projectConfig:saveCommentCategory",
+    (_event, id: string, category) =>
+      saveProjectCommentCategory(getCurrentProjectPath(), id, category),
+  );
+  ipcMain.handle("projectConfig:deleteCommentCategory", (_event, id: string) =>
+    removeCommentCategory(getCurrentProjectPath(), id),
+  );
+  ipcMain.handle("projectConfig:resetCommentCategories", () =>
+    resetProjectCommentCategories(getCurrentProjectPath()),
   );
   ipcMain.handle("projectConfig:listAgents", () =>
     listAgentPresets(getCurrentProjectPath()),

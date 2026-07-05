@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type {
   AgentPreset,
+  CommentCategoryDef,
   Mode,
   ProjectConfig,
   WorkspaceModeInfo,
@@ -27,6 +28,7 @@ const ASSISTANT_DIR = ".assistant";
 const PROJECT_CONFIG_FILE = "project.json";
 const MODES_FILE = "modes.json";
 const AGENTS_FILE = "agents.json";
+const COMMENT_CATEGORIES_FILE = "comment-categories.json";
 const WORKSPACE_MODE_PLUGINS_DIR = "workspace-modes";
 
 const BUILTIN_WORKSPACE_MODES: WorkspaceModeSchema[] = [
@@ -228,6 +230,37 @@ const DEFAULT_MODES: Mode[] = [
   },
 ];
 
+const DEFAULT_COMMENT_CATEGORIES: CommentCategoryDef[] = [
+  {
+    id: "rechtschreibung",
+    label: "Rechtschreibung",
+    color: "#e06c75",
+    promptFragment:
+      "Rechtschreibung, Grammatik, Zeichensetzung und Tippfehler. Weise auf konkrete Fehler hin und nenne die korrekte Schreibweise.",
+  },
+  {
+    id: "lore",
+    label: "Lore",
+    color: "#c678dd",
+    promptFragment:
+      "Konsistenz der Lore/Weltenbau: Widersprüche zu etablierten Fakten, Namen, Zeitabläufen, Regeln der Welt oder Figureneigenschaften.",
+  },
+  {
+    id: "storytelling",
+    label: "Story-Telling",
+    color: "#61afef",
+    promptFragment:
+      "Erzählhandwerk: Spannungsaufbau, Pacing, Figurenmotivation, Logik der Handlung, Show-vs-Tell und dramaturgische Wirkung.",
+  },
+  {
+    id: "formulierung",
+    label: "Formulierung",
+    color: "#98c379",
+    promptFragment:
+      "Bessere Formulierungen: schwache oder umständliche Sätze, Wortwiederholungen, Stil und Rhythmus. Schlage konkrete Alternativen vor.",
+  },
+];
+
 async function exists(targetPath: string): Promise<boolean> {
   try {
     await fs.access(targetPath);
@@ -254,6 +287,10 @@ function getProjectConfigPath(projectPath: string): string {
 
 function getModesPath(projectPath: string): string {
   return path.join(getAssistantDir(projectPath), MODES_FILE);
+}
+
+function getCommentCategoriesPath(projectPath: string): string {
+  return path.join(getAssistantDir(projectPath), COMMENT_CATEGORIES_FILE);
 }
 
 function getAgentsPath(projectPath: string): string {
@@ -373,6 +410,15 @@ function normalizeMode(input: Mode): Mode {
     useReasoning: input.useReasoning,
     agentOnly: input.agentOnly,
     llmId: input.llmId,
+  };
+}
+
+function normalizeCommentCategory(input: CommentCategoryDef): CommentCategoryDef {
+  return {
+    id: input.id,
+    label: input.label,
+    color: input.color,
+    promptFragment: input.promptFragment,
   };
 }
 
@@ -619,6 +665,62 @@ export async function resetProjectModes(
   await ensureAssistantDir(resolvedProjectPath);
   const defaults = DEFAULT_MODES.map(normalizeMode);
   await writeJsonFile(getModesPath(resolvedProjectPath), defaults);
+  return defaults;
+}
+
+export async function getProjectCommentCategories(
+  projectPath: string | null,
+): Promise<CommentCategoryDef[]> {
+  if (!projectPath) {
+    return DEFAULT_COMMENT_CATEGORIES.map(normalizeCommentCategory);
+  }
+  const stored = await readJsonFile<CommentCategoryDef[]>(
+    getCommentCategoriesPath(projectPath),
+  );
+  const categories =
+    Array.isArray(stored) && stored.length > 0
+      ? stored
+      : DEFAULT_COMMENT_CATEGORIES;
+  return categories.map(normalizeCommentCategory);
+}
+
+export async function saveProjectCommentCategory(
+  projectPath: string | null,
+  id: string,
+  category: CommentCategoryDef,
+): Promise<CommentCategoryDef> {
+  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
+  await ensureAssistantDir(resolvedProjectPath);
+
+  const categories = await getProjectCommentCategories(resolvedProjectPath);
+  const normalized = normalizeCommentCategory({ ...category, id });
+
+  const next = categories.filter((entry) => entry.id !== id);
+  next.push(normalized);
+
+  await writeJsonFile(getCommentCategoriesPath(resolvedProjectPath), next);
+  return normalized;
+}
+
+export async function deleteProjectCommentCategory(
+  projectPath: string | null,
+  id: string,
+): Promise<{ status: string }> {
+  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
+  const categories = await getProjectCommentCategories(resolvedProjectPath);
+  const next = categories.filter((entry) => entry.id !== id);
+  await writeJsonFile(getCommentCategoriesPath(resolvedProjectPath), next);
+  return { status: "ok" };
+}
+
+/** Restores the built-in default comment categories, discarding custom ones. */
+export async function resetProjectCommentCategories(
+  projectPath: string | null,
+): Promise<CommentCategoryDef[]> {
+  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
+  await ensureAssistantDir(resolvedProjectPath);
+  const defaults = DEFAULT_COMMENT_CATEGORIES.map(normalizeCommentCategory);
+  await writeJsonFile(getCommentCategoriesPath(resolvedProjectPath), defaults);
   return defaults;
 }
 

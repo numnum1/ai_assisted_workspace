@@ -78,6 +78,36 @@ contextBridge.exposeInMainWorld("appBridge", {
         meta,
         structureRoot ?? null,
       ),
+    getComments: (chapterId: string, structureRoot?: string | null) =>
+      ipcRenderer.invoke("chapter:getComments", chapterId, structureRoot ?? null),
+    saveComments: (
+      chapterId: string,
+      comments: unknown,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:saveComments",
+        chapterId,
+        comments,
+        structureRoot ?? null,
+      ),
+    generateComments: (
+      chapterId: string,
+      chapterText: string,
+      categories: unknown[],
+      freeText: string,
+      llmId?: string | null,
+      structureRoot?: string | null,
+    ) =>
+      ipcRenderer.invoke(
+        "chapter:generateComments",
+        chapterId,
+        chapterText,
+        categories,
+        freeText,
+        llmId ?? null,
+        structureRoot ?? null,
+      ),
     delete: (chapterId: string, structureRoot?: string | null) =>
       ipcRenderer.invoke("chapter:delete", chapterId, structureRoot ?? null),
     createScene: (
@@ -344,6 +374,14 @@ contextBridge.exposeInMainWorld("appBridge", {
     deleteMode: (id: string) =>
       ipcRenderer.invoke("projectConfig:deleteMode", id),
     resetModes: () => ipcRenderer.invoke("projectConfig:resetModes"),
+    getCommentCategories: () =>
+      ipcRenderer.invoke("projectConfig:getCommentCategories"),
+    saveCommentCategory: (id: string, category: unknown) =>
+      ipcRenderer.invoke("projectConfig:saveCommentCategory", id, category),
+    deleteCommentCategory: (id: string) =>
+      ipcRenderer.invoke("projectConfig:deleteCommentCategory", id),
+    resetCommentCategories: () =>
+      ipcRenderer.invoke("projectConfig:resetCommentCategories"),
     listAgents: () => ipcRenderer.invoke("projectConfig:listAgents"),
     saveAgent: (id: string, preset: unknown) =>
       ipcRenderer.invoke("projectConfig:saveAgent", id, preset),

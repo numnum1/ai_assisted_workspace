@@ -10,7 +10,9 @@ import type {
   ProjectConfig,
   ChapterSummary,
   ChapterNode,
+  ChapterComment,
   ChapterFilePaths,
+  CommentCategoryDef,
   SceneNode,
   ActionNode,
   NodeMeta,
@@ -292,6 +294,31 @@ export const projectConfigApi = {
     if (api?.projectConfig) return api.projectConfig.resetModes();
     throw new Error("Electron bridge not available");
   },
+  getCommentCategories: async (): Promise<CommentCategoryDef[]> => {
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.getCommentCategories();
+    throw new Error("Electron bridge not available");
+  },
+  saveCommentCategory: async (
+    id: string,
+    category: CommentCategoryDef,
+  ): Promise<CommentCategoryDef> => {
+    const api = getElectronApi();
+    if (api?.projectConfig)
+      return api.projectConfig.saveCommentCategory(id, category);
+    throw new Error("Electron bridge not available");
+  },
+  deleteCommentCategory: async (id: string): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.projectConfig)
+      return api.projectConfig.deleteCommentCategory(id);
+    throw new Error("Electron bridge not available");
+  },
+  resetCommentCategories: async (): Promise<CommentCategoryDef[]> => {
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.resetCommentCategories();
+    throw new Error("Electron bridge not available");
+  },
   listAgents: async (): Promise<AgentPreset[]> => {
     const api = getElectronApi();
     if (api?.projectConfig) return api.projectConfig.listAgents();
@@ -475,6 +502,44 @@ export const chapterApi = {
     const api = getElectronApi();
     if (api?.chapter)
       return api.chapter.updateMeta(chapterId, meta, structureRoot);
+    throw new Error("Electron bridge not available");
+  },
+  getComments: async (
+    chapterId: string,
+    structureRoot?: string | null,
+  ): Promise<ChapterComment[]> => {
+    const api = getElectronApi();
+    if (api?.chapter) return api.chapter.getComments(chapterId, structureRoot);
+    throw new Error("Electron bridge not available");
+  },
+  saveComments: async (
+    chapterId: string,
+    comments: ChapterComment[],
+    structureRoot?: string | null,
+  ): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.chapter)
+      return api.chapter.saveComments(chapterId, comments, structureRoot);
+    throw new Error("Electron bridge not available");
+  },
+  generateComments: async (
+    chapterId: string,
+    chapterText: string,
+    categories: Pick<CommentCategoryDef, 'id' | 'promptFragment'>[],
+    freeText: string,
+    llmId?: string | null,
+    structureRoot?: string | null,
+  ): Promise<ChapterComment[]> => {
+    const api = getElectronApi();
+    if (api?.chapter)
+      return api.chapter.generateComments(
+        chapterId,
+        chapterText,
+        categories,
+        freeText,
+        llmId,
+        structureRoot,
+      );
     throw new Error("Electron bridge not available");
   },
   delete: async (

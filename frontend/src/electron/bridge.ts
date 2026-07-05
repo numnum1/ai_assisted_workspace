@@ -2,7 +2,9 @@ import type {
   ActionNode,
   AgentPreset,
   AppPreferences,
+  ChapterComment,
   ChapterFilePaths,
+  CommentCategoryDef,
   ChapterNode,
   ChapterSummary,
   ChatMessage,
@@ -250,6 +252,13 @@ export interface AppBridge {
     saveMode: (id: string, mode: Mode) => Promise<Mode>;
     deleteMode: (id: string) => Promise<{ status: string }>;
     resetModes: () => Promise<Mode[]>;
+    getCommentCategories: () => Promise<CommentCategoryDef[]>;
+    saveCommentCategory: (
+      id: string,
+      category: CommentCategoryDef,
+    ) => Promise<CommentCategoryDef>;
+    deleteCommentCategory: (id: string) => Promise<{ status: string }>;
+    resetCommentCategories: () => Promise<CommentCategoryDef[]>;
     listAgents: () => Promise<AgentPreset[]>;
     saveAgent: (id: string, preset: AgentPreset) => Promise<AgentPreset>;
     deleteAgent: (id: string) => Promise<{ status: string }>;
@@ -316,6 +325,23 @@ export interface AppBridge {
       meta: NodeMeta,
       structureRoot?: string | null,
     ) => Promise<{ status: string }>;
+    getComments: (
+      chapterId: string,
+      structureRoot?: string | null,
+    ) => Promise<ChapterComment[]>;
+    saveComments: (
+      chapterId: string,
+      comments: ChapterComment[],
+      structureRoot?: string | null,
+    ) => Promise<{ status: string }>;
+    generateComments: (
+      chapterId: string,
+      chapterText: string,
+      categories: Pick<CommentCategoryDef, 'id' | 'promptFragment'>[],
+      freeText: string,
+      llmId?: string | null,
+      structureRoot?: string | null,
+    ) => Promise<ChapterComment[]>;
     delete: (
       chapterId: string,
       structureRoot?: string | null,

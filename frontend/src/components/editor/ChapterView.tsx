@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight, History } from 'lucide-react';
+import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight, History, MessageSquareText, Sparkles, Loader2 } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
-import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession } from '../../types.ts';
+import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
+import { DEFAULT_COMMENT_CATEGORIES } from './commentCategories.ts';
+import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
+import { chapterApi, projectConfigApi } from '../../api.ts';
 import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../../hooks/useReadingPaddingMax.ts';
 
 const FONT_SIZE_KEY = 'reading-font-size';
@@ -18,6 +21,34 @@ const DEFAULT_LINE_HEIGHT = 1.5;
 const LINE_HEIGHT_MIN = 1.1;
 const LINE_HEIGHT_MAX = 2.4;
 const LINE_HEIGHT_STEP = 0.1;
+
+/** Minimum vertical span reserved per unmatched comment card. */
+const UNMATCHED_CARD_STEP = 72;
+
+/** Normalize text for fuzzy quote matching (case/whitespace-insensitive). */
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Find the rendered CodeMirror line (`.cm-line`) inside an action's DOM block
+ * whose text contains the start of the quote, for a finer-grained anchor than
+ * the action block itself. CodeMirror only renders lines near the viewport
+ * (layout="auto" still virtualizes against the page's scroll ancestor), so a
+ * quote referring to an off-screen paragraph won't have a `.cm-line` yet —
+ * callers should fall back to the action block's own position in that case.
+ */
+function findMatchingLine(actionEl: HTMLElement, normalizedQuote: string): HTMLElement | null {
+  const needle = normalizedQuote.slice(0, 40);
+  if (!needle) return null;
+  const lines = actionEl.querySelectorAll<HTMLElement>('.cm-line');
+  for (const line of lines) {
+    if (normalizeForMatch(line.textContent ?? '').includes(needle)) {
+      return line;
+    }
+  }
+  return null;
+}
 
 const DAY_COLORS: ActionEditorColors = {
   bg:             '#f5f0e8',
@@ -103,6 +134,23 @@ export function ChapterView({
   });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [chapterDiff, setChapterDiff] = useState<{ label: string; contents: Map<string, string> } | null>(null);
+
+  // --- AI chapter comments ---
+  const [comments, setComments] = useState<ChapterComment[]>([]);
+  const [positioned, setPositioned] = useState<PositionedComment[]>([]);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [commentPanelOpen, setCommentPanelOpen] = useState(false);
+  const [categoryDefs, setCategoryDefs] = useState<CommentCategoryDef[]>(DEFAULT_COMMENT_CATEGORIES);
+  const [activeCategories, setActiveCategories] = useState<Set<CommentCategory>>(
+    () => new Set(DEFAULT_COMMENT_CATEGORIES.map(c => c.id)),
+  );
+  const [commentFreeText, setCommentFreeText] = useState('');
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const contentColRef = useRef<HTMLDivElement>(null);
+  const commentSidebarRef = useRef<HTMLDivElement>(null);
   const [fontSizeIndicator, setFontSizeIndicator] = useState<number | null>(null);
   const fontSizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -142,6 +190,160 @@ export function ChapterView({
   useEffect(() => {
     setChapterDiff(null);
   }, [chapter.id]);
+
+  // Load the project's configured comment categories once (not per-chapter —
+  // they live in project settings, see ProjectSettingsModal's
+  // "Kommentar-Kategorien" tab). Falls back to the built-in defaults on error.
+  useEffect(() => {
+    let cancelled = false;
+    projectConfigApi
+      .getCommentCategories()
+      .then(defs => {
+        if (cancelled || defs.length === 0) return;
+        setCategoryDefs(defs);
+        setActiveCategories(new Set(defs.map(c => c.id)));
+      })
+      .catch(() => {
+        /* keep built-in defaults */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load persisted comments when the chapter changes.
+  useEffect(() => {
+    let cancelled = false;
+    setComments([]);
+    setCommentsError(null);
+    chapterApi
+      .getComments(chapter.id, structureRoot ?? undefined)
+      .then(list => {
+        if (cancelled) return;
+        setComments(list);
+        setSidebarVisible(list.length > 0);
+      })
+      .catch(() => {
+        /* no comments yet is fine */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [chapter.id, structureRoot]);
+
+  // Assemble the full chapter text (scene headings + action content) for the LLM.
+  const buildChapterText = useCallback(() => {
+    const parts: string[] = [];
+    for (const scene of chapter.scenes) {
+      parts.push(`## ${scene.meta.title || scene.id}`);
+      for (const action of scene.actions) {
+        const entry = actionContents.get(actionKey(chapter.id, scene.id, action.id));
+        if (entry?.content?.trim()) parts.push(entry.content);
+      }
+    }
+    return parts.join('\n\n');
+  }, [chapter, actionContents]);
+
+  const toggleCategory = useCallback((id: CommentCategory) => {
+    setActiveCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleGenerateComments = useCallback(async () => {
+    setCommentsLoading(true);
+    setCommentsError(null);
+    try {
+      const activeDefs = categoryDefs
+        .filter(c => activeCategories.has(c.id))
+        .map(c => ({ id: c.id, promptFragment: c.promptFragment }));
+      const text = buildChapterText();
+      const result = await chapterApi.generateComments(
+        chapter.id,
+        text,
+        activeDefs,
+        commentFreeText.trim(),
+        null,
+        structureRoot ?? undefined,
+      );
+      setComments(result);
+      setSidebarVisible(true);
+      setCommentPanelOpen(false);
+    } catch (e) {
+      setCommentsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [activeCategories, categoryDefs, commentFreeText, buildChapterText, chapter.id, structureRoot]);
+
+  const handleDismissComment = useCallback(
+    (id: string) => {
+      setComments(prev => {
+        const next = prev.filter(c => c.id !== id);
+        void chapterApi
+          .saveComments(chapter.id, next, structureRoot ?? undefined)
+          .catch(() => {});
+        return next;
+      });
+    },
+    [chapter.id, structureRoot],
+  );
+
+  // Compute the vertical offset for each comment card by locating the action
+  // whose content contains the quote, then aligning to that action's DOM block.
+  const computeCommentPositions = useCallback(() => {
+    const layout = layoutRef.current;
+    const contentCol = contentColRef.current;
+    if (!layout || !contentCol) return;
+    const layoutTop = layout.getBoundingClientRect().top;
+    setContentHeight(contentCol.scrollHeight);
+
+    let unmatchedCursor = 0;
+    const result: PositionedComment[] = comments.map(comment => {
+      const q = normalizeForMatch(comment.quote);
+      if (q) {
+        for (const scene of chapter.scenes) {
+          for (const action of scene.actions) {
+            const entry = actionContents.get(actionKey(chapter.id, scene.id, action.id));
+            if (entry && normalizeForMatch(entry.content).includes(q)) {
+              const el = nodeRefs.current.get(`action-${action.id}`);
+              if (el) {
+                const anchorEl = findMatchingLine(el, q) ?? el;
+                const top = anchorEl.getBoundingClientRect().top - layoutTop;
+                return { comment, top: Math.max(0, top), matched: true };
+              }
+            }
+          }
+        }
+      }
+      const top = unmatchedCursor;
+      unmatchedCursor += UNMATCHED_CARD_STEP;
+      return { comment, top, matched: false };
+    });
+    setPositioned(result);
+  }, [comments, chapter, actionContents]);
+
+  // Recompute positions on comment/geometry changes and when the editor resizes.
+  useEffect(() => {
+    if (comments.length === 0) {
+      setPositioned([]);
+      return;
+    }
+    let raf = requestAnimationFrame(computeCommentPositions);
+    const contentCol = contentColRef.current;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(computeCommentPositions);
+    });
+    if (contentCol) observer.observe(contentCol);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [computeCommentPositions, comments.length, fontSize, padding, lineHeight, collapsedScenes]);
 
   const registerRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) {
@@ -293,6 +495,76 @@ export function ChapterView({
           >
             <Save size={14} />
           </button>
+          <div className="comment-menu-anchor">
+            <button
+              className={`editor-mode-btn${commentPanelOpen ? ' active' : ''}`}
+              onClick={() => setCommentPanelOpen(o => !o)}
+              title="KI-Kommentare"
+            >
+              <Sparkles size={14} />
+            </button>
+            {commentPanelOpen && (
+              <div className="comment-menu">
+                <div className="comment-menu-title">KI-Kommentare</div>
+                <div className="comment-menu-chips">
+                  {categoryDefs.map(cat => {
+                    const active = activeCategories.has(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        className={`comment-chip${active ? ' active' : ''}`}
+                        style={active ? { borderColor: cat.color, color: cat.color } : undefined}
+                        onClick={() => toggleCategory(cat.id)}
+                      >
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea
+                  className="comment-menu-freetext"
+                  placeholder="Zusätzliche Anweisung (optional)…"
+                  value={commentFreeText}
+                  onChange={e => setCommentFreeText(e.target.value)}
+                  rows={2}
+                />
+                {commentsError && (
+                  <div className="comment-menu-error">{commentsError}</div>
+                )}
+                <div className="comment-menu-actions">
+                  <button
+                    type="button"
+                    className="comment-menu-run"
+                    onClick={handleGenerateComments}
+                    disabled={
+                      commentsLoading ||
+                      (activeCategories.size === 0 && commentFreeText.trim().length === 0)
+                    }
+                  >
+                    {commentsLoading ? (
+                      <>
+                        <Loader2 size={13} className="comment-spin" /> Analysiere…
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquareText size={13} /> Kommentieren
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          {comments.length > 0 && (
+            <button
+              className={`editor-mode-btn${sidebarVisible ? ' active' : ''}`}
+              onClick={() => setSidebarVisible(v => !v)}
+              title={sidebarVisible ? 'Kommentarspalte ausblenden' : 'Kommentarspalte einblenden'}
+            >
+              <MessageSquareText size={14} />
+            </button>
+          )}
           <button
             className="editor-mode-btn"
             onClick={() => setHistoryOpen(true)}
@@ -321,6 +593,8 @@ export function ChapterView({
 
       {/* Scrollable content */}
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
+       <div className="chapter-view-layout" ref={layoutRef}>
+        <div className="chapter-view-content-col" ref={contentColRef}>
         <div
           className="section-separator chapter-heading"
           style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
@@ -395,6 +669,17 @@ export function ChapterView({
           );
         })}
         <div className="chapter-view-scroll-end" aria-hidden="true" />
+        </div>
+        {sidebarVisible && (
+          <CommentSidebar
+            comments={positioned}
+            categories={categoryDefs}
+            contentHeight={contentHeight}
+            sidebarRef={commentSidebarRef}
+            onDismiss={handleDismissComment}
+          />
+        )}
+       </div>
       </div>
 
       {fontSizeIndicator !== null && (

@@ -3,9 +3,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type {
   ActionNode,
+  ChapterComment,
   ChapterFilePaths,
   ChapterNode,
   ChapterSummary,
+  CommentCategory,
   NodeMeta,
   SceneNode,
 } from "../../src/types.js";
@@ -66,6 +68,17 @@ async function chapterMetaPath(
   return path.join(
     await chaptersRoot(projectPath, workspaceRoot),
     `${chapterId}.json`,
+  );
+}
+
+async function chapterCommentsPath(
+  projectPath: string,
+  workspaceRoot: string | null,
+  chapterId: string,
+): Promise<string> {
+  return path.join(
+    await chaptersRoot(projectPath, workspaceRoot),
+    `${chapterId}.comments.json`,
   );
 }
 
@@ -442,6 +455,72 @@ export async function updateChapterMeta(
     meta,
   );
   logTrace("Finished updateChapterMeta");
+}
+
+function normalizeComment(raw: unknown): ChapterComment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const quote = typeof o.quote === "string" ? o.quote : "";
+  const comment = typeof o.comment === "string" ? o.comment : "";
+  if (!comment.trim()) return null;
+  const category: CommentCategory =
+    typeof o.category === "string" && o.category.trim()
+      ? o.category
+      : "sonstiges";
+  const id = typeof o.id === "string" && o.id.trim() ? o.id : randomUUID();
+  return { id, quote, comment, category };
+}
+
+function normalizeComments(raw: unknown): ChapterComment[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && Array.isArray((raw as { comments?: unknown }).comments)
+      ? (raw as { comments: unknown[] }).comments
+      : [];
+  const out: ChapterComment[] = [];
+  for (const entry of list) {
+    const normalized = normalizeComment(entry);
+    if (normalized) out.push(normalized);
+  }
+  return out;
+}
+
+export async function readChapterComments(
+  projectPath: string | null,
+  chapterId: string,
+  workspaceRoot: string | null,
+): Promise<ChapterComment[]> {
+  logTrace(`Received request readChapterComments id=${chapterId}`);
+  const root = ensureProjectRoot(projectPath);
+  const commentsPath = await chapterCommentsPath(root, workspaceRoot, chapterId);
+  if (!(await pathExists(commentsPath))) {
+    return [];
+  }
+  try {
+    const json = await fs.readFile(commentsPath, "utf8");
+    return normalizeComments(JSON.parse(json) as unknown);
+  } catch (err) {
+    logTrace(`readChapterComments parse error: ${String(err)}`);
+    return [];
+  }
+}
+
+export async function writeChapterComments(
+  projectPath: string | null,
+  chapterId: string,
+  comments: ChapterComment[],
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(
+    `Received request writeChapterComments id=${chapterId} count=${comments.length}`,
+  );
+  const root = ensureProjectRoot(projectPath);
+  const commentsPath = await chapterCommentsPath(root, workspaceRoot, chapterId);
+  const normalized = normalizeComments(comments);
+  const payload = { version: 1, comments: normalized };
+  await fs.mkdir(path.dirname(commentsPath), { recursive: true });
+  await fs.writeFile(commentsPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  logTrace("Finished writeChapterComments");
 }
 
 export async function deleteChapter(

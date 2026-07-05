@@ -593,6 +593,34 @@ export interface ChapterNode {
   scenes: SceneNode[];
 }
 
+/**
+ * Category id of an AI-generated chapter comment. Free-form: besides the
+ * built-in defaults, projects can define their own via CommentCategoryDef
+ * (see ProjectSettingsModal's "Kommentar-Kategorien" tab).
+ */
+export type CommentCategory = string;
+
+/** A project-configurable comment category, toggled as a chip before commenting. */
+export interface CommentCategoryDef {
+  id: string;
+  /** User-facing label shown on the toggle chip and comment card. */
+  label: string;
+  /** Accent colour (hex) used for the chip and the card's left border. */
+  color: string;
+  /** Instruction fragment injected into the LLM prompt when this category is active. */
+  promptFragment: string;
+}
+
+/** A single AI-generated comment anchored to a quote in the chapter text. */
+export interface ChapterComment {
+  id: string;
+  /** Verbatim quote from the chapter text, used to anchor the comment card. */
+  quote: string;
+  /** The AI's remark about the quoted passage. */
+  comment: string;
+  category: CommentCategory;
+}
+
 export interface ChapterActionFilePath {
   sceneId: string;
   actionId: string;
