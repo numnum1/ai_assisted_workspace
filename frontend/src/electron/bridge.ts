@@ -244,6 +244,7 @@ export interface AppBridge {
     revealWorkspaceModesDataDir: () => Promise<{ status: string }>;
     get: () => Promise<ProjectConfig>;
     init: () => Promise<ProjectConfig>;
+    initFromFile: () => Promise<ProjectConfig | null>;
     update: (config: ProjectConfig) => Promise<ProjectConfig>;
     getModes: () => Promise<Mode[]>;
     saveMode: (id: string, mode: Mode) => Promise<Mode>;

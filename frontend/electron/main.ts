@@ -1,5 +1,5 @@
 import "./installConsoleTimestamps.js";
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,7 @@ import {
   getWorkspaceMode,
   getWorkspaceModesDataDir,
   initProjectConfig,
+  initProjectConfigFromFile,
   listProjectAgents as listAgentPresets,
   getProjectModes as listProjectModes,
   listWorkspaceModes,
@@ -693,6 +694,20 @@ function registerIpcHandlers(): void {
   ipcMain.handle("projectConfig:init", () =>
     initProjectConfig(getCurrentProjectPath()),
   );
+  ipcMain.handle("projectConfig:initFromFile", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Einstellungsdatei auswählen",
+      properties: ["openFile"],
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return initProjectConfigFromFile(
+      getCurrentProjectPath(),
+      result.filePaths[0],
+    );
+  });
   ipcMain.handle("projectConfig:update", (_event, config) =>
     saveProjectConfig(getCurrentProjectPath(), config),
   );

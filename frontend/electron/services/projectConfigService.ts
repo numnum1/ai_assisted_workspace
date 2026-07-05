@@ -8,11 +8,19 @@ import type {
   WorkspaceModeInfo,
   WorkspaceModeSchema,
 } from "../../src/types.js";
+import {
+  createProvider,
+  listProviders,
+  updateProvider,
+  type AiProviderRequest,
+} from "./aiProviderService.js";
 
 interface StoredProjectData {
   config?: ProjectConfig;
   modes?: Mode[];
   agents?: AgentPreset[];
+  /** AI provider ("LLM") configs to create/update globally on import — matched by id, then by name. */
+  llms?: (AiProviderRequest & { id?: string })[];
 }
 
 const ASSISTANT_DIR = ".assistant";
@@ -466,6 +474,75 @@ export async function initProjectConfig(
   ]);
 
   return config;
+}
+
+export async function initProjectConfigFromFile(
+  projectPath: string | null,
+  sourceFilePath: string,
+): Promise<ProjectConfig> {
+  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
+  const raw = await fs.readFile(sourceFilePath, "utf-8");
+
+  let parsed: StoredProjectData | ProjectConfig;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`Datei ist kein gültiges JSON: ${sourceFilePath}`);
+  }
+
+  // Accept either a full { config, modes, agents, llms } export or a bare ProjectConfig.
+  const isStructured =
+    parsed &&
+    typeof parsed === "object" &&
+    ("config" in parsed || "modes" in parsed || "llms" in parsed || "agents" in parsed);
+  const stored: StoredProjectData = isStructured
+    ? (parsed as StoredProjectData)
+    : { config: parsed as ProjectConfig };
+
+  await ensureAssistantDir(resolvedProjectPath);
+
+  const config = normalizeProjectConfig({
+    ...DEFAULT_PROJECT_CONFIG,
+    ...stored.config,
+  });
+  const modes =
+    Array.isArray(stored.modes) && stored.modes.length > 0
+      ? stored.modes.map(normalizeMode)
+      : DEFAULT_MODES;
+  const agents = Array.isArray(stored.agents)
+    ? stored.agents.map(normalizeAgent)
+    : [];
+
+  await Promise.all([
+    writeJsonFile(getProjectConfigPath(resolvedProjectPath), config),
+    writeJsonFile(getModesPath(resolvedProjectPath), modes),
+    writeJsonFile(getAgentsPath(resolvedProjectPath), agents),
+    importLlmProviders(stored.llms),
+  ]);
+
+  return config;
+}
+
+/** LLMs are stored globally (AppData), not per-project — create/update by id, falling back to name match. */
+async function importLlmProviders(
+  llms: StoredProjectData["llms"],
+): Promise<void> {
+  if (!Array.isArray(llms) || llms.length === 0) return;
+
+  const existing = await listProviders();
+  for (const entry of llms) {
+    const { id, ...body } = entry;
+    const match =
+      (id && existing.find((p) => p.id === id)) ||
+      existing.find(
+        (p) => p.name.toLowerCase() === (body.name ?? "").trim().toLowerCase(),
+      );
+    if (match) {
+      await updateProvider(match.id, body);
+    } else {
+      await createProvider(body);
+    }
+  }
 }
 
 export async function getProjectConfig(

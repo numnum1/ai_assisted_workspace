@@ -7537,6 +7537,18 @@ body.file-tree-native-dragging {
     cursor: default;
 }
 
+.ps-uninit-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ps-init-btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
 .ps-tabs {
     display: flex;
     border-bottom: 1px solid var(--border);

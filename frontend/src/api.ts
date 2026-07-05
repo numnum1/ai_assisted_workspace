@@ -262,6 +262,11 @@ export const projectConfigApi = {
     if (api?.projectConfig) return api.projectConfig.init();
     throw new Error("Electron bridge not available");
   },
+  initFromFile: async (): Promise<ProjectConfig | null> => {
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.initFromFile();
+    throw new Error("Electron bridge not available");
+  },
   update: async (config: ProjectConfig): Promise<ProjectConfig> => {
     const api = getElectronApi();
     if (api?.projectConfig) return api.projectConfig.update(config);

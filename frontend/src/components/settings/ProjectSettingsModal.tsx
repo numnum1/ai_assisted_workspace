@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Copy,
   Bot,
+  Upload,
 } from "lucide-react";
 import { projectConfigApi, llmApi } from "../../api.ts";
 import type {
@@ -768,6 +769,31 @@ export function ProjectSettingsModal({
     }
   };
 
+  const handleInitFromFile = async () => {
+    setInitializing(true);
+    setError(null);
+    try {
+      const cfg = await projectConfigApi.initFromFile();
+      if (!cfg) return; // user cancelled file picker
+      setConfig(cfg);
+      setNaviInstructionDraft(cfg.naviInstructions ?? {});
+      setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
+      setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
+      setInitialized(true);
+      const [mds, agentList] = await Promise.all([
+        projectConfigApi.getModes(),
+        projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
+      ]);
+      setModes(mds);
+      setAgents(agentList);
+      onModesChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Initialization failed");
+    } finally {
+      setInitializing(false);
+    }
+  };
+
   // ── General ──────────────────────────────────────────────────────────────────
 
   const handleSaveQuickChatConfig = async () => {
@@ -1259,22 +1285,47 @@ export function ProjectSettingsModal({
                   You can still configure <strong>AI providers</strong>{" "}
                   (AppData) via the tab above — they apply globally.
                 </p>
-                <button
-                  className="ps-init-btn"
-                  onClick={handleInit}
-                  disabled={initializing}
-                >
-                  {initializing ? (
-                    <>
-                      <Loader size={13} className="ps-spinner" />{" "}
-                      Initializing...
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={13} /> Initialize .assistant/
-                    </>
-                  )}
-                </button>
+                <p className="ps-hint" style={{ marginTop: "0.75rem" }}>
+                  The JSON file for "Initialize from JSON file..." may contain{" "}
+                  <code>llms</code> (provider configs, created/updated
+                  globally), <code>modes</code>, and a <code>config</code>{" "}
+                  object (e.g. <code>maxToolRounds</code>, name, rules) — all
+                  keys are optional.
+                </p>
+                <div className="ps-uninit-actions">
+                  <button
+                    className="ps-init-btn"
+                    onClick={handleInit}
+                    disabled={initializing}
+                  >
+                    {initializing ? (
+                      <>
+                        <Loader size={13} className="ps-spinner" />{" "}
+                        Initializing...
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={13} /> Initialize .assistant/
+                      </>
+                    )}
+                  </button>
+                  <button
+                    className="ps-init-btn ps-init-btn-secondary"
+                    onClick={handleInitFromFile}
+                    disabled={initializing}
+                  >
+                    {initializing ? (
+                      <>
+                        <Loader size={13} className="ps-spinner" />{" "}
+                        Initializing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={13} /> Initialize from JSON file...
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 

@@ -335,6 +335,7 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("projectConfig:revealWorkspaceModesDataDir"),
     get: () => ipcRenderer.invoke("projectConfig:get"),
     init: () => ipcRenderer.invoke("projectConfig:init"),
+    initFromFile: () => ipcRenderer.invoke("projectConfig:initFromFile"),
     update: (config: unknown) =>
       ipcRenderer.invoke("projectConfig:update", config),
     getModes: () => ipcRenderer.invoke("projectConfig:getModes"),
