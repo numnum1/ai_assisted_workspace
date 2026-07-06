@@ -609,10 +609,34 @@ export async function runNaviChatStream(
         }
       : { slots: {}, problemQueue: [] };
 
+    // Debugging aid ("why did Navi just ask/advance the way it did") — snapshot slots as they
+    // were at turn start so we can diff what update_facts actually changed this turn.
+    const slotsAtTurnStart = { ...facts.slots };
+    const advancePhaseAttempts: { target: string; accepted: boolean; openSlots: string[] }[] = [];
+    let redirectTo: string | undefined;
+
     const history = Array.isArray(request.history) ? request.history : [];
 
     const tipsPromise = runTipsCheck(request, findPreviousAssistantText(history), endpoint, emit);
-    const finishTurn = async (fullAssistantText: string) => {
+    const finishTurn = async (fullAssistantText: string, replyStateId: string) => {
+      const labels = getAllSlotLabels(naviWorkPlans);
+      const factsChanged = Object.entries(facts.slots)
+        .filter(([id, value]) => value?.trim() && slotsAtTurnStart[id] !== value)
+        .map(([id, value]) => ({ label: labels.get(id) ?? id, value }));
+      emit({
+        type: "navi_trace",
+        data: {
+          at: Date.now(),
+          stateId: replyStateId,
+          openSlots: openSlots(replyStateId, naviWorkPlans, facts).map((s) => s.label),
+          factsChanged,
+          currentProblem: facts.currentProblem,
+          hypothesis: facts.hypothesis,
+          recommendation: facts.recommendation,
+          ...(advancePhaseAttempts.length > 0 ? { advancePhaseAttempts } : {}),
+          ...(redirectTo ? { redirectTo } : {}),
+        },
+      });
       await tipsPromise;
       if (!isStreamActive(streamId)) return;
       emit({ type: "done", data: { fullAssistantText } });
@@ -646,6 +670,7 @@ export async function runNaviChatStream(
     let messages: OpenAiMessage[];
 
     if (redirectTarget && redirectTarget !== currentStateId) {
+      redirectTo = redirectTarget;
       speculativeAbort.abort();
       activeStateId = redirectTarget;
       activeState = getNaviState(redirectTarget) ?? currentState;
@@ -689,14 +714,14 @@ export async function runNaviChatStream(
           if (applied) emit({ type: "navi_facts", data: cloneFacts(facts) });
         } else if (call.function.name === "advance_phase") {
           const open = openSlots(activeStateId, naviWorkPlans, facts);
-          if (open.length === 0) {
-            const target = activeState.transitions[0]?.to;
-            if (target) {
-              const completed = activeStateId;
-              activeStateId = target;
-              activeState = getNaviState(target) ?? activeState;
-              emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: completed } });
-            }
+          const target = activeState.transitions[0]?.to ?? "";
+          const accepted = open.length === 0;
+          advancePhaseAttempts.push({ target, accepted, openSlots: open.map((s) => s.label) });
+          if (accepted && target) {
+            const completed = activeStateId;
+            activeStateId = target;
+            activeState = getNaviState(target) ?? activeState;
+            emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: completed } });
           }
         }
       }
@@ -723,7 +748,7 @@ export async function runNaviChatStream(
             }
           }
         }
-        await finishTurn(fullAssistantText);
+        await finishTurn(fullAssistantText, activeStateId);
         return;
       }
 
@@ -742,7 +767,7 @@ export async function runNaviChatStream(
         ];
         emit({ type: "tool_history", data: toolHistoryMessages });
         fullAssistantText += roundResult.roundAssistantText;
-        await finishTurn(fullAssistantText);
+        await finishTurn(fullAssistantText, activeStateId);
         return;
       }
 
@@ -754,7 +779,7 @@ export async function runNaviChatStream(
           emit({ type: "error", data: { message: "MODEL_EMPTY_RESPONSE" } });
           return;
         }
-        await finishTurn(fullAssistantText);
+        await finishTurn(fullAssistantText, activeStateId);
         return;
       }
 
@@ -787,7 +812,7 @@ export async function runNaviChatStream(
     // Round budget exhausted without a visible reply.
     if (!isStreamActive(streamId)) return;
     if (fullAssistantText.trim() || tokenCount > 0) {
-      await finishTurn(fullAssistantText);
+      await finishTurn(fullAssistantText, activeStateId);
     } else {
       emit({ type: "error", data: { message: "NAVI_STREAM_STUCK" } });
     }

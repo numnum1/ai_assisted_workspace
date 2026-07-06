@@ -480,3 +480,85 @@
   text-transform: uppercase;
   flex-shrink: 0;
 }
+
+/* ── Begründung / Trace ───────────────────────────────────── */
+.navi-trace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.navi-trace-entry {
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: color-mix(in srgb, var(--bg-primary, #11111b) 40%, transparent);
+}
+
+.navi-trace-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.navi-trace-time {
+  font-size: 9.5px;
+  color: var(--text-muted, #6c7086);
+}
+
+.navi-trace-row {
+  font-size: 10.5px;
+  color: var(--text-secondary, #a6adc8);
+  line-height: 1.4;
+}
+
+.navi-trace-row-label {
+  color: var(--text-muted, #6c7086);
+}
+
+.navi-trace-row--redirect {
+  color: #f9e2af;
+}
+
+.navi-trace-row--accepted {
+  color: #a6e3a1;
+}
+
+.navi-trace-row--rejected {
+  color: #f38ba8;
+}
+
+.navi-trace-row--empty {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.navi-trace-facts-list {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navi-trace-facts-list li {
+  font-size: 10.5px;
+  color: var(--text-primary, #cdd6f4);
+  padding-left: 8px;
+  position: relative;
+}
+
+.navi-trace-facts-list li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: var(--accent, #89b4fa);
+  opacity: 0.7;
+}

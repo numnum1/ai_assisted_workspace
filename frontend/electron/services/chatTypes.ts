@@ -28,7 +28,8 @@ export type ChatStreamEvent =
   | { type: "navi_state"; data: { stateId: string; completedStateId?: string; summary?: string } }
   | { type: "navi_tips_covered"; data: { coveredIds: string[] } }
   | { type: "navi_step"; data: { label: string | null } }
-  | { type: "navi_facts"; data: import("../../src/types.js").NaviFacts };
+  | { type: "navi_facts"; data: import("../../src/types.js").NaviFacts }
+  | { type: "navi_trace"; data: import("../../src/types.js").NaviTraceEntry };
 
 export interface ChatStreamStartResult {
   streamId: string;

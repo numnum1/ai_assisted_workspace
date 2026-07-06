@@ -8,6 +8,7 @@ import {
   SplitSquareHorizontal,
   Inbox,
   BookOpen,
+  History,
 } from "lucide-react";
 import {
   NAVI_CLIENT_STATES,
@@ -15,16 +16,17 @@ import {
 } from "./naviStateMachineClient.ts";
 import { NAVI_STATES, getEffectiveSlots, getAllSlotLabels } from "../../naviStateMachine.ts";
 import { NAVI_TIPS } from "../../naviTips.ts";
-import type { NaviFacts } from "../../types.ts";
+import type { NaviFacts, NaviTraceEntry } from "../../types.ts";
 import "./NaviStatePanel.css";
 
 interface Props {
   naviStateId: string;
   naviFacts?: NaviFacts;
   naviCoveredTips?: string[];
+  naviTrace?: NaviTraceEntry[];
 }
 
-export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips }: Props) {
+export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTrace }: Props) {
   const current = getNaviClientState(naviStateId);
   const currentRaw = NAVI_STATES.find((s) => s.id === naviStateId);
   const currentSlots = getEffectiveSlots(naviStateId, undefined);
@@ -96,6 +98,75 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips }: Prop
           </div>
         )}
       </div>
+
+      {/* ── Section 1a2: Begründung — warum wurde die letzte Frage/Phase so gewählt? ── */}
+      {naviTrace && naviTrace.length > 0 && (
+        <div className="navi-section">
+          <div className="navi-section-label">
+            <History size={11} />
+            Begründung (letzte Turns)
+          </div>
+          <div className="navi-trace-list">
+            {[...naviTrace].reverse().map((entry, i) => (
+              <div key={`${entry.at}-${i}`} className="navi-trace-entry">
+                <div className="navi-trace-entry-header">
+                  <span className="navi-state-id-chip">{entry.stateId}</span>
+                  <span className="navi-trace-time">
+                    {new Date(entry.at).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                {entry.redirectTo && (
+                  <div className="navi-trace-row navi-trace-row--redirect">
+                    Themenwechsel erkannt → <strong>{entry.redirectTo}</strong>
+                  </div>
+                )}
+
+                {entry.advancePhaseAttempts?.map((a, j) => (
+                  <div
+                    key={j}
+                    className={`navi-trace-row navi-trace-row--${a.accepted ? "accepted" : "rejected"}`}
+                  >
+                    advance_phase → <strong>{a.target}</strong>:{" "}
+                    {a.accepted
+                      ? "akzeptiert"
+                      : `abgelehnt (noch offen: ${a.openSlots.join(", ") || "—"})`}
+                  </div>
+                ))}
+
+                {entry.factsChanged.length > 0 && (
+                  <div className="navi-trace-row">
+                    <span className="navi-trace-row-label">Neu erfasst (update_facts):</span>
+                    <ul className="navi-trace-facts-list">
+                      {entry.factsChanged.map((f, j) => (
+                        <li key={j}>
+                          {f.label}: <strong>{f.value}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {entry.openSlots.length > 0 && (
+                  <div className="navi-trace-row">
+                    <span className="navi-trace-row-label">Offene Slots bei dieser Antwort:</span>{" "}
+                    {entry.openSlots.join(", ")}
+                  </div>
+                )}
+
+                {entry.factsChanged.length === 0 &&
+                  !entry.redirectTo &&
+                  !entry.advancePhaseAttempts?.length &&
+                  entry.openSlots.length === 0 && (
+                    <div className="navi-trace-row navi-trace-row--empty">
+                      Keine neuen Fakten, kein Phasenwechsel versucht.
+                    </div>
+                  )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Section 1b: Problem Queue ──────────────────────── */}
       {naviFacts?.currentProblem && (

@@ -5,6 +5,7 @@ import type {
   ChatSessionKind,
   ContextInfo,
   NaviFacts,
+  NaviTraceEntry,
   ReasoningEffort,
   SelectionContext,
   SimulationConfig,
@@ -67,6 +68,7 @@ export interface UseChatOptions {
   onNaviTipsCovered?: (coveredIds: string[], conversationId: string) => void;
   onNaviStep?: (label: string | null) => void;
   onNaviFacts?: (facts: NaviFacts, conversationId: string) => void;
+  onNaviTrace?: (entry: NaviTraceEntry, conversationId: string) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -119,6 +121,8 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   onNaviStepRef.current = options?.onNaviStep;
   const onNaviFactsRef = useRef(options?.onNaviFacts);
   onNaviFactsRef.current = options?.onNaviFacts;
+  const onNaviTraceRef = useRef(options?.onNaviTrace);
+  onNaviTraceRef.current = options?.onNaviTrace;
   const [naviStep, setNaviStep] = useState<string | null>(null);
   const [naviStepForCard, setNaviStepForCard] = useState<string | null>(null);
 
@@ -224,11 +228,17 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           ? (facts: NaviFacts) => onNaviFactsRef.current!(facts, naviConversationId)
           : undefined;
 
+      const onNaviTraceCb =
+        streamSession?.sessionKind === 'navi' && onNaviTraceRef.current
+          ? (entry: NaviTraceEntry) => onNaviTraceRef.current!(entry, naviConversationId)
+          : undefined;
+
       const streamCbs: StreamCallbacks = {
         ...streamCbsBase,
         ...(onNaviState ? { onNaviState } : {}),
         ...(onNaviTipsCoveredCb ? { onNaviTipsCovered: onNaviTipsCoveredCb } : {}),
         ...(onNaviFactsCb ? { onNaviFacts: onNaviFactsCb } : {}),
+        ...(onNaviTraceCb ? { onNaviTrace: onNaviTraceCb } : {}),
         onNaviStep: (label) => {
           setNaviStep(label);
           if (label !== null) setNaviStepForCard(label);

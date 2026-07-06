@@ -23,6 +23,28 @@ export interface NaviFacts {
   notes?: string;
 }
 
+/**
+ * Debugging/observability record for one Navi turn — answers "why did it just ask that?".
+ * Emitted after every turn (`navi_trace` event), independent of NaviFacts itself so it can carry
+ * a decision history without bloating the fact sheet that's actually sent back to the model.
+ */
+export interface NaviTraceEntry {
+  at: number;
+  /** The phase this turn's visible reply was generated in (after any redirect/advance_phase). */
+  stateId: string;
+  /** Slot labels still open in {@link stateId} at the moment the visible reply was produced. */
+  openSlots: string[];
+  /** Slot values newly set or changed by update_facts this turn. */
+  factsChanged: { label: string; value: string }[];
+  currentProblem?: string;
+  hypothesis?: string;
+  recommendation?: string;
+  /** Every advance_phase call this turn, in order, with the deterministic gate's verdict. */
+  advancePhaseAttempts?: { target: string; accepted: boolean; openSlots: string[] }[];
+  /** Set when the redirect/safety-net classifier moved the phase before generating the reply. */
+  redirectTo?: string;
+}
+
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
 export const CHAT_TOOLKIT_IDS = ['web', 'dateisystem', 'assistant'] as const;
 
@@ -411,6 +433,8 @@ export interface Conversation {
   naviFacts?: NaviFacts;
   /** Ids of tips already covered in this conversation; excluded from subsequent prompts. */
   naviCoveredTips?: string[];
+  /** Per-turn decision trace (debugging aid — why did Navi ask/advance the way it did). Capped, most recent last. */
+  naviTrace?: NaviTraceEntry[];
   /** When set, this conversation is a simulation session with a goal and cast. */
   simulationConfig?: SimulationConfig;
 }

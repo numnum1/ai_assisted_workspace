@@ -385,6 +385,12 @@ function App() {
     onNaviFacts: (facts, conversationId) => {
       history.patchConversation(conversationId, { naviFacts: facts });
     },
+    onNaviTrace: (entry, conversationId) => {
+      const conv = history.conversations.find((c) => c.id === conversationId);
+      const existing = conv?.naviTrace ?? [];
+      const naviTrace = [...existing, entry].slice(-30);
+      history.patchConversation(conversationId, { naviTrace });
+    },
     onAssistantResponseComplete: (fullText, meta) => {
       // Simulation auto-runner: after Navi finished a turn in a simulation,
       // queue the next simulated-merchant reply (the effect below sends it).
@@ -1707,6 +1713,7 @@ function App() {
             naviStateId={history.activeConversation?.naviStateId ?? null}
             naviFacts={history.activeConversation?.naviFacts}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
+            naviTrace={history.activeConversation?.naviTrace}
           />
         </Panel>
 
@@ -2062,6 +2069,7 @@ function App() {
             naviStateId={history.activeConversation?.naviStateId ?? null}
             naviFacts={history.activeConversation?.naviFacts}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
+            naviTrace={history.activeConversation?.naviTrace}
           />
         </Panel>
       </Group>
