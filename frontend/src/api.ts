@@ -151,6 +151,11 @@ export const filesApi = {
     if (api?.files) return api.files.rename(path, newName);
     throw new Error("Electron bridge not available");
   },
+  copy: async (path: string): Promise<FileMutationResponse> => {
+    const api = getElectronApi();
+    if (api?.files) return api.files.copy(path);
+    throw new Error("Electron bridge not available");
+  },
   move: async (
     path: string,
     targetParentPath: string,

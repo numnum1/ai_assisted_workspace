@@ -247,6 +247,38 @@ export async function renamePath(
   };
 }
 
+function buildDuplicateName(originalName: string, existingNames: Set<string>): string {
+  const ext = path.extname(originalName);
+  const base = ext ? originalName.slice(0, -ext.length) : originalName;
+
+  let candidate = `${base} (Kopie)${ext}`;
+  let n = 2;
+  while (existingNames.has(candidate)) {
+    candidate = `${base} (Kopie ${n})${ext}`;
+    n += 1;
+  }
+  return candidate;
+}
+
+export async function copyPath(
+  projectRoot: string | null,
+  relativePath: string,
+): Promise<FileMutationResult> {
+  const root = ensureProjectRoot(projectRoot);
+  const sourcePath = resolveProjectPath(root, relativePath);
+  const parentDir = path.dirname(sourcePath);
+  const siblings = await fs.readdir(parentDir);
+  const newName = buildDuplicateName(path.basename(sourcePath), new Set(siblings));
+  const targetPath = path.join(parentDir, newName);
+
+  await fs.cp(sourcePath, targetPath, { recursive: true });
+
+  return {
+    status: 'ok',
+    path: normalizeRelativePath(path.relative(root, targetPath)),
+  };
+}
+
 export async function movePath(
   projectRoot: string | null,
   relativePath: string,

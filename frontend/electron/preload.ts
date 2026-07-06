@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("files:createFolder", parentPath, name),
     rename: (path: string, newName: string) =>
       ipcRenderer.invoke("files:rename", path, newName),
+    copy: (path: string) => ipcRenderer.invoke("files:copy", path),
     move: (path: string, targetParentPath: string) =>
       ipcRenderer.invoke("files:move", path, targetParentPath),
   },

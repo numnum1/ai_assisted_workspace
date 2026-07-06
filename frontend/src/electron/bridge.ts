@@ -193,6 +193,7 @@ export interface AppBridge {
       name: string,
     ) => Promise<FileMutationResult>;
     rename: (path: string, newName: string) => Promise<FileMutationResult>;
+    copy: (path: string) => Promise<FileMutationResult>;
     move: (
       path: string,
       targetParentPath: string,

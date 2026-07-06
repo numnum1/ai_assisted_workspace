@@ -760,6 +760,13 @@ export function FileTreeOutliner({
     });
   };
 
+  const handleDuplicate = (path: string) => {
+    void runMutation(async () => {
+      const { path: newPath } = await filesApi.copy(path);
+      onSelectFile(newPath);
+    });
+  };
+
   const handleDelete = (path: string, isDir: boolean) => {
     const msg = isDir
       ? `Ordner „${path}“ und alle Inhalte wirklich löschen?`
@@ -925,6 +932,11 @@ export function FileTreeOutliner({
               <button type="button" className="file-tree-context-item" onClick={() => void handleRename(menu.path, menu.directory)}>
                 Umbenennen…
               </button>
+              {!menu.directory && (
+                <button type="button" className="file-tree-context-item" onClick={() => handleDuplicate(menu.path)}>
+                  Duplizieren
+                </button>
+              )}
               <button
                 type="button"
                 className="file-tree-context-item file-tree-context-item--danger"

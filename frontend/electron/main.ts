@@ -12,6 +12,7 @@ import {
   revealProject,
 } from "./services/projectService.js";
 import {
+  copyPath,
   createFile,
   createFolder,
   deleteContent,
@@ -154,6 +155,9 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("files:rename", (_event, filePath: string, newName: string) =>
     renamePath(getCurrentProjectPath(), filePath, newName),
+  );
+  ipcMain.handle("files:copy", (_event, filePath: string) =>
+    copyPath(getCurrentProjectPath(), filePath),
   );
   ipcMain.handle(
     "files:move",
