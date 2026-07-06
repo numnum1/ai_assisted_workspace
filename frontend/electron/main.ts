@@ -1,5 +1,5 @@
 import "./installConsoleTimestamps.js";
-import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -841,6 +841,64 @@ function createWindow(): void {
     );
   });
   // win.webContents.openDevTools();
+
+  win.webContents.on("context-menu", (_event, params) => {
+    const menu = new Menu();
+
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions) {
+        menu.append(
+          new MenuItem({
+            label: suggestion,
+            click: () => win.webContents.replaceMisspelling(suggestion),
+          }),
+        );
+      }
+      if (params.dictionarySuggestions.length > 0) {
+        menu.append(new MenuItem({ type: "separator" }));
+      }
+      menu.append(
+        new MenuItem({
+          label: "Zum Wörterbuch hinzufügen",
+          click: () =>
+            win.webContents.session.addWordToSpellCheckerDictionary(
+              params.misspelledWord,
+            ),
+        }),
+      );
+      menu.append(new MenuItem({ type: "separator" }));
+    }
+
+    if (params.isEditable) {
+      menu.append(
+        new MenuItem({
+          label: "Ausschneiden",
+          role: "cut",
+          enabled: params.editFlags.canCut,
+        }),
+      );
+      menu.append(
+        new MenuItem({
+          label: "Kopieren",
+          role: "copy",
+          enabled: params.editFlags.canCopy,
+        }),
+      );
+      menu.append(
+        new MenuItem({
+          label: "Einfügen",
+          role: "paste",
+          enabled: params.editFlags.canPaste,
+        }),
+      );
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ label: "Kopieren", role: "copy" }));
+    }
+
+    if (menu.items.length > 0) {
+      menu.popup();
+    }
+  });
 
   if (!app.isPackaged) {
     void win.loadURL("http://localhost:5173");
