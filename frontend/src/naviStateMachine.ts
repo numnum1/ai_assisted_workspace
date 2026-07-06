@@ -1,3 +1,5 @@
+import type { NaviFacts } from "./types.ts";
+
 export interface NaviTransition {
   condition: string;
   to: string;
@@ -428,3 +430,81 @@ WICHTIG: Beende das Gespräch niemals von dir aus und verabschiede dich nicht. W
     ],
   },
 ];
+
+const NAVI_STATE_MAP = new Map<string, NaviState>(NAVI_STATES.map((s) => [s.id, s]));
+
+export function getNaviState(id: string): NaviState | null {
+  return NAVI_STATE_MAP.get(id) ?? null;
+}
+
+export interface NaviSlot {
+  id: string;
+  label: string;
+}
+
+/**
+ * Derives a stable slot id from a workPlan label — e.g. "Problem konkret beschrieben (nicht nur
+ * benannt)" -> "problem_konkret_beschrieben_nicht_nur_benannt". Deterministic and pure, so the
+ * same label always yields the same id (needed for facts.slots keys to stay stable across turns,
+ * across project overrides, and between the backend and this client-side display).
+ */
+export function slugifySlotLabel(label: string): string {
+  const base = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return base || "slot";
+}
+
+type NaviWorkPlanOverrides = Record<string, string[]> | undefined;
+
+/** Resolves the effective workPlan for a state — project override if present, else the default. */
+export function effectiveWorkPlan(
+  stateId: string,
+  baseWorkPlan: string[],
+  naviWorkPlans: NaviWorkPlanOverrides,
+): string[] {
+  const override = naviWorkPlans?.[stateId];
+  return Array.isArray(override) && override.length > 0 ? override : baseWorkPlan;
+}
+
+/**
+ * The slot checklist for a state — each workPlan entry becomes one slot with a stable id.
+ * Slots are the deterministic gate for forward phase progress in narrow (info-gathering) phases.
+ */
+export function getEffectiveSlots(stateId: string, naviWorkPlans: NaviWorkPlanOverrides): NaviSlot[] {
+  const state = getNaviState(stateId);
+  if (!state) return [];
+  const labels = effectiveWorkPlan(stateId, state.workPlan, naviWorkPlans);
+  const seen = new Map<string, number>();
+  return labels.map((label) => {
+    let id = slugifySlotLabel(label);
+    const count = seen.get(id) ?? 0;
+    seen.set(id, count + 1);
+    if (count > 0) id = `${id}_${count}`;
+    return { id, label };
+  });
+}
+
+export function openSlots(stateId: string, naviWorkPlans: NaviWorkPlanOverrides, facts: NaviFacts): NaviSlot[] {
+  return getEffectiveSlots(stateId, naviWorkPlans).filter((s) => !facts.slots[s.id]?.trim());
+}
+
+/** Deterministic gate: true once every slot of this state has a non-empty value in facts. */
+export function allSlotsFilled(stateId: string, naviWorkPlans: NaviWorkPlanOverrides, facts: NaviFacts): boolean {
+  return openSlots(stateId, naviWorkPlans, facts).length === 0;
+}
+
+/** Slot id -> label lookup across every phase, for rendering facts filled in an earlier phase. */
+export function getAllSlotLabels(naviWorkPlans: NaviWorkPlanOverrides): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const state of NAVI_STATES) {
+    for (const slot of getEffectiveSlots(state.id, naviWorkPlans)) {
+      if (!map.has(slot.id)) map.set(slot.id, slot.label);
+    }
+  }
+  return map;
+}

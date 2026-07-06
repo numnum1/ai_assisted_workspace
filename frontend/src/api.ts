@@ -955,11 +955,9 @@ function ipcChatStreamPayloadToBridgeEvent(
     type === "error" ||
     type === "context_update" ||
     type === "navi_state" ||
-    type === "navi_plan" ||
     type === "navi_tips_covered" ||
-    type === "navi_problems" ||
     type === "navi_step" ||
-    type === "navi_context"
+    type === "navi_facts"
   ) {
     const payload = parseJson();
     if (payload == null) return null;
@@ -983,11 +981,9 @@ export function streamChat(
   onToolHistory?: (messages: import("./types.ts").ChatMessage[]) => void,
   onResolvedUserMessage?: (content: string) => void,
   onNaviState?: (stateId: string, completedStateId?: string) => void,
-  onNaviPlan?: (plan: string) => void,
   onNaviTipsCovered?: (coveredIds: string[]) => void,
-  onNaviProblems?: (current: string, interpretation: string | undefined, queue: string[]) => void,
   onNaviStep?: (label: string | null) => void,
-  onNaviContext?: (ctx: import("./types.ts").NaviContext) => void,
+  onNaviFacts?: (facts: import("./types.ts").NaviFacts) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -1049,16 +1045,12 @@ export function streamChat(
           chatEvent.payload.stateId,
           chatEvent.payload.completedStateId,
         );
-      } else if (chatEvent.type === "navi_plan") {
-        onNaviPlan?.(chatEvent.payload.plan);
       } else if (chatEvent.type === "navi_tips_covered") {
         onNaviTipsCovered?.(chatEvent.payload.coveredIds);
-      } else if (chatEvent.type === "navi_problems") {
-        onNaviProblems?.(chatEvent.payload.current, chatEvent.payload.interpretation, chatEvent.payload.queue);
       } else if (chatEvent.type === "navi_step") {
         onNaviStep?.(chatEvent.payload.label);
-      } else if (chatEvent.type === "navi_context") {
-        onNaviContext?.(chatEvent.payload);
+      } else if (chatEvent.type === "navi_facts") {
+        onNaviFacts?.(chatEvent.payload);
       } else if (chatEvent.type === "token") {
         tokenCount++;
         const unescaped = decodeElectronStreamData(chatEvent.payload);

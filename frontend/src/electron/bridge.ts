@@ -97,11 +97,9 @@ export type ChatStreamEvent =
   | { type: "done"; payload: { fullAssistantText: string } }
   | { type: "error"; payload: { message: string } }
   | { type: "navi_state"; payload: { stateId: string; completedStateId?: string; summary?: string } }
-  | { type: "navi_plan"; payload: { plan: string } }
   | { type: "navi_tips_covered"; payload: { coveredIds: string[] } }
-  | { type: "navi_problems"; payload: { current: string; interpretation?: string; queue: string[] } }
   | { type: "navi_step"; payload: { label: string | null } }
-  | { type: "navi_context"; payload: import("../types.js").NaviContext };
+  | { type: "navi_facts"; payload: import("../types.js").NaviFacts };
 
 export interface ChatStreamStartResult {
   streamId: string;

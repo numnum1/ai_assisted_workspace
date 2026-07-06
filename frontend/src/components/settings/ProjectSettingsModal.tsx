@@ -90,17 +90,6 @@ interface ModeForm {
   llmId: string;
 }
 
-/** Fills in missing include/exclude arrays so editors can rely on them always being defined. */
-function normalizePlanHints(
-  hints: Record<string, { include?: string[]; exclude?: string[] }> | undefined,
-): Record<string, { include: string[]; exclude: string[] }> {
-  const out: Record<string, { include: string[]; exclude: string[] }> = {};
-  for (const [sid, v] of Object.entries(hints ?? {})) {
-    out[sid] = { include: v.include ?? [], exclude: v.exclude ?? [] };
-  }
-  return out;
-}
-
 /** Next free mode id: `{sourceId}-kopie`, `{sourceId}-kopie-2`, … */
 function suggestDuplicateModeId(
   sourceId: string,
@@ -294,38 +283,20 @@ function NaviInstructionsEditor({
   states,
   instructionOverrides,
   workPlanOverrides,
-  planHintsOverrides,
   onInstructionChange,
   onWorkPlanChange,
-  onPlanHintsChange,
 }: {
   states: NaviState[];
   instructionOverrides: Record<string, string>;
   workPlanOverrides: Record<string, string[]>;
-  planHintsOverrides: Record<string, { include: string[]; exclude: string[] }>;
   onInstructionChange: (overrides: Record<string, string>) => void;
   onWorkPlanChange: (overrides: Record<string, string[]>) => void;
-  onPlanHintsChange: (overrides: Record<string, { include: string[]; exclude: string[] }>) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string>(states[0]?.id ?? "");
   const selected = states.find((s) => s.id === selectedId);
   const isInstructionOverridden = Boolean(instructionOverrides[selectedId]?.trim());
   const isWorkPlanOverridden = Boolean(workPlanOverrides[selectedId]?.length);
-  const planHints = planHintsOverrides[selectedId] ?? { include: [], exclude: [] };
-  const isPlanHintsOverridden = Boolean(planHints.include.length || planHints.exclude.length);
-  const isAnyOverridden = isInstructionOverridden || isWorkPlanOverridden || isPlanHintsOverridden;
-
-  const updatePlanHints = (kind: "include" | "exclude", next: string[]) => {
-    const entry = planHintsOverrides[selectedId] ?? { include: [], exclude: [] };
-    const nextEntry = { ...entry, [kind]: next };
-    if (!nextEntry.include.length && !nextEntry.exclude.length) {
-      const updated = { ...planHintsOverrides };
-      delete updated[selectedId];
-      onPlanHintsChange(updated);
-    } else {
-      onPlanHintsChange({ ...planHintsOverrides, [selectedId]: nextEntry });
-    }
-  };
+  const isAnyOverridden = isInstructionOverridden || isWorkPlanOverridden;
 
   const workPlanItems: string[] = isWorkPlanOverridden
     ? workPlanOverrides[selectedId]
@@ -362,7 +333,7 @@ function NaviInstructionsEditor({
             onClick={() => setSelectedId(s.id)}
           >
             <span className="ps-rules-list-name">{s.id}</span>
-            {(instructionOverrides[s.id]?.trim() || workPlanOverrides[s.id]?.length || planHintsOverrides[s.id]?.include.length || planHintsOverrides[s.id]?.exclude.length) && (
+            {(instructionOverrides[s.id]?.trim() || workPlanOverrides[s.id]?.length) && (
               <span title="Angepasst" style={{ color: "var(--accent)", fontSize: 10 }}>●</span>
             )}
           </div>
@@ -386,9 +357,6 @@ function NaviInstructionsEditor({
                   const nextW = { ...workPlanOverrides };
                   delete nextW[selectedId];
                   onWorkPlanChange(nextW);
-                  const nextH = { ...planHintsOverrides };
-                  delete nextH[selectedId];
-                  onPlanHintsChange(nextH);
                 }}
               >
                 <RefreshCw size={11} /> Zurücksetzen
@@ -459,96 +427,6 @@ function NaviInstructionsEditor({
               </button>
             </div>
           )}
-
-          {/* Frageplan-Hints */}
-          <div style={{ marginTop: 12 }}>
-            <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11 }}>
-              Frageplan-Hints{!isPlanHintsOverridden ? " (kein Override)" : ""}
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {/* Whitelist */}
-              <div>
-                <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11, color: "var(--success, #4caf50)" }}>
-                  ✓ Pflicht-Themen (Whitelist)
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {planHints.include.map((item, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <input
-                        className="ps-input"
-                        style={{ flex: 1, fontSize: 12 }}
-                        value={item}
-                        placeholder="z. B. Zahlungssysteme"
-                        onChange={(e) => {
-                          const next = [...planHints.include];
-                          next[idx] = e.target.value;
-                          updatePlanHints("include", next);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="ps-rules-list-delete"
-                        style={{ opacity: 1 }}
-                        onClick={() => updatePlanHints("include", planHints.include.filter((_, i) => i !== idx))}
-                        title="Entfernen"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="ps-rules-add-btn"
-                  style={{ marginTop: 4 }}
-                  onClick={() => updatePlanHints("include", [...planHints.include, ""])}
-                >
-                  <Plus size={11} /> Thema hinzufügen
-                </button>
-              </div>
-
-              {/* Blacklist */}
-              <div>
-                <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11, color: "var(--error, #f44336)" }}>
-                  ✗ Verbotene Themen (Blacklist)
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {planHints.exclude.map((item, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <input
-                        className="ps-input"
-                        style={{ flex: 1, fontSize: 12 }}
-                        value={item}
-                        placeholder="z. B. Lieferlogistik"
-                        onChange={(e) => {
-                          const next = [...planHints.exclude];
-                          next[idx] = e.target.value;
-                          updatePlanHints("exclude", next);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="ps-rules-list-delete"
-                        style={{ opacity: 1 }}
-                        onClick={() => updatePlanHints("exclude", planHints.exclude.filter((_, i) => i !== idx))}
-                        title="Entfernen"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="ps-rules-add-btn"
-                  style={{ marginTop: 4 }}
-                  onClick={() => updatePlanHints("exclude", [...planHints.exclude, ""])}
-                >
-                  <Plus size={11} /> Thema hinzufügen
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
@@ -587,7 +465,6 @@ export function ProjectSettingsModal({
   const [configSaved, setConfigSaved] = useState(false);
   const [naviInstructionDraft, setNaviInstructionDraft] = useState<Record<string, string>>({});
   const [naviWorkPlanDraft, setNaviWorkPlanDraft] = useState<Record<string, string[]>>({});
-  const [naviPlanHintsDraft, setNaviPlanHintsDraft] = useState<Record<string, { include: string[]; exclude: string[] }>>({});
 
   // Modes
   const [modes, setModes] = useState<Mode[]>([]);
@@ -720,7 +597,6 @@ export function ProjectSettingsModal({
         setConfig(cfg);
         setNaviInstructionDraft(cfg.naviInstructions ?? {});
         setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
-        setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
         setModes(mds);
         setAgents(agentList);
       } else {
@@ -755,7 +631,6 @@ export function ProjectSettingsModal({
       setConfig(cfg);
       setNaviInstructionDraft(cfg.naviInstructions ?? {});
       setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
-      setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -780,7 +655,6 @@ export function ProjectSettingsModal({
       setConfig(cfg);
       setNaviInstructionDraft(cfg.naviInstructions ?? {});
       setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
-      setNaviPlanHintsDraft(normalizePlanHints(cfg.naviPlanHints));
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -910,7 +784,7 @@ export function ProjectSettingsModal({
   const handleResetNavi = async () => {
     if (
       !window.confirm(
-        "Alle Navi-Anpassungen (Anweisungen, Arbeitspläne, Frageplan-Hints) verwerfen und auf die Standard-States zurücksetzen?",
+        "Alle Navi-Anpassungen (Anweisungen, Arbeitspläne) verwerfen und auf die Standard-States zurücksetzen?",
       )
     )
       return;
@@ -921,12 +795,10 @@ export function ProjectSettingsModal({
         ...config,
         naviInstructions: undefined,
         naviWorkPlans: undefined,
-        naviPlanHints: undefined,
       });
       setConfig(saved);
       setNaviInstructionDraft({});
       setNaviWorkPlanDraft({});
-      setNaviPlanHintsDraft({});
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 2000);
       onGeneralConfigSaved?.();
@@ -2249,16 +2121,14 @@ export function ProjectSettingsModal({
                   State-Anpassungen
                 </label>
                 <p className="ps-hint">
-                  Passe Anweisungen, Arbeitsplan und Frageplan-Hints für jeden Navi-State an. Ohne Override gilt der Standard aus dem Code.
+                  Passe Anweisungen und Arbeitsplan für jeden Navi-State an. Ohne Override gilt der Standard aus dem Code.
                 </p>
                 <NaviInstructionsEditor
                   states={NAVI_STATES}
                   instructionOverrides={naviInstructionDraft}
                   workPlanOverrides={naviWorkPlanDraft}
-                  planHintsOverrides={naviPlanHintsDraft}
                   onInstructionChange={setNaviInstructionDraft}
                   onWorkPlanChange={setNaviWorkPlanDraft}
-                  onPlanHintsChange={setNaviPlanHintsDraft}
                 />
                 <div className="ps-actions" style={{ gap: 8 }}>
                   <button
@@ -2269,17 +2139,10 @@ export function ProjectSettingsModal({
                       setSavingConfig(true);
                       setError(null);
                       try {
-                        const cleanedHints: Record<string, { include: string[]; exclude: string[] }> = {};
-                        for (const [sid, v] of Object.entries(naviPlanHintsDraft)) {
-                          const include = v.include.filter(Boolean);
-                          const exclude = v.exclude.filter(Boolean);
-                          if (include.length || exclude.length) cleanedHints[sid] = { include, exclude };
-                        }
-                        const saved = await projectConfigApi.update({ ...config, naviInstructions: naviInstructionDraft, naviWorkPlans: naviWorkPlanDraft, naviPlanHints: Object.keys(cleanedHints).length ? cleanedHints : undefined });
+                        const saved = await projectConfigApi.update({ ...config, naviInstructions: naviInstructionDraft, naviWorkPlans: naviWorkPlanDraft });
                         setConfig(saved);
                         setNaviInstructionDraft(saved.naviInstructions ?? {});
                         setNaviWorkPlanDraft(saved.naviWorkPlans ?? {});
-                        setNaviPlanHintsDraft(normalizePlanHints(saved.naviPlanHints));
                         setConfigSaved(true);
                         setTimeout(() => setConfigSaved(false), 2000);
                         onGeneralConfigSaved?.();
@@ -2299,8 +2162,7 @@ export function ProjectSettingsModal({
                     )}
                   </button>
                   {(Object.keys(naviInstructionDraft).length > 0 ||
-                    Object.keys(naviWorkPlanDraft).length > 0 ||
-                    Object.keys(naviPlanHintsDraft).length > 0) && (
+                    Object.keys(naviWorkPlanDraft).length > 0) && (
                     <button
                       type="button"
                       className="ps-secondary-btn"

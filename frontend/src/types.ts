@@ -1,23 +1,26 @@
 /**
- * Accumulated structured facts about the merchant, extracted and updated at each state transition.
- * Single source of truth — replaces all per-state summaries (naviResults).
- * Injected as a concise overview into every state's system prompt.
+ * Live, in-turn-maintained fact sheet for a Navi consultation. Single source of truth —
+ * replaces the former naviContext + naviPlan + naviCurrentProblem(Interpretation) + naviProblemQueue
+ * split. Updated by the model itself (via the `update_facts` tool) on every turn, not just on
+ * state transitions — so it never lags behind what was actually said.
  */
-export interface NaviContext {
-  /** Laden-Typ, Branche, Standort, Kontext */
-  laden?: string;
-  /** Das konkrete Problem oder der Wunsch des Händlers */
-  problem?: string;
-  /** Die praktische Lücke – der konkrete fehlende Schritt */
-  luecke?: string;
-  /** Software-Stack in einem Satz (Kasse, Online-Shop, Kommunikation, …) */
-  stack?: string;
-  /** Bereitschaft für Zeit- und Geldinvestition in einem Satz */
-  investition?: string;
+export interface NaviFacts {
+  /**
+   * slotId -> filled value. Slot ids are derived from each Navi phase's `workPlan` entries
+   * (see slugifySlotLabel in electron/services/naviStateMachine.ts) and accumulate across ALL
+   * phases visited so far — never reset on a phase change.
+   */
+  slots: Record<string, string>;
+  /** Short restatement of the problem currently being addressed — keeps every phase focused on one thing. */
+  currentProblem?: string;
+  /** What the problem really means / which direction the solution should go. */
+  hypothesis?: string;
+  /** Further problems mentioned by the merchant that have not yet been addressed, in priority order. */
+  problemQueue: string[];
   /** Gemachter Lösungsvorschlag */
-  empfehlung?: string;
-  /** Granulare Zusatzfakten die nicht in die Hauptfelder passen (Tools, Abläufe, Spezifika) */
-  details?: string;
+  recommendation?: string;
+  /** Free-form extra facts that don't fit any defined slot. */
+  notes?: string;
 }
 
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
@@ -326,21 +329,10 @@ export interface ChatRequest {
   rulesDisabled?: boolean;
   /** Current state id for navi sessions; sent each request. */
   naviStateId?: string | null;
-  /** Structured fact sheet accumulated across state transitions; injected into every state's prompt. */
-  naviContext?: NaviContext;
-  /** When set, the generated question plan for the clarify_problem state is re-sent each turn. */
-  naviPlan?: string | null;
+  /** Live fact sheet (slots, hypothesis, problem queue, recommendation); sent + updated each turn. */
+  naviFacts?: NaviFacts;
   /** Ids of tips that have already been covered in this session; excluded from subsequent prompts. */
   naviCoveredTips?: string[];
-  /** The problem currently being addressed in the clarify_problem cycle. */
-  naviCurrentProblem?: string;
-  /**
-   * Semantic interpretation of the current problem: what it really means and in which direction
-   * the solution should go. Injected into all state instructions as a semantic frame.
-   */
-  naviCurrentProblemInterpretation?: string;
-  /** Problems mentioned by the merchant that have not yet been addressed, in order of priority. */
-  naviProblemQueue?: string[];
   /** When set, injects simulation context (goal + cast) into the system prompt. */
   simulationConfig?: SimulationConfig;
 }
@@ -415,18 +407,10 @@ export interface Conversation {
   writeFileSettled?: Record<string, 'applied' | 'reverted'>;
   /** Current navi state id; persisted for navi sessions and sent with each request. */
   naviStateId?: string | null;
-  /** Structured fact sheet accumulated across state transitions. */
-  naviContext?: NaviContext;
-  /** Generated question plan for the clarify_problem state; persisted and re-sent each turn. */
-  naviPlan?: string | null;
+  /** Live fact sheet (slots, hypothesis, problem queue, recommendation); persisted, updated each turn. */
+  naviFacts?: NaviFacts;
   /** Ids of tips already covered in this conversation; excluded from subsequent prompts. */
   naviCoveredTips?: string[];
-  /** The problem currently being addressed in the clarify_problem cycle. */
-  naviCurrentProblem?: string;
-  /** Semantic interpretation of the current problem: what it means and solution direction. */
-  naviCurrentProblemInterpretation?: string;
-  /** Problems mentioned by the merchant that have not yet been addressed, in order of priority. */
-  naviProblemQueue?: string[];
   /** When set, this conversation is a simulation session with a goal and cast. */
   simulationConfig?: SimulationConfig;
 }
@@ -461,11 +445,8 @@ export interface ProjectConfig {
   rules?: ProjectRule[];
   /** Per-state instruction overrides for Navi sessions. Key = state id, value = instruction text. */
   naviInstructions?: Record<string, string>;
-  /** Per-state workPlan overrides for Navi sessions. Key = state id, value = checklist items. */
+  /** Per-state workPlan overrides for Navi sessions. Key = state id, value = checklist items (also used as slot labels). */
   naviWorkPlans?: Record<string, string[]>;
-  /** Per-state hints for the question-plan (Frageplan) LLM call.
-   *  Key = state id. include = Pflicht-Themen (Whitelist), exclude = verbotene Themen (Blacklist). */
-  naviPlanHints?: Record<string, { include?: string[]; exclude?: string[] }>;
   /** Mode id used for Navi sessions; empty = current toolbar/default mode. */
   naviModeId?: string;
   /** LLM id used for Navi sessions; empty = mode/global default. */

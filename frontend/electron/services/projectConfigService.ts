@@ -354,23 +354,6 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
   }
   const naviWorkPlans = Object.keys(naviWorkPlansRaw).length > 0 ? naviWorkPlansRaw : undefined;
 
-  const naviPlanHintsRaw: Record<string, { include: string[]; exclude: string[] }> = {};
-  if (input?.naviPlanHints && typeof input.naviPlanHints === "object") {
-    for (const [k, v] of Object.entries(input.naviPlanHints)) {
-      if (typeof k !== "string" || !k.trim() || !v || typeof v !== "object") continue;
-      const include = Array.isArray(v.include)
-        ? v.include.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        : [];
-      const exclude = Array.isArray(v.exclude)
-        ? v.exclude.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        : [];
-      if (include.length > 0 || exclude.length > 0) {
-        naviPlanHintsRaw[k.trim()] = { include, exclude };
-      }
-    }
-  }
-  const naviPlanHints = Object.keys(naviPlanHintsRaw).length > 0 ? naviPlanHintsRaw : undefined;
-
   const naviModeId =
     typeof input?.naviModeId === "string" && input.naviModeId.trim()
       ? input.naviModeId.trim()
@@ -393,7 +376,6 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     rules,
     ...(naviInstructions !== undefined ? { naviInstructions } : {}),
     ...(naviWorkPlans !== undefined ? { naviWorkPlans } : {}),
-    ...(naviPlanHints !== undefined ? { naviPlanHints } : {}),
     ...(naviModeId !== undefined ? { naviModeId } : {}),
     ...(naviLlmId !== undefined ? { naviLlmId } : {}),
     extraFeatures: input?.extraFeatures ?? {},

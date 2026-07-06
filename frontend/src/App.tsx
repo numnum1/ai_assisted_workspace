@@ -376,27 +376,14 @@ function App() {
     onNaviStateTransition: (stateId, conversationId) => {
       history.patchConversation(conversationId, { naviStateId: stateId });
     },
-    onNaviPlan: (plan, conversationId) => {
-      history.patchConversation(conversationId, { naviPlan: plan });
-    },
     onNaviTipsCovered: (coveredIds, conversationId) => {
       const conv = history.conversations.find((c) => c.id === conversationId);
       const existing = conv?.naviCoveredTips ?? [];
       const merged = [...new Set([...existing, ...coveredIds])];
       history.patchConversation(conversationId, { naviCoveredTips: merged });
     },
-    onNaviProblems: (current, interpretation, queue, conversationId) => {
-      const patch: Partial<import("./types.ts").Conversation> = {
-        naviCurrentProblem: current,
-        naviProblemQueue: queue,
-        naviCurrentProblemInterpretation: interpretation,
-      };
-      // Reset the question plan when interpretation is absent (queue-pop) so a fresh plan is generated.
-      if (!interpretation) patch.naviPlan = null;
-      history.patchConversation(conversationId, patch);
-    },
-    onNaviContext: (ctx, conversationId) => {
-      history.patchConversation(conversationId, { naviContext: ctx });
+    onNaviFacts: (facts, conversationId) => {
+      history.patchConversation(conversationId, { naviFacts: facts });
     },
     onAssistantResponseComplete: (fullText, meta) => {
       // Simulation auto-runner: after Navi finished a turn in a simulation,
@@ -1548,12 +1535,8 @@ function App() {
         conversationId: conv.id,
         sessionKind: "navi",
         naviStateId: conv.naviStateId ?? "greeting",
-        naviContext: conv.naviContext,
-        naviPlan: conv.naviPlan,
+        naviFacts: conv.naviFacts,
         naviCoveredTips: conv.naviCoveredTips,
-        naviCurrentProblem: conv.naviCurrentProblem,
-        naviCurrentProblemInterpretation: conv.naviCurrentProblemInterpretation,
-        naviProblemQueue: conv.naviProblemQueue,
       },
       { userHidden: true, rulesDisabled: !rulesEnabled },
     );
@@ -1722,11 +1705,8 @@ function App() {
             activeConversationId={history.activeId}
             onSwitchChat={handleSwitchChat}
             naviStateId={history.activeConversation?.naviStateId ?? null}
-            naviContext={history.activeConversation?.naviContext}
-            naviPlan={history.activeConversation?.naviPlan}
+            naviFacts={history.activeConversation?.naviFacts}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
-            naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
-            naviProblemQueue={history.activeConversation?.naviProblemQueue}
           />
         </Panel>
 
@@ -2017,10 +1997,6 @@ function App() {
                   history.activeConversation?.sessionKind ?? "standard"
                 }
                 naviStateId={history.activeConversation?.naviStateId ?? null}
-                naviPlan={history.activeConversation?.naviPlan}
-                naviCoveredTips={history.activeConversation?.naviCoveredTips}
-                naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
-                naviProblemQueue={history.activeConversation?.naviProblemQueue}
                 steeringPlan={history.activeConversation?.steeringPlan ?? ""}
                 simulationConfig={history.activeConversation?.simulationConfig}
                 onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
@@ -2084,11 +2060,8 @@ function App() {
             activeConversationId={history.activeId}
             onSwitchChat={handleSwitchChat}
             naviStateId={history.activeConversation?.naviStateId ?? null}
-            naviContext={history.activeConversation?.naviContext}
-            naviPlan={history.activeConversation?.naviPlan}
+            naviFacts={history.activeConversation?.naviFacts}
             naviCoveredTips={history.activeConversation?.naviCoveredTips}
-            naviCurrentProblem={history.activeConversation?.naviCurrentProblem}
-            naviProblemQueue={history.activeConversation?.naviProblemQueue}
           />
         </Panel>
       </Group>

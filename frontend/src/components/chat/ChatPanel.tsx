@@ -116,10 +116,6 @@ interface ChatPanelProps {
   systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
   naviStateId?: string | null;
-  naviPlan?: string | null;
-  naviCoveredTips?: string[];
-  naviCurrentProblem?: string;
-  naviProblemQueue?: string[];
   naviStep?: string | null;
   simulationConfig?: SimulationConfig;
   onOpenSimulationSetup?: () => void;

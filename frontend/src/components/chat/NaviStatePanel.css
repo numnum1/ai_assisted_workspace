@@ -158,29 +158,9 @@
   opacity: 0.6;
 }
 
-/* ── Plan ─────────────────────────────────────────────────── */
-.navi-plan-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.navi-plan-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text-secondary, #cdd6f4);
-  line-height: 1.4;
-}
-
-.navi-plan-dot {
-  margin-top: 2px;
-  flex-shrink: 0;
-  color: #f9e2af;
+.navi-workplan-dot--filled {
+  color: var(--green, #a6e3a1);
+  opacity: 1;
 }
 
 /* ── Transitions ──────────────────────────────────────────── */
@@ -328,7 +308,7 @@
   opacity: 0.6;
 }
 
-/* ── Faktenlage (NaviContext) ─────────────────────────────── */
+/* ── Faktenlage (NaviFacts) ────────────────────────────────── */
 .navi-context-card {
   display: flex;
   flex-direction: column;
@@ -341,7 +321,7 @@
 
 .navi-context-row {
   display: grid;
-  grid-template-columns: 70px 1fr;
+  grid-template-columns: minmax(70px, 45%) 1fr;
   gap: 6px;
   align-items: baseline;
 }

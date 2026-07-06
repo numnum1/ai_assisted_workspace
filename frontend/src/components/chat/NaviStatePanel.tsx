@@ -4,7 +4,6 @@ import {
   ClipboardList,
   ArrowRight,
   FileText,
-  ListChecks,
   Lightbulb,
   SplitSquareHorizontal,
   Inbox,
@@ -14,23 +13,23 @@ import {
   NAVI_CLIENT_STATES,
   getNaviClientState,
 } from "./naviStateMachineClient.ts";
-import { NAVI_STATES } from "../../naviStateMachine.ts";
+import { NAVI_STATES, getEffectiveSlots, getAllSlotLabels } from "../../naviStateMachine.ts";
 import { NAVI_TIPS } from "../../naviTips.ts";
-import type { NaviContext } from "../../types.ts";
+import type { NaviFacts } from "../../types.ts";
 import "./NaviStatePanel.css";
 
 interface Props {
   naviStateId: string;
-  naviContext?: NaviContext;
-  naviPlan?: string | null;
+  naviFacts?: NaviFacts;
   naviCoveredTips?: string[];
-  naviCurrentProblem?: string;
-  naviProblemQueue?: string[];
 }
 
-export function NaviStatePanel({ naviStateId, naviContext, naviPlan, naviCoveredTips, naviCurrentProblem, naviProblemQueue }: Props) {
+export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips }: Props) {
   const current = getNaviClientState(naviStateId);
   const currentRaw = NAVI_STATES.find((s) => s.id === naviStateId);
+  const currentSlots = getEffectiveSlots(naviStateId, undefined);
+  const allSlotLabels = getAllSlotLabels(undefined);
+  const filledSlotEntries = Object.entries(naviFacts?.slots ?? {}).filter(([, v]) => v?.trim());
 
   const currentIndex = NAVI_CLIENT_STATES.findIndex((s) => s.id === naviStateId);
   const isDone = (stateId: string) => {
@@ -69,27 +68,37 @@ export function NaviStatePanel({ naviStateId, naviContext, naviPlan, naviCovered
           )}
         </div>
 
-        {/* Work plan */}
-        {current && current.workPlan.length > 0 && (
+        {/* Slot checklist — always current, filled directly by update_facts each turn */}
+        {currentSlots.length > 0 && (
           <div className="navi-workplan">
             <div className="navi-workplan-label">
               <ClipboardList size={10} />
-              Arbeitsplan (Gate)
+              Slot-Checkliste (Gate)
             </div>
             <ul className="navi-workplan-list">
-              {current.workPlan.map((item, i) => (
-                <li key={i} className="navi-workplan-item">
-                  <Circle size={8} className="navi-workplan-dot" />
-                  {item}
-                </li>
-              ))}
+              {currentSlots.map((slot) => {
+                const value = naviFacts?.slots[slot.id]?.trim();
+                return (
+                  <li key={slot.id} className="navi-workplan-item">
+                    {value ? (
+                      <CheckCircle2 size={10} className="navi-workplan-dot navi-workplan-dot--filled" />
+                    ) : (
+                      <Circle size={8} className="navi-workplan-dot" />
+                    )}
+                    <span>
+                      {slot.label}
+                      {value && <span className="navi-context-value"> → {value}</span>}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
       </div>
 
       {/* ── Section 1b: Problem Queue ──────────────────────── */}
-      {naviCurrentProblem && (
+      {naviFacts?.currentProblem && (
         <div className="navi-section">
           <div className="navi-section-label">
             <Inbox size={11} />
@@ -98,10 +107,10 @@ export function NaviStatePanel({ naviStateId, naviContext, naviPlan, naviCovered
           <div className="navi-problem-queue">
             <div className="navi-problem-current">
               <CheckCircle2 size={10} className="navi-problem-icon navi-problem-icon--active" />
-              <span className="navi-problem-label">{naviCurrentProblem}</span>
+              <span className="navi-problem-label">{naviFacts.currentProblem}</span>
               <span className="navi-problem-badge">aktiv</span>
             </div>
-            {(naviProblemQueue ?? []).map((p, i) => (
+            {(naviFacts.problemQueue ?? []).map((p, i) => (
               <div key={i} className="navi-problem-queued">
                 <Circle size={10} className="navi-problem-icon" />
                 <span className="navi-problem-label">{p}</span>
@@ -111,82 +120,43 @@ export function NaviStatePanel({ naviStateId, naviContext, naviPlan, naviCovered
         </div>
       )}
 
-      {/* ── Section 1b2: Faktenlage (NaviContext) ─────────── */}
-      {naviContext && Object.values(naviContext).some(Boolean) && (
+      {/* ── Section 1b2: Faktenlage — accumulated slot values across every phase ─── */}
+      {(filledSlotEntries.length > 0 || naviFacts?.hypothesis || naviFacts?.recommendation || naviFacts?.notes) && (
         <div className="navi-section">
           <div className="navi-section-label">
             <BookOpen size={11} />
             Faktenlage
           </div>
           <div className="navi-context-card">
-            {naviContext.laden && (
+            {filledSlotEntries.map(([id, value]) => (
+              <div className="navi-context-row" key={id}>
+                <span className="navi-context-key">{allSlotLabels.get(id) ?? id}</span>
+                <span className="navi-context-value">{value}</span>
+              </div>
+            ))}
+            {naviFacts?.hypothesis && (
               <div className="navi-context-row">
-                <span className="navi-context-key">Laden</span>
-                <span className="navi-context-value">{naviContext.laden}</span>
+                <span className="navi-context-key">Interpretation</span>
+                <span className="navi-context-value">{naviFacts.hypothesis}</span>
               </div>
             )}
-            {naviContext.problem && (
-              <div className="navi-context-row">
-                <span className="navi-context-key">Problem</span>
-                <span className="navi-context-value">{naviContext.problem}</span>
-              </div>
-            )}
-            {naviContext.luecke && (
-              <div className="navi-context-row">
-                <span className="navi-context-key">Lücke</span>
-                <span className="navi-context-value">{naviContext.luecke}</span>
-              </div>
-            )}
-            {naviContext.stack && (
-              <div className="navi-context-row">
-                <span className="navi-context-key">Stack</span>
-                <span className="navi-context-value">{naviContext.stack}</span>
-              </div>
-            )}
-            {naviContext.investition && (
-              <div className="navi-context-row">
-                <span className="navi-context-key">Aufwand</span>
-                <span className="navi-context-value">{naviContext.investition}</span>
-              </div>
-            )}
-            {naviContext.empfehlung && (
+            {naviFacts?.recommendation && (
               <div className="navi-context-row">
                 <span className="navi-context-key">Empfehlung</span>
-                <span className="navi-context-value">{naviContext.empfehlung}</span>
+                <span className="navi-context-value">{naviFacts.recommendation}</span>
               </div>
             )}
-            {naviContext.details && (
+            {naviFacts?.notes && (
               <div className="navi-context-row">
-                <span className="navi-context-key">Details</span>
+                <span className="navi-context-key">Notizen</span>
                 <span className="navi-context-value navi-context-value--details">
-                  {naviContext.details.split("\n").filter((l) => l.trim()).map((line, i) => (
+                  {naviFacts.notes.split("\n").filter((l) => l.trim()).map((line, i) => (
                     <div key={i}>{line.replace(/^[-•]\s*/, "")}</div>
                   ))}
                 </span>
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* ── Section 1c: Frageplan ──────────────────────────── */}
-      {naviPlan && naviStateId === "clarify_problem" && (
-        <div className="navi-section">
-          <div className="navi-section-label">
-            <ListChecks size={11} />
-            Frageplan
-          </div>
-          <ul className="navi-plan-list">
-            {naviPlan
-              .split("\n")
-              .filter((l) => l.trim())
-              .map((line, i) => (
-                <li key={i} className="navi-plan-item">
-                  <Circle size={8} className="navi-plan-dot" />
-                  {line.replace(/^[-•]\s*/, "")}
-                </li>
-              ))}
-          </ul>
         </div>
       )}
 

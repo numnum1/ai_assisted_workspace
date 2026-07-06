@@ -50,15 +50,15 @@ closing
   └─→ clarify_problem      (weiteres Anliegen)
 ```
 
-### Arbeitsplan-Gate
+### Arbeitsplan-Gate → Slot-Checkliste (deterministisch)
 
-States mit einem `workPlan` dürfen nur per Vorwärts-Transition verlassen werden, wenn **alle** Punkte des Arbeitsplans durch das bisherige Gespräch abgedeckt sind. Der Klassifizierer prüft das explizit.
+Jeder Punkt im `workPlan` eines narrow-Persona-States (`clarify_problem`, `explore_software_stack`, `explore_investment`) wird zu einem **Slot** mit stabiler id (`slugifySlotLabel`, `src/naviStateMachine.ts`). Das Modell trägt Werte über das Tool `update_facts` selbst ein – **in jedem Turn**, nicht nur bei einem State-Wechsel. Der Wechsel in die nächste Phase (`advance_phase`-Tool) wird vom Backend **deterministisch** geprüft: er gelingt nur, wenn für den aktuellen State jeder Slot einen Wert im Fakten-Blatt hat (`allSlotsFilled`, siehe unten). Es gibt keine zweite Instanz, die das per Prosa-Interpretation nochmal einschätzt.
 
 Beispiel `clarify_problem`:
 - Problem konkret beschrieben (nicht nur benannt)
-- Häufigkeit oder Ausmaß des Problems bekannt
-- Bisheriger Umgang oder Workaround bekannt
-- Gewünschtes Ergebnis oder Ziel des Händlers bekannt
+- Problem-Typ/Ursache klar
+
+Full-Persona-States (`assess_situation`, `give_recommendation`, …) haben kein Slot-Gate – ihre Übergänge werden weiterhin vollständig vom Klassifizierer entschieden (siehe unten), genau wie schon vor diesem Umbau.
 
 ---
 
@@ -96,47 +96,36 @@ Nach der Extraktion aus einem `ask_question`-Tool-Call: wenn die Antwort kein `?
 
 ---
 
-## Klassifizierung (nach jeder Händler-Nachricht)
+## Redirect-Klassifizierer (Sicherheitsnetz für Ausnahmen)
 
-Nach jeder Nutzerantwort läuft ein separater, nicht-streamender LLM-Call:
+Früher lief bei jeder Nachricht ein Klassifizierer, der über den kompletten State-Übergang entschied (inkl. „ist der Arbeitsplan vollständig?"). Das ist jetzt in zwei getrennte Mechanismen aufgeteilt:
 
-1. Der Klassifizierer bekommt: aktueller State, Arbeitsplan, vollständige Gesprächshistorie, letzte Händler-Nachricht, mögliche Transitions mit Bedingungen.
-2. Er antwortet **nur** mit einer Zahl (1-N = Transition, 0 = bleib im State).
-3. Konservative Regel: Im Zweifel `0`. Vorwärts-Transition nur wenn Arbeitsplan vollständig UND Bedingung erfüllt.
-
----
-
-## State-Summaries und Kontext-Weitergabe
-
-Beim Verlassen eines States mit WorkPlan wird ein dritter, nicht-streamender LLM-Call gemacht:
-
-- Input: Gesprächsauszug des abgeschlossenen States (max. 20 Zeilen), WorkPlan-Punkte
-- Output: 3–6 Fakten-Stichpunkte (nur konkrete Fakten, keine Interpretationen)
-- Gespeichert in: `conversation.naviResults[stateId]`
-
-Die gesammelten Summaries aller abgeschlossenen States werden als Faktenblock in den System-Prompt jedes Folge-States injiziert:
-
-```
-Bisher herausgefundene Fakten aus früheren Gesprächsphasen:
-
-[clarify_problem]
-- Händler betreibt Blumenladen in München
-- Problem: Terminabsagen per Telefon, ca. 5-8 pro Woche
-- ...
-```
-
-So haben Advisory-States vollständigen Kontext ohne die gesamte Gesprächshistorie auswerten zu müssen.
+- **Vorwärtsgang** (alle Slots eines narrow States bekannt → nächste Phase): deterministisch, siehe Slot-Checkliste oben. Kein LLM-Urteil nötig.
+- **Ausnahmen/Redirects** (Themenwechsel, „das war ein Missverständnis", Zufriedenheits-/Einwand-Erkennung in Full-Persona-States): ein schlanker, nicht-streamender Klassifizierer-Call (`buildRedirectClassifierPrompt`, `electron/services/naviStateMachine.ts`), der **nur** die nicht slot-förmigen Transitions eines States prüft. Für narrow States mit Slot-Gate ist das nur die zweite (Ausnahme-)Transition; für Full-Persona-States (kein Slot-Gate) bleiben es weiterhin alle Transitions – hier entscheidet der Klassifizierer wie schon zuvor allein.
+- Läuft parallel zur (spekulativ gestarteten) Hauptantwort; meldet er einen Wechsel, wird die spekulative Antwort verworfen und die Hauptantwort in der neuen Phase neu gestartet.
 
 ---
 
-## Fragen-Planung (`clarify_problem`)
+## Live-Fakten-Blatt (`NaviFacts`) statt Plan/Kontext-Snapshots
 
-Beim Eintritt in `clarify_problem` wird ein separater, nicht-streamender LLM-Call ausgeführt, der einen priorisierten Fragenplan erstellt:
+Der frühere Aufbau (separate, gefensterte Calls für Fragenplan und Fakten-Extraktion, beide nur bei State-Wechsel bzw. mit einem 10-/20-Zeilen-Gesprächsausschnitt) ist ersetzt durch **ein** Fakten-Objekt (`NaviFacts`, `src/types.ts`), das das Modell selbst per Tool-Call **in jedem Turn** pflegt:
 
-- Input: bisheriges Gespräch, Arbeitsplan-Punkte, bereits bekannte Infos
-- Output: priorisierte Liste offener Fragen (max. 5), differenziert nach Händlertyp (nur online / nur stationär / beides)
-- Gespeichert in: `conversation.naviPlan`
-- In den State-Prompt injiziert → steuert, was als nächstes gefragt wird
+```ts
+interface NaviFacts {
+  slots: Record<string, string>;   // slotId -> Wert, über ALLE Phasen hinweg akkumuliert
+  currentProblem?: string;
+  hypothesis?: string;
+  problemQueue: string[];
+  recommendation?: string;
+  notes?: string;
+}
+```
+
+- **`update_facts`**-Tool: still (nicht sichtbar für den Händler), das Modell ruft es auf, sobald die letzte Nachricht auch nur eine Kleinigkeit Neues enthält – bevor es antwortet oder die Phase wechselt.
+- Das volle, aktuelle Fakten-Blatt (nicht nur ein Ausschnitt) wird in **jeden** System-Prompt injiziert – zusammen mit der Slot-Checkliste der aktuellen Phase (gefüllt/offen).
+- **`advance_phase`**-Tool (nur narrow States mit Slots): siehe Slot-Gate oben.
+- Ergebnis: kein Fenster mehr, das Fakten abschneiden kann, und keine Verzögerung zwischen „Händler sagt etwas" und „Fakten-Blatt weiß es".
+- Event ans Frontend: `navi_facts` (ersetzt die früheren `navi_context`/`navi_plan`/`navi_problems`-Events), gespeichert als `conversation.naviFacts`.
 
 ---
 
@@ -200,19 +189,24 @@ Diese Overrides greifen zur Laufzeit und haben Vorrang vor den Defaults in `src/
 ```
 Händler schickt Nachricht
   │
-  ├─ Call 1: Klassifizierung (nicht-streamend, max. 5 Tokens)
-  │   → newStateId bestimmt
+  ├─ Speculative Fetch startet SOFORT für die aktuelle Phase (Tools: update_facts,
+  │   advance_phase falls Slot-State, sichtbare Antwort-Tools)
   │
-  ├─ Call 2: State-Summary (nur bei Transition + WorkPlan, nicht-streamend, max. 200 Tokens)
-  │   → Summary für abgeschlossenen State gespeichert
+  ├─ Parallel: Redirect-Klassifizierer prüft Ausnahme-Transitions (nicht-streamend)
+  │   → bei Redirect: spekulative Antwort verworfen, neue Antwort in der Zielphase gestartet
+  │   → sonst: spekulative Antwort wird verwendet
   │
-  ├─ navi_state Event → Frontend aktualisiert State-Anzeige
+  ├─ navi_step / navi_state Events → Frontend aktualisiert Status-Anzeige
   │
-  └─ Call 3: Hauptantwort (streamend)
-      → System-Prompt: persona (narrow/full) + naviResults-Kontext + State-Instruction
-      → Tools: state-spezifisch (ask_question erzwungen in Info-States)
-      → Bei ask_question: Backend extrahiert Antwort, streamt als normaler Text
-      → Bei ask_clarification: Optionen-UI, wartet auf Händler
+  └─ Runden-Schleife (max. 4, electron/services/conversation/naviChat.ts):
+      1. Modell antwortet mit Tool-Call(s): update_facts (Fakten-Blatt aktualisieren),
+         advance_phase (Phasenwechsel, deterministisch gegen Slot-Checkliste geprüft),
+         und/oder sichtbares Antwort-Tool (ask_question/ask_clarification/ask_yes_no)
+         bzw. freier Text (Full-Persona ohne erzwungenes Tool)
+      2. Stille Tool-Calls werden sofort ausgeführt (Fakten-Blatt/Phase aktualisiert,
+         navi_facts/navi_state Events emittiert); ohne sichtbare Antwort läuft die
+         Schleife mit frisch gerendertem Prompt weiter
+      3. Sobald ein sichtbares Antwort-Tool oder freier Text vorliegt: Turn endet (`done`)
 ```
 
 ---
@@ -227,15 +221,15 @@ Navi kann automatisiert getestet werden: Ein simulierter Händler antwortet nach
 
 | Datei | Inhalt |
 |---|---|
-| `src/naviStateMachine.ts` | State-Definitionen – das *Was* jeder Phase (Quelle der Wahrheit) |
+| `src/naviStateMachine.ts` | State-Definitionen (das *Was* jeder Phase) **plus** Slot-Helper (`slugifySlotLabel`, `getEffectiveSlots`, `allSlotsFilled`, `getAllSlotLabels`) — von Backend und Frontend-Panel gemeinsam genutzt |
 | `electron/services/conversation/naviVoice.ts` | Zentrale Navi-Stimme – das *Wie* der Kommunikation (Persona-Regeln) |
+| `electron/services/conversation/naviChat.ts` | Kern-Logik: Turn-Loop, Fakten-Blatt-Rendering, `update_facts`/`advance_phase`-Tools, Redirect-Klassifizierer |
+| `electron/services/naviStateMachine.ts` | Re-exportiert die Slot-Helper aus `src/naviStateMachine.ts` + `buildRedirectClassifierPrompt` |
 | `src/components/chat/naviStateMachineClient.ts` | Client-seitige State-Labels für die UI |
-| `src/components/chat/NaviStatePanel.tsx` | State-Fortschritts-Panel mit Ergebnis-Anzeige |
-| `electron/services/naviStateMachine.ts` | Backend-Wrapper: Klassifizierungs- und Summary-Prompts |
-| `electron/services/chatService.ts` | Kern-Logik: Klassifizierung, Summary, Hauptantwort |
+| `src/components/chat/NaviStatePanel.tsx` | State-Fortschritts-Panel: Slot-Checkliste der aktuellen Phase + akkumulierte Faktenlage |
 | `electron/services/naviKnowledgeBase.ts` | Use Cases und Tools für Advisory-States |
 | `src/naviUseCases.ts` | Use-Case-Definitionen |
 | `src/naviTools.ts` | Tool-Definitionen |
 | `src/naviTips.ts` | Tip-Definitionen (optionale Hinweise) |
 | `src/components/chat/naviGreetingKickoff.ts` | Scheduling der ersten Navi-Begrüßungsnachricht |
-| `electron/services/projectConfigService.ts` | Liest `.assistant/project.yaml`-Overrides für States |
+| `electron/services/projectConfigService.ts` | Liest `.assistant/project.yaml`-Overrides für States (`naviInstructions`, `naviWorkPlans` — Letzteres liefert jetzt auch die Slot-Labels) |
