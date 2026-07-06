@@ -1997,6 +1997,7 @@ function App() {
                 onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
                 onEditMessage={conversation.editMessage}
                 onDeleteMessages={conversation.deleteMessages}
+                onSetMessageFeedback={conversation.setMessageFeedback}
                 onNewChat={handleNewChat}
                 onDiscardCurrentChat={handleDiscardCurrentChat}
                 agentPresets={agentPresets}

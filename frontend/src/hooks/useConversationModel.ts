@@ -340,6 +340,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     retry: chat.retry,
     forkFromMessage: chat.forkFromMessage,
     deleteMessages: chat.deleteMessages,
+    setMessageFeedback: chat.setMessageFeedback,
     loadMessages: chat.loadMessages,
   };
 }

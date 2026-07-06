@@ -4,12 +4,15 @@ import {
   Scissors,
   GitFork,
   MessageSquare,
+  MessageSquareText,
   Trash2,
   GitMerge,
   Loader,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import { TurnCard } from "./TurnCard.tsx";
-import type { ChatMessage, SelectionContext } from "../../types.ts";
+import type { ChatMessage, MessageFeedback, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { ToolCallDisplay } from "./ToolCallDisplay.tsx";
 import { ChangeCardGroup } from "./ChangeCardGroup.tsx";
@@ -60,6 +63,7 @@ export interface AssistantTurnCardProps {
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onDeleteMessages: (indices: number[]) => void;
+  onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
   onUseMessageAsThreadSummary?: (index: number) => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
@@ -87,6 +91,7 @@ export function AssistantTurnCard({
   onStartThreadFromMessage,
   onForkToNewConversation,
   onDeleteMessages,
+  onSetMessageFeedback,
   onUseMessageAsThreadSummary,
   onReplaceSelection,
   onApplyFieldUpdate,
@@ -99,7 +104,35 @@ export function AssistantTurnCard({
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
 
-  const showActions = !readOnly && !streaming && !naviStateId;
+  const showNormalActions = !readOnly && !streaming && !naviStateId;
+  /** Feedback stays available during Navi-guided turns too — this is exactly what beta testers rate. */
+  const showFeedback = !readOnly && !streaming;
+  const showActions = showNormalActions || showFeedback;
+
+  const currentFeedback = messages[lastOriginalIdx]?.feedback;
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentDraft, setCommentDraft] = useState(currentFeedback?.comment ?? "");
+
+  const handleRating = (rating: "up" | "down") => {
+    if (currentFeedback?.rating === rating) {
+      onSetMessageFeedback(lastOriginalIdx, null);
+      setCommentOpen(false);
+      setCommentDraft("");
+      return;
+    }
+    onSetMessageFeedback(lastOriginalIdx, {
+      rating,
+      comment: commentDraft.trim() || undefined,
+      timestamp: Date.now(),
+    });
+    setCommentOpen(true);
+  };
+
+  const handleCommentSave = () => {
+    if (!currentFeedback) return;
+    const trimmed = commentDraft.trim();
+    onSetMessageFeedback(lastOriginalIdx, { ...currentFeedback, comment: trimmed || undefined });
+  };
 
   const { preUnits, toolUnits, postUnits, hasToolCalls } = useMemo(() => {
     const firstToolIdx = subUnits.findIndex((s) => s.type === "toolCall");
@@ -265,7 +298,53 @@ export function AssistantTurnCard({
 
   const assistantActions = (
     <>
-      {firstVisIdx > 0 && (
+      {showFeedback && (
+        <button
+          type="button"
+          className={`chat-feedback-btn chat-feedback-btn--up${
+            currentFeedback?.rating === "up" ? " chat-feedback-btn--active" : ""
+          }`}
+          onClick={() => handleRating("up")}
+          title="Gute Antwort"
+        >
+          <ThumbsUp size={12} />
+        </button>
+      )}
+      {showFeedback && (
+        <button
+          type="button"
+          className={`chat-feedback-btn chat-feedback-btn--down${
+            currentFeedback?.rating === "down" ? " chat-feedback-btn--active" : ""
+          }`}
+          onClick={() => handleRating("down")}
+          title="Schlechte Antwort"
+        >
+          <ThumbsDown size={12} />
+        </button>
+      )}
+      {showFeedback && currentFeedback && (
+        <button
+          type="button"
+          className={`chat-feedback-btn${commentOpen ? " chat-feedback-btn--active" : ""}`}
+          onClick={() => setCommentOpen((o) => !o)}
+          title="Kommentar zur Bewertung"
+        >
+          <MessageSquareText size={12} />
+        </button>
+      )}
+      {showFeedback && commentOpen && currentFeedback && (
+        <div className="chat-feedback-comment-row">
+          <textarea
+            className="chat-feedback-comment-input"
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            onBlur={handleCommentSave}
+            placeholder="Optionaler Kommentar zu dieser Antwort…"
+            rows={2}
+          />
+        </div>
+      )}
+      {showNormalActions && firstVisIdx > 0 && (
         <button
           type="button"
           className="chat-fork-btn"
@@ -275,7 +354,7 @@ export function AssistantTurnCard({
           <MessageSquare size={12} />
         </button>
       )}
-      {firstVisIdx > 0 && (
+      {showNormalActions && firstVisIdx > 0 && (
         <button
           type="button"
           className="chat-fork-btn"
@@ -285,7 +364,7 @@ export function AssistantTurnCard({
           <Scissors size={12} />
         </button>
       )}
-      {firstVisIdx > 0 && (
+      {showNormalActions && firstVisIdx > 0 && (
         <button
           type="button"
           className="chat-fork-btn"
@@ -295,7 +374,7 @@ export function AssistantTurnCard({
           <GitFork size={12} />
         </button>
       )}
-      {activeIsThread && onUseMessageAsThreadSummary && (
+      {showNormalActions && activeIsThread && onUseMessageAsThreadSummary && (
         <button
           type="button"
           className="chat-fork-btn chat-fork-btn--merge"
@@ -305,14 +384,16 @@ export function AssistantTurnCard({
           <GitMerge size={12} />
         </button>
       )}
-      <button
-        type="button"
-        className="chat-fork-btn chat-fork-btn--danger"
-        onClick={() => onDeleteMessages(originalIndices)}
-        title="Diese KI-Antwort löschen"
-      >
-        <Trash2 size={12} />
-      </button>
+      {showNormalActions && (
+        <button
+          type="button"
+          className="chat-fork-btn chat-fork-btn--danger"
+          onClick={() => onDeleteMessages(originalIndices)}
+          title="Diese KI-Antwort löschen"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
     </>
   );
 

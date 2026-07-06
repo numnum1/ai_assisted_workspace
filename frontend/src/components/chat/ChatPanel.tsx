@@ -9,6 +9,7 @@ import type {
   LlmPublic,
   ChatSessionKind,
   ContextInfo,
+  MessageFeedback,
   ReasoningEffort,
   SimulationConfig,
 } from "../../types.ts";
@@ -67,6 +68,7 @@ interface ChatPanelProps {
   ) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessages: (indices: number[]) => void;
+  onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
   onNewChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
   onDiscardCurrentChat: (
     kindOrPayload?: ChatSessionKind | NewChatConfirmPayload,
@@ -150,6 +152,7 @@ export function ChatPanel({
   onAcceptGuidedThreadOffer,
   onEditMessage,
   onDeleteMessages,
+  onSetMessageFeedback,
   onNewChat,
   onDiscardCurrentChat,
   onSwitchChat,
@@ -441,6 +444,7 @@ export function ChatPanel({
           onStop={onStop}
           onEditMessage={onEditMessage}
           onDeleteMessages={onDeleteMessages}
+          onSetMessageFeedback={onSetMessageFeedback}
           onForkFromMessage={onForkFromMessage}
           onForkToNewConversation={onForkToNewConversation}
           onStartThreadFromMessage={onStartThreadFromMessage}
@@ -480,7 +484,6 @@ export function ChatPanel({
           structureRoot={structureRoot}
           theme={theme}
           fieldLabels={fieldLabels}
-          fullscreen={isFullscreen}
           parentLastMessage={parentLastMessage}
         />
       </div>

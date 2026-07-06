@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatMessage, SelectionContext } from "../../types.ts";
+import type { ChatMessage, MessageFeedback, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
 import { TurnCard } from "./TurnCard.tsx";
@@ -116,31 +116,26 @@ export const MessageEditBox = memo(function MessageEditBox({
 
   return (
     <div className="chat-message-edit-wrap">
-      <textarea
-        className="chat-message-edit-textarea"
-        value={draft}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          e.target.style.height = "auto";
-          e.target.style.height = `${e.target.scrollHeight}px`;
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-          } else if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            onSave(draft);
-          }
-        }}
-        ref={(el) => {
-          if (el) {
-            el.style.height = "auto";
-            el.style.height = `${el.scrollHeight}px`;
-          }
-        }}
-        autoFocus
-      />
+      {/* Grid-based autosize (data-replicated-value) — avoids reading scrollHeight on
+          every keystroke, which forces a synchronous layout that gets more expensive
+          the longer the surrounding chat DOM is. */}
+      <div className="chat-message-edit-autosize" data-replicated-value={draft}>
+        <textarea
+          className="chat-message-edit-textarea"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onCancel();
+            } else if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSave(draft);
+            }
+          }}
+          autoFocus
+        />
+      </div>
       <div className="chat-edit-actions">
         <button
           type="button"
@@ -191,6 +186,7 @@ export interface ChatMessagesPaneProps {
   onForkToNewConversation: (index: number) => void;
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;
+  onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
   onUseMessageAsThreadSummary?: (index: number) => void;
   commitEdit: (index: number, text: string) => void;
   cancelEdit: () => void;
@@ -226,6 +222,7 @@ export function ChatMessagesPane({
   onForkToNewConversation,
   onEditMessage,
   onDeleteMessages,
+  onSetMessageFeedback,
   onUseMessageAsThreadSummary,
   commitEdit,
   cancelEdit,
@@ -324,6 +321,7 @@ export function ChatMessagesPane({
               onStartThreadFromMessage={onStartThreadFromMessage}
               onForkToNewConversation={onForkToNewConversation}
               onDeleteMessages={onDeleteMessages}
+              onSetMessageFeedback={onSetMessageFeedback}
               onUseMessageAsThreadSummary={onUseMessageAsThreadSummary}
               onReplaceSelection={onReplaceSelection}
               onApplyFieldUpdate={onApplyFieldUpdate}

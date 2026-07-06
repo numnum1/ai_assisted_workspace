@@ -11,6 +11,7 @@ import type {
   SelectionContext,
   ChatSessionKind,
   ContextInfo,
+  MessageFeedback,
   ReasoningEffort,
   SimulationConfig,
 } from "../../types.ts";
@@ -132,6 +133,7 @@ export interface ChatPaneProps {
   onStop: () => void;
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;
+  onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onStartThreadFromMessage: (messageIndex: number) => void;
@@ -186,7 +188,6 @@ export interface ChatPaneProps {
   structureRoot?: string | null;
   theme?: "light" | "dark";
   fieldLabels?: Record<string, string>;
-  fullscreen?: boolean;
   /** When this is a thread: the last visible message from the parent conversation to show as context banner. */
   parentLastMessage?: ChatMessage | null;
 }
@@ -204,6 +205,7 @@ export function ChatPane({
   onStop,
   onEditMessage,
   onDeleteMessages,
+  onSetMessageFeedback,
   onForkFromMessage,
   onForkToNewConversation,
   onStartThreadFromMessage,
@@ -244,7 +246,6 @@ export function ChatPane({
   structureRoot = null,
   theme = "dark",
   fieldLabels,
-  fullscreen = false,
   parentLastMessage = null,
 }: ChatPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);
@@ -600,6 +601,7 @@ export function ChatPane({
           onForkToNewConversation={onForkToNewConversation}
           onEditMessage={onEditMessage}
           onDeleteMessages={onDeleteMessages}
+          onSetMessageFeedback={onSetMessageFeedback}
           onUseMessageAsThreadSummary={onUseMessageAsThreadSummary}
           commitEdit={commitEdit}
           cancelEdit={cancelEdit}
@@ -674,7 +676,6 @@ export function ChatPane({
             referencedFiles={referencedFiles}
             onAddFile={onAddFile}
             onRemoveFile={onRemoveFile}
-            fullscreen={fullscreen}
             structureRoot={structureRoot}
             useReasoning={useReasoning && reasoningAvailable}
             onToggleReasoning={agentMode ? undefined : onToggleReasoning}

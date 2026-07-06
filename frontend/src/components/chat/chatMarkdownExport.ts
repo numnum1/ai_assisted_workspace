@@ -12,6 +12,15 @@ function roleHeading(role: ChatMessage['role']): string {
   return role;
 }
 
+function feedbackLine(m: ChatMessage): string | null {
+  if (!m.feedback) return null;
+  const emoji = m.feedback.rating === 'up' ? '👍' : '👎';
+  const comment = m.feedback.comment?.trim();
+  return comment
+    ? `> **Feedback:** ${emoji} — ${comment}`
+    : `> **Feedback:** ${emoji}`;
+}
+
 export function conversationToMarkdown(conv: Conversation): string {
   const lines: string[] = [];
   lines.push(`# ${conv.title.replace(/\n/g, ' ')}`);
@@ -41,6 +50,30 @@ export function conversationToMarkdown(conv: Conversation): string {
       }
       lines.push('');
     }
+    const fb = feedbackLine(m);
+    if (fb) {
+      lines.push(fb);
+      lines.push('');
+    }
+  }
+
+  const rated = conv.messages.filter((m) => m.feedback);
+  if (rated.length > 0) {
+    lines.push('---');
+    lines.push('');
+    lines.push('## Feedback-Zusammenfassung');
+    lines.push('');
+    const upCount = rated.filter((m) => m.feedback!.rating === 'up').length;
+    const downCount = rated.length - upCount;
+    lines.push(`👍 ${upCount} · 👎 ${downCount}`);
+    lines.push('');
+    for (const m of rated) {
+      const emoji = m.feedback!.rating === 'up' ? '👍' : '👎';
+      const comment = m.feedback!.comment?.trim();
+      const snippet = (m.content ?? '').trim().replace(/\s+/g, ' ').slice(0, 120);
+      lines.push(`- ${emoji} ${comment ? `"${comment}" — ` : ''}_${snippet}${snippet.length === 120 ? '…' : ''}_`);
+    }
+    lines.push('');
   }
 
   return `${lines.join('\n').trimEnd()}\n`;

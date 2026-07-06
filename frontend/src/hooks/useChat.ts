@@ -4,6 +4,7 @@ import type {
   ChatRequest,
   ChatSessionKind,
   ContextInfo,
+  MessageFeedback,
   NaviFacts,
   NaviTraceEntry,
   ReasoningEffort,
@@ -413,6 +414,24 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     });
   }, []);
 
+  const setMessageFeedback = useCallback((index: number, feedback: MessageFeedback | null) => {
+    syncEnabledRef.current = true;
+    setMessages((prev) => {
+      if (index < 0 || index >= prev.length) return prev;
+      const next = prev.slice();
+      const target = next[index];
+      if (!target) return prev;
+      if (feedback === null) {
+        const { feedback: _drop, ...rest } = target;
+        next[index] = rest;
+      } else {
+        next[index] = { ...target, feedback };
+      }
+      currentBaseRef.current = next;
+      return next;
+    });
+  }, []);
+
   return {
     messages,
     streaming,
@@ -427,6 +446,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     forkFromMessage,
     editMessage,
     deleteMessages,
+    setMessageFeedback,
     loadMessages,
   };
 }

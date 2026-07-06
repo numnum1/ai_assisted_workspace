@@ -181,27 +181,6 @@ function filterItems(
     .slice(0, limit);
 }
 
-/** Empty field: one line; padding 8+8 + 13px * 1.4 line-height ≈ 38px — keep in sync with .chat-textarea min-height */
-const CHAT_TEXTAREA_MIN_HEIGHT_PX = 38;
-/** Autosize cap in docked chat — keep in sync with `.chat-textarea` max-height in `index.css` */
-const CHAT_TEXTAREA_MAX_HEIGHT_DOCKED_PX = 160;
-/** Vollbild: etwas mehr Platz, aber kein halber Viewport (keep in sync with expanded rule in `index.css`) */
-const CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX = 280;
-const CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_FRACTION = 0.3;
-
-function chatTextareaMaxHeightPx(fullscreen: boolean): number {
-  if (!fullscreen) return CHAT_TEXTAREA_MAX_HEIGHT_DOCKED_PX;
-  if (typeof window === "undefined") {
-    return CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX;
-  }
-  return Math.min(
-    Math.round(
-      window.innerHeight * CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_FRACTION,
-    ),
-    CHAT_TEXTAREA_MAX_HEIGHT_FULLSCREEN_CAP_PX,
-  );
-}
-
 const WIKI_PREFIX = "wiki/";
 
 function wikiDisplayTitle(relativePath: string): string {
@@ -247,8 +226,6 @@ interface ChatInputProps {
   onDismissSelection?: () => void;
   /** Ref that, when set, allows App to focus the textarea (e.g. on Ctrl+L) */
   focusTriggerRef?: React.MutableRefObject<(() => void) | null>;
-  /** Wider, taller input area (e.g. chat fullscreen) */
-  fullscreen?: boolean;
   /** Fired when the composer text changes (e.g. to align context preview with the next send). */
   onDraftChange?: (text: string) => void;
   /** Whether project KI-Regeln are currently active (injected into system prompt). */
@@ -278,7 +255,6 @@ export function ChatInput({
   activeSelection = null,
   onDismissSelection,
   focusTriggerRef,
-  fullscreen = false,
   onDraftChange,
   rulesEnabled = true,
   onToggleRules,
@@ -327,23 +303,6 @@ export function ChatInput({
       if (focusTriggerRef) focusTriggerRef.current = null;
     };
   }, [focusTriggerRef]);
-
-  const syncTextareaHeight = useCallback(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    const maxH = chatTextareaMaxHeightPx(fullscreen);
-    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
-  }, [fullscreen]);
-
-  useEffect(() => {
-    syncTextareaHeight();
-  }, [fullscreen, syncTextareaHeight]);
-
-  useEffect(() => {
-    if (text !== "") return;
-    syncTextareaHeight();
-  }, [text, syncTextareaHeight]);
 
   // Close on outside click
   useEffect(() => {
@@ -445,22 +404,15 @@ export function ChatInput({
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(newCursor, newCursor);
-        syncTextareaHeight();
       });
     },
-    [ac, text, syncTextareaHeight, onAddFile],
+    [ac, text, onAddFile],
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     const cursor = e.target.selectionStart ?? newText.length;
     setText(newText);
-
-    // Auto-resize
-    const ta = e.target;
-    ta.style.height = "auto";
-    const maxH = chatTextareaMaxHeightPx(fullscreen);
-    ta.style.height = `${Math.min(Math.max(ta.scrollHeight, CHAT_TEXTAREA_MIN_HEIGHT_PX), maxH)}px`;
 
     // Detect @ pattern — stop at whitespace; ignore already-inserted paths (contain / or start with .)
     const textBefore = newText.slice(0, cursor);

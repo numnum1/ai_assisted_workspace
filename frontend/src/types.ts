@@ -291,6 +291,13 @@ export interface ThreadSummaryMeta {
   fromThreadTitle: string;
 }
 
+/** Beta-test feedback attached by a human reviewer to a Navi assistant answer. */
+export interface MessageFeedback {
+  rating: 'up' | 'down';
+  comment?: string;
+  timestamp: number;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
@@ -319,6 +326,8 @@ export interface ChatMessage {
     questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
     selected: Record<number, string[]>;
   };
+  /** Present on assistant messages that a human reviewer has rated (beta-test feedback) */
+  feedback?: MessageFeedback;
 }
 
 /** Reasoning effort level passed to the API as `reasoning_effort` when reasoning is active. */

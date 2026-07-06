@@ -2817,6 +2817,12 @@ body.file-tree-native-dragging {
     flex-direction: column;
     gap: 12px;
     font-size: var(--pref-chat-font-size);
+    /* This list's own box already doesn't depend on its (unbounded, non-virtualized)
+       content — it's flex:1 + overflow-y:auto. Declaring that explicitly lets the
+       browser skip re-verifying/relaying-out the whole message history every time a
+       sibling (the composer) resizes on a keystroke; without `contain` that skip is
+       an implementation detail engines don't always apply to a subtree this large. */
+    contain: layout style;
 }
 
 .chat-panel-body {
@@ -5133,20 +5139,43 @@ body.file-tree-native-dragging {
     min-width: 0;
 }
 
+/* Grid-based autosize: textarea and an invisible ghost (mirroring its value via
+   data-replicated-value) share the same grid cell, so the row's intrinsic height
+   follows the ghost's content without any JS scrollHeight measurement (which would
+   force a synchronous layout on every keystroke). */
+.chat-message-edit-autosize {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+}
+
+.chat-message-edit-autosize::after {
+    content: attr(data-replicated-value) " ";
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    visibility: hidden;
+}
+
+.chat-message-edit-autosize::after,
 .chat-message-edit-textarea {
+    grid-area: 1 / 1 / 2 / 2;
     width: 100%;
     min-height: 60px;
     padding: 0;
     font: inherit;
     line-height: 1.5;
+    box-sizing: border-box;
+}
+
+.chat-message-edit-textarea {
     color: inherit;
     background: transparent;
     border: none;
     border-bottom: 1px solid var(--text-muted);
     border-radius: 0;
     resize: none;
-    box-sizing: border-box;
     outline: none;
+    overflow: hidden;
 }
 
 .chat-message-edit-textarea:focus {
@@ -5815,6 +5844,9 @@ body.file-tree-native-dragging {
     gap: 6px;
 }
 
+/* Fixed-height single-line box — no autosize. Content beyond one line scrolls
+   internally (native textarea behavior); use the expand button or Shift+Enter
+   modal for longer prompts. */
 .chat-textarea {
     flex: 1;
     min-width: 0;
@@ -5830,13 +5862,8 @@ body.file-tree-native-dragging {
     resize: none;
     outline: none;
     transition: border-color 0.15s;
-    min-height: 38px;
-    max-height: 160px;
-}
-
-/* Expanded in-app view: same single-line min as normal; a bit more height than docked, not half the screen */
-.chat-panel.chat-panel--expanded .chat-textarea {
-    max-height: min(30vh, 280px);
+    height: 76px;
+    overflow-y: auto;
 }
 
 .chat-textarea:focus {

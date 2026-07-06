@@ -30,4 +30,58 @@
 /* Assistant turns: actions sit below the content */
 .turn-card[data-turn-type="assistant"] .turn-card-actions {
     padding: 0.15rem 0.25rem 0;
+    flex-wrap: wrap;
+}
+
+/* ── Feedback (thumbs up/down + comment) ──────────────────────────────── */
+
+.chat-feedback-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.chat-feedback-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.chat-feedback-btn--up.chat-feedback-btn--active {
+    color: var(--green);
+    border-color: var(--green);
+}
+
+.chat-feedback-btn--down.chat-feedback-btn--active {
+    color: var(--red);
+    border-color: var(--red);
+}
+
+.chat-feedback-btn--active {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.chat-feedback-comment-row {
+    flex-basis: 100%;
+    margin-top: 0.3rem;
+}
+
+.chat-feedback-comment-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.4rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
 }
