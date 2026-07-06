@@ -395,4 +395,7 @@ contextBridge.exposeInMainWorld("appBridge", {
   shell: {
     openDevTools: () => ipcRenderer.invoke("shell:openDevTools"),
   },
+  spellcheck: {
+    fixAtCursor: () => ipcRenderer.invoke("spellcheck:fixAtCursor"),
+  },
 });

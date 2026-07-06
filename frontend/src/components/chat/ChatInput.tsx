@@ -15,6 +15,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
+import { getAppBridge } from "../../electron/bridge.ts";
 import { wikiApi } from "../../api.ts";
 import type { ReasoningEffort, SelectionContext } from "../../types.ts";
 import { CHAT_TOOLKIT_IDS } from "../../types.ts";
@@ -498,6 +499,12 @@ export function ChatInput({
       }
     }
 
+    if (e.key === "Enter" && e.altKey) {
+      e.preventDefault();
+      void getAppBridge()?.spellcheck?.fixAtCursor();
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -740,6 +747,11 @@ export function ChatInput({
                 value={text}
                 onChange={handleExpandChange}
                 onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.altKey) {
+                    e.preventDefault();
+                    void getAppBridge()?.spellcheck?.fixAtCursor();
+                    return;
+                  }
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     handleSend();

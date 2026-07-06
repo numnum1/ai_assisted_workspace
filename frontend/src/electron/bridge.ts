@@ -470,6 +470,9 @@ export interface AppBridge {
   shell?: {
     openDevTools: () => Promise<void>;
   };
+  spellcheck?: {
+    fixAtCursor: () => Promise<{ status: string }>;
+  };
 }
 
 export function getAppBridge(): AppBridge | null {

@@ -1,5 +1,5 @@
 import "./installConsoleTimestamps.js";
-import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem, screen } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -810,6 +810,34 @@ function registerIpcHandlers(): void {
     patchPreferences(patch),
   );
 
+  ipcMain.handle("spellcheck:fixAtCursor", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return { status: "no-window" };
+    const cursor = screen.getCursorScreenPoint();
+    const bounds = win.getContentBounds();
+    const x = cursor.x - bounds.x;
+    const y = cursor.y - bounds.y;
+    if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+      return { status: "cursor-outside-window" };
+    }
+    pendingSpellFixWindowId = win.id;
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      x,
+      y,
+      button: "right",
+      clickCount: 1,
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      x,
+      y,
+      button: "right",
+      clickCount: 1,
+    });
+    return { status: "ok" };
+  });
+
   ipcMain.handle("shell:openDevTools", (event) => {
     console.log("[electron] Received shell:openDevTools");
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -821,6 +849,11 @@ function registerIpcHandlers(): void {
     }
   });
 }
+
+/** Set by the `spellcheck:fixAtCursor` IPC handler right before it simulates a right-click
+ * to trigger Chromium's native context-menu event; tells that handler to silently apply the
+ * first suggestion instead of popping up the menu. */
+let pendingSpellFixWindowId: number | null = null;
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -843,6 +876,14 @@ function createWindow(): void {
   // win.webContents.openDevTools();
 
   win.webContents.on("context-menu", (_event, params) => {
+    if (pendingSpellFixWindowId === win.id) {
+      pendingSpellFixWindowId = null;
+      if (params.misspelledWord && params.dictionarySuggestions.length > 0) {
+        win.webContents.replaceMisspelling(params.dictionarySuggestions[0]);
+      }
+      return;
+    }
+
     const menu = new Menu();
 
     if (params.misspelledWord) {
