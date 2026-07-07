@@ -676,6 +676,8 @@ export interface AppearancePreferences {
   fontFamily?: string;
   chatFontSizePx?: number;
   theme?: 'dark' | 'light';
+  /** Show scene names as headings above each scene. Default true. */
+  showSceneHeadings?: boolean;
 }
 
 export interface AppPreferences {

@@ -143,6 +143,23 @@ export function AppearanceModal({
               So sieht der Chat-Text bei dieser Größe aus.
             </p>
           </section>
+
+          {/* Scene headings toggle */}
+          <section className="appearance-section">
+            <label className="appearance-toggle-row" htmlFor="pref-scene-headings">
+              <span className="appearance-section-label">
+                Szenennamen als Überschriften anzeigen
+              </span>
+              <input
+                id="pref-scene-headings"
+                type="checkbox"
+                checked={draft.showSceneHeadings ?? true}
+                onChange={(e) =>
+                  handleChange({ showSceneHeadings: e.target.checked })
+                }
+              />
+            </label>
+          </section>
         </div>
       </div>
     </div>

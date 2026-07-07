@@ -9,6 +9,7 @@ import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession, Ch
 import type { ActionEditorColors } from './ActionEditor';
 import { chapterApi, projectConfigApi } from '../../api.ts';
 import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../../hooks/useReadingPaddingMax.ts';
+import { usePreferences } from '../../hooks/usePreferences.ts';
 
 const FONT_SIZE_KEY = 'reading-font-size';
 const PADDING_KEY = 'reading-padding';
@@ -222,6 +223,9 @@ export function ChapterView({
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
+
+  const { preferences } = usePreferences();
+  const showSceneHeadings = preferences.appearance.showSceneHeadings ?? true;
 
   const colors = nightMode ? NIGHT_PALETTES[nightVariant] : DAY_COLORS;
 
@@ -853,36 +857,38 @@ export function ChapterView({
         </div>
 
         {chapter.scenes.map(scene => {
-          const isCollapsed = collapsedScenes.has(scene.id);
+          const isCollapsed = showSceneHeadings && collapsedScenes.has(scene.id);
           return (
             <div key={scene.id} className="scene-block">
-              <div
-                ref={el => registerRef(`scene-${scene.id}`, el)}
-                className="section-separator scene-heading scene-heading-clickable"
-                style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
-                role="button"
-                tabIndex={0}
-                onClick={() => toggleSceneCollapsed(scene.id)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSceneCollapsed(scene.id); } }}
-                title={
-                  isCollapsed
-                    ? proseLeafAtScene
-                      ? 'Strophe einblenden'
-                      : 'Szene einblenden'
-                    : proseLeafAtScene
-                      ? 'Strophe ausblenden'
-                      : 'Szene ausblenden'
-                }
-              >
-                <span className="scene-heading-chevron" style={{ color: mutedText }}>
-                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                </span>
-                <span className="section-separator-line" style={{ borderColor: mutedText }} />
-                <span className="section-separator-title" style={{ color: colors.text }}>
-                  {scene.meta.title || scene.id}
-                </span>
-                <span className="section-separator-line" style={{ borderColor: mutedText }} />
-              </div>
+              {showSceneHeadings && (
+                <div
+                  ref={el => registerRef(`scene-${scene.id}`, el)}
+                  className="section-separator scene-heading scene-heading-clickable"
+                  style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSceneCollapsed(scene.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSceneCollapsed(scene.id); } }}
+                  title={
+                    isCollapsed
+                      ? proseLeafAtScene
+                        ? 'Strophe einblenden'
+                        : 'Szene einblenden'
+                      : proseLeafAtScene
+                        ? 'Strophe ausblenden'
+                        : 'Szene ausblenden'
+                  }
+                >
+                  <span className="scene-heading-chevron" style={{ color: mutedText }}>
+                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  </span>
+                  <span className="section-separator-line" style={{ borderColor: mutedText }} />
+                  <span className="section-separator-title" style={{ color: colors.text }}>
+                    {scene.meta.title || scene.id}
+                  </span>
+                  <span className="section-separator-line" style={{ borderColor: mutedText }} />
+                </div>
+              )}
 
               {!isCollapsed && scene.actions.map(action => {
                 const key = actionKey(chapter.id, scene.id, action.id);
