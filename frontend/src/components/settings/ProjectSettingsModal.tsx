@@ -83,6 +83,7 @@ interface ModeForm {
   id: string;
   name: string;
   color: string;
+  description: string;
   systemPrompt: string;
   autoIncludes: string;
   useReasoning: boolean;
@@ -710,6 +711,7 @@ export function ProjectSettingsModal({
       id: "",
       name: "",
       color: "#89b4fa",
+      description: "",
       systemPrompt: "",
       autoIncludes: "",
       useReasoning: false,
@@ -724,6 +726,7 @@ export function ProjectSettingsModal({
       id: mode.id,
       name: mode.name,
       color: mode.color || "#89b4fa",
+      description: mode.description || "",
       systemPrompt: mode.systemPrompt || "",
       autoIncludes: (mode.autoIncludes || []).join("\n"),
       useReasoning: mode.useReasoning ?? false,
@@ -741,6 +744,7 @@ export function ProjectSettingsModal({
         id: modeForm.id.trim().replace(/\s+/g, "-").toLowerCase(),
         name: modeForm.name.trim(),
         color: modeForm.color,
+        description: modeForm.description.trim() || undefined,
         systemPrompt: modeForm.systemPrompt,
         autoIncludes: modeForm.autoIncludes
           .split("\n")
@@ -1559,6 +1563,22 @@ export function ProjectSettingsModal({
                         placeholder="#89b4fa"
                       />
                     </div>
+
+                    <label className="ps-label">Beschreibung (Tooltip)</label>
+                    <p className="ps-hint">
+                      Kurzer Hinweis, wann dieser Modus passt — erscheint als
+                      Tooltip beim Hovern über den Modus-Auswahl.
+                    </p>
+                    <input
+                      className="ps-input"
+                      value={modeForm.description}
+                      onChange={(e) =>
+                        setModeForm(
+                          (p) => p && { ...p, description: e.target.value },
+                        )
+                      }
+                      placeholder="z.B. Analysiert Aufbau, Spannungsbogen, Figuren und Logik."
+                    />
 
                     <label className="ps-label">System Prompt</label>
                     <textarea

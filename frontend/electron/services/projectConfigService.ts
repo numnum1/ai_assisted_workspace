@@ -140,6 +140,7 @@ const DEFAULT_MODES: Mode[] = [
   {
     id: "review",
     name: "Story-Review",
+    description: "Analysiert Aufbau, Spannungsbogen, Figuren und Logik.",
     systemPrompt:
       "Hilf beim Story-Review: analysiere Aufbau, Spannungsbogen, Figuren, Motivation und Logik — klar, konkret und konstruktiv.",
     autoIncludes: [],
@@ -149,6 +150,7 @@ const DEFAULT_MODES: Mode[] = [
   {
     id: "entwickeln",
     name: "Story entwickeln",
+    description: "Gemeinsam Figuren, Konflikte und Plot weiterdenken.",
     systemPrompt:
       "Hilf, die Geschichte weiterzuentwickeln: stelle gezielte Fragen, biete Alternativen an und denke Figuren, Konflikte und Plot gemeinsam mit dem Autor weiter.",
     autoIncludes: [],
@@ -158,6 +160,7 @@ const DEFAULT_MODES: Mode[] = [
   {
     id: "brainstorm",
     name: "Brainstorm",
+    description: "Viele Ideen, ungewöhnliche Richtungen, Was-wäre-wenn.",
     systemPrompt:
       "Sei ein kreativer Sparringspartner. Liefere viele Ideen, ungewöhnliche Richtungen und Was-wäre-wenn-Szenarien.",
     autoIncludes: [],
@@ -167,6 +170,7 @@ const DEFAULT_MODES: Mode[] = [
   {
     id: "rechtschreibung",
     name: "Rechtschreibung",
+    description: "Rechtschreib- und Grammatikprüfung, Stil bleibt unverändert.",
     systemPrompt:
       "Mach eine Rechtschreib- und Grammatikprüfung. Korrigiere Fehler, ohne Stil oder Inhalt zu verändern, und liste die Korrekturen knapp auf.",
     autoIncludes: [],
@@ -176,6 +180,7 @@ const DEFAULT_MODES: Mode[] = [
   {
     id: "buchentwicklung",
     name: "Buchentwicklung",
+    description: "Story-Bibel entwickeln (Figuren, Orte, Plot) — kein Fließtext.",
     systemPrompt:
       // Reines Persona-/Aufgaben-Framing. Das WIE der Wiki-Persistenz steht in der
       // ARBEITSWEISE-Baseline (systemPrompt.ts) und gilt für jede Session.
@@ -189,6 +194,7 @@ const DEFAULT_MODES: Mode[] = [
   {
     id: "prosa-skizze",
     name: "Prosa-Skizze",
+    description: "Explorative Szenen-Entwürfe ausprobieren — kein Lektorat.",
     systemPrompt:
       // Gegenpol zu Buchentwicklung: text-first / explorativ. Prosa = Entwicklungsidee,
       // nicht fertiger Text. Reines Framing — Kanon-/Wiki-WIE bleibt ARBEITSWEISE-Baseline,
@@ -205,8 +211,22 @@ const DEFAULT_MODES: Mode[] = [
     useReasoning: false,
   },
   {
+    id: "szene-schreiben",
+    name: "Szene schreiben",
+    description: "Schreibt Prosa mit dir, Abschnitt für Abschnitt — Kontext lieferst du nach Bedarf nach.",
+    systemPrompt:
+      "Du schreibst mit dem Autor eine Szene gemeinsam, Abschnitt für Abschnitt — liefere echte Prosa-Vorschläge, keine Ideenskizzen oder Textkritik. " +
+      "Schreibe pro Antwort einen Abschnitt und warte danach auf Feedback oder zusätzlichen Kontext (Figuren, Ort, Ton, Vorgeschichte), bevor du weiterschreibst. " +
+      "Fehlt dir Kontext, schreib trotzdem eine plausible Version statt nachzufragen — der Autor liefert Kontext nach, wann immer er möchte, und du überarbeitest deinen letzten Abschnitt entsprechend. " +
+      "Es muss noch keine Story-Bibel existieren; arbeite mit dem, was im Chat steht.",
+    autoIncludes: [],
+    color: "#4338ca",
+    useReasoning: false,
+  },
+  {
     id: "lektor",
     name: "Lektor",
+    description: "Bewertet Prosa auf Wirkung: Sog, Tempo, Klarheit.",
     systemPrompt:
       "Du bewertest Prosa ausschließlich auf Wirkungsebene — als Leser, nicht als Stilpolizei. " +
       "Beantworte für jeden Text konkret: Wo wird es langweilig und warum (fehlender Sog, keine Frage im Raum, zu viel Erklärung)? Wo verliert man den Faden? Was zieht einen rein? Wie ist das Tempo — schleppt sich etwas oder hetzt es? Ist jederzeit klar, was passiert und wen es betrifft? Gibt es einen Grund, weiterzulesen? " +
@@ -222,6 +242,7 @@ const DEFAULT_MODES: Mode[] = [
     // role briefing (NAVI_DEFAULT_ROLE); the HOW-rules in naviVoice.ts stay in force.
     id: "navi",
     name: "KI Navi",
+    description: "KI-Berater für Einzelhändler zu einem konkreten Problem.",
     systemPrompt:
       "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler. Deine Aufgabe: herausfinden, ob und wie KI oder Software dem Händler bei seinem konkreten Problem wirklich helfen kann – ehrlich und auf Basis seiner tatsächlichen Situation. Du verkaufst kein bestimmtes Produkt und drängst zu keinem Umbau seines bestehenden Systems. Wenn KI oder Software nicht weiterhilft, sagst du das offen.",
     autoIncludes: [],
@@ -387,6 +408,7 @@ function normalizeMode(input: Mode): Mode {
     id: input.id,
     name: input.name,
     systemPrompt: input.systemPrompt,
+    description: input.description,
     autoIncludes: Array.isArray(input.autoIncludes) ? input.autoIncludes : [],
     color: input.color,
     useReasoning: input.useReasoning,

@@ -238,6 +238,8 @@ export interface Mode {
   id: string;
   name: string;
   systemPrompt: string;
+  /** Short human-facing explanation of when to use this mode; shown as a tooltip in the mode selector. */
+  description?: string;
   autoIncludes: string[];
   color: string;
   useReasoning?: boolean;

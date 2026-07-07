@@ -28,6 +28,7 @@ export function ModeSelector({
       <select
         value={selectedMode}
         onChange={(e) => onModeChange(e.target.value)}
+        title={currentMode?.description}
         style={
           displayColor
             ? {
@@ -39,7 +40,7 @@ export function ModeSelector({
         }
       >
         {modes.map((mode) => (
-          <option key={mode.id} value={mode.id}>
+          <option key={mode.id} value={mode.id} title={mode.description}>
             {mode.name}
           </option>
         ))}

@@ -348,7 +348,7 @@ export function ChapterView({
   );
 
   // Apply a comment's suggestion: replace the quoted text in its action's live
-  // editor, then mark the comment accepted (it stays visible, struck through).
+  // editor, then remove the comment (same as dismissing it).
   const handleAcceptSuggestion = useCallback(
     (id: string) => {
       const comment = comments.find(c => c.id === id);
@@ -376,7 +376,7 @@ export function ChapterView({
       }
 
       setComments(prev => {
-        const next = prev.map(c => (c.id === id ? { ...c, accepted: true } : c));
+        const next = prev.filter(c => c.id !== id);
         void chapterApi
           .saveComments(chapter.id, next, structureRoot ?? undefined)
           .catch(() => {});
