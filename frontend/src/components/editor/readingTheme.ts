@@ -24,7 +24,7 @@ const defaultConfig: ReadingThemeConfig = {
   backgroundColor: '#f5f0e8',
   textColor: '#2c2a25',
   caretColor: '#555',
-  selectionColor: '#c8d8ec',
+  selectionColor: 'rgba(196, 154, 80, 0.35)',
 };
 
 const readingHighlightStyle = HighlightStyle.define([
@@ -93,11 +93,25 @@ export function createReadingTheme(overrides: Partial<ReadingThemeConfig> = {}):
       borderLeftColor: cfg.caretColor,
       borderLeftWidth: '1.5px',
     },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+    // Selection color. Two selectors are needed to beat CodeMirror's built-in
+    // base theme (@codemirror/view), which sets the selection background at a
+    // higher specificity than a plain `.cm-selectionBackground` rule:
+    //
+    //   &light .cm-selectionBackground                                                  → #d9d9d9  (unfocused)
+    //   &light.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground   → #d7d4f0  (focused, pale lavender)
+    //
+    // Because this reading theme is not registered as `dark`, the `&light`
+    // rules apply even on a dark background. The unfocused rule (specificity
+    // 0,2,0) merely ties our short selector, so we win by insertion order — but
+    // the FOCUSED rule (0,5,0) outranks a `&.cm-focused .cm-selectionBackground`
+    // (0,3,0) selector, so the pale lavender leaked through *only while focused*.
+    // We mirror the base theme's focused selector shape exactly to match its
+    // specificity and win on order (our theme is inserted after the base theme).
+    '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground': {
       backgroundColor: cfg.selectionColor,
     },
     '.cm-selectionMatch': {
-      backgroundColor: 'rgba(200, 216, 236, 0.4)',
+      backgroundColor: 'rgba(196, 154, 80, 0.2)',
     },
   });
 

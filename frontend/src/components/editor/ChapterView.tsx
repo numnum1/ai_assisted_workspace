@@ -86,7 +86,7 @@ const DAY_COLORS: ActionEditorColors = {
   bg:             '#f5f0e8',
   text:           '#2c2a25',
   caretColor:     '#555555',
-  selectionColor: '#c8d8ec',
+  selectionColor: 'rgba(196, 154, 80, 0.35)',
 };
 
 const NIGHT_COLORS: ActionEditorColors = {
