@@ -381,6 +381,8 @@ export const UnifiedMarkdownEditor = forwardRef<
                   from: anchorPos,
                   to: sel.to,
                   editorId,
+                  // Full unit content, captured live so inline AI always sees the whole action.
+                  fullText: view.state.doc.toString(),
                   getAnchorCoords: () => {
                     const coords = view.coordsAtPos(anchorPos);
                     if (!coords) return null;

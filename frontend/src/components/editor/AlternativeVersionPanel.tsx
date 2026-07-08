@@ -1,15 +1,37 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, ArrowLeftRight, StickyNote, Copy, Check } from 'lucide-react';
-import type { AltVersionSession } from '../../types.ts';
+import { X, ArrowLeftRight, StickyNote, Copy, Check, Sparkles, Loader2, Square } from 'lucide-react';
+import type { AltVersionSession, InlineUnitContext } from '../../types.ts';
+
+type WriteScope = 'selection' | 'unit';
 
 interface AlternativeVersionPanelProps {
   session: AltVersionSession;
   onClose: () => void;
+  /**
+   * Streams a one-shot inline completion. Returns an AbortController so the panel
+   * can stop generation. When omitted, the AI section is hidden (manual mode only).
+   */
+  onGenerate?: (
+    prompt: string,
+    cbs: {
+      onToken: (t: string) => void;
+      onDone: (full: string) => void;
+      onError: (e: Error) => void;
+    },
+  ) => AbortController;
 }
 
 const PANEL_MAX_WIDTH = 1000;
 const PANEL_MIN_WIDTH = 400;
 const MARGIN = 8;
+
+/** Length presets — the "wie viel schreibt die KI" control. */
+const LENGTH_OPTIONS: { key: string; label: string; hint: string }[] = [
+  { key: 'short', label: 'Kurz', hint: 'Halte dich sehr knapp: höchstens ein bis zwei Sätze.' },
+  { key: 'medium', label: 'Mittel', hint: 'Schreibe etwa einen Absatz.' },
+  { key: 'long', label: 'Lang', hint: 'Schreibe ausführlich, mehrere Absätze wenn nötig.' },
+  { key: 'free', label: 'Frei', hint: '' },
+];
 
 /** Estimate how many textarea rows are needed to display a text of similar length. */
 function estimateRows(text: string, charsPerLine: number): number {
@@ -19,6 +41,74 @@ function estimateRows(text: string, charsPerLine: number): number {
     0,
   );
   return Math.max(6, Math.min(30, total + 1));
+}
+
+/**
+ * Assemble a self-contained prompt for inline generation. The full unit content is
+ * always included (context, never repeated in the output); description/extras convey
+ * author intent; the write scope decides whether the model rewrites the selection or
+ * the whole unit; the length hint controls output size.
+ */
+function buildInlinePrompt(opts: {
+  instruction: string;
+  scope: WriteScope;
+  selectionText: string;
+  fullText: string;
+  inlineContext?: InlineUnitContext;
+  lengthKey: string;
+}): string {
+  const { instruction, scope, selectionText, fullText, inlineContext, lengthKey } = opts;
+  const label = inlineContext?.unitLabel ?? 'Textabschnitt';
+  const title = inlineContext?.title;
+  const lengthHint = LENGTH_OPTIONS.find(o => o.key === lengthKey)?.hint ?? '';
+  const parts: string[] = [];
+
+  parts.push(
+    `Du arbeitest als Autor direkt im Fließtext eines Buches${title ? ` (${label}: „${title}“)` : ''}.`,
+  );
+  parts.push('');
+  parts.push(`VOLLSTÄNDIGER INHALT DER ${label.toUpperCase()} (Kontext — nicht erneut ausgeben):`);
+  parts.push('"""');
+  parts.push(fullText.trim() || '(noch leer)');
+  parts.push('"""');
+
+  if (inlineContext?.description) {
+    parts.push('');
+    parts.push('ABSICHT / BESCHREIBUNG DIESER EINHEIT:');
+    parts.push(inlineContext.description);
+  }
+
+  const extras = inlineContext?.extras;
+  if (extras && Object.keys(extras).length > 0) {
+    const lines = Object.entries(extras).filter(([, v]) => v && v.trim());
+    if (lines.length > 0) {
+      parts.push('');
+      parts.push('WEITERE VORGABEN:');
+      for (const [k, v] of lines) parts.push(`- ${k}: ${v}`);
+    }
+  }
+
+  parts.push('');
+  if (scope === 'unit') {
+    parts.push('ARBEITSBEREICH: die GESAMTE Einheit oben. Du darfst sie vollständig neu schreiben.');
+  } else {
+    parts.push('ARBEITSBEREICH: NUR der folgende markierte Ausschnitt aus der Einheit:');
+    parts.push('"""');
+    parts.push(selectionText.trim() || '(leer)');
+    parts.push('"""');
+  }
+
+  parts.push('');
+  parts.push(
+    `AUFGABE: ${instruction || 'Schreibe den Arbeitsbereich stimmig weiter bzw. überarbeite ihn.'}`,
+  );
+  if (lengthHint) parts.push(`UMFANG: ${lengthHint}`);
+
+  parts.push('');
+  parts.push(
+    'Antworte AUSSCHLIESSLICH mit dem neuen Text für den Arbeitsbereich — ohne Vorwort, ohne Erklärung, ohne umschließende Anführungszeichen.',
+  );
+  return parts.join('\n');
 }
 
 function calcPosition(
@@ -49,10 +139,18 @@ function calcPosition(
   return { top, left, width };
 }
 
-export function AlternativeVersionPanel({ session, onClose }: AlternativeVersionPanelProps) {
+export function AlternativeVersionPanel({ session, onClose, onGenerate }: AlternativeVersionPanelProps) {
+  const hasUnit = session.inlineContext != null;
+  const fullText = session.fullText ?? session.originalText;
+
   const [altText, setAltText] = useState('');
-  // Track what's currently in the editor at the selection (changes on swap)
+  const [scope, setScope] = useState<WriteScope>('selection');
+  // Base text currently occupying the write target (changes with scope + swap)
   const [editorText, setEditorText] = useState(session.originalText);
+  const [instruction, setInstruction] = useState('');
+  const [lengthKey, setLengthKey] = useState('medium');
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [notesCopied, setNotesCopied] = useState(false);
@@ -61,17 +159,44 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
     return coords ? calcPosition(coords, 200) : { top: 100, left: 100, width: PANEL_MIN_WIDTH };
   });
 
+  const instructionRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const altTextRef = useRef('');
-  altTextRef.current = altText;
-  // Track current `to` offset – it shifts when swap changes text length
+  const genAbortRef = useRef<AbortController | null>(null);
+
+  // Write target for the current scope. `from` is fixed per scope; `to` shifts on swap.
+  const currentFromRef = useRef(session.from);
   const currentToRef = useRef(session.to);
 
-  // Auto-focus textarea on open
+  // Auto-focus the instruction field (or the alt textarea in pure manual mode)
   useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+    if (onGenerate) instructionRef.current?.focus();
+    else textareaRef.current?.focus();
+  }, [onGenerate]);
+
+  // Keep the latest altText available to the global keydown handler without re-binding it
+  useEffect(() => {
+    altTextRef.current = altText;
+  }, [altText]);
+
+  // Abort any in-flight generation on unmount
+  useEffect(() => () => genAbortRef.current?.abort(), []);
+
+  // Switch write target: `unit` targets the whole action content, `selection` the marked range.
+  const changeScope = (next: WriteScope) => {
+    if (next === scope) return;
+    if (next === 'unit') {
+      currentFromRef.current = 0;
+      currentToRef.current = fullText.length;
+      setEditorText(fullText);
+    } else {
+      currentFromRef.current = session.from;
+      currentToRef.current = session.to;
+      setEditorText(session.originalText);
+    }
+    setScope(next);
+  };
 
   // Track selection position with requestAnimationFrame
   useEffect(() => {
@@ -99,7 +224,7 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
         e.stopPropagation();
         const text = altTextRef.current.trim();
         if (!text) return;
-        session.replaceFn(session.from, currentToRef.current, altTextRef.current);
+        session.replaceFn(currentFromRef.current, currentToRef.current, altTextRef.current);
         onClose();
       }
     };
@@ -107,24 +232,60 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
     return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [session, onClose]);
 
+  const handleGenerate = () => {
+    if (!onGenerate || generating) return;
+    const prompt = buildInlinePrompt({
+      instruction: instruction.trim(),
+      scope,
+      selectionText: session.originalText,
+      fullText,
+      inlineContext: session.inlineContext,
+      lengthKey,
+    });
+    setGenerating(true);
+    setGenError(null);
+    setAltText('');
+    let acc = '';
+    genAbortRef.current = onGenerate(prompt, {
+      onToken: t => {
+        acc += t;
+        setAltText(acc);
+      },
+      onDone: full => {
+        setGenerating(false);
+        if (full && full.trim()) setAltText(full);
+      },
+      onError: e => {
+        setGenerating(false);
+        setGenError(e.message);
+      },
+    });
+  };
+
+  const handleStopGen = () => {
+    genAbortRef.current?.abort();
+    genAbortRef.current = null;
+    setGenerating(false);
+  };
+
   const handleAccept = () => {
     const text = altText.trim();
     if (!text) return;
-    session.replaceFn(session.from, currentToRef.current, altText);
+    session.replaceFn(currentFromRef.current, currentToRef.current, altText);
     onClose();
   };
 
   const handleKeepBoth = () => {
     const text = altText.trim();
     if (!text) return;
-    session.replaceFn(session.from, currentToRef.current, `${editorText}\n\n${altText}`);
+    session.replaceFn(currentFromRef.current, currentToRef.current, `${editorText}\n\n${altText}`);
     onClose();
   };
 
   const handleSwap = () => {
     // Put textarea content into the editor, editor content into textarea
-    session.replaceFn(session.from, currentToRef.current, altText);
-    currentToRef.current = session.from + altText.length;
+    session.replaceFn(currentFromRef.current, currentToRef.current, altText);
+    currentToRef.current = currentFromRef.current + altText.length;
     setAltText(editorText);
     setEditorText(altText);
   };
@@ -140,7 +301,7 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
       onMouseDown={e => e.stopPropagation()}
     >
       <div className="alt-version-panel-header">
-        <span>Alternative Version</span>
+        <span>Inline · KI &amp; alternative Version</span>
         <div className="alt-version-panel-header-actions">
           <button
             className="alt-version-btn-swap"
@@ -164,13 +325,91 @@ export function AlternativeVersionPanel({ session, onClose }: AlternativeVersion
         </div>
       </div>
 
+      {onGenerate && (
+        <div className="inline-ai-block">
+          <div className="inline-ai-row">
+            {hasUnit && (
+              <div className="inline-ai-scope" role="group" aria-label="Arbeitsbereich">
+                <button
+                  className={scope === 'selection' ? 'active' : ''}
+                  onClick={() => changeScope('selection')}
+                  title="Die KI überarbeitet nur den markierten Ausschnitt"
+                >
+                  Nur Auswahl
+                </button>
+                <button
+                  className={scope === 'unit' ? 'active' : ''}
+                  onClick={() => changeScope('unit')}
+                  title={`Die KI überarbeitet die ganze ${session.inlineContext?.unitLabel ?? 'Einheit'}`}
+                >
+                  Ganze {session.inlineContext?.unitLabel ?? 'Einheit'}
+                </button>
+              </div>
+            )}
+            <div className="inline-ai-length" role="group" aria-label="Umfang">
+              {LENGTH_OPTIONS.map(o => (
+                <button
+                  key={o.key}
+                  className={lengthKey === o.key ? 'active' : ''}
+                  onClick={() => setLengthKey(o.key)}
+                  title={o.hint || 'Kein Umfangslimit'}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="inline-ai-prompt-row">
+            <textarea
+              ref={instructionRef}
+              className="inline-ai-instruction"
+              value={instruction}
+              onChange={e => setInstruction(e.target.value)}
+              onKeyDown={e => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') return; // handled globally (accept)
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleGenerate();
+                }
+              }}
+              placeholder="Was soll die KI tun? (z. B. „weiterschreiben“, „spannungsvoller“, „Dialog ergänzen“) — Enter zum Generieren"
+              rows={2}
+            />
+            {generating ? (
+              <button className="inline-ai-generate stop" onClick={handleStopGen} title="Generierung stoppen">
+                <Square size={13} />
+                Stopp
+              </button>
+            ) : (
+              <button className="inline-ai-generate" onClick={handleGenerate} title="Text generieren (Enter)">
+                <Sparkles size={13} />
+                Generieren
+              </button>
+            )}
+          </div>
+
+          {hasUnit && (
+            <div className="inline-ai-context-note">
+              {generating && <Loader2 size={11} className="inline-ai-spin" />}
+              Kontext: komplette {session.inlineContext?.unitLabel ?? 'Einheit'}
+              {session.inlineContext?.description ? ' + Beschreibung' : ''}
+              {session.inlineContext?.extras && Object.keys(session.inlineContext.extras).length > 0
+                ? ' + Vorgaben'
+                : ''}
+            </div>
+          )}
+          {genError && <div className="inline-ai-error">{genError}</div>}
+        </div>
+      )}
+
       <textarea
         ref={textareaRef}
         className="alt-version-textarea"
         value={altText}
         onChange={e => setAltText(e.target.value)}
-        placeholder="Alternative Version eingeben…"
-        rows={estimateRows(session.originalText, charsPerLine)}
+        placeholder="Ergebnis der KI erscheint hier – oder Text selbst eingeben…"
+        rows={estimateRows(editorText, charsPerLine)}
       />
 
       {notesOpen && (

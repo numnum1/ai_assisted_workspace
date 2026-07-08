@@ -45,6 +45,7 @@ import type {
   NodeMeta,
   SelectionContext,
   AltVersionSession,
+  ChatRequest,
   LlmPublic,
   ChatSessionKind,
   ReasoningEffort,
@@ -58,6 +59,7 @@ import {
   vectorApi,
   chatApi,
   gitApi,
+  streamChat,
 } from "./api.ts";
 
 import { usePreferences } from "./hooks/usePreferences.ts";
@@ -514,6 +516,39 @@ function App() {
   const handleAltVersion = useCallback((session: AltVersionSession) => {
     setAltVersionSession(session);
   }, []);
+
+  // Inline AI: stream a one-shot completion for the AltVersion / inline panel.
+  // Self-contained prompt (no chat history, minimal context) so the model returns
+  // clean prose to drop straight into the editor. Uses the currently selected mode
+  // so the writing persona carries over.
+  const inlineGenerate = useCallback(
+    (
+      prompt: string,
+      cbs: {
+        onToken: (t: string) => void;
+        onDone: (full: string) => void;
+        onError: (e: Error) => void;
+      },
+    ) => {
+      const request: ChatRequest = {
+        message: prompt,
+        activeFieldKey: null,
+        mode: selectedModeRef.current,
+        referencedFiles: [],
+        history: [],
+        useReasoning: false,
+        quickChat: true,
+      };
+      return streamChat(
+        request,
+        cbs.onToken,
+        () => {},
+        cbs.onDone,
+        cbs.onError,
+      );
+    },
+    [],
+  );
 
   // Project root changes: reset structure and editor state
   useEffect(() => {
@@ -2130,6 +2165,7 @@ function App() {
         <AlternativeVersionPanel
           session={altVersionSession}
           onClose={() => setAltVersionSession(null)}
+          onGenerate={inlineGenerate}
         />
       )}
 

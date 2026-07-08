@@ -272,6 +272,25 @@ export interface SelectionContext {
   editorId: 'file' | 'chapter';
 }
 
+/**
+ * Steering context for inline AI generation, derived from the action unit
+ * ("Handlungseinheit") the cursor was in when the panel opened. The full text is
+ * always sent to the AI on every request so it can write in-place with the whole
+ * unit in view; description/extras convey the author's intent for the unit.
+ */
+export interface InlineUnitContext {
+  /** Full text content of the action unit — always included in every AI request. */
+  fullText: string;
+  /** The unit's meta.description (author intent for this unit), if any. */
+  description?: string;
+  /** The unit's meta.extras — free-form steering fields (goal/beat, tone, boundaries…). */
+  extras?: Record<string, string>;
+  /** Human label of the structural level, e.g. "Handlungseinheit". */
+  unitLabel?: string;
+  /** Title of the unit / scene for orientation. */
+  title?: string;
+}
+
 export interface AltVersionSession {
   originalText: string;
   from: number;
@@ -280,6 +299,10 @@ export interface AltVersionSession {
   /** Returns current viewport-relative coordinates of the selection anchor, or null when off-screen */
   getAnchorCoords: () => { top: number; bottom: number; left: number; right: number } | null;
   replaceFn: (from: number, to: number, insert: string) => void;
+  /** Full document text of the source editor (the action unit's content) at open time. */
+  fullText?: string;
+  /** Inline-AI steering context; present when the selection came from an action unit. */
+  inlineContext?: InlineUnitContext;
 }
 
 export interface ToolCall {

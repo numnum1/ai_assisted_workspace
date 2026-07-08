@@ -165,6 +165,60 @@ export function ChapterView({
     return NIGHT_PALETTES[stored] ? stored : 0;
   });
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // ── Inline-AI unit context ────────────────────────────────────────────
+  // Alt+W fires inside the focused action editor. To attach that unit's meta
+  // (description/extras/title) to the AltVersionSession WITHOUT breaking
+  // ActionEditor's memoization, we keep a single stable onAltVersion wrapper and
+  // look the meta up at fire-time from refs (rebuilt each render, always current).
+  const focusedActionIdRef = useRef<string | null>(null);
+  const unitMetaByActionIdRef = useRef<
+    Map<string, { description?: string; extras?: Record<string, string>; title?: string }>
+  >(new Map());
+  {
+    const map = new Map<
+      string,
+      { description?: string; extras?: Record<string, string>; title?: string }
+    >();
+    for (const scene of chapter.scenes) {
+      for (const action of scene.actions) {
+        // action.meta may be absent in some loaded structures — access defensively.
+        const meta = action.meta;
+        map.set(action.id, {
+          description: meta?.description || undefined,
+          extras:
+            meta?.extras && Object.keys(meta.extras).length > 0 ? meta.extras : undefined,
+          title: meta?.title || scene.meta?.title || undefined,
+        });
+      }
+    }
+    unitMetaByActionIdRef.current = map;
+  }
+  const unitLabel = proseLeafAtScene ? 'Szene' : 'Handlungseinheit';
+  const onAltVersionRef = useRef(onAltVersion);
+  onAltVersionRef.current = onAltVersion;
+  const handleAltVersionEnriched = useCallback(
+    (session: AltVersionSession) => {
+      const meta = focusedActionIdRef.current
+        ? unitMetaByActionIdRef.current.get(focusedActionIdRef.current)
+        : undefined;
+      const enriched: AltVersionSession =
+        session.fullText != null
+          ? {
+              ...session,
+              inlineContext: {
+                fullText: session.fullText,
+                description: meta?.description,
+                extras: meta?.extras,
+                title: meta?.title,
+                unitLabel,
+              },
+            }
+          : session;
+      onAltVersionRef.current?.(enriched);
+    },
+    [unitLabel],
+  );
   const [chapterDiff, setChapterDiff] = useState<{ label: string; contents: Map<string, string> } | null>(null);
 
   // --- AI chapter comments ---
@@ -899,7 +953,10 @@ export function ChapterView({
                     key={action.id}
                     ref={el => registerRef(`action-${action.id}`, el)}
                     className="action-block"
-                    onFocus={() => onEditorFocus?.(scene.id, action.id)}
+                    onFocus={() => {
+                      focusedActionIdRef.current = action.id;
+                      onEditorFocus?.(scene.id, action.id);
+                    }}
                   >
                     <ActionEditor
                       ref={el => {
@@ -915,7 +972,7 @@ export function ChapterView({
                       onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}
                       onCtrlL={onCtrlL}
-                      onAltVersion={onAltVersion}
+                      onAltVersion={handleAltVersionEnriched}
                       diffOriginal={chapterDiff?.contents.get(`${scene.id}/${action.id}`) ?? null}
                       commentAnchors={anchorsByAction.get(action.id) ?? EMPTY_ANCHORS}
                     />

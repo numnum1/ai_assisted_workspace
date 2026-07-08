@@ -10264,6 +10264,138 @@ body.file-tree-native-dragging {
     color: var(--text-primary);
 }
 
+/* ── Inline AI controls (inside the alt-version panel) ────────────── */
+.inline-ai-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 10px 4px;
+}
+
+.inline-ai-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.inline-ai-scope,
+.inline-ai-length {
+    display: inline-flex;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.inline-ai-scope button,
+.inline-ai-length button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px 9px;
+    font-size: 11px;
+    font-family: inherit;
+    transition:
+        color 0.15s,
+        background 0.15s;
+}
+
+.inline-ai-scope button + button,
+.inline-ai-length button + button {
+    border-left: 1px solid var(--border);
+}
+
+.inline-ai-scope button:hover,
+.inline-ai-length button:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.inline-ai-scope button.active,
+.inline-ai-length button.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.inline-ai-prompt-row {
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+}
+
+.inline-ai-instruction {
+    flex: 1;
+    padding: 7px 9px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-primary);
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+
+.inline-ai-instruction:focus {
+    border-color: var(--accent);
+}
+
+.inline-ai-generate {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px;
+    background: var(--accent);
+    color: var(--bg-primary);
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+}
+
+.inline-ai-generate:hover {
+    opacity: 0.85;
+}
+
+.inline-ai-generate.stop {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.inline-ai-context-note {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.inline-ai-spin {
+    animation: inline-ai-spin 0.9s linear infinite;
+}
+
+@keyframes inline-ai-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.inline-ai-error {
+    font-size: 11px;
+    color: var(--danger, #e5534b);
+    white-space: pre-wrap;
+}
+
 /* ── Arc timeline workspace ───────────────────────────────────────── */
 .arc-overlay {
     position: fixed;
