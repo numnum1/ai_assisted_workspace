@@ -4,7 +4,7 @@ import { filesApi, wikiApi } from "../../api.ts";
 import type { FileNode } from "../../types.ts";
 import "./ContentBrowserOverlay.css";
 
-type Tab = "wiki" | "buch" | "beide";
+type Column = "buch" | "wiki";
 
 interface WikiAsset {
   /** Path relative to the wiki root, e.g. "charaktere/anna.md" */
@@ -78,44 +78,44 @@ function categoryHue(category: string): number {
   return hash;
 }
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "wiki", label: "Wiki" },
-  { id: "buch", label: "Buch" },
-  { id: "beide", label: "Beide" },
-];
-
 export function ContentBrowserOverlay({
   open,
   projectPath,
   onClose,
   onSelectFile,
 }: ContentBrowserOverlayProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("wiki");
-  const [query, setQuery] = useState("");
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [focusedColumn, setFocusedColumn] = useState<Column>("buch");
 
-  // --- Tree data (Buch / Beide tabs) ---
+  // --- Tree data (chapters, left column) ---
   const [root, setRoot] = useState<FileNode | null>(null);
   const [treeLoading, setTreeLoading] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState(".");
+  const [chapterQuery, setChapterQuery] = useState("");
+  const [chapterIdx, setChapterIdx] = useState(0);
+  const chapterInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Wiki data (Wiki tab) ---
+  // --- Wiki data (right column) ---
   const [allWikiAssets, setAllWikiAssets] = useState<WikiAsset[]>([]);
   const [wikiSearchHits, setWikiSearchHits] = useState<WikiAsset[] | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [wikiLoading, setWikiLoading] = useState(true);
+  const [wikiQuery, setWikiQuery] = useState("");
+  const [wikiIdx, setWikiIdx] = useState(0);
+  const wikiInputRef = useRef<HTMLInputElement>(null);
 
   // Reset navigation state and (re)load data each time the popup opens.
   useEffect(() => {
     if (!open || !projectPath) return;
     let cancelled = false;
-    setQuery("");
-    setSelectedIdx(0);
+    setChapterQuery("");
+    setChapterIdx(0);
     setCurrentPath(".");
+    setWikiQuery("");
+    setWikiIdx(0);
     setActiveCategory(null);
     setWikiSearchHits(null);
+    setFocusedColumn("buch");
 
     setTreeLoading(true);
     setTreeError(null);
@@ -149,17 +149,16 @@ export function ContentBrowserOverlay({
         if (!cancelled) setWikiLoading(false);
       });
 
-    const focusTimer = setTimeout(() => inputRef.current?.focus(), 60);
+    const focusTimer = setTimeout(() => chapterInputRef.current?.focus(), 60);
     return () => {
       cancelled = true;
       clearTimeout(focusTimer);
     };
   }, [open, projectPath]);
 
-  // Full-text wiki search (debounced) — only relevant while the Wiki tab is active.
+  // Full-text wiki search (debounced).
   useEffect(() => {
-    if (activeTab !== "wiki") return;
-    const trimmed = query.trim();
+    const trimmed = wikiQuery.trim();
     if (!trimmed) {
       setWikiSearchHits(null);
       return;
@@ -182,7 +181,7 @@ export function ContentBrowserOverlay({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [activeTab, query]);
+  }, [wikiQuery]);
 
   const wikiCategories = useMemo(() => {
     const set = new Set(allWikiAssets.map((a) => a.category));
@@ -194,36 +193,10 @@ export function ContentBrowserOverlay({
     return findNodeByPath(root, currentPath);
   }, [root, currentPath]);
 
-  // Unified tile list for the active tab.
-  const tiles = useMemo<Tile[]>(() => {
-    if (activeTab === "wiki") {
-      const trimmed = query.trim().toLowerCase();
-      let base: WikiAsset[];
-      if (!trimmed) {
-        base = allWikiAssets;
-      } else {
-        const byName = allWikiAssets.filter((a) =>
-          a.displayName.toLowerCase().includes(trimmed),
-        );
-        base = wikiSearchHits && wikiSearchHits.length > 0 ? wikiSearchHits : byName;
-      }
-      const filtered = activeCategory ? base.filter((a) => a.category === activeCategory) : base;
-      return filtered.map((a) => ({
-        key: a.path,
-        name: a.displayName,
-        directory: false,
-        category: a.category,
-        snippet: a.snippet,
-        path: `wiki/${a.path}`,
-      }));
-    }
-
+  const chapterTiles = useMemo<Tile[]>(() => {
     const children = currentNode?.children ?? [];
-    const visible =
-      activeTab === "buch"
-        ? children.filter((n) => !(n.directory && n.name.toLowerCase() === "wiki"))
-        : children;
-    const trimmed = query.trim().toLowerCase();
+    const visible = children.filter((n) => !(n.directory && n.name.toLowerCase() === "wiki"));
+    const trimmed = chapterQuery.trim().toLowerCase();
     const filtered = trimmed
       ? visible.filter((n) => n.name.toLowerCase().includes(trimmed))
       : visible;
@@ -237,17 +210,38 @@ export function ContentBrowserOverlay({
       directory: n.directory,
       path: n.path,
     }));
-  }, [activeTab, query, allWikiAssets, wikiSearchHits, activeCategory, currentNode]);
+  }, [currentNode, chapterQuery]);
 
-  const safeIdx = tiles.length === 0 ? 0 : Math.min(selectedIdx, tiles.length - 1);
+  const wikiTiles = useMemo<Tile[]>(() => {
+    const trimmed = wikiQuery.trim().toLowerCase();
+    let base: WikiAsset[];
+    if (!trimmed) {
+      base = allWikiAssets;
+    } else {
+      const byName = allWikiAssets.filter((a) => a.displayName.toLowerCase().includes(trimmed));
+      base = wikiSearchHits && wikiSearchHits.length > 0 ? wikiSearchHits : byName;
+    }
+    const filtered = activeCategory ? base.filter((a) => a.category === activeCategory) : base;
+    return filtered.map((a) => ({
+      key: a.path,
+      name: a.displayName,
+      directory: false,
+      category: a.category,
+      snippet: a.snippet,
+      path: `wiki/${a.path}`,
+    }));
+  }, [allWikiAssets, wikiSearchHits, activeCategory, wikiQuery]);
+
+  const safeChapterIdx = chapterTiles.length === 0 ? 0 : Math.min(chapterIdx, chapterTiles.length - 1);
+  const safeWikiIdx = wikiTiles.length === 0 ? 0 : Math.min(wikiIdx, wikiTiles.length - 1);
 
   const openTile = useCallback(
     (tile: Tile) => {
       if (tile.directory) {
         setCurrentPath(tile.path);
-        setQuery("");
-        setSelectedIdx(0);
-        inputRef.current?.focus();
+        setChapterQuery("");
+        setChapterIdx(0);
+        chapterInputRef.current?.focus();
       } else {
         onSelectFile(tile.path);
       }
@@ -256,19 +250,11 @@ export function ContentBrowserOverlay({
   );
 
   const goUp = useCallback(() => {
-    if (activeTab === "wiki" || currentPath === ".") return;
+    if (currentPath === ".") return;
     setCurrentPath(parentPath(currentPath));
-    setQuery("");
-    setSelectedIdx(0);
-  }, [activeTab, currentPath]);
-
-  const switchTab = useCallback((tab: Tab) => {
-    setActiveTab(tab);
-    setQuery("");
-    setSelectedIdx(0);
-    setActiveCategory(null);
-    inputRef.current?.focus();
-  }, []);
+    setChapterQuery("");
+    setChapterIdx(0);
+  }, [currentPath]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -277,46 +263,40 @@ export function ContentBrowserOverlay({
         onClose();
         return;
       }
-      if (e.ctrlKey || e.metaKey || e.altKey) {
-        if (e.key === "1") {
+      if (focusedColumn === "buch") {
+        if (e.key === "Backspace" && !chapterQuery) {
           e.preventDefault();
-          switchTab("wiki");
+          goUp();
           return;
         }
-        if (e.key === "2") {
+        if (e.key === "ArrowDown") {
           e.preventDefault();
-          switchTab("buch");
-          return;
-        }
-        if (e.key === "3") {
+          setChapterIdx((i) => Math.min(i + 1, chapterTiles.length - 1));
+        } else if (e.key === "ArrowUp") {
           e.preventDefault();
-          switchTab("beide");
-          return;
+          setChapterIdx((i) => Math.max(i - 1, 0));
+        } else if (e.key === "Enter" && chapterTiles[safeChapterIdx]) {
+          e.preventDefault();
+          openTile(chapterTiles[safeChapterIdx]);
         }
-      }
-      if (e.key === "Backspace" && !query) {
-        e.preventDefault();
-        goUp();
-        return;
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        setSelectedIdx((i) => Math.min(i + 1, tiles.length - 1));
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        setSelectedIdx((i) => Math.max(i - 1, 0));
-      } else if (e.key === "Enter" && tiles[safeIdx]) {
-        e.preventDefault();
-        openTile(tiles[safeIdx]);
+      } else {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setWikiIdx((i) => Math.min(i + 1, wikiTiles.length - 1));
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setWikiIdx((i) => Math.max(i - 1, 0));
+        } else if (e.key === "Enter" && wikiTiles[safeWikiIdx]) {
+          e.preventDefault();
+          openTile(wikiTiles[safeWikiIdx]);
+        }
       }
     },
-    [tiles, safeIdx, openTile, goUp, query, onClose, switchTab],
+    [focusedColumn, chapterQuery, chapterTiles, safeChapterIdx, wikiTiles, safeWikiIdx, openTile, goUp, onClose],
   );
 
   if (!open) return null;
 
-  const isTreeTab = activeTab === "buch" || activeTab === "beide";
-  const loading = activeTab === "wiki" ? wikiLoading : treeLoading;
   const crumbs = breadcrumbSegments(currentPath);
 
   return (
@@ -326,157 +306,219 @@ export function ContentBrowserOverlay({
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        <div className="content-browser-tabs-row">
-          {TABS.map((t, i) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`content-browser-tab${activeTab === t.id ? " active" : ""}`}
-              onClick={() => switchTab(t.id)}
-            >
-              {t.label}
-              <span className="content-browser-tab-index">{i + 1}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="content-browser-header">
-          <div className="content-browser-search-row">
-            <Search size={15} className="content-browser-search-icon" />
-            <input
-              ref={inputRef}
-              className="content-browser-search-input"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setSelectedIdx(0);
-              }}
-              placeholder="Suchen…"
-            />
-          </div>
-
-          {activeTab === "wiki" ? (
-            <div className="content-browser-wiki-tabs">
-              <button
-                className={`content-browser-cat-tab${activeCategory === null ? " active" : ""}`}
-                onClick={() => setActiveCategory(null)}
-              >
-                Alle
-              </button>
-              {wikiCategories.map((cat) => (
-                <button
-                  key={cat}
-                  className={`content-browser-cat-tab${activeCategory === cat ? " active" : ""}`}
-                  onClick={() => setActiveCategory((c) => (c === cat ? null : cat))}
-                  style={{ "--cat-hue": categoryHue(cat) } as React.CSSProperties}
-                >
-                  <span className="content-browser-cat-dot" />
-                  {cat}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="content-browser-breadcrumbs">
-              <button
-                type="button"
-                className="content-browser-crumb-btn"
-                onClick={goUp}
-                disabled={currentPath === "."}
-                title="Eine Ebene hoch (Backspace)"
-              >
-                <ArrowUp size={13} />
-              </button>
-              <button
-                type="button"
-                className={`content-browser-crumb${currentPath === "." ? " active" : ""}`}
-                onClick={() => setCurrentPath(".")}
-              >
-                Workspace
-              </button>
-              {crumbs.map((c) => (
-                <span key={c.path} className="content-browser-crumb-group">
-                  <ChevronRight size={12} className="content-browser-crumb-sep" />
-                  <button
-                    type="button"
-                    className={`content-browser-crumb${c.path === currentPath ? " active" : ""}`}
-                    onClick={() => setCurrentPath(c.path)}
-                  >
-                    {c.label}
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
+        <div className="content-browser-topbar">
+          <span className="content-browser-title">Content Browser</span>
           <button className="content-browser-close" onClick={onClose} title="Schließen (Esc)">
             <X size={16} />
           </button>
         </div>
 
-        <div className="content-browser-body">
-          {loading ? (
-            <div className="content-browser-empty">Lade…</div>
-          ) : isTreeTab && treeError ? (
-            <div className="content-browser-empty">{treeError}</div>
-          ) : tiles.length === 0 ? (
-            <div className="content-browser-empty">
-              {query.trim() ? "Keine Treffer" : "Nichts gefunden"}
+        <div className="content-browser-columns">
+          <div
+            className="content-browser-col content-browser-col-left"
+            onFocus={() => setFocusedColumn("buch")}
+            onMouseEnter={() => setFocusedColumn("buch")}
+          >
+            <div className="content-browser-col-title-row">
+              <span className="content-browser-col-title">Kapitel</span>
             </div>
-          ) : (
-            <div className="content-browser-grid">
-              {tiles.map((tile, i) => (
-                <div
-                  key={tile.key}
-                  className={`content-browser-tile${i === safeIdx ? " selected" : ""}${tile.directory ? " content-browser-tile--folder" : ""}`}
-                  style={
-                    tile.category
-                      ? ({ "--cat-hue": categoryHue(tile.category) } as React.CSSProperties)
-                      : undefined
-                  }
-                  draggable={!tile.directory}
-                  onDragStart={
-                    tile.directory
-                      ? undefined
-                      : (e) => {
-                          e.dataTransfer.setData("text/plain", `@[${tile.name}](${tile.path})`);
-                          e.dataTransfer.effectAllowed = "copy";
-                        }
-                  }
-                  onMouseEnter={() => setSelectedIdx(i)}
-                  onDoubleClick={() => openTile(tile)}
-                  title={
-                    tile.directory
-                      ? `${tile.name}\n\nDoppelklick: öffnen`
-                      : `${tile.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`
-                  }
+
+            <div className="content-browser-header">
+              <div className="content-browser-search-row">
+                <Search size={15} className="content-browser-search-icon" />
+                <input
+                  ref={chapterInputRef}
+                  className="content-browser-search-input"
+                  value={chapterQuery}
+                  onFocus={() => setFocusedColumn("buch")}
+                  onChange={(e) => {
+                    setChapterQuery(e.target.value);
+                    setChapterIdx(0);
+                  }}
+                  placeholder="Kapitel suchen…"
+                />
+              </div>
+
+              <div className="content-browser-breadcrumbs">
+                <button
+                  type="button"
+                  className="content-browser-crumb-btn"
+                  onClick={goUp}
+                  disabled={currentPath === "."}
+                  title="Eine Ebene hoch (Backspace)"
                 >
-                  <div className="content-browser-thumb">
-                    {tile.directory ? (
-                      <Folder size={26} strokeWidth={1.5} />
-                    ) : (
-                      <FileText size={26} strokeWidth={1.5} />
-                    )}
-                  </div>
-                  <div className="content-browser-tile-name">{tile.name}</div>
-                  {tile.snippet ? (
-                    <div className="content-browser-tile-snippet">{tile.snippet}</div>
-                  ) : tile.category ? (
-                    <div className="content-browser-tile-cat">
-                      <FolderOpen size={11} /> {tile.category}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+                  <ArrowUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  className={`content-browser-crumb${currentPath === "." ? " active" : ""}`}
+                  onClick={() => setCurrentPath(".")}
+                >
+                  Workspace
+                </button>
+                {crumbs.map((c) => (
+                  <span key={c.path} className="content-browser-crumb-group">
+                    <ChevronRight size={12} className="content-browser-crumb-sep" />
+                    <button
+                      type="button"
+                      className={`content-browser-crumb${c.path === currentPath ? " active" : ""}`}
+                      onClick={() => setCurrentPath(c.path)}
+                    >
+                      {c.label}
+                    </button>
+                  </span>
+                ))}
+              </div>
             </div>
-          )}
+
+            <div className="content-browser-body content-browser-list-body">
+              {treeLoading ? (
+                <div className="content-browser-empty">Lade…</div>
+              ) : treeError ? (
+                <div className="content-browser-empty">{treeError}</div>
+              ) : chapterTiles.length === 0 ? (
+                <div className="content-browser-empty">
+                  {chapterQuery.trim() ? "Keine Treffer" : "Nichts gefunden"}
+                </div>
+              ) : (
+                <div className="content-browser-list">
+                  {chapterTiles.map((tile, i) => (
+                    <div
+                      key={tile.key}
+                      className={`content-browser-list-row${i === safeChapterIdx ? " selected" : ""}${tile.directory ? " content-browser-list-row--folder" : ""}`}
+                      draggable={!tile.directory}
+                      onDragStart={
+                        tile.directory
+                          ? undefined
+                          : (e) => {
+                              e.dataTransfer.setData("text/plain", `@[${tile.name}](${tile.path})`);
+                              e.dataTransfer.effectAllowed = "copy";
+                            }
+                      }
+                      onMouseEnter={() => setChapterIdx(i)}
+                      onDoubleClick={() => openTile(tile)}
+                      title={
+                        tile.directory
+                          ? `${tile.name}\n\nDoppelklick: öffnen`
+                          : `${tile.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`
+                      }
+                    >
+                      {tile.directory ? (
+                        <Folder size={16} strokeWidth={1.5} className="content-browser-list-icon" />
+                      ) : (
+                        <FileText size={16} strokeWidth={1.5} className="content-browser-list-icon" />
+                      )}
+                      <span className="content-browser-list-name">{tile.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="content-browser-footer">
+              <span>{chapterTiles.length} Einträge</span>
+            </div>
+          </div>
+
+          <div
+            className="content-browser-col content-browser-col-right"
+            onFocus={() => setFocusedColumn("wiki")}
+            onMouseEnter={() => setFocusedColumn("wiki")}
+          >
+            <div className="content-browser-col-title-row">
+              <span className="content-browser-col-title">Wiki</span>
+            </div>
+
+            <div className="content-browser-header">
+              <div className="content-browser-search-row">
+                <Search size={15} className="content-browser-search-icon" />
+                <input
+                  ref={wikiInputRef}
+                  className="content-browser-search-input"
+                  value={wikiQuery}
+                  onFocus={() => setFocusedColumn("wiki")}
+                  onChange={(e) => {
+                    setWikiQuery(e.target.value);
+                    setWikiIdx(0);
+                  }}
+                  placeholder="Wiki durchsuchen…"
+                />
+              </div>
+
+              <div className="content-browser-wiki-tabs">
+                <button
+                  className={`content-browser-cat-tab${activeCategory === null ? " active" : ""}`}
+                  onClick={() => setActiveCategory(null)}
+                >
+                  Alle
+                </button>
+                {wikiCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    className={`content-browser-cat-tab${activeCategory === cat ? " active" : ""}`}
+                    onClick={() => setActiveCategory((c) => (c === cat ? null : cat))}
+                    style={{ "--cat-hue": categoryHue(cat) } as React.CSSProperties}
+                  >
+                    <span className="content-browser-cat-dot" />
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="content-browser-body">
+              {wikiLoading ? (
+                <div className="content-browser-empty">Lade…</div>
+              ) : wikiTiles.length === 0 ? (
+                <div className="content-browser-empty">
+                  {wikiQuery.trim() ? "Keine Treffer" : "Nichts gefunden"}
+                </div>
+              ) : (
+                <div className="content-browser-grid">
+                  {wikiTiles.map((tile, i) => (
+                    <div
+                      key={tile.key}
+                      className={`content-browser-tile${i === safeWikiIdx ? " selected" : ""}`}
+                      style={
+                        tile.category
+                          ? ({ "--cat-hue": categoryHue(tile.category) } as React.CSSProperties)
+                          : undefined
+                      }
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", `@[${tile.name}](${tile.path})`);
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      onMouseEnter={() => setWikiIdx(i)}
+                      onDoubleClick={() => openTile(tile)}
+                      title={`${tile.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`}
+                    >
+                      <div className="content-browser-thumb">
+                        <FileText size={26} strokeWidth={1.5} />
+                      </div>
+                      <div className="content-browser-tile-name">{tile.name}</div>
+                      {tile.snippet ? (
+                        <div className="content-browser-tile-snippet">{tile.snippet}</div>
+                      ) : tile.category ? (
+                        <div className="content-browser-tile-cat">
+                          <FolderOpen size={11} /> {tile.category}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="content-browser-footer">
+              <span>{wikiTiles.length} Einträge</span>
+            </div>
+          </div>
         </div>
 
-        <div className="content-browser-footer">
-          <span>{tiles.length} Einträge</span>
-          <span className="content-browser-footer-hint">
-            {isTreeTab ? "Doppelklick öffnet · Backspace zurück" : "Doppelklick öffnet · Ziehen fügt Verweis ein"} ·
-            Strg+1/2/3 wechselt Tab · Esc schließt
-          </span>
+        <div className="content-browser-hint-bar">
+          Doppelklick öffnet · Ziehen fügt Verweis ein · Pfeiltasten navigieren · Backspace zurück (Kapitel) · Esc
+          schließt
         </div>
       </div>
     </div>
