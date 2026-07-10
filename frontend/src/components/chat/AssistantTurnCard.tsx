@@ -7,7 +7,6 @@ import {
   MessageSquareText,
   Trash2,
   GitMerge,
-  Loader,
   ThumbsUp,
   ThumbsDown,
 } from "lucide-react";
@@ -68,8 +67,6 @@ export interface AssistantTurnCardProps {
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
-  naviStep?: string | null;
-  naviStateId?: string | null;
 }
 
 export function AssistantTurnCard({
@@ -96,16 +93,13 @@ export function AssistantTurnCard({
   onReplaceSelection,
   onApplyFieldUpdate,
   fieldLabels,
-  naviStep,
-  naviStateId,
 }: AssistantTurnCardProps) {
   const trailingWriteFileBatch = getTrailingWriteFileBatch(visibleEntries);
   const dismissIds = bulkDismissIds;
   const fileCb = readOnly ? undefined : onFileChanged;
   const snapshotCb = readOnly ? undefined : onSnapshotSettled;
 
-  const showNormalActions = !readOnly && !streaming && !naviStateId;
-  /** Feedback stays available during Navi-guided turns too — this is exactly what beta testers rate. */
+  const showNormalActions = !readOnly && !streaming;
   const showFeedback = !readOnly && !streaming;
   const showActions = showNormalActions || showFeedback;
 
@@ -405,7 +399,7 @@ export function AssistantTurnCard({
       data-testid="AssistantTurnCard"
     >
       <div className="assistant-turn-chunks">
-        {hasToolCalls || (isLiveTurn && !!naviStep) ? (
+        {hasToolCalls ? (
           <>
             {preUnits.map((su, idx) => {
               const subKey = subUnitReactKey(su);
@@ -429,26 +423,15 @@ export function AssistantTurnCard({
                 />
                 <span className="erkunden-title">Erkunden</span>
                 <span className="erkunden-count">
-                  · {toolUnits.length + (isLiveTurn && naviStep ? 1 : 0)}{" "}
-                  {toolUnits.length + (isLiveTurn && naviStep ? 1 : 0) === 1 ? "Aufruf" : "Aufrufe"}
+                  · {toolUnits.length}{" "}
+                  {toolUnits.length === 1 ? "Aufruf" : "Aufrufe"}
                 </span>
-                {streaming && isLiveTurn && naviStep ? (
-                  <>
-                    <span className="erkunden-spinner" aria-hidden />
-                    <span className="erkunden-step-label">{naviStep}</span>
-                  </>
-                ) : streaming && isLiveTurn ? (
+                {streaming && isLiveTurn ? (
                   <span className="erkunden-spinner" aria-hidden />
                 ) : null}
               </button>
               {erkundenOpen ? (
                 <div className="erkunden-body">
-                  {isLiveTurn && naviStep ? (
-                    <div className="erkunden-navi-step">
-                      <Loader size={12} className="erkunden-navi-step-icon" aria-hidden />
-                      <span>{naviStep}</span>
-                    </div>
-                  ) : null}
                   {toolUnits.map((su, idx) => {
                     const subKey = subUnitReactKey(su);
                     return (

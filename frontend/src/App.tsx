@@ -28,7 +28,6 @@ import { MarkdownFileEditor } from "./components/editor/MarkdownFileEditor.tsx";
 import { SubprojectTypeDialog } from "./components/settings/SubprojectTypeDialog.tsx";
 import { MetaPanel } from "./components/meta/MetaPanel.tsx";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
-import { SimulationSetupModal, type SimulationSetupResult } from "./components/simulation/SimulationSetupModal.tsx";
 import { PanelSlot } from "./components/PanelSlot.tsx";
 import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
 import { CommandPalette } from "./components/git/CommandPalette.tsx";
@@ -74,7 +73,6 @@ import { useWorkspaceLevelConfigMap } from "./hooks/useWorkspaceLevelConfigMap.t
 import { useOutlinerScope } from "./hooks/useOutlinerScope.ts";
 import { useFileTabs } from "./hooks/useFileTabs.ts";
 import { useGitState } from "./hooks/useGitState.ts";
-import { useSimulationRunner } from "./hooks/useSimulationRunner.ts";
 import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { EditorTabs } from "./components/editor/EditorTabs.tsx";
 import { SearchPanel } from "./components/editor/SearchPanel.tsx";
@@ -90,7 +88,6 @@ import {
   parseSteeringPlanFromAssistant,
 } from "./components/chat/planFenceUtils.ts";
 import {
-  buildNaviConversationPatch,
   buildAgentExecutionPatchFromGlobals,
   conversationHasAgentExecution,
   getEffectiveChatExecution,
@@ -117,13 +114,6 @@ import {
   scheduleParentResultKickoff,
   tryMarkKickoffStarted,
 } from "./components/chat/parentResultKickoffState.ts";
-import {
-  cancelNaviGreetingKickoffIfMismatch,
-  hasPendingNaviGreetingKickoffFor,
-  scheduleNaviGreetingKickoff,
-  tryMarkNaviGreetingKickoffStarted,
-} from "./components/chat/naviGreetingKickoff.ts";
-import { scheduleSimulationReply } from "./components/chat/simulationReplyKickoff.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
 import {
   loadInitialDisabledToolkits,
@@ -194,7 +184,6 @@ function App() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [modes, setModes] = useState<Mode[]>([]);
   const [agentPresets, setAgentPresets] = useState<AgentPreset[]>([]);
-  const [simulationSetupOpen, setSimulationSetupOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState("review");
   const [useReasoning, setUseReasoning] = useState(false);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
@@ -232,8 +221,6 @@ function App() {
   const prefsHydratedRef = useRef(false);
   /** Last resolved project default chat mode id (from loadModes); used for empty chats and fallbacks. */
   const projectDefaultChatModeIdRef = useRef("review");
-  /** Configured mode/LLM for Navi sessions (project settings → Navi tab). */
-  const naviConfigRef = useRef<{ modeId?: string; llmId?: string }>({});
   /**
    * Ref-mirrors of toolbar state so the conv-sync effect can read current values without
    * listing them as reactive deps — which would cause snap-back any time the user changes
@@ -375,37 +362,7 @@ function App() {
 
   const history = useChatHistory(selectedMode, project.projectPath);
   const chat = useChat(history.updateMessages, {
-    onNaviStateTransition: (stateId, conversationId) => {
-      history.patchConversation(conversationId, { naviStateId: stateId });
-    },
-    onNaviTipsCovered: (coveredIds, conversationId) => {
-      const conv = history.conversations.find((c) => c.id === conversationId);
-      const existing = conv?.naviCoveredTips ?? [];
-      const merged = [...new Set([...existing, ...coveredIds])];
-      history.patchConversation(conversationId, { naviCoveredTips: merged });
-    },
-    onNaviFacts: (facts, conversationId) => {
-      history.patchConversation(conversationId, { naviFacts: facts });
-    },
-    onNaviTrace: (entry, conversationId) => {
-      const conv = history.conversations.find((c) => c.id === conversationId);
-      const existing = conv?.naviTrace ?? [];
-      const naviTrace = [...existing, entry].slice(-30);
-      history.patchConversation(conversationId, { naviTrace });
-    },
     onAssistantResponseComplete: (fullText, meta) => {
-      // Simulation auto-runner: after Navi finished a turn in a simulation,
-      // queue the next simulated-merchant reply (the effect below sends it).
-      if (meta.sessionKind === "navi") {
-        const conv = history.conversations.find(
-          (c) => c.id === meta.conversationId,
-        );
-        if (conv?.simulationConfig) {
-          scheduleSimulationReply(meta.conversationId);
-        }
-        return;
-      }
-
       if (meta.sessionKind === "standard") {
         return;
       }
@@ -659,10 +616,6 @@ function App() {
         try {
           const cfg = await projectConfigApi.get();
           configured = cfg.defaultMode;
-          naviConfigRef.current = {
-            modeId: cfg.naviModeId,
-            llmId: cfg.naviLlmId,
-          };
         } catch {
           /* ignore */
         }
@@ -740,13 +693,12 @@ function App() {
     const conv = history.activeConversation;
     const sessionKind = conv.sessionKind ?? "standard";
     const allowedForSession =
-      sessionKind === "guided" || sessionKind === "navi" ? modes : standardSel;
+      sessionKind === "guided" ? modes : standardSel;
     let desired: string;
     /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
-    /** Guided/navi/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
+    /** Guided/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
     const trulyEmptyForModeSync =
       sessionKind !== "guided" &&
-      sessionKind !== "navi" &&
       !conversationHasVisibleMessages(conv) &&
       conv.messages.length === 0;
     if (trulyEmptyForModeSync) {
@@ -1542,72 +1494,6 @@ function App() {
     performGuidedAgentPresetKickoff,
   ]);
 
-  // Navi session: trigger greeting call when a new navi conversation has no messages yet.
-  useEffect(() => {
-    const conv = history.activeConversation;
-    if (!conv) return;
-    cancelNaviGreetingKickoffIfMismatch(conv.id);
-    if (!hasPendingNaviGreetingKickoffFor(conv.id)) return;
-    if (conv.sessionKind !== "navi") return;
-    if (conv.messages.length > 0) return;
-    if (chat.messages.length !== conv.messages.length) return;
-    if (chat.streaming) return;
-    if (!tryMarkNaviGreetingKickoffStarted(conv.id)) return;
-
-    const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
-    const mode = modes.find((m) => m.id === modeId);
-    const exec = getEffectiveChatExecution(conv, {
-      llmId: modeLlmId,
-      useReasoning,
-      disabledToolkits,
-    });
-    chat.sendMessage(
-      "",
-      modeId,
-      [],
-      mode?.name,
-      mode?.color,
-      exec.useReasoning,
-      exec.llmId,
-      undefined,
-      null,
-      exec.disabledToolkits,
-      {
-        conversationId: conv.id,
-        sessionKind: "navi",
-        naviStateId: conv.naviStateId ?? "greeting",
-        naviFacts: conv.naviFacts,
-        naviCoveredTips: conv.naviCoveredTips,
-      },
-      { userHidden: true, rulesDisabled: !rulesEnabled },
-    );
-  }, [
-    history.activeConversation,
-    chat.messages,
-    chat.streaming,
-    chat.sendMessage,
-    selectedMode,
-    modes,
-    modeLlmId,
-    useReasoning,
-    disabledToolkits,
-    rulesEnabled,
-  ]);
-
-  useSimulationRunner({
-    activeConversation: history.activeConversation,
-    chatMessages: chat.messages,
-    chatStreaming: chat.streaming,
-    sendMessage: chat.sendMessage,
-    selectedMode,
-    modes,
-    modeLlmId,
-    useReasoning,
-    disabledToolkits,
-    rulesEnabled,
-    openFile: fileEditor.openFile,
-  });
-
   // Subthread result: when the parent becomes active and has a pending result kickoff, integrate it.
   useEffect(() => {
     const conv = history.activeConversation;
@@ -1655,43 +1541,8 @@ function App() {
     useReasoning,
     disabledToolkits,
     agentPresets,
-    naviConfigRef,
     handleModeChange,
   });
-
-  const handleCreateSimulation = useCallback(
-    async (result: SimulationSetupResult) => {
-      setSimulationSetupOpen(false);
-      const { title, simulationConfig } = result;
-      const newConv = history.createConversation(selectedMode, undefined, title, "navi");
-      history.patchConversation(newConv.id, {
-        simulationConfig,
-        ...buildNaviConversationPatch(naviConfigRef.current, modes, llms),
-      });
-      scheduleNaviGreetingKickoff(newConv.id);
-      // Create the result file with a placeholder — will be overwritten with the full
-      // transcript + evaluation once the simulation finishes.
-      const bridge = getAppBridge();
-      if (bridge?.simulation?.writeResult) {
-        const header = [
-          `# ${title}`,
-          ``,
-          simulationConfig.personaName
-            ? `**Persona:** ${simulationConfig.personaName}`
-            : undefined,
-          simulationConfig.goal
-            ? `**Testfokus:** ${simulationConfig.goal}`
-            : undefined,
-          ``,
-          `_Simulation läuft…_`,
-          ``,
-        ].filter((l) => l !== undefined).join("\n");
-        await bridge.simulation.writeResult(simulationConfig.resultFile, header).catch(() => {});
-      }
-    },
-    [history, selectedMode, modes, llms],
-  );
-
 
   const handleSwitchChat = useCallback(
     (id: string) => {
@@ -1745,10 +1596,6 @@ function App() {
             conversations={history.conversations}
             activeConversationId={history.activeId}
             onSwitchChat={handleSwitchChat}
-            naviStateId={history.activeConversation?.naviStateId ?? null}
-            naviFacts={history.activeConversation?.naviFacts}
-            naviCoveredTips={history.activeConversation?.naviCoveredTips}
-            naviTrace={history.activeConversation?.naviTrace}
           />
         </Panel>
 
@@ -1998,7 +1845,6 @@ function App() {
                 streaming={conversation.streaming}
                 error={conversation.error}
                 toolActivity={conversation.toolActivity}
-                naviStep={chat.naviStepForCard}
                 theme={
                   preferences.appearance.theme === "light" ? "light" : "dark"
                 }
@@ -2039,10 +1885,7 @@ function App() {
                 activeSessionKind={
                   history.activeConversation?.sessionKind ?? "standard"
                 }
-                naviStateId={history.activeConversation?.naviStateId ?? null}
                 steeringPlan={history.activeConversation?.steeringPlan ?? ""}
-                simulationConfig={history.activeConversation?.simulationConfig}
-                onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
                 activeIsThread={history.activeConversation?.isThread === true}
                 onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
                 onSwitchChat={handleSwitchChat}
@@ -2098,14 +1941,10 @@ function App() {
         >
           <PanelSlot
             storageKey="assistant-far-right-slot"
-            defaultTool="navi-state"
+            defaultTool="plans"
             conversations={history.conversations}
             activeConversationId={history.activeId}
             onSwitchChat={handleSwitchChat}
-            naviStateId={history.activeConversation?.naviStateId ?? null}
-            naviFacts={history.activeConversation?.naviFacts}
-            naviCoveredTips={history.activeConversation?.naviCoveredTips}
-            naviTrace={history.activeConversation?.naviTrace}
           />
         </Panel>
       </Group>
@@ -2174,13 +2013,6 @@ function App() {
           preferences={preferences}
           onUpdate={updatePreferences}
           onClose={() => setAppearanceOpen(false)}
-        />
-      )}
-
-      {simulationSetupOpen && (
-        <SimulationSetupModal
-          onConfirm={handleCreateSimulation}
-          onCancel={() => setSimulationSetupOpen(false)}
         />
       )}
 

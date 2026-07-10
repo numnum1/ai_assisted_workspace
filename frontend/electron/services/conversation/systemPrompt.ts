@@ -319,8 +319,8 @@ export function buildSystemPrompt(
   // 1c. Working method — baseline persistence behavior, independent of the chosen mode.
   // The mode only personalizes the persona/task framing; HOW the app works (chat is
   // disposable, durable facts go to files) is defined here for every writing session.
-  // Skipped for quick chat (ephemeral) and navi (customer-consulting) sessions.
-  if (!request.quickChat && request.sessionKind !== "navi") {
+  // Skipped for quick chat (ephemeral) sessions.
+  if (!request.quickChat) {
     sections.push(
       "ARBEITSWEISE (gilt unabhängig vom gewählten Modus):\n" +
         "- Der Chat ist flüchtig und KEIN Wissensspeicher. Dauerhaftes gehört ins Wiki (Markdown unter wiki/).\n" +
@@ -463,36 +463,6 @@ export function buildSystemPrompt(
     sections.push(
       "Reasoning ist aktiviert. Denke Schritt für Schritt nach, bevor du antwortest.",
     );
-  }
-
-  // 7. Simulation context
-  if (request.simulationConfig) {
-    const sim = request.simulationConfig;
-    const lines: string[] = ["Simulations-Umgebung:"];
-    lines.push(`Ziel: ${sim.goal}`);
-    if (sim.baseFileLabel || sim.baseFilePath) {
-      lines.push(`Basis: ${sim.baseFileLabel ?? sim.baseFilePath}`);
-    }
-    if (sim.characters.length > 0) {
-      const confirmed = sim.characters.filter((c) => c.wikiPath);
-      const wip = sim.characters.filter((c) => !c.wikiPath);
-      const charLines: string[] = [];
-      if (confirmed.length > 0) {
-        charLines.push("Bestätigte Charaktere:");
-        confirmed.forEach((c) => charLines.push(`- ${c.name} (${c.wikiPath})`));
-      }
-      if (wip.length > 0) {
-        charLines.push("Mögliche / in Bearbeitung:");
-        wip.forEach((c) => charLines.push(`- ${c.name} (noch kein Wiki-Eintrag)`));
-      }
-      lines.push(`Charaktere in dieser Umgebung:\n${charLines.join("\n")}`);
-      lines.push(
-        "Du kannst diese Charaktere befragen, indem du ihre Perspektive und Motivation aus ihren Wiki-Einträgen ableitest. " +
-        "Nutze read_file um den vollständigen Eintrag (Pfad wiki/…) zu lesen, wenn nötig. " +
-        "Charaktere ohne Wiki-Eintrag sind noch in Entwicklung — behandle sie explorativ.",
-      );
-    }
-    sections.push(lines.join("\n"));
   }
 
   return sections.join("\n\n");

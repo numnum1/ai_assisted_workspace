@@ -38,7 +38,6 @@ import {
   describeStreamingToolCall,
   type ToolExecutionResult,
 } from "./chatToolExecution.js";
-import { runNaviChatStream } from "./conversation/naviChat.js";
 
 export type { ContextBlock };
 export type {
@@ -46,16 +45,6 @@ export type {
   ChatStreamStartResult,
   ChatContextPreviewResult,
 } from "./chatTypes.js";
-export type {
-  SimulationTranscriptLine,
-  SimulatedUserReplyRequest,
-  EvaluateNaviSimulationRequest,
-  EvaluateNaviSimulationResult,
-} from "./naviSimulationService.js";
-export {
-  generateSimulatedUserReply,
-  evaluateNaviSimulation,
-} from "./naviSimulationService.js";
 
 // Re-import for internal use (TypeScript requires local binding when re-exporting and also using a type).
 import type {
@@ -144,10 +133,9 @@ export async function previewChatContext(
   );
   const previewContext = await buildPreviewContext(projectPath, request);
 
-  // Wiki inventory — the writing equivalent of a source tree. Skipped for quick
-  // chat (ephemeral) and navi (customer consulting), which have no wiki context.
+  // Wiki inventory — the writing equivalent of a source tree. Skipped for quick chat (ephemeral).
   let wikiIndex = "";
-  if (!request.quickChat && request.sessionKind !== "navi") {
+  if (!request.quickChat) {
     try {
       wikiIndex = formatWikiIndex(await buildWikiIndex(projectPath));
     } catch (error) {
@@ -156,7 +144,7 @@ export async function previewChatContext(
   }
 
   let chapterIndex = "";
-  if (!request.quickChat && request.sessionKind !== "navi") {
+  if (!request.quickChat) {
     try {
       chapterIndex = await buildBookChapterIndex(projectPath ?? "");
     } catch (error) {
@@ -220,10 +208,6 @@ async function runChatStream(
   request: ChatRequest,
   emit: (event: ChatStreamEvent) => void,
 ): Promise<void> {
-  if (request.sessionKind === "navi") {
-    return runNaviChatStream(streamId, projectPath, request, emit);
-  }
-
   try {
     const provider = await resolveAiProvider(request.llmId);
     const endpoint = resolveProviderEndpoint(provider, request.useReasoning);

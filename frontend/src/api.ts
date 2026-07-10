@@ -958,12 +958,7 @@ function ipcChatStreamPayloadToBridgeEvent(
     type === "tool_history" ||
     type === "done" ||
     type === "error" ||
-    type === "context_update" ||
-    type === "navi_state" ||
-    type === "navi_tips_covered" ||
-    type === "navi_step" ||
-    type === "navi_facts" ||
-    type === "navi_trace"
+    type === "context_update"
   ) {
     const payload = parseJson();
     if (payload == null) return null;
@@ -986,11 +981,6 @@ export function streamChat(
   onContextUpdate?: (estimatedTokens: number) => void,
   onToolHistory?: (messages: import("./types.ts").ChatMessage[]) => void,
   onResolvedUserMessage?: (content: string) => void,
-  onNaviState?: (stateId: string, completedStateId?: string) => void,
-  onNaviTipsCovered?: (coveredIds: string[]) => void,
-  onNaviStep?: (label: string | null) => void,
-  onNaviFacts?: (facts: import("./types.ts").NaviFacts) => void,
-  onNaviTrace?: (entry: import("./types.ts").NaviTraceEntry) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -1047,19 +1037,6 @@ export function streamChat(
         onResolvedUserMessage?.(decodeElectronStreamData(chatEvent.payload));
       } else if (chatEvent.type === "context_update") {
         onContextUpdate?.(chatEvent.payload.estimatedTokens);
-      } else if (chatEvent.type === "navi_state") {
-        onNaviState?.(
-          chatEvent.payload.stateId,
-          chatEvent.payload.completedStateId,
-        );
-      } else if (chatEvent.type === "navi_tips_covered") {
-        onNaviTipsCovered?.(chatEvent.payload.coveredIds);
-      } else if (chatEvent.type === "navi_step") {
-        onNaviStep?.(chatEvent.payload.label);
-      } else if (chatEvent.type === "navi_facts") {
-        onNaviFacts?.(chatEvent.payload);
-      } else if (chatEvent.type === "navi_trace") {
-        onNaviTrace?.(chatEvent.payload);
       } else if (chatEvent.type === "token") {
         tokenCount++;
         const unescaped = decodeElectronStreamData(chatEvent.payload);

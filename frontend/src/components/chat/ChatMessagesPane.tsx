@@ -169,8 +169,6 @@ export interface ChatMessagesPaneProps {
   streaming: boolean;
   error: string | null;
   toolActivity: string | null;
-  naviStep?: string | null;
-  naviStateId?: string | null;
   activeIsThread: boolean;
   editingIdx: number | null;
   setEditingIdx: (idx: number | null) => void;
@@ -208,8 +206,6 @@ export function ChatMessagesPane({
   streaming,
   error,
   toolActivity,
-  naviStep,
-  naviStateId,
   activeIsThread,
   editingIdx,
   setEditingIdx,
@@ -295,11 +291,8 @@ export function ChatMessagesPane({
           <span className="thread-start-indicator-text">Thread-Startpunkt</span>
         </div>
       )}
-      {renderUnits.map((unit, unitIdx) => {
+      {renderUnits.map((unit) => {
         if (unit.type === "assistantTurn") {
-          const isLastAssistantTurn = !renderUnits
-            .slice(unitIdx + 1)
-            .some((u) => u.type === "assistantTurn");
           return (
             <AssistantTurnCard
               key={`turn-${unit.originalIndices.join("-")}`}
@@ -326,8 +319,6 @@ export function ChatMessagesPane({
               onReplaceSelection={onReplaceSelection}
               onApplyFieldUpdate={onApplyFieldUpdate}
               fieldLabels={fieldLabels}
-              naviStep={isLastAssistantTurn ? naviStep : null}
-              naviStateId={naviStateId}
             />
           );
         }
@@ -409,7 +400,7 @@ export function ChatMessagesPane({
             <TurnCard
               key={`uturn-${lastOriginalIdx}`}
               turnType="user"
-              showActions={!readOnly && !streaming && !naviStateId && !turnMsgs.some((m) => editingIdx === m.originalIdx)}
+              showActions={!readOnly && !streaming && !turnMsgs.some((m) => editingIdx === m.originalIdx)}
               actions={userActions}
             >
               {turnMsgs.map(({ msg, originalIdx: msgIdx }) => (

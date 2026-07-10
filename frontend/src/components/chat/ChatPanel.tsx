@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, Waypoints } from "lucide-react";
+import { History, Pencil, Maximize2, Minimize2, GitMerge, Loader2, Waypoints } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -11,7 +11,6 @@ import type {
   ContextInfo,
   MessageFeedback,
   ReasoningEffort,
-  SimulationConfig,
 } from "../../types.ts";
 import { ModeSelector } from "./ModeSelector.tsx";
 import { ChatHistory } from "./ChatHistory.tsx";
@@ -117,10 +116,6 @@ interface ChatPanelProps {
   isDirty: boolean;
   systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
-  naviStateId?: string | null;
-  naviStep?: string | null;
-  simulationConfig?: SimulationConfig;
-  onOpenSimulationSetup?: () => void;
 }
 
 export function ChatPanel({
@@ -194,10 +189,6 @@ export function ChatPanel({
   isDirty,
   systemPromptPreview,
   onFetchContextBlocks,
-  naviStateId,
-  naviStep,
-  simulationConfig,
-  onOpenSimulationSetup,
 }: ChatPanelProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -365,16 +356,6 @@ export function ChatPanel({
           >
             <History size={14} />
           </button>
-          {onOpenSimulationSetup && (
-            <button
-              type="button"
-              className="chat-history-btn"
-              onClick={onOpenSimulationSetup}
-              title="Neue Simulation"
-            >
-              <FlaskConical size={14} />
-            </button>
-          )}
           <NewChatButton onClick={handleNewChatClick} />
         </div>
         <div className="chat-header-title-row">
@@ -438,8 +419,6 @@ export function ChatPanel({
           streaming={streaming}
           error={error}
           toolActivity={toolActivity}
-          naviStep={naviStep}
-          naviStateId={naviStateId}
           onSend={onSend}
           onStop={onStop}
           onEditMessage={onEditMessage}
@@ -470,7 +449,6 @@ export function ChatPanel({
           activeSessionKind={activeSessionKind}
           steeringPlan={steeringPlan}
           onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
-          simulationConfig={simulationConfig}
           onFileChanged={onFileChanged}
           writeFileSettled={writeFileSettled}
           onSettleSnapshots={onSettleSnapshots}

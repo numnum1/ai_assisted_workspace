@@ -17,8 +17,7 @@ import {
  * scene goal is reached. The run yields two artefacts: a raw screenplay
  * transcript and a prose rewrite in the scene's POV/tone.
  *
- * This is a standalone authoring feature and shares nothing with the Navi demo
- * beyond the low-level per-turn LLM call pattern.
+ * This is a standalone authoring feature.
  */
 
 const ENSEMBLES_DIR = ".assistant/ensembles";

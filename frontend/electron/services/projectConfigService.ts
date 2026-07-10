@@ -237,19 +237,6 @@ const DEFAULT_MODES: Mode[] = [
     color: "#0f766e",
     useReasoning: false,
   },
-  {
-    // Role/identity prompt for Navi sessions. Selected via project settings →
-    // Navi tab → "Navi-Modus". The systemPrompt below replaces Navi's default
-    // role briefing (NAVI_DEFAULT_ROLE); the HOW-rules in naviVoice.ts stay in force.
-    id: "navi",
-    name: "KI Navi",
-    description: "KI-Berater für Einzelhändler zu einem konkreten Problem.",
-    systemPrompt:
-      "Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler. Deine Aufgabe: herausfinden, ob und wie KI oder Software dem Händler bei seinem konkreten Problem wirklich helfen kann – ehrlich und auf Basis seiner tatsächlichen Situation. Du verkaufst kein bestimmtes Produkt und drängst zu keinem Umbau seines bestehenden Systems. Wenn KI oder Software nicht weiterhilft, sagst du das offen.",
-    autoIncludes: [],
-    color: "#2563eb",
-    useReasoning: false,
-  },
 ];
 
 const DEFAULT_COMMENT_CATEGORIES: CommentCategoryDef[] = [
@@ -355,35 +342,6 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
         .filter((r) => r && typeof r === "object" && typeof r.name === "string" && r.name.trim().length > 0)
         .map((r) => ({ name: (r as { name: string; body?: string }).name.trim(), body: typeof (r as { name: string; body?: string }).body === "string" ? (r as { name: string; body: string }).body : "" }))
     : [];
-  const naviInstructionsRaw: Record<string, string> = {};
-  if (input?.naviInstructions && typeof input.naviInstructions === "object") {
-    for (const [k, v] of Object.entries(input.naviInstructions)) {
-      if (typeof k === "string" && k.trim() && typeof v === "string" && v.trim()) {
-        naviInstructionsRaw[k.trim()] = v;
-      }
-    }
-  }
-  const naviInstructions = Object.keys(naviInstructionsRaw).length > 0 ? naviInstructionsRaw : undefined;
-
-  const naviWorkPlansRaw: Record<string, string[]> = {};
-  if (input?.naviWorkPlans && typeof input.naviWorkPlans === "object") {
-    for (const [k, v] of Object.entries(input.naviWorkPlans)) {
-      if (typeof k === "string" && k.trim() && Array.isArray(v)) {
-        const items = v.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-        if (items.length > 0) naviWorkPlansRaw[k.trim()] = items;
-      }
-    }
-  }
-  const naviWorkPlans = Object.keys(naviWorkPlansRaw).length > 0 ? naviWorkPlansRaw : undefined;
-
-  const naviModeId =
-    typeof input?.naviModeId === "string" && input.naviModeId.trim()
-      ? input.naviModeId.trim()
-      : undefined;
-  const naviLlmId =
-    typeof input?.naviLlmId === "string" && input.naviLlmId.trim()
-      ? input.naviLlmId.trim()
-      : undefined;
   return {
     name: input?.name ?? "",
     description: input?.description ?? "",
@@ -396,10 +354,6 @@ function normalizeProjectConfig(input?: ProjectConfig | null): ProjectConfig {
     threadSummaryLlmId: input?.threadSummaryLlmId ?? "",
     ...(maxToolRounds !== undefined ? { maxToolRounds } : {}),
     rules,
-    ...(naviInstructions !== undefined ? { naviInstructions } : {}),
-    ...(naviWorkPlans !== undefined ? { naviWorkPlans } : {}),
-    ...(naviModeId !== undefined ? { naviModeId } : {}),
-    ...(naviLlmId !== undefined ? { naviLlmId } : {}),
     extraFeatures: input?.extraFeatures ?? {},
   };
 }

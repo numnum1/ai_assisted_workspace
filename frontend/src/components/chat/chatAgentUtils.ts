@@ -150,36 +150,6 @@ export function applyGuidedAgentFromNewChatDialog(
   });
 }
 
-/**
- * Conversation patch for a new Navi session: forces the configured mode + LLM
- * (from project settings) so the session doesn't inherit the toolbar mode.
- * Empty config fields fall back to the toolbar/default behavior.
- */
-export function buildNaviConversationPatch(
-  cfg: { modeId?: string | undefined; llmId?: string | undefined },
-  modes: readonly Mode[],
-  llms: readonly LlmPublic[],
-): Partial<Conversation> {
-  const patch: Partial<Conversation> = { naviStateId: 'greeting' };
-  const modeId = cfg.modeId?.trim();
-  if (modeId && modes.some((m) => m.id === modeId)) {
-    patch.mode = modeId;
-    Object.assign(patch, executionPatchForMode(modeId, modes, llms));
-  }
-  const llmId = cfg.llmId?.trim();
-  if (llmId) {
-    const llm = llms.find((l) => l.id === llmId);
-    if (llm) {
-      patch.agentLlmId = llmId;
-      const hasReasoning = !!llm.reasoningModel;
-      const hasFast = !!llm.fastModel;
-      if (!hasReasoning) patch.agentUseReasoning = false;
-      else if (!hasFast) patch.agentUseReasoning = true;
-    }
-  }
-  return patch;
-}
-
 export interface EffectiveChatExecution {
   llmId: string | undefined;
   useReasoning: boolean;

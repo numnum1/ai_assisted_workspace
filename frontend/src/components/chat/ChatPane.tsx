@@ -13,9 +13,7 @@ import type {
   ContextInfo,
   MessageFeedback,
   ReasoningEffort,
-  SimulationConfig,
 } from "../../types.ts";
-import { SimulationContextBanner } from "../simulation/SimulationContextBanner.tsx";
 import { ChatInput } from "./ChatInput.tsx";
 import { ChatComposerCard } from "./ChatComposerCard.tsx";
 import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
@@ -126,8 +124,6 @@ export interface ChatPaneProps {
   streaming: boolean;
   error: string | null;
   toolActivity: string | null;
-  naviStep?: string | null;
-  naviStateId?: string | null;
 
   onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
@@ -167,7 +163,6 @@ export interface ChatPaneProps {
   activeSessionKind?: ChatSessionKind;
   steeringPlan?: string;
   onMarkSteeringPlanComplete?: () => void;
-  simulationConfig?: SimulationConfig;
 
   onFileChanged?: (path: string) => void;
   /** Persisted settled state for write_file snapshots (from Conversation.writeFileSettled). */
@@ -199,8 +194,6 @@ export function ChatPane({
   streaming,
   error,
   toolActivity,
-  naviStep,
-  naviStateId,
   onSend,
   onStop,
   onEditMessage,
@@ -232,7 +225,6 @@ export function ChatPane({
   activeSessionKind = "standard",
   steeringPlan = "",
   onMarkSteeringPlanComplete,
-  simulationConfig,
   onFileChanged,
   writeFileSettled,
   onSettleSnapshots,
@@ -587,8 +579,6 @@ export function ChatPane({
           streaming={streaming}
           error={error}
           toolActivity={toolActivity}
-          naviStep={naviStep}
-          naviStateId={naviStateId}
           activeIsThread={isThread}
           editingIdx={editingIdx}
           setEditingIdx={setEditingIdx}
@@ -612,10 +602,6 @@ export function ChatPane({
           theme={theme}
           parentLastMessage={parentLastMessage}
         />
-
-        {simulationConfig && (
-          <SimulationContextBanner simulationConfig={simulationConfig} />
-        )}
 
         {activeSessionKind === "guided" && (
           <SteeringPlanSection

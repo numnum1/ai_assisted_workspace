@@ -4,7 +4,6 @@ import type { NewChatConfirmPayload } from "../components/chat/NewChatDialog.tsx
 import {
   applyGuidedAgentFromNewChatDialog,
   buildGuidedAgentPatchFromPreset,
-  buildNaviConversationPatch,
   buildAgentExecutionPatchFromGlobals,
   conversationHasAgentExecution,
   agentExecutionPartialFromParent,
@@ -16,7 +15,6 @@ import {
   standardChatModes,
   resolveDefaultModeId,
 } from "../components/chat/effectiveChatModeForRequest.ts";
-import { scheduleNaviGreetingKickoff } from "../components/chat/naviGreetingKickoff.ts";
 import { scheduleGuidedAgentPresetKickoff } from "../components/chat/guidedAgentKickoff.ts";
 import { buildThreadHiddenBootstrap } from "../components/chat/chatThreadUtils.ts";
 import type { GuidedThreadOfferPayload } from "../components/chat/guidedThreadOfferUtils.ts";
@@ -34,7 +32,6 @@ interface ConversationActionsDeps {
   useReasoning: boolean;
   disabledToolkits: ReadonlySet<string>;
   agentPresets: AgentPreset[];
-  naviConfigRef: React.RefObject<{ modeId?: string; llmId?: string }>;
   handleModeChange: (modeId: string, modeList?: Mode[]) => void;
 }
 
@@ -48,7 +45,6 @@ export function useConversationActions({
   useReasoning,
   disabledToolkits,
   agentPresets,
-  naviConfigRef,
   handleModeChange,
 }: ConversationActionsDeps) {
   const applyNewChatPayload = useCallback(
@@ -74,16 +70,9 @@ export function useConversationActions({
         if (payload.sessionKind === "guided") {
           scheduleGuidedAgentPresetKickoff(newConvId);
         }
-        if (payload.sessionKind === "navi") {
-          history.patchConversation(
-            newConvId,
-            buildNaviConversationPatch(naviConfigRef.current, modes, llms),
-          );
-          scheduleNaviGreetingKickoff(newConvId);
-        }
       }
     },
-    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, llms, naviConfigRef],
+    [history, selectedMode, modeLlmId, useReasoning, disabledToolkits, modes, llms],
   );
 
   const handleNewChat = useCallback(

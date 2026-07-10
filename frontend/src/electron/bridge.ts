@@ -19,7 +19,6 @@ import type {
   LlmPublic,
   Mode,
   NodeMeta,
-  Persona,
   ProjectConfig,
   SceneNode,
   WorkspaceModeInfo,
@@ -95,12 +94,7 @@ export type ChatStreamEvent =
   | { type: "resolved_user_message"; payload: string }
   | { type: "context_update"; payload: { estimatedTokens: number } }
   | { type: "done"; payload: { fullAssistantText: string } }
-  | { type: "error"; payload: { message: string } }
-  | { type: "navi_state"; payload: { stateId: string; completedStateId?: string; summary?: string } }
-  | { type: "navi_tips_covered"; payload: { coveredIds: string[] } }
-  | { type: "navi_step"; payload: { label: string | null } }
-  | { type: "navi_facts"; payload: import("../types.js").NaviFacts }
-  | { type: "navi_trace"; payload: import("../types.js").NaviTraceEntry };
+  | { type: "error"; payload: { message: string } };
 
 export interface ChatStreamStartResult {
   streamId: string;
@@ -429,40 +423,12 @@ export interface AppBridge {
     ) => Promise<{ status: string }>;
     fill: (path: string) => Promise<TypedFileFillResult>;
   };
-  simulation?: {
-    listBooks: () => Promise<Array<{
-      structureRoot: string | null;
-      label: string;
-      characters: Array<{ wikiPath: string; name: string }>;
-    }>>;
-    writeResult: (name: string, content: string) => Promise<{ path: string }>;
-    readResult: (name: string) => Promise<{ content: string; exists: boolean }>;
-    listResults: () => Promise<string[]>;
-    generateUserReply: (req: {
-      goal: string;
-      characterNames?: string[];
-      transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
-      llmId?: string | null;
-    }) => Promise<{ reply: string }>;
-    evaluateRun: (req: {
-      persona: string;
-      personaName?: string;
-      transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
-      llmId?: string | null;
-    }) => Promise<{ score: number; report: string }>;
-  };
   ensemble?: {
     run: (req: EnsembleRunRequest) => Promise<{ runId: string }>;
     onEvent: (
       runId: string,
       listener: (ev: EnsembleProgressEvent) => void,
     ) => { unsubscribe: () => void };
-  };
-  persona?: {
-    list: () => Promise<Persona[]>;
-    read: (id: string) => Promise<{ persona: Persona | null }>;
-    write: (name: string, description: string) => Promise<{ persona: Persona }>;
-    delete: (id: string) => Promise<{ deleted: boolean }>;
   };
   preferences?: {
     get: () => Promise<AppPreferences>;

@@ -1,90 +1,5 @@
-/**
- * Live, in-turn-maintained fact sheet for a Navi consultation. Single source of truth —
- * replaces the former naviContext + naviPlan + naviCurrentProblem(Interpretation) + naviProblemQueue
- * split. Updated by the model itself (via the `update_facts` tool) on every turn, not just on
- * state transitions — so it never lags behind what was actually said.
- */
-export interface NaviFacts {
-  /**
-   * slotId -> filled value. Slot ids are derived from each Navi phase's `workPlan` entries
-   * (see slugifySlotLabel in electron/services/naviStateMachine.ts) and accumulate across ALL
-   * phases visited so far — never reset on a phase change.
-   */
-  slots: Record<string, string>;
-  /** Short restatement of the problem currently being addressed — keeps every phase focused on one thing. */
-  currentProblem?: string;
-  /** What the problem really means / which direction the solution should go. */
-  hypothesis?: string;
-  /** Further problems mentioned by the merchant that have not yet been addressed, in priority order. */
-  problemQueue: string[];
-  /** Gemachter Lösungsvorschlag */
-  recommendation?: string;
-  /** Free-form extra facts that don't fit any defined slot. */
-  notes?: string;
-}
-
-/**
- * Debugging/observability record for one Navi turn — answers "why did it just ask that?".
- * Emitted after every turn (`navi_trace` event), independent of NaviFacts itself so it can carry
- * a decision history without bloating the fact sheet that's actually sent back to the model.
- */
-export interface NaviTraceEntry {
-  at: number;
-  /** The phase this turn's visible reply was generated in (after any redirect/advance_phase). */
-  stateId: string;
-  /** Slot labels still open in {@link stateId} at the moment the visible reply was produced. */
-  openSlots: string[];
-  /** Slot values newly set or changed by update_facts this turn. */
-  factsChanged: { label: string; value: string }[];
-  currentProblem?: string;
-  hypothesis?: string;
-  recommendation?: string;
-  /** Every advance_phase call this turn, in order, with the deterministic gate's verdict. */
-  advancePhaseAttempts?: { target: string; accepted: boolean; openSlots: string[] }[];
-  /** Set when the redirect/safety-net classifier moved the phase before generating the reply. */
-  redirectTo?: string;
-}
-
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
 export const CHAT_TOOLKIT_IDS = ['web', 'dateisystem', 'assistant'] as const;
-
-/** A character entry in a simulation environment. */
-export interface SimulationCharacter {
-  /** Relative wiki path, e.g. `wiki/characters/char-a.md` */
-  wikiPath: string;
-  /** Display name derived from the wiki path or overridden by the user. */
-  name: string;
-}
-
-/** A reusable simulated-user persona stored in `.assistant/personas/<id>.md`. */
-export interface Persona {
-  /** Slug derived from the name; matches the markdown filename. */
-  id: string;
-  /** Display name, e.g. "Technikscheuer Bäcker". */
-  name: string;
-  /** Full description fed to the simulated user (shop, tech level, budget, pain points). */
-  description: string;
-}
-
-/** Configuration for a simulation session (goal + cast derived from a base file). */
-export interface SimulationConfig {
-  /** The "dramatische Leitfrage": what the user wants to work out. */
-  goal: string;
-  /** Relative path to the base file (scene/chapter/book JSON). */
-  baseFilePath: string;
-  /** Human-readable label for the base file. */
-  baseFileLabel?: string;
-  /** Selected characters for this simulation. */
-  characters: SimulationCharacter[];
-  /** Result file name slug (maps to `.assistant/simulations/<resultFile>.md`). */
-  resultFile: string;
-  /** Id of the selected persona library entry, if any. */
-  personaId?: string;
-  /** Display name of the selected persona. */
-  personaName?: string;
-  /** Full persona description driving the simulated user (overrides goal for the merchant). */
-  personaPrompt?: string;
-}
 
 /** One character in an ensemble scene run (played by its own LLM agent). */
 export interface EnsembleCharacterInput {
@@ -144,7 +59,7 @@ export type EnsembleProgressEvent =
   | { phase: "error"; message: string };
 
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
-export type ChatSessionKind = 'standard' | 'guided' | 'navi';
+export type ChatSessionKind = 'standard' | 'guided';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
 
 /** Kind of arc — defines its lane identity and which wiki entity it tracks. */
@@ -316,7 +231,7 @@ export interface ThreadSummaryMeta {
   fromThreadTitle: string;
 }
 
-/** Beta-test feedback attached by a human reviewer to a Navi assistant answer. */
+/** Beta-test feedback attached by a human reviewer to an assistant answer. */
 export interface MessageFeedback {
   rating: 'up' | 'down';
   comment?: string;
@@ -383,14 +298,6 @@ export interface ChatRequest {
   isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
-  /** Current state id for navi sessions; sent each request. */
-  naviStateId?: string | null;
-  /** Live fact sheet (slots, hypothesis, problem queue, recommendation); sent + updated each turn. */
-  naviFacts?: NaviFacts;
-  /** Ids of tips that have already been covered in this session; excluded from subsequent prompts. */
-  naviCoveredTips?: string[];
-  /** When set, injects simulation context (goal + cast) into the system prompt. */
-  simulationConfig?: SimulationConfig;
 }
 
 export interface ContextInfo {
@@ -461,16 +368,6 @@ export interface Conversation {
    * Key = snapshotId, value = 'applied' | 'reverted'.
    */
   writeFileSettled?: Record<string, 'applied' | 'reverted'>;
-  /** Current navi state id; persisted for navi sessions and sent with each request. */
-  naviStateId?: string | null;
-  /** Live fact sheet (slots, hypothesis, problem queue, recommendation); persisted, updated each turn. */
-  naviFacts?: NaviFacts;
-  /** Ids of tips already covered in this conversation; excluded from subsequent prompts. */
-  naviCoveredTips?: string[];
-  /** Per-turn decision trace (debugging aid — why did Navi ask/advance the way it did). Capped, most recent last. */
-  naviTrace?: NaviTraceEntry[];
-  /** When set, this conversation is a simulation session with a goal and cast. */
-  simulationConfig?: SimulationConfig;
 }
 
 /** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */
@@ -501,14 +398,6 @@ export interface ProjectConfig {
   maxToolRounds?: number;
   /** Project-level AI rules injected into every system prompt (like Cursor rules). */
   rules?: ProjectRule[];
-  /** Per-state instruction overrides for Navi sessions. Key = state id, value = instruction text. */
-  naviInstructions?: Record<string, string>;
-  /** Per-state workPlan overrides for Navi sessions. Key = state id, value = checklist items (also used as slot labels). */
-  naviWorkPlans?: Record<string, string[]>;
-  /** Mode id used for Navi sessions; empty = current toolbar/default mode. */
-  naviModeId?: string;
-  /** LLM id used for Navi sessions; empty = mode/global default. */
-  naviLlmId?: string;
   extraFeatures?: ProjectExtraFeatures;
 }
 

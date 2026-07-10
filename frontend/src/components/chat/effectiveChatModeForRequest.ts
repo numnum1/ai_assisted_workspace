@@ -28,7 +28,7 @@ export function resolvePersistedChatModeId(
   const allowed = (modeId: string): boolean => {
     const m = allModes.find((x) => x.id === modeId);
     if (!m) return false;
-    if (m.agentOnly && sessionKind !== 'guided' && sessionKind !== 'navi') return false;
+    if (m.agentOnly && sessionKind !== 'guided') return false;
     return true;
   };
   if (conv.mode && allowed(conv.mode)) return conv.mode;
@@ -43,7 +43,7 @@ export function resolvePersistedChatModeId(
 }
 
 /**
- * Outbound chat / preview requests: guided and navi sessions use persisted {@link Conversation.mode}
+ * Outbound chat / preview requests: guided sessions use persisted {@link Conversation.mode}
  * (incl. agent-only presets), so an empty-tab toolbar sync cannot send the wrong mode id.
  */
 export function effectiveChatModeIdForRequest(
@@ -52,6 +52,6 @@ export function effectiveChatModeIdForRequest(
   allModes: Mode[],
 ): string {
   const sessionKind = conv?.sessionKind ?? 'standard';
-  if (!conv || (sessionKind !== 'guided' && sessionKind !== 'navi')) return toolbarModeId;
+  if (!conv || sessionKind !== 'guided') return toolbarModeId;
   return resolvePersistedChatModeId(conv, allModes) ?? toolbarModeId;
 }

@@ -60,21 +60,6 @@
     padding: 0 0.5rem 0.5rem 1.65rem;
 }
 
-.erkunden-navi-step {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.82rem;
-    color: var(--text-muted, rgba(200, 200, 220, 0.65));
-    padding: 0.15rem 0;
-}
-
-.erkunden-navi-step-icon {
-    flex-shrink: 0;
-    opacity: 0.7;
-    animation: erkunden-spin 1s linear infinite;
-}
-
 .erkunden-spinner {
     margin-left: auto;
     flex-shrink: 0;

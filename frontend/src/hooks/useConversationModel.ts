@@ -198,10 +198,6 @@ export function useConversationModel(p: UseConversationModelParams) {
         sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
         steeringPlan: c?.steeringPlan,
         isThread: c?.isThread ?? false,
-        naviStateId: c?.naviStateId ?? null,
-        ...(c?.naviFacts ? { naviFacts: c.naviFacts } : {}),
-        ...(c?.naviCoveredTips?.length ? { naviCoveredTips: c.naviCoveredTips } : {}),
-        ...(c?.simulationConfig ? { simulationConfig: c.simulationConfig } : {}),
       };
       chat.sendMessage(
         message,

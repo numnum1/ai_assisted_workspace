@@ -1,17 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { ChatThreadsRail } from "./chat/ChatThreadsRail.tsx";
-import { NaviStatePanel } from "./chat/NaviStatePanel.tsx";
-import type { Conversation, NaviFacts, NaviTraceEntry } from "../types.ts";
+import type { Conversation } from "../types.ts";
 
-type SlotTool = "threads" | "navi-state" | "plans";
+type SlotTool = "threads" | "plans";
 
 const TOOL_LABELS: Record<SlotTool, string> = {
   threads: "Threads",
-  "navi-state": "Navi State",
   plans: "Plans",
 };
 
-const ALL_TOOLS: SlotTool[] = ["threads", "navi-state", "plans"];
+const ALL_TOOLS: SlotTool[] = ["threads", "plans"];
 
 export interface PanelSlotProps {
   storageKey: string;
@@ -19,10 +17,6 @@ export interface PanelSlotProps {
   conversations: Conversation[];
   activeConversationId: string;
   onSwitchChat: (id: string) => void;
-  naviStateId?: string | null;
-  naviFacts?: NaviFacts;
-  naviCoveredTips?: string[];
-  naviTrace?: NaviTraceEntry[];
 }
 
 function loadSlotTool(key: string, defaultTool: SlotTool): SlotTool {
@@ -41,10 +35,6 @@ export function PanelSlot({
   conversations,
   activeConversationId,
   onSwitchChat,
-  naviStateId,
-  naviFacts,
-  naviCoveredTips,
-  naviTrace,
 }: PanelSlotProps) {
   const [selectedTool, setSelectedTool] = useState<SlotTool>(() =>
     loadSlotTool(storageKey, defaultTool),
@@ -109,14 +99,6 @@ export function PanelSlot({
             conversations={conversations}
             activeConversationId={activeConversationId}
             onSwitchChat={onSwitchChat}
-          />
-        )}
-        {selectedTool === "navi-state" && naviStateId && (
-          <NaviStatePanel
-            naviStateId={naviStateId}
-            naviFacts={naviFacts}
-            naviCoveredTips={naviCoveredTips}
-            naviTrace={naviTrace}
           />
         )}
         {selectedTool === "plans" && (

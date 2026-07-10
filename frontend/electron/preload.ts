@@ -258,18 +258,6 @@ contextBridge.exposeInMainWorld("appBridge", {
     saveContent: (filePath: string, data: unknown) =>
       ipcRenderer.invoke("typedFiles:saveContent", filePath, data),
   },
-  simulation: {
-    listBooks: () => ipcRenderer.invoke("simulation:listBooks"),
-    writeResult: (name: string, content: string) =>
-      ipcRenderer.invoke("simulation:writeResult", name, content),
-    readResult: (name: string) =>
-      ipcRenderer.invoke("simulation:readResult", name),
-    listResults: () => ipcRenderer.invoke("simulation:listResults"),
-    generateUserReply: (req: unknown) =>
-      ipcRenderer.invoke("simulation:generateUserReply", req),
-    evaluateRun: (req: unknown) =>
-      ipcRenderer.invoke("simulation:evaluateRun", req),
-  },
   ensemble: {
     run: (req: unknown) => ipcRenderer.invoke("ensemble:run", req),
     onEvent: (runId: string, listener: (payload: unknown) => void) => {
@@ -290,13 +278,6 @@ contextBridge.exposeInMainWorld("appBridge", {
         },
       };
     },
-  },
-  persona: {
-    list: () => ipcRenderer.invoke("persona:list"),
-    read: (id: string) => ipcRenderer.invoke("persona:read", id),
-    write: (name: string, description: string) =>
-      ipcRenderer.invoke("persona:write", name, description),
-    delete: (id: string) => ipcRenderer.invoke("persona:delete", id),
   },
   snapshots: {
     get: (id: string) => ipcRenderer.invoke("snapshots:get", id),

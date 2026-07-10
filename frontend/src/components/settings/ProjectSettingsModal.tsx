@@ -26,8 +26,6 @@ import type {
   LlmsListResponse,
 } from "../../types.ts";
 import { CHAT_TOOLKIT_IDS } from "../../types.ts";
-import { NAVI_STATES } from "../../naviStateMachine.ts";
-import type { NaviState } from "../../naviStateMachine.ts";
 import { usePreferences } from "../../hooks/usePreferences.ts";
 import { effectiveModeColor } from "../chat/modeColorTheme.ts";
 import { CommentCategoriesTab } from "./CommentCategoriesTab.tsx";
@@ -46,7 +44,6 @@ type Tab =
   | "modes"
   | "commentCategories"
   | "agents"
-  | "navi"
   | "workspacePlugins"
   | "aiProviders";
 
@@ -280,160 +277,6 @@ function RulesEditor({
   );
 }
 
-function NaviInstructionsEditor({
-  states,
-  instructionOverrides,
-  workPlanOverrides,
-  onInstructionChange,
-  onWorkPlanChange,
-}: {
-  states: NaviState[];
-  instructionOverrides: Record<string, string>;
-  workPlanOverrides: Record<string, string[]>;
-  onInstructionChange: (overrides: Record<string, string>) => void;
-  onWorkPlanChange: (overrides: Record<string, string[]>) => void;
-}) {
-  const [selectedId, setSelectedId] = useState<string>(states[0]?.id ?? "");
-  const selected = states.find((s) => s.id === selectedId);
-  const isInstructionOverridden = Boolean(instructionOverrides[selectedId]?.trim());
-  const isWorkPlanOverridden = Boolean(workPlanOverrides[selectedId]?.length);
-  const isAnyOverridden = isInstructionOverridden || isWorkPlanOverridden;
-
-  const workPlanItems: string[] = isWorkPlanOverridden
-    ? workPlanOverrides[selectedId]
-    : (selected?.workPlan ?? []);
-
-  const updateWorkPlanItem = (idx: number, value: string) => {
-    const next = [...workPlanItems];
-    next[idx] = value;
-    onWorkPlanChange({ ...workPlanOverrides, [selectedId]: next });
-  };
-
-  const addWorkPlanItem = () => {
-    onWorkPlanChange({ ...workPlanOverrides, [selectedId]: [...workPlanItems, ""] });
-  };
-
-  const removeWorkPlanItem = (idx: number) => {
-    const next = workPlanItems.filter((_, i) => i !== idx);
-    if (next.length === 0) {
-      const updated = { ...workPlanOverrides };
-      delete updated[selectedId];
-      onWorkPlanChange(updated);
-    } else {
-      onWorkPlanChange({ ...workPlanOverrides, [selectedId]: next });
-    }
-  };
-
-  return (
-    <div className="ps-rules-editor">
-      <div className="ps-rules-list">
-        {states.map((s) => (
-          <div
-            key={s.id}
-            className={`ps-rules-list-item${selectedId === s.id ? " selected" : ""}`}
-            onClick={() => setSelectedId(s.id)}
-          >
-            <span className="ps-rules-list-name">{s.id}</span>
-            {(instructionOverrides[s.id]?.trim() || workPlanOverrides[s.id]?.length) && (
-              <span title="Angepasst" style={{ color: "var(--accent)", fontSize: 10 }}>●</span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {selected && (
-        <div className="ps-rules-panel">
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <code style={{ fontSize: 11, opacity: 0.7 }}>{selected.id}</code>
-            {isAnyOverridden && (
-              <button
-                type="button"
-                className="ps-secondary-btn"
-                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "2px 6px" }}
-                title="Alle Overrides für diesen State zurücksetzen"
-                onClick={() => {
-                  const nextI = { ...instructionOverrides };
-                  delete nextI[selectedId];
-                  onInstructionChange(nextI);
-                  const nextW = { ...workPlanOverrides };
-                  delete nextW[selectedId];
-                  onWorkPlanChange(nextW);
-                }}
-              >
-                <RefreshCw size={11} /> Zurücksetzen
-              </button>
-            )}
-          </div>
-
-          <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11 }}>Anweisung</p>
-          {!isInstructionOverridden && (
-            <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11, opacity: 0.6 }}>
-              Standard aktiv — klicke ins Textfeld zum Anpassen:
-            </p>
-          )}
-          <textarea
-            className="ps-textarea ps-textarea-tall"
-            value={isInstructionOverridden ? instructionOverrides[selectedId] : selected.instruction}
-            placeholder={selected.instruction}
-            rows={8}
-            onChange={(e) => {
-              onInstructionChange({ ...instructionOverrides, [selectedId]: e.target.value });
-            }}
-            onFocus={() => {
-              if (!isInstructionOverridden) {
-                onInstructionChange({ ...instructionOverrides, [selectedId]: selected.instruction });
-              }
-            }}
-          />
-
-          {(selected.workPlan.length > 0 || isWorkPlanOverridden) && (
-            <div style={{ marginTop: 12 }}>
-              <p className="ps-hint" style={{ marginBottom: 4, fontSize: 11 }}>
-                Arbeitsplan{!isWorkPlanOverridden ? " (Standard aktiv)" : ""}
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {workPlanItems.map((item, idx) => (
-                  <div key={idx} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    <input
-                      className="ps-input"
-                      style={{ flex: 1, fontSize: 12 }}
-                      value={item}
-                      placeholder="Arbeitsplan-Punkt…"
-                      onChange={(e) => updateWorkPlanItem(idx, e.target.value)}
-                      onFocus={() => {
-                        if (!isWorkPlanOverridden) {
-                          onWorkPlanChange({ ...workPlanOverrides, [selectedId]: [...selected.workPlan] });
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="ps-rules-list-delete"
-                      style={{ opacity: 1 }}
-                      onClick={() => removeWorkPlanItem(idx)}
-                      title="Punkt entfernen"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="ps-rules-add-btn"
-                style={{ marginTop: 4 }}
-                onClick={addWorkPlanItem}
-              >
-                <Plus size={11} /> Punkt hinzufügen
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function ProjectSettingsModal({
   onClose,
   onModesChanged,
@@ -464,8 +307,6 @@ export function ProjectSettingsModal({
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
-  const [naviInstructionDraft, setNaviInstructionDraft] = useState<Record<string, string>>({});
-  const [naviWorkPlanDraft, setNaviWorkPlanDraft] = useState<Record<string, string[]>>({});
 
   // Modes
   const [modes, setModes] = useState<Mode[]>([]);
@@ -554,7 +395,6 @@ export function ProjectSettingsModal({
         tab === "modes" ||
         tab === "quickChat" ||
         tab === "agents" ||
-        tab === "navi" ||
         tab === "general")
     ) {
       void loadLlms();
@@ -596,8 +436,6 @@ export function ProjectSettingsModal({
           projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
         ]);
         setConfig(cfg);
-        setNaviInstructionDraft(cfg.naviInstructions ?? {});
-        setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
         setModes(mds);
         setAgents(agentList);
       } else {
@@ -630,8 +468,6 @@ export function ProjectSettingsModal({
     try {
       const cfg = await projectConfigApi.init();
       setConfig(cfg);
-      setNaviInstructionDraft(cfg.naviInstructions ?? {});
-      setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -654,8 +490,6 @@ export function ProjectSettingsModal({
       const cfg = await projectConfigApi.initFromFile();
       if (!cfg) return; // user cancelled file picker
       setConfig(cfg);
-      setNaviInstructionDraft(cfg.naviInstructions ?? {});
-      setNaviWorkPlanDraft(cfg.naviWorkPlans ?? {});
       setInitialized(true);
       const [mds, agentList] = await Promise.all([
         projectConfigApi.getModes(),
@@ -782,34 +616,6 @@ export function ProjectSettingsModal({
       setError(err instanceof Error ? err.message : "Failed to delete mode");
     } finally {
       setDeletingMode(null);
-    }
-  };
-
-  const handleResetNavi = async () => {
-    if (
-      !window.confirm(
-        "Alle Navi-Anpassungen (Anweisungen, Arbeitspläne) verwerfen und auf die Standard-States zurücksetzen?",
-      )
-    )
-      return;
-    setSavingConfig(true);
-    setError(null);
-    try {
-      const saved = await projectConfigApi.update({
-        ...config,
-        naviInstructions: undefined,
-        naviWorkPlans: undefined,
-      });
-      setConfig(saved);
-      setNaviInstructionDraft({});
-      setNaviWorkPlanDraft({});
-      setConfigSaved(true);
-      setTimeout(() => setConfigSaved(false), 2000);
-      onGeneralConfigSaved?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Zurücksetzen fehlgeschlagen");
-    } finally {
-      setSavingConfig(false);
     }
   };
 
@@ -1105,7 +911,6 @@ export function ProjectSettingsModal({
                   "modes",
                   "commentCategories",
                   "agents",
-                  "navi",
                   "workspacePlugins",
                   "aiProviders",
                 ] as Tab[]
@@ -1142,8 +947,6 @@ export function ProjectSettingsModal({
                       />
                       Agenten ({agents.length})
                     </>
-                  ) : t === "navi" ? (
-                    "Navi"
                   ) : t === "workspacePlugins" ? (
                     "Workspace plugins"
                   ) : (
@@ -2087,114 +1890,6 @@ export function ProjectSettingsModal({
                     </div>
                   </>
                 )}
-              </div>
-            )}
-
-            {/* Navi state machine instructions */}
-            {initialized && tab === "navi" && (
-              <div className="ps-tab-content">
-                <label className="ps-label">Modus für Navi-Sitzungen</label>
-                <p className="ps-hint">
-                  Der Modus (System-Prompt, Tools) für neue Navi-Chats. Leer =
-                  aktueller Modus aus der Chat-Kopfzeile.
-                </p>
-                <select
-                  className="ps-input"
-                  value={config.naviModeId ?? ""}
-                  onChange={(e) =>
-                    setConfig((p) => ({ ...p, naviModeId: e.target.value }))
-                  }
-                >
-                  <option value="">— aktueller Chat-Modus —</option>
-                  {modes
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.id})
-                      </option>
-                    ))}
-                </select>
-
-                <label className="ps-label" style={{ marginTop: "1.25rem" }}>
-                  LLM für Navi-Sitzungen
-                </label>
-                <p className="ps-hint">
-                  Leer = LLM aus dem gewählten Modus bzw. globaler Fallback.
-                  Anbieter verwaltest du unter <strong>LLMs</strong>.
-                </p>
-                <select
-                  className="ps-input"
-                  value={config.naviLlmId ?? ""}
-                  onChange={(e) =>
-                    setConfig((p) => ({ ...p, naviLlmId: e.target.value }))
-                  }
-                  disabled={loadingLlms || !llmsState?.providers?.length}
-                >
-                  <option value="">Standard (Modus / erstes LLM)</option>
-                  {(llmsState?.providers ?? []).map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name} ({l.fastModel})
-                    </option>
-                  ))}
-                </select>
-
-                <label className="ps-label" style={{ marginTop: "1.25rem" }}>
-                  State-Anpassungen
-                </label>
-                <p className="ps-hint">
-                  Passe Anweisungen und Arbeitsplan für jeden Navi-State an. Ohne Override gilt der Standard aus dem Code.
-                </p>
-                <NaviInstructionsEditor
-                  states={NAVI_STATES}
-                  instructionOverrides={naviInstructionDraft}
-                  workPlanOverrides={naviWorkPlanDraft}
-                  onInstructionChange={setNaviInstructionDraft}
-                  onWorkPlanChange={setNaviWorkPlanDraft}
-                />
-                <div className="ps-actions" style={{ gap: 8 }}>
-                  <button
-                    type="button"
-                    className="ps-save-btn"
-                    disabled={savingConfig}
-                    onClick={async () => {
-                      setSavingConfig(true);
-                      setError(null);
-                      try {
-                        const saved = await projectConfigApi.update({ ...config, naviInstructions: naviInstructionDraft, naviWorkPlans: naviWorkPlanDraft });
-                        setConfig(saved);
-                        setNaviInstructionDraft(saved.naviInstructions ?? {});
-                        setNaviWorkPlanDraft(saved.naviWorkPlans ?? {});
-                        setConfigSaved(true);
-                        setTimeout(() => setConfigSaved(false), 2000);
-                        onGeneralConfigSaved?.();
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Save failed");
-                      } finally {
-                        setSavingConfig(false);
-                      }
-                    }}
-                  >
-                    {savingConfig ? (
-                      <><Loader size={13} className="ps-spinner" /> Saving...</>
-                    ) : configSaved ? (
-                      <><Check size={13} /> Saved</>
-                    ) : (
-                      <><Save size={13} /> Speichern</>
-                    )}
-                  </button>
-                  {(Object.keys(naviInstructionDraft).length > 0 ||
-                    Object.keys(naviWorkPlanDraft).length > 0) && (
-                    <button
-                      type="button"
-                      className="ps-secondary-btn"
-                      disabled={savingConfig}
-                      onClick={() => void handleResetNavi()}
-                      title="Alle Navi-Anpassungen verwerfen und auf die Standard-States zurücksetzen"
-                      style={{ display: "flex", alignItems: "center", gap: 4 }}
-                    >
-                      <RefreshCw size={13} /> Alle zurücksetzen
-                    </button>
-                  )}
-                </div>
               </div>
             )}
 

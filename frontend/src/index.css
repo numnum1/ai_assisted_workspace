@@ -3512,14 +3512,6 @@ body.file-tree-native-dragging {
     }
 }
 
-@keyframes navi-spin {
-    to { transform: rotate(360deg); }
-}
-
-.navi-step-spin {
-    animation: navi-spin 1s linear infinite;
-}
-
 /* Persistent tool-call blocks (Cursor-style) in chat */
 .chat-tool-call {
     /* Do not let flex column parents (.chat-messages, .quick-chat-messages) shrink

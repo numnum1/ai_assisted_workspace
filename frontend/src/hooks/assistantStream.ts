@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import type { ChatMessage, ChatRequest, ContextInfo, NaviFacts, NaviTraceEntry, SelectionContext } from '../types.ts';
+import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
 import { streamChat } from '../api.ts';
 import { CHAT_ASSISTANT_UI_MODE } from '../config/chatAssistantUi.ts';
 import { extractFilesReadByTools } from '../utils/toolContextUtils.ts';
@@ -23,11 +23,6 @@ export type StreamCallbacks = {
   setContextInfo: Dispatch<SetStateAction<ContextInfo | null>>;
   currentBaseRef: MutableRefObject<ChatMessage[]>;
   turnId?: string;
-  onNaviState?: (stateId: string, completedStateId?: string) => void;
-  onNaviTipsCovered?: (coveredIds: string[]) => void;
-  onNaviStep?: (label: string | null) => void;
-  onNaviFacts?: (facts: NaviFacts) => void;
-  onNaviTrace?: (entry: NaviTraceEntry) => void;
 };
 
 function assistantMessage(
@@ -178,16 +173,5 @@ export function attachAssistantStream(
       cbs.currentBaseRef.current = base;
       cbs.setMessages(base);
     },
-    cbs.onNaviState,
-    cbs.onNaviTipsCovered,
-    cbs.onNaviStep
-      ? (label: string | null) => {
-          // Push shell immediately so the AssistantTurnCard exists to display the step label
-          if (label !== null) pushAssistantShell();
-          cbs.onNaviStep!(label);
-        }
-      : undefined,
-    cbs.onNaviFacts,
-    cbs.onNaviTrace,
   );
 }

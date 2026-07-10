@@ -59,10 +59,6 @@ import {
   generateThreadSummary,
   generateChapterComments,
   type ChapterCommentCategoryInput,
-  generateSimulatedUserReply,
-  type SimulatedUserReplyRequest,
-  evaluateNaviSimulation,
-  type EvaluateNaviSimulationRequest,
 } from "./services/chatService.js";
 import {
   createProvider,
@@ -82,21 +78,9 @@ import {
   listTypedFiles,
 } from "./services/typedFilesService.js";
 import {
-  writeSimulationResult,
-  readSimulationResult,
-  listSimulationResults,
-  listSimulationBooks,
-} from "./services/simulationService.js";
-import {
   runEnsembleScene,
   type EnsembleRunRequest,
 } from "./services/ensembleService.js";
-import {
-  listPersonas,
-  readPersona,
-  writePersona,
-  deletePersona,
-} from "./services/personaService.js";
 import { searchProjectContent } from "./services/searchService.js";
 import { indexProject, getIndexStatus } from "./services/vectorService.js";
 import { listProviders, resolveEmbeddingCredentials } from "./services/aiProviderService.js";
@@ -663,31 +647,6 @@ function registerIpcHandlers(): void {
     },
   );
 
-  ipcMain.handle("simulation:listBooks", () =>
-    listSimulationBooks(getCurrentProjectPath()),
-  );
-  ipcMain.handle(
-    "simulation:writeResult",
-    (_event, name: string, content: string) =>
-      writeSimulationResult(getCurrentProjectPath(), name, content),
-  );
-  ipcMain.handle("simulation:readResult", (_event, name: string) =>
-    readSimulationResult(getCurrentProjectPath(), name),
-  );
-  ipcMain.handle("simulation:listResults", () =>
-    listSimulationResults(getCurrentProjectPath()),
-  );
-  ipcMain.handle(
-    "simulation:generateUserReply",
-    (_event, req: SimulatedUserReplyRequest) =>
-      generateSimulatedUserReply(req),
-  );
-  ipcMain.handle(
-    "simulation:evaluateRun",
-    (_event, req: EvaluateNaviSimulationRequest) =>
-      evaluateNaviSimulation(req),
-  );
-
   ipcMain.handle("ensemble:run", (event, req: EnsembleRunRequest) => {
     const runId = `ens-${Date.now().toString(36)}-${Math.random()
       .toString(36)
@@ -704,15 +663,6 @@ function registerIpcHandlers(): void {
       );
     return { runId };
   });
-
-  ipcMain.handle("persona:list", () => listPersonas());
-  ipcMain.handle("persona:read", (_event, id: string) => readPersona(id));
-  ipcMain.handle(
-    "persona:write",
-    (_event, name: string, description: string) =>
-      writePersona(name, description),
-  );
-  ipcMain.handle("persona:delete", (_event, id: string) => deletePersona(id));
 
   ipcMain.handle("typedFiles:list", () =>
     listTypedFiles(getCurrentProjectPath()),

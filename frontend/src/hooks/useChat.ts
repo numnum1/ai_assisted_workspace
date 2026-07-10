@@ -5,11 +5,8 @@ import type {
   ChatSessionKind,
   ContextInfo,
   MessageFeedback,
-  NaviFacts,
-  NaviTraceEntry,
   ReasoningEffort,
   SelectionContext,
-  SimulationConfig,
 } from '../types.ts';
 import { buildHistoryPayload } from './chatHistoryPayload.ts';
 import { attachAssistantStream, type StreamCallbacks } from './assistantStream.ts';
@@ -39,10 +36,6 @@ export interface ChatStreamSessionMeta {
   sessionKind: ChatSessionKind;
   steeringPlan?: string;
   isThread?: boolean;
-  naviStateId?: string | null;
-  naviFacts?: NaviFacts;
-  naviCoveredTips?: string[];
-  simulationConfig?: SimulationConfig;
 }
 
 /** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. guided preset bootstrap). */
@@ -65,11 +58,6 @@ export interface UseChatOptions {
     fullText: string,
     meta: { conversationId: string; sessionKind: ChatSessionKind },
   ) => void;
-  onNaviStateTransition?: (stateId: string, conversationId: string, completedStateId?: string) => void;
-  onNaviTipsCovered?: (coveredIds: string[], conversationId: string) => void;
-  onNaviStep?: (label: string | null) => void;
-  onNaviFacts?: (facts: NaviFacts, conversationId: string) => void;
-  onNaviTrace?: (entry: NaviTraceEntry, conversationId: string) => void;
 }
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
@@ -77,25 +65,14 @@ function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined):
     return { sessionKind: 'standard' };
   }
   const sk = meta.sessionKind ?? 'standard';
-  const simPart = meta.simulationConfig ? { simulationConfig: meta.simulationConfig } : {};
   if (sk === 'guided') {
     return {
       sessionKind: 'guided',
       steeringPlan: meta.steeringPlan ?? null,
       ...(meta.isThread ? { isThread: true } : {}),
-      ...simPart,
     };
   }
-  if (sk === 'navi') {
-    return {
-      sessionKind: 'navi',
-      naviStateId: meta.naviStateId ?? null,
-      ...(meta.naviFacts ? { naviFacts: meta.naviFacts } : {}),
-      ...(meta.naviCoveredTips && meta.naviCoveredTips.length > 0 ? { naviCoveredTips: meta.naviCoveredTips } : {}),
-      ...simPart,
-    };
-  }
-  return { sessionKind: 'standard', ...simPart };
+  return { sessionKind: 'standard' };
 }
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, options?: UseChatOptions) {
@@ -114,18 +91,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   onMessagesChangeRef.current = onMessagesChange;
   const onAssistantResponseCompleteRef = useRef(options?.onAssistantResponseComplete);
   onAssistantResponseCompleteRef.current = options?.onAssistantResponseComplete;
-  const onNaviStateTransitionRef = useRef(options?.onNaviStateTransition);
-  onNaviStateTransitionRef.current = options?.onNaviStateTransition;
-  const onNaviTipsCoveredRef = useRef(options?.onNaviTipsCovered);
-  onNaviTipsCoveredRef.current = options?.onNaviTipsCovered;
-  const onNaviStepRef = useRef(options?.onNaviStep);
-  onNaviStepRef.current = options?.onNaviStep;
-  const onNaviFactsRef = useRef(options?.onNaviFacts);
-  onNaviFactsRef.current = options?.onNaviFacts;
-  const onNaviTraceRef = useRef(options?.onNaviTrace);
-  onNaviTraceRef.current = options?.onNaviTrace;
-  const [naviStep, setNaviStep] = useState<string | null>(null);
-  const [naviStepForCard, setNaviStepForCard] = useState<string | null>(null);
 
   // Tracks the evolving base message list during an active stream so that
   // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
@@ -147,17 +112,12 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     onMessagesChangeRef.current?.(messages);
   }, [messages]);
 
-  useEffect(() => {
-    if (!streaming) setNaviStepForCard(null);
-  }, [streaming]);
-
   const loadMessages = useCallback((msgs: ChatMessage[]) => {
     syncEnabledRef.current = false;
     setMessages(msgs);
     setContextInfo(null);
     setError(null);
     setToolActivity(null);
-    setNaviStepForCard(null);
     // Re-enable sync after React processes the state update
     requestAnimationFrame(() => {
       syncEnabledRef.current = true;
@@ -212,39 +172,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           ? { conversationId: streamSession.conversationId, sessionKind: streamSession.sessionKind }
           : undefined;
 
-      const naviConversationId = streamSession?.conversationId ?? '';
-      const onNaviState =
-        streamSession?.sessionKind === 'navi' && onNaviStateTransitionRef.current
-          ? (stateId: string, completedStateId?: string) =>
-              onNaviStateTransitionRef.current!(stateId, naviConversationId, completedStateId)
-          : undefined;
-
-      const onNaviTipsCoveredCb =
-        streamSession?.sessionKind === 'navi' && onNaviTipsCoveredRef.current
-          ? (coveredIds: string[]) => onNaviTipsCoveredRef.current!(coveredIds, naviConversationId)
-          : undefined;
-
-      const onNaviFactsCb =
-        streamSession?.sessionKind === 'navi' && onNaviFactsRef.current
-          ? (facts: NaviFacts) => onNaviFactsRef.current!(facts, naviConversationId)
-          : undefined;
-
-      const onNaviTraceCb =
-        streamSession?.sessionKind === 'navi' && onNaviTraceRef.current
-          ? (entry: NaviTraceEntry) => onNaviTraceRef.current!(entry, naviConversationId)
-          : undefined;
-
-      const streamCbs: StreamCallbacks = {
-        ...streamCbsBase,
-        ...(onNaviState ? { onNaviState } : {}),
-        ...(onNaviTipsCoveredCb ? { onNaviTipsCovered: onNaviTipsCoveredCb } : {}),
-        ...(onNaviFactsCb ? { onNaviFacts: onNaviFactsCb } : {}),
-        ...(onNaviTraceCb ? { onNaviTrace: onNaviTraceCb } : {}),
-        onNaviStep: (label) => {
-          setNaviStep(label);
-          if (label !== null) setNaviStepForCard(label);
-        },
-      };
+      const streamCbs: StreamCallbacks = streamCbsBase;
 
       const request: ChatRequest = {
         message: text,
@@ -438,8 +366,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     contextInfo,
     error,
     toolActivity,
-    naviStep,
-    naviStepForCard,
     sendMessage,
     stopStreaming,
     retry,
