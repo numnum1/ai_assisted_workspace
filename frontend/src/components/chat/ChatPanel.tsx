@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Pencil, Maximize2, Minimize2, GitMerge, Loader2, Waypoints } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { History, Pencil, GitMerge, Loader2, Waypoints } from "lucide-react";
 import type {
   AgentPreset,
   ChatMessage,
@@ -191,7 +191,6 @@ export function ChatPanel({
   onFetchContextBlocks,
 }: ChatPanelProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [renamingTitle, setRenamingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -199,32 +198,6 @@ export function ChatPanel({
   useEffect(() => {
     setRenamingTitle(false);
   }, [activeConversationId]);
-
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (document.querySelector(".chat-expand-overlay")) return;
-      if (document.querySelector(".new-chat-dialog-overlay")) return;
-      if (document.querySelector(".glossary-save-overlay")) return;
-      setIsFullscreen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isFullscreen]);
-
-  const toggleChatFullscreen = useCallback(() => {
-    setIsFullscreen((v) => !v);
-  }, []);
 
   const activeTitle =
     conversations.find((c) => c.id === activeConversationId)?.title ?? "";
@@ -272,7 +245,7 @@ export function ChatPanel({
   ]);
 
   return (
-    <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
+    <div className="chat-panel">
       <div className="chat-header">
         {guidedExecSummary ? (
           <div
@@ -335,20 +308,6 @@ export function ChatPanel({
               {isSummarizing ? <Loader2 size={14} className="chat-btn-spin" /> : <GitMerge size={14} />}
             </button>
           )}
-          <button
-            type="button"
-            data-testid="expandButton"
-            className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
-            onClick={toggleChatFullscreen}
-            title={
-              isFullscreen
-                ? "Vergrößerte Ansicht schließen (Esc)"
-                : "Chat vergrößern"
-            }
-            aria-pressed={isFullscreen}
-          >
-            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
           <button
             className={`chat-history-btn ${historyOpen ? "active" : ""}`}
             onClick={() => setHistoryOpen((prev) => !prev)}
