@@ -2,12 +2,9 @@ import {
   useState,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
 } from "react";
-import { Panel, Group, Separator, usePanelRef } from "react-resizable-panels";
-import type { Layout } from "react-resizable-panels";
 import {
   FolderOpen,
   ArrowDown,
@@ -21,12 +18,9 @@ import {
   Palette,
   Bug,
 } from "lucide-react";
-import { FileTreeOutliner } from "./components/outliner/FileTreeOutliner.tsx";
 import { MarkdownFileEditor } from "./components/editor/MarkdownFileEditor.tsx";
 import { SubprojectTypeDialog } from "./components/settings/SubprojectTypeDialog.tsx";
 import { MetaPanel } from "./components/meta/MetaPanel.tsx";
-import { ChatPanel } from "./components/chat/ChatPanel.tsx";
-import { PanelSlot } from "./components/PanelSlot.tsx";
 import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
 import { CommandPalette } from "./components/git/CommandPalette.tsx";
 import { GitCredentialsDialog } from "./components/git/GitCredentialsDialog.tsx";
@@ -47,12 +41,10 @@ import type {
 } from "./types.ts";
 import {
   modesApi,
-  projectApi,
   projectConfigApi,
   bookApi,
   llmApi,
   vectorApi,
-  chatApi,
   gitApi,
   streamChat,
 } from "./api.ts";
@@ -62,14 +54,10 @@ import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import { useProject } from "./hooks/useProject.ts";
 import { useChapter } from "./hooks/useChapter.ts";
 import { useChat } from "./hooks/useChat.ts";
-import { useReferencedFiles } from "./hooks/useContext.ts";
 import { useChatHistory } from "./hooks/useChatHistory.ts";
 import { useWorkspaceMode } from "./hooks/useWorkspaceMode.ts";
-import { useWorkspaceLevelConfigMap } from "./hooks/useWorkspaceLevelConfigMap.ts";
-import { useOutlinerScope } from "./hooks/useOutlinerScope.ts";
 import { useFileTabs } from "./hooks/useFileTabs.ts";
 import { useGitState } from "./hooks/useGitState.ts";
-import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { EditorTabs } from "./components/editor/EditorTabs.tsx";
 import { SearchPanel } from "./components/editor/SearchPanel.tsx";
 import { ArcTimeline } from "./components/arcs/ArcTimeline.tsx";
@@ -80,7 +68,6 @@ import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx
 import { AlternativeVersionPanel } from "./components/editor/AlternativeVersionPanel.tsx";
 import { QuickChatWindow } from "./components/chat/QuickChatWindow.tsx";
 import { resolveDefaultModeId } from "./components/chat/effectiveChatModeForRequest.ts";
-import { useConversationModel } from "./hooks/useConversationModel.ts";
 import {
   loadInitialDisabledToolkits,
   saveDisabledToolkits,
@@ -88,8 +75,6 @@ import {
   saveRulesEnabled,
   loadLlmPrefs,
   saveLlmPrefs,
-  loadMainPanelLayout,
-  saveMainPanelLayout,
 } from "./utils/chatStorage.ts";
 
 function conversationHasVisibleMessages(conv: Conversation): boolean {
@@ -99,7 +84,6 @@ function conversationHasVisibleMessages(conv: Conversation): boolean {
 function App() {
   const project = useProject();
   const chapter = useChapter();
-  const refs = useReferencedFiles();
   const { preferences, updatePreferences } = usePreferences();
   const chatFontSizePxRef = useRef(preferences.appearance.chatFontSizePx ?? 14);
   chatFontSizePxRef.current = preferences.appearance.chatFontSizePx ?? 14;
@@ -114,12 +98,8 @@ function App() {
   const [llms, setLlms] = useState<LlmPublic[]>([]);
   const llmsRef = useRef(llms);
   llmsRef.current = llms;
-  const [disabledToolkits, setDisabledToolkits] = useState(
-    loadInitialDisabledToolkits,
-  );
-  const [rulesEnabled, setRulesEnabled] = useState(loadInitialRulesEnabled);
-  const [chatDownloadFeatureEnabled, setChatDownloadFeatureEnabled] =
-    useState(false);
+  const [disabledToolkits] = useState(loadInitialDisabledToolkits);
+  const [rulesEnabled] = useState(loadInitialRulesEnabled);
 
   // Apply user appearance preferences as CSS variables on the document root
   useEffect(() => {
@@ -161,62 +141,6 @@ function App() {
     /** Re-sync when mode list reloads (e.g. loadModes after settings) without bumping loadGen. */
     modesSig: string;
   } | null>(null);
-
-  const handleToggleReasoning = useCallback(
-    () => setUseReasoning((v) => !v),
-    [],
-  );
-  const handleReasoningEffortChange = useCallback(
-    (effort: ReasoningEffort) => setReasoningEffort(effort),
-    [],
-  );
-  const handleToggleToolkit = useCallback((kitId: string) => {
-    setDisabledToolkits((prev) => {
-      const next = new Set(prev);
-      if (next.has(kitId)) {
-        next.delete(kitId);
-      } else {
-        next.add(kitId);
-      }
-      return next;
-    });
-  }, []);
-  const handleToggleRules = useCallback(() => setRulesEnabled((v) => !v), []);
-
-  const handleLlmChange = useCallback(
-    (id: string | undefined) => {
-      setModeLlmId(id);
-      if (id) {
-        const llm = llms.find((l) => l.id === id);
-        if (llm) {
-          const hasReasoning = !!llm.reasoningModel;
-          const hasFast = !!llm.fastModel;
-          if (!hasReasoning) {
-            setUseReasoning(false);
-          } else if (!hasFast) {
-            setUseReasoning(true);
-          }
-          // both available → keep current toggle state
-        }
-      } else {
-        const mode = modes.find((m) => m.id === selectedMode);
-        setUseReasoning(mode?.useReasoning ?? false);
-      }
-    },
-    [llms, modes, selectedMode],
-  );
-
-  const reasoningAvailable = useMemo(() => {
-    if (!modeLlmId) return true;
-    const llm = llms.find((l) => l.id === modeLlmId);
-    return !llm || !!llm.reasoningModel;
-  }, [modeLlmId, llms]);
-
-  const fastAvailable = useMemo(() => {
-    if (!modeLlmId) return true;
-    const llm = llms.find((l) => l.id === modeLlmId);
-    return !llm || !!llm.fastModel;
-  }, [modeLlmId, llms]);
 
   const handleModeChange = useCallback(
     (modeId: string, modeList?: typeof modes) => {
@@ -278,21 +202,16 @@ function App() {
   /** Bumped after modes + LLM list load so chat mode can sync once project defaults are known. */
   const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
 
-  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
-  const [workspaceModesRefreshNonce, setWorkspaceModesRefreshNonce] =
-    useState(0);
-  const [inlineChaptersNonce, setInlineChaptersNonce] = useState(0);
+  const [, setTreeRefreshKey] = useState(0);
+  const [, setWorkspaceModesRefreshNonce] = useState(0);
+  const [, setInlineChaptersNonce] = useState(0);
   const [subprojectDialog, setSubprojectDialog] = useState<{
     path: string;
     initialType?: string | null;
   } | null>(null);
-  const outlinerScope = useOutlinerScope(
-    project.projectPath ? project.projectPath : null,
-  );
 
   // Ctrl+L: capture editor selection for chat
-  const [activeSelection, setActiveSelection] =
-    useState<SelectionContext | null>(null);
+  const [, setActiveSelection] = useState<SelectionContext | null>(null);
   const activeSelectionReplaceFnRef = useRef<
     ((from: number, to: number, text: string) => void) | null
   >(null);
@@ -301,14 +220,6 @@ function App() {
   // Ctrl+Alt+A: alternative version panel
   const [altVersionSession, setAltVersionSession] =
     useState<AltVersionSession | null>(null);
-
-  const farLeftPanelRef = usePanelRef();
-  const leftPanelRef = usePanelRef();
-  const centerPanelRef = usePanelRef();
-  const rightPanelRef = usePanelRef();
-  const farRightPanelRef = usePanelRef();
-
-  const mainPanelDefaultLayout = useMemo(() => loadMainPanelLayout(), []);
 
   const handleCtrlL = useCallback(
     (
@@ -321,24 +232,6 @@ function App() {
     },
     [],
   );
-
-  const handleReplaceSelection = useCallback(
-    (replacement: string, ctx: SelectionContext) => {
-      if (!activeSelectionReplaceFnRef.current) return;
-      activeSelectionReplaceFnRef.current(ctx.from, ctx.to, replacement);
-      activeSelectionReplaceFnRef.current = null;
-    },
-    [],
-  );
-
-  const handleDismissSelection = useCallback(() => {
-    setActiveSelection(null);
-    activeSelectionReplaceFnRef.current = null;
-  }, []);
-
-  const clearActiveSelectionForChat = useCallback(() => {
-    setActiveSelection(null);
-  }, []);
 
   const handleAltVersion = useCallback((session: AltVersionSession) => {
     setAltVersionSession(session);
@@ -389,81 +282,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.projectPath]);
 
-  // Derive parent conversation for split-view (when the active chat is a thread)
-  const parentConversationId =
-    history.activeConversation?.parentConversationId ?? null;
-  const parentConversation =
-    history.conversations.find((c) => c.id === parentConversationId) ?? null;
-
-  // Last visible message from parent chat (for thread context banner)
-  const parentLastVisibleMessage = useMemo(() => {
-    if (!history.activeConversation?.isThread) return null;
-    const msgs = parentConversation?.messages ?? [];
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (
-        !msgs[i].hidden &&
-        (msgs[i].role === "user" || msgs[i].role === "assistant")
-      ) {
-        return msgs[i];
-      }
-    }
-    return null;
-  }, [history.activeConversation?.isThread, parentConversation?.messages]);
-
-  const [summarizingThread, setSummarizingThread] = useState(false);
-
-  const handleSummarizeToParent = useCallback(
-    async (focusInstructions?: string) => {
-      const parentId = history.activeConversation?.parentConversationId;
-      if (!parentId) return;
-      const threadTitle = history.activeConversation?.title ?? "Thread";
-      setSummarizingThread(true);
-      try {
-        const focusNorm =
-          typeof focusInstructions === "string" &&
-          focusInstructions.trim().length > 0
-            ? focusInstructions.trim()
-            : undefined;
-        console.trace(
-          `[App] summarizeToParent: parentId=${parentId}, focus=${focusNorm ? "yes" : "no (default)"}`,
-        );
-        const currentParentForSummary = history.conversations.find(
-          (c) => c.id === parentId,
-        );
-        const { summary, title: generatedTitle } = await chatApi.summarizeThread(
-          chat.messages,
-          focusNorm,
-          currentParentForSummary?.messages,
-        );
-        console.trace(
-          `[App] summarizeToParent: received summary, length=${summary.length}, title="${generatedTitle}"`,
-        );
-        // Apply generated title to thread if the LLM returned one
-        if (generatedTitle) {
-          history.renameConversation(history.activeId, generatedTitle);
-        }
-        const summaryMessage = {
-          role: "assistant" as const,
-          content: summary,
-          kind: "thread-summary" as const,
-          threadSummaryMeta: {
-            fromThreadId: history.activeId,
-            fromThreadTitle: generatedTitle || threadTitle,
-          },
-        };
-        history.summarizeThread(parentId, history.activeId, summaryMessage);
-        // Switch to parent so the summary is immediately visible
-        history.switchConversation(parentId);
-      } catch (err) {
-        console.error("[App] handleSummarizeToParent failed:", err);
-        throw err;
-      } finally {
-        setSummarizingThread(false);
-      }
-    },
-    [chat.messages, history],
-  );
-
   // Load messages when switching conversations
   useEffect(() => {
     if (history.activeConversation) {
@@ -498,24 +316,6 @@ function App() {
       console.error(e);
     }
   }, []);
-
-  const refreshChatDownloadFeature = useCallback(async () => {
-    try {
-      const status = await projectConfigApi.status();
-      if (!status.initialized) {
-        setChatDownloadFeatureEnabled(false);
-        return;
-      }
-      const cfg = await projectConfigApi.get();
-      setChatDownloadFeatureEnabled(cfg.extraFeatures?.chatDownload === true);
-    } catch {
-      setChatDownloadFeatureEnabled(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshChatDownloadFeature();
-  }, [project.projectPath, refreshChatDownloadFeature]);
 
   useEffect(() => {
     prefsHydratedRef.current = false;
@@ -639,7 +439,7 @@ function App() {
   }, [rulesEnabled]);
 
   const [selectedMeta, setSelectedMeta] = useState<MetaSelection | null>(null);
-  const [metaExpanded, setMetaExpanded] = useState(false);
+  const [, setMetaExpanded] = useState(false);
   const [focusedField, setFocusedField] = useState<{
     fieldKey: string;
     fieldLabel: string;
@@ -757,7 +557,6 @@ function App() {
     gitStatus,
     syncStatus,
     fetchGitState,
-    handleGitRevert: handleGitRevertBase,
     credDialogOpen,
     setCredDialogOpen,
     pendingRetry,
@@ -767,14 +566,6 @@ function App() {
     showCredentialsDialog,
   } = git;
   const hasUncommitted = !gitStatus?.isClean;
-
-  const handleGitRevert = useCallback(
-    async (path: string, isDirectory: boolean) => {
-      await handleGitRevertBase(path, isDirectory);
-      setTreeRefreshKey((k) => k + 1);
-    },
-    [handleGitRevertBase],
-  );
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -802,18 +593,6 @@ function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  const handleMainPanelLayoutChanged = useCallback((layout: Layout) => {
-    saveMainPanelLayout(layout);
-  }, []);
-
-  // Outliner and chat moved out of the permanent UI (Ctrl+Shift+Space popup / Alt+2 /
-  // Alt+4 instead) — force them collapsed on load regardless of a persisted layout.
-  useLayoutEffect(() => {
-    leftPanelRef.current?.collapse();
-    rightPanelRef.current?.collapse();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   useEffect(() => {
@@ -853,52 +632,10 @@ function App() {
         return;
       }
 
-      if (!e.altKey || e.shiftKey) return;
-
-      const code = e.code;
-      if (code === "Digit1" || code === "Numpad1") {
-        e.preventDefault();
-        const p = farLeftPanelRef.current;
-        if (!p) return;
-        if (p.isCollapsed()) p.expand();
-        else p.collapse();
-        return;
-      }
-      if (code === "Digit2" || code === "Numpad2") {
-        e.preventDefault();
-        const p = leftPanelRef.current;
-        if (!p) return;
-        if (p.isCollapsed()) p.expand();
-        else p.collapse();
-        return;
-      }
-      if (code === "Digit3" || code === "Numpad3") {
-        e.preventDefault();
-        const p = centerPanelRef.current;
-        if (!p) return;
-        if (p.isCollapsed()) p.expand();
-        else p.collapse();
-        return;
-      }
-      if (code === "Digit4" || code === "Numpad4") {
-        e.preventDefault();
-        const p = rightPanelRef.current;
-        if (!p) return;
-        if (p.isCollapsed()) p.expand();
-        else p.collapse();
-        return;
-      }
-      if (code === "Digit5" || code === "Numpad5") {
-        e.preventDefault();
-        const p = farRightPanelRef.current;
-        if (!p) return;
-        if (p.isCollapsed()) p.expand();
-        else p.collapse();
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- panel refs stable; single global shortcut registration
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- single global shortcut registration
   }, []);
 
   const syncBadge = useMemo(() => {
@@ -934,10 +671,6 @@ function App() {
   );
 
   const workspaceModeId = chapter.activeSubprojectType ?? "default";
-  const levelConfigByModeId = useWorkspaceLevelConfigMap(
-    project.projectPath ?? null,
-    workspaceModesRefreshNonce,
-  );
   const {
     schema: workspaceModeSchema,
     metaSchemas: workspaceMetaSchemas,
@@ -947,14 +680,6 @@ function App() {
   const proseEditorMode = chapter.activeChapter
     ? (workspaceModeSchema?.editorMode ?? "prose")
     : "standard";
-
-  const fieldLabels = useMemo(() => {
-    const schema = workspaceMetaSchemas?.["scene"];
-    if (!schema) return {} as Record<string, string>;
-    return Object.fromEntries(
-      schema.fields.map((f) => [f.key, f.label]),
-    ) as Record<string, string>;
-  }, [workspaceMetaSchemas]);
 
   const MediaProjectEditor =
     getMediaProjectPlugin(workspaceModeId)?.ViewComponent ??
@@ -1094,72 +819,13 @@ function App() {
 
   const onProjectGeneralSaved = useCallback(() => {
     loadModes();
-    void refreshChatDownloadFeature();
     void refreshWorkspaceModeSchema();
-  }, [loadModes, refreshChatDownloadFeature, refreshWorkspaceModeSchema]);
+  }, [loadModes, refreshWorkspaceModeSchema]);
 
   const onWorkspacePluginsChanged = useCallback(() => {
     setWorkspaceModesRefreshNonce((n) => n + 1);
     void refreshWorkspaceModeSchema();
   }, [refreshWorkspaceModeSchema]);
-
-  const mainChatComposerDraftRef = useRef("");
-
-  useEffect(() => {
-    mainChatComposerDraftRef.current = "";
-  }, [history.activeId]);
-
-  const conversation = useConversationModel({
-    projectPath: project.projectPath,
-    activeConversation: history.activeConversation,
-    activeConversationId: history.activeId,
-    selectedMode,
-    modes,
-    modeLlmId,
-    useReasoning,
-    reasoningEffort,
-    disabledToolkits,
-    rulesDisabled: !rulesEnabled,
-    referencedFiles: refs.referencedFiles,
-    focusedFieldKey: focusedField?.fieldKey,
-    activeSelection,
-    messages: chat.messages,
-    pendingMessageRef: mainChatComposerDraftRef,
-    chat,
-    patchConversation: history.patchConversation,
-    onActiveSelectionClear: clearActiveSelectionForChat,
-    clearReferencedFiles: refs.clearFiles,
-  });
-
-  const handleComposerDraftChange = useCallback(
-    (text: string) => {
-      mainChatComposerDraftRef.current = text;
-      conversation.schedulePreviewRefresh();
-    },
-    [conversation.schedulePreviewRefresh],
-  );
-
-  const {
-    handleNewChat,
-    handleDiscardCurrentChat,
-    handleForkToNewConversation,
-    handleStartThreadFromMessage,
-  } = useConversationActions({
-    history,
-    chatMessages: chat.messages,
-    selectedMode,
-    modes,
-    handleModeChange,
-  });
-
-  const handleSwitchChat = useCallback(
-    (id: string) => {
-      history.switchConversation(id);
-    },
-    [history],
-  );
-
-  const activeChapterTitle = chapter.activeChapter?.meta.title ?? null;
 
   return (
     <div className="app">
@@ -1174,355 +840,105 @@ function App() {
         onOpenFileDiff={handleOpenFileDiff}
       />
 
-      <Group
-        orientation="horizontal"
-        className="app-panels"
-        id="main-app-panels"
-        defaultLayout={mainPanelDefaultLayout}
-        onLayoutChanged={handleMainPanelLayoutChanged}
-      >
-        <Panel
-          id="far-left"
-          panelRef={farLeftPanelRef}
-          defaultSize={0}
-          minSize="15%"
-          collapsible
-          collapsedSize={0}
-        >
-          <PanelSlot
-            storageKey="assistant-far-left-slot"
-            defaultTool="threads"
-            conversations={history.conversations}
-            activeConversationId={history.activeId}
-            onSwitchChat={handleSwitchChat}
+      <div className="center-editor-pane">
+        <EditorTabs
+          tabs={fileEditor.tabs}
+          activeTabPath={fileEditor.activeTabPath}
+          onSelectTab={(path) => void fileEditor.openFile(path)}
+          onCloseTab={fileEditor.closeTab}
+          onCloseOtherTabs={fileEditor.closeOtherTabs}
+          onCloseAllTabs={fileEditor.closeAllTabs}
+        />
+        {searchOpen && (
+          <SearchPanel
+            onOpenFile={(path, line) => {
+              void fileEditor.openFile(path, line);
+              setSearchOpen(false);
+            }}
+            onClose={() => setSearchOpen(false)}
           />
-        </Panel>
-
-        <Separator className="resize-handle" />
-
-        <Panel
-          id="outliner"
-          panelRef={leftPanelRef}
-          defaultSize={0}
-          minSize="10%"
-          maxSize="50%"
-          collapsible
-          collapsedSize={0}
-        >
-          <div className="left-column">
-            <div className={`outliner-slot${showMetaChrome ? " split" : ""}`}>
-              <FileTreeOutliner
-                projectPath={project.projectPath ?? null}
-                selectedPath={fileEditor.selectedPath}
-                onSelectFile={(path) => {
-                  chapter.closeChapter();
-                  setSelectedMeta(null);
-                  setMetaExpanded(false);
-                  setFocusedField(null);
-                  void fileEditor.openFile(path);
-                }}
-                onRevealInExplorer={() =>
-                  projectApi.reveal().catch(console.error)
-                }
-                refreshNonce={treeRefreshKey}
-                onTreeMutated={() => setTreeRefreshKey((k) => k + 1)}
-                onFsChange={fileEditor.syncWithFilesystem}
-                inlineChaptersRefreshNonce={inlineChaptersNonce}
-                activeChapterId={chapter.activeChapter?.id ?? null}
-                activeStructureRoot={chapter.structureRoot}
-                editorPosition={chapter.editorPosition}
-                levelConfigByModeId={levelConfigByModeId}
-                onActivateSubprojectStructure={async (
-                  subPath,
-                  subType,
-                  chapterId,
-                  scroll,
-                  selection,
-                ) => {
-                  chapter.setStructureRoot(subPath, subType);
-                  setMetaExpanded(false);
-                  setFocusedField(null);
-                  await chapter.openChapter(chapterId, scroll ?? null);
-                  setSelectedMeta(selection);
-                }}
-                runSubprojectMutation={async (subPath, subType, fn) => {
-                  chapter.setStructureRoot(subPath, subType);
-                  await fn();
-                }}
-                onSubprojectStructureChanged={() =>
-                  setInlineChaptersNonce((n) => n + 1)
-                }
-                onOpenBookMeta={async (subPath, subType) => {
-                  chapter.setStructureRoot(subPath, subType);
-                  const meta = await bookApi.getMeta(subPath);
-                  setSelectedMeta({ type: "book", chapterId: "", meta });
-                  setMetaExpanded(false);
-                }}
-                onCreateChapterInSubproject={async (
-                  subPath,
-                  subType,
-                  title,
-                ) => {
-                  chapter.setStructureRoot(subPath, subType);
-                  await chapter.createChapter(title);
-                  setInlineChaptersNonce((n) => n + 1);
-                }}
-                onConfigureSubproject={(path, existingType) => {
-                  setSubprojectDialog({
-                    path,
-                    initialType: existingType ?? undefined,
-                  });
-                }}
-                scopeToPath={outlinerScope.scopePath}
-                onClearOutlinerScope={outlinerScope.clearScopePath}
-                onSetOutlinerScope={outlinerScope.setScopePath}
-                onScopeInvalidated={outlinerScope.clearScopePath}
-                gitStatus={gitStatus ?? undefined}
-                onGitRevert={handleGitRevert}
-                onShowFileHistory={setFileHistoryPath}
-              />
-            </div>
-
-            {showMetaChrome && selectedMeta && (
-              <div className="meta-panel-slot">
-                <MetaPanel
-                  selection={selectedMeta}
-                  metaSchemas={workspaceMetaSchemas}
-                  onSave={handleSaveMeta}
-                  onClose={() => {
-                    setSelectedMeta(null);
-                    setMetaExpanded(false);
-                    setFocusedField(null);
-                  }}
-                  onExpand={() => setMetaExpanded(true)}
-                  onFocusField={handleOpenFieldEditor}
-                  onOpenFile={(path) => void fileEditor.openFile(path)}
-                />
-              </div>
-            )}
-          </div>
-        </Panel>
-
-        <Separator className="resize-handle" />
-
-        <Panel
-          id="editor"
-          panelRef={centerPanelRef}
-          defaultSize="45%"
-          minSize="15%"
-          collapsible
-          collapsedSize={0}
-        >
-          <div className="center-editor-pane">
-            <EditorTabs
-              tabs={fileEditor.tabs}
-              activeTabPath={fileEditor.activeTabPath}
-              onSelectTab={(path) => void fileEditor.openFile(path)}
-              onCloseTab={fileEditor.closeTab}
-              onCloseOtherTabs={fileEditor.closeOtherTabs}
-              onCloseAllTabs={fileEditor.closeAllTabs}
+        )}
+        {focusedField && showMetaChrome ? (
+          <div className="field-editor-center">
+            <FieldEditorPanel
+              fieldLabel={focusedField.fieldLabel}
+              sceneTitle={selectedMeta?.meta.title || undefined}
+              value={focusedField.value}
+              onSave={handleFieldEditorSave}
+              onClose={() => setFocusedField(null)}
             />
-            {searchOpen && (
-              <SearchPanel
-                onOpenFile={(path, line) => {
-                  void fileEditor.openFile(path, line);
-                  setSearchOpen(false);
-                }}
-                onClose={() => setSearchOpen(false)}
-              />
-            )}
-            {focusedField && showMetaChrome ? (
-              <div className="field-editor-center">
-                <FieldEditorPanel
-                  fieldLabel={focusedField.fieldLabel}
-                  sceneTitle={selectedMeta?.meta.title || undefined}
-                  value={focusedField.value}
-                  onSave={handleFieldEditorSave}
-                  onClose={() => setFocusedField(null)}
-                />
-              </div>
-            ) : metaExpanded && showMetaChrome ? (
-              <div className="meta-panel-center">
-                <MetaPanel
-                  selection={selectedMeta!}
-                  metaSchemas={workspaceMetaSchemas}
-                  onSave={handleSaveMeta}
-                  onClose={() => setMetaExpanded(false)}
-                  expanded={true}
-                  onFocusField={handleOpenFieldEditor}
-                  onOpenFile={(path) => void fileEditor.openFile(path)}
-                />
-              </div>
-            ) : !chapter.activeChapter ? (
-              <MarkdownFileEditor
-                path={fileEditor.selectedPath}
-                content={fileEditor.content}
-                dirty={fileEditor.dirty}
-                loading={fileEditor.loading}
-                error={fileEditor.error}
-                onChange={fileEditor.setContent}
-                onSave={() => {
-                  void fileEditor.save();
-                  fetchGitState();
-                }}
-                onClearError={fileEditor.clearError}
-                onCloseFile={() => {
-                  setFileDiffView(null);
-                  fileEditor.closeFile();
-                }}
-                onCtrlL={handleCtrlL}
-                onAltVersion={handleAltVersion}
-                scrollToLine={fileEditor.pendingScroll?.line}
-                scrollNonce={fileEditor.pendingScroll?.nonce}
-                onScrollHandled={fileEditor.clearPendingScroll}
-                diffOriginal={
-                  fileDiffView && fileDiffView.path === fileEditor.selectedPath
-                    ? fileDiffView.content
-                    : null
-                }
-                diffLabel={fileDiffView?.label}
-                onExitDiff={() => setFileDiffView(null)}
-              />
-            ) : (
-              <MediaProjectEditor
-                editorMode={proseEditorMode}
-                proseLeafAtScene={
-                  workspaceModeSchema?.proseLeafLevel === "scene"
-                }
-                chapter={chapter.activeChapter}
-                structureRoot={chapter.structureRoot}
-                actionContents={chapter.actionContents}
-                scrollTarget={chapter.scrollTarget}
-                hasDirtyActions={chapter.hasDirtyActions}
-                onActionChange={chapter.updateActionContent}
-                onActionSave={chapter.saveAction}
-                onSaveAll={() => {
-                  chapter.saveAllDirty();
-                  fetchGitState();
-                }}
-                onClose={chapter.closeChapter}
-                onScrollTargetConsumed={chapter.clearScrollTarget}
-                onEditorFocus={chapter.updateEditorPosition}
-                onCtrlL={handleCtrlL}
-                onAltVersion={handleAltVersion}
-              />
-            )}
           </div>
-        </Panel>
-
-        <Separator className="resize-handle" />
-
-        <Panel
-          id="chat"
-          panelRef={rightPanelRef}
-          defaultSize={0}
-          minSize="15%"
-          collapsible
-          collapsedSize={0}
-        >
-          <div className="chat-column">
-            <div className="chat-column-main">
-              <ChatPanel
-                messages={conversation.messages}
-                streaming={conversation.streaming}
-                error={conversation.error}
-                toolActivity={conversation.toolActivity}
-                theme={
-                  preferences.appearance.theme === "light" ? "light" : "dark"
-                }
-                modes={modes}
-                selectedMode={selectedMode}
-                referencedFiles={refs.referencedFiles}
-                conversations={history.conversations}
-                activeConversationId={history.activeId}
-                useReasoning={useReasoning}
-                onToggleReasoning={handleToggleReasoning}
-                reasoningEffort={reasoningEffort}
-                onReasoningEffortChange={handleReasoningEffortChange}
-                disabledToolkits={disabledToolkits}
-                onToggleToolkit={handleToggleToolkit}
-                rulesEnabled={rulesEnabled}
-                onToggleRules={handleToggleRules}
-                reasoningAvailable={reasoningAvailable}
-                fastAvailable={fastAvailable}
-                onModeChange={handleModeChange}
-                llms={llms}
-                selectedLlmId={modeLlmId}
-                onLlmChange={handleLlmChange}
-                onSend={conversation.send}
-                onStop={conversation.stopStreaming}
-                onRetry={conversation.retry}
-                onAddFile={refs.addFile}
-                onRemoveFile={refs.removeFile}
-                onForkFromMessage={conversation.forkFromMessage}
-                onForkToNewConversation={handleForkToNewConversation}
-                onStartThreadFromMessage={handleStartThreadFromMessage}
-                onEditMessage={conversation.editMessage}
-                onDeleteMessages={conversation.deleteMessages}
-                onSetMessageFeedback={conversation.setMessageFeedback}
-                onNewChat={handleNewChat}
-                onDiscardCurrentChat={handleDiscardCurrentChat}
-                activeIsThread={history.activeConversation?.isThread === true}
-                onSwitchChat={handleSwitchChat}
-                onDeleteChat={history.deleteConversation}
-                onRenameChat={history.renameConversation}
-                onToggleSavedToProject={history.toggleSavedToProject}
-                onClearAllBrowserChats={history.clearAllBrowserChats}
-                clearAllBrowserChatsDisabled={
-                  !project.projectPath || !history.hydrated
-                }
-                chatDownloadEnabled={chatDownloadFeatureEnabled}
-                onOpenArcs={() => setArcsOpen(true)}
-                structureRoot={chapter.structureRoot}
-                activeSelection={activeSelection}
-                onDismissSelection={handleDismissSelection}
-                onReplaceSelection={handleReplaceSelection}
-                onApplyFieldUpdate={handleApplyFieldUpdate}
-                fieldLabels={fieldLabels}
-                chatFocusTriggerRef={chatFocusTriggerRef}
-                onFileChanged={(path) => {
-                  if (fileEditor.selectedPath === path) {
-                    void fileEditor.openFile(path);
-                  }
-                  setTreeRefreshKey((k) => k + 1);
-                }}
-                writeFileSettled={history.activeConversation?.writeFileSettled}
-                onSettleSnapshots={(patch) => {
-                  history.settleWriteFileSnapshots(history.activeId, patch);
-                }}
-                onComposerDraftChange={handleComposerDraftChange}
-                onSummarizeToParent={handleSummarizeToParent}
-                isSummarizing={summarizingThread}
-                contextInfo={conversation.contextInfo}
-                activeFile={activeChapterTitle}
-                isDirty={chapter.hasDirtyActions}
-                systemPromptPreview={conversation.systemPrompt}
-                onFetchContextBlocks={conversation.fetchContextBlocks}
-                parentLastMessage={parentLastVisibleMessage}
-              />
-            </div>
+        ) : selectedMeta && showMetaChrome ? (
+          <div className="meta-panel-center">
+            <MetaPanel
+              selection={selectedMeta}
+              metaSchemas={workspaceMetaSchemas}
+              onSave={handleSaveMeta}
+              onClose={() => {
+                setSelectedMeta(null);
+                setMetaExpanded(false);
+                setFocusedField(null);
+              }}
+              expanded={true}
+              onFocusField={handleOpenFieldEditor}
+              onOpenFile={(path) => void fileEditor.openFile(path)}
+            />
           </div>
-        </Panel>
-
-        <Separator className="resize-handle" />
-
-        <Panel
-          id="far-right"
-          panelRef={farRightPanelRef}
-          defaultSize={0}
-          minSize="15%"
-          collapsible
-          collapsedSize={0}
-        >
-          <PanelSlot
-            storageKey="assistant-far-right-slot"
-            defaultTool="plans"
-            conversations={history.conversations}
-            activeConversationId={history.activeId}
-            onSwitchChat={handleSwitchChat}
+        ) : !chapter.activeChapter ? (
+          <MarkdownFileEditor
+            path={fileEditor.selectedPath}
+            content={fileEditor.content}
+            dirty={fileEditor.dirty}
+            loading={fileEditor.loading}
+            error={fileEditor.error}
+            onChange={fileEditor.setContent}
+            onSave={() => {
+              void fileEditor.save();
+              fetchGitState();
+            }}
+            onClearError={fileEditor.clearError}
+            onCloseFile={() => {
+              setFileDiffView(null);
+              fileEditor.closeFile();
+            }}
+            onCtrlL={handleCtrlL}
+            onAltVersion={handleAltVersion}
+            scrollToLine={fileEditor.pendingScroll?.line}
+            scrollNonce={fileEditor.pendingScroll?.nonce}
+            onScrollHandled={fileEditor.clearPendingScroll}
+            diffOriginal={
+              fileDiffView && fileDiffView.path === fileEditor.selectedPath
+                ? fileDiffView.content
+                : null
+            }
+            diffLabel={fileDiffView?.label}
+            onExitDiff={() => setFileDiffView(null)}
           />
-        </Panel>
-      </Group>
+        ) : (
+          <MediaProjectEditor
+            editorMode={proseEditorMode}
+            proseLeafAtScene={
+              workspaceModeSchema?.proseLeafLevel === "scene"
+            }
+            chapter={chapter.activeChapter}
+            structureRoot={chapter.structureRoot}
+            actionContents={chapter.actionContents}
+            scrollTarget={chapter.scrollTarget}
+            hasDirtyActions={chapter.hasDirtyActions}
+            onActionChange={chapter.updateActionContent}
+            onActionSave={chapter.saveAction}
+            onSaveAll={() => {
+              chapter.saveAllDirty();
+              fetchGitState();
+            }}
+            onClose={chapter.closeChapter}
+            onScrollTargetConsumed={chapter.clearScrollTarget}
+            onEditorFocus={chapter.updateEditorPosition}
+            onCtrlL={handleCtrlL}
+            onAltVersion={handleAltVersion}
+          />
+        )}
+      </div>
 
       <ArcTimeline open={arcsOpen} onClose={() => setArcsOpen(false)} />
       <ContentBrowserOverlay
