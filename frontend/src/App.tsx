@@ -952,6 +952,14 @@ function App() {
           setFocusedField(null);
           void fileEditor.openFile(path);
         }}
+        onSelectChapter={(chapterId, structureRoot, subprojectType) => {
+          fileEditor.closeFile();
+          setSelectedMeta(null);
+          setMetaExpanded(false);
+          setFocusedField(null);
+          chapter.setStructureRoot(structureRoot, subprojectType);
+          void chapter.openChapter(chapterId);
+        }}
       />
 
       {credDialogOpen && (

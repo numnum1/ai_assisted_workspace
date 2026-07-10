@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Search, Folder, FileText, X, ChevronRight, ArrowUp, FolderOpen } from "lucide-react";
-import { filesApi, wikiApi } from "../../api.ts";
+import { Search, Folder, FileText, X, FolderOpen } from "lucide-react";
+import { chapterApi, filesApi, wikiApi } from "../../api.ts";
 import type { FileNode } from "../../types.ts";
 import "./ContentBrowserOverlay.css";
 
@@ -14,49 +14,55 @@ interface WikiAsset {
   snippet?: string;
 }
 
-interface Tile {
+interface WikiTile {
   key: string;
   name: string;
-  directory: boolean;
-  category?: string;
+  category: string;
   snippet?: string;
-  /** Project-relative path to open, or the folder path to navigate into. */
+  /** Project-relative path to open. */
   path: string;
+}
+
+/** A book-like subproject (or the project root itself) that owns a chapter list. */
+interface BookProject {
+  /** "." for the project root, otherwise the subproject's relative folder path. */
+  path: string;
+  name: string;
+  subprojectType: string | null;
+}
+
+interface ChapterRow {
+  key: string;
+  chapterId: string;
+  title: string;
+  projectPath: string;
+  projectName: string;
+  subprojectType: string | null;
 }
 
 interface ContentBrowserOverlayProps {
   open: boolean;
   projectPath: string | null;
   onClose: () => void;
-  /** Opens a project-relative path in the editor. */
+  /** Opens a project-relative path in the editor (used by the Wiki column). */
   onSelectFile: (path: string) => void;
+  /** Opens a chapter within its owning book project (project root when structureRoot is null). */
+  onSelectChapter: (chapterId: string, structureRoot: string | null, subprojectType: string | null) => void;
 }
 
-function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
-  if (root.path === targetPath) return root;
-  if (!root.children) return null;
-  for (const child of root.children) {
-    const found = findNodeByPath(child, targetPath);
-    if (found) return found;
-  }
-  return null;
-}
-
-function parentPath(path: string): string {
-  if (path === "." || !path.includes("/")) return ".";
-  return path.slice(0, path.lastIndexOf("/"));
-}
-
-function breadcrumbSegments(path: string): { label: string; path: string }[] {
-  if (path === ".") return [];
-  const parts = path.split("/");
-  const segments: { label: string; path: string }[] = [];
-  let acc = "";
-  for (const part of parts) {
-    acc = acc ? `${acc}/${part}` : part;
-    segments.push({ label: part, path: acc });
-  }
-  return segments;
+function collectBookProjects(root: FileNode): BookProject[] {
+  const projects: BookProject[] = [
+    { path: ".", name: root.name || "Projekt", subprojectType: root.subprojectType ?? null },
+  ];
+  const visit = (node: FileNode) => {
+    if (node.directory && node.subprojectType) {
+      projects.push({ path: node.path, name: node.name, subprojectType: node.subprojectType });
+      return;
+    }
+    node.children?.forEach(visit);
+  };
+  root.children?.forEach(visit);
+  return projects;
 }
 
 function fileDisplayName(path: string): string {
@@ -83,14 +89,15 @@ export function ContentBrowserOverlay({
   projectPath,
   onClose,
   onSelectFile,
+  onSelectChapter,
 }: ContentBrowserOverlayProps) {
   const [focusedColumn, setFocusedColumn] = useState<Column>("buch");
 
-  // --- Tree data (chapters, left column) ---
+  // --- Chapter data (left column) ---
   const [root, setRoot] = useState<FileNode | null>(null);
-  const [treeLoading, setTreeLoading] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
-  const [currentPath, setCurrentPath] = useState(".");
+  const [chapterRows, setChapterRows] = useState<ChapterRow[]>([]);
+  const [chaptersLoading, setChaptersLoading] = useState(true);
   const [chapterQuery, setChapterQuery] = useState("");
   const [chapterIdx, setChapterIdx] = useState(0);
   const chapterInputRef = useRef<HTMLInputElement>(null);
@@ -110,14 +117,13 @@ export function ContentBrowserOverlay({
     let cancelled = false;
     setChapterQuery("");
     setChapterIdx(0);
-    setCurrentPath(".");
     setWikiQuery("");
     setWikiIdx(0);
     setActiveCategory(null);
     setWikiSearchHits(null);
     setFocusedColumn("buch");
 
-    setTreeLoading(true);
+    setChaptersLoading(true);
     setTreeError(null);
     filesApi
       .getTree()
@@ -125,11 +131,10 @@ export function ContentBrowserOverlay({
         if (!cancelled) setRoot(tree);
       })
       .catch((e) => {
-        if (!cancelled)
+        if (!cancelled) {
           setTreeError(e instanceof Error ? e.message : "Baum konnte nicht geladen werden");
-      })
-      .finally(() => {
-        if (!cancelled) setTreeLoading(false);
+          setChaptersLoading(false);
+        }
       });
 
     setWikiLoading(true);
@@ -155,6 +160,42 @@ export function ContentBrowserOverlay({
       clearTimeout(focusTimer);
     };
   }, [open, projectPath]);
+
+  // Once the file tree is in, load every book project's chapter list.
+  useEffect(() => {
+    if (!root) return;
+    let cancelled = false;
+    const projects = collectBookProjects(root);
+    setChaptersLoading(true);
+    Promise.all(
+      projects.map((project) =>
+        chapterApi
+          .list(project.path === "." ? undefined : project.path)
+          .then((list) => ({ project, list }))
+          .catch(() => ({ project, list: [] })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const rows: ChapterRow[] = [];
+      for (const { project, list } of results) {
+        for (const c of list) {
+          rows.push({
+            key: `${project.path}::${c.id}`,
+            chapterId: c.id,
+            title: c.meta.title || c.id,
+            projectPath: project.path,
+            projectName: project.name,
+            subprojectType: project.subprojectType,
+          });
+        }
+      }
+      setChapterRows(rows);
+      setChaptersLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [root]);
 
   // Full-text wiki search (debounced).
   useEffect(() => {
@@ -188,31 +229,29 @@ export function ContentBrowserOverlay({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [allWikiAssets]);
 
-  const currentNode = useMemo(() => {
-    if (!root) return null;
-    return findNodeByPath(root, currentPath);
-  }, [root, currentPath]);
-
-  const chapterTiles = useMemo<Tile[]>(() => {
-    const children = currentNode?.children ?? [];
-    const visible = children.filter((n) => !(n.directory && n.name.toLowerCase() === "wiki"));
+  const chapterGroups = useMemo(() => {
     const trimmed = chapterQuery.trim().toLowerCase();
     const filtered = trimmed
-      ? visible.filter((n) => n.name.toLowerCase().includes(trimmed))
-      : visible;
-    const sorted = [...filtered].sort((a, b) => {
-      if (a.directory !== b.directory) return a.directory ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    return sorted.map((n) => ({
-      key: n.path,
-      name: n.name,
-      directory: n.directory,
-      path: n.path,
-    }));
-  }, [currentNode, chapterQuery]);
+      ? chapterRows.filter(
+          (r) =>
+            r.title.toLowerCase().includes(trimmed) || r.projectName.toLowerCase().includes(trimmed),
+        )
+      : chapterRows;
+    const groups: { projectPath: string; projectName: string; rows: ChapterRow[] }[] = [];
+    for (const row of filtered) {
+      let group = groups.find((g) => g.projectPath === row.projectPath);
+      if (!group) {
+        group = { projectPath: row.projectPath, projectName: row.projectName, rows: [] };
+        groups.push(group);
+      }
+      group.rows.push(row);
+    }
+    return groups;
+  }, [chapterRows, chapterQuery]);
 
-  const wikiTiles = useMemo<Tile[]>(() => {
+  const flatChapterRows = useMemo(() => chapterGroups.flatMap((g) => g.rows), [chapterGroups]);
+
+  const wikiTiles = useMemo<WikiTile[]>(() => {
     const trimmed = wikiQuery.trim().toLowerCase();
     let base: WikiAsset[];
     if (!trimmed) {
@@ -225,36 +264,29 @@ export function ContentBrowserOverlay({
     return filtered.map((a) => ({
       key: a.path,
       name: a.displayName,
-      directory: false,
       category: a.category,
       snippet: a.snippet,
       path: `wiki/${a.path}`,
     }));
   }, [allWikiAssets, wikiSearchHits, activeCategory, wikiQuery]);
 
-  const safeChapterIdx = chapterTiles.length === 0 ? 0 : Math.min(chapterIdx, chapterTiles.length - 1);
+  const safeChapterIdx =
+    flatChapterRows.length === 0 ? 0 : Math.min(chapterIdx, flatChapterRows.length - 1);
   const safeWikiIdx = wikiTiles.length === 0 ? 0 : Math.min(wikiIdx, wikiTiles.length - 1);
 
-  const openTile = useCallback(
-    (tile: Tile) => {
-      if (tile.directory) {
-        setCurrentPath(tile.path);
-        setChapterQuery("");
-        setChapterIdx(0);
-        chapterInputRef.current?.focus();
-      } else {
-        onSelectFile(tile.path);
-      }
+  const openChapterRow = useCallback(
+    (row: ChapterRow) => {
+      onSelectChapter(row.chapterId, row.projectPath === "." ? null : row.projectPath, row.subprojectType);
+    },
+    [onSelectChapter],
+  );
+
+  const openWikiTile = useCallback(
+    (tile: WikiTile) => {
+      onSelectFile(tile.path);
     },
     [onSelectFile],
   );
-
-  const goUp = useCallback(() => {
-    if (currentPath === ".") return;
-    setCurrentPath(parentPath(currentPath));
-    setChapterQuery("");
-    setChapterIdx(0);
-  }, [currentPath]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -264,20 +296,15 @@ export function ContentBrowserOverlay({
         return;
       }
       if (focusedColumn === "buch") {
-        if (e.key === "Backspace" && !chapterQuery) {
-          e.preventDefault();
-          goUp();
-          return;
-        }
         if (e.key === "ArrowDown") {
           e.preventDefault();
-          setChapterIdx((i) => Math.min(i + 1, chapterTiles.length - 1));
+          setChapterIdx((i) => Math.min(i + 1, flatChapterRows.length - 1));
         } else if (e.key === "ArrowUp") {
           e.preventDefault();
           setChapterIdx((i) => Math.max(i - 1, 0));
-        } else if (e.key === "Enter" && chapterTiles[safeChapterIdx]) {
+        } else if (e.key === "Enter" && flatChapterRows[safeChapterIdx]) {
           e.preventDefault();
-          openTile(chapterTiles[safeChapterIdx]);
+          openChapterRow(flatChapterRows[safeChapterIdx]);
         }
       } else {
         if (e.key === "ArrowDown") {
@@ -288,16 +315,23 @@ export function ContentBrowserOverlay({
           setWikiIdx((i) => Math.max(i - 1, 0));
         } else if (e.key === "Enter" && wikiTiles[safeWikiIdx]) {
           e.preventDefault();
-          openTile(wikiTiles[safeWikiIdx]);
+          openWikiTile(wikiTiles[safeWikiIdx]);
         }
       }
     },
-    [focusedColumn, chapterQuery, chapterTiles, safeChapterIdx, wikiTiles, safeWikiIdx, openTile, goUp, onClose],
+    [
+      focusedColumn,
+      flatChapterRows,
+      safeChapterIdx,
+      openChapterRow,
+      wikiTiles,
+      safeWikiIdx,
+      openWikiTile,
+      onClose,
+    ],
   );
 
   if (!open) return null;
-
-  const crumbs = breadcrumbSegments(currentPath);
 
   return (
     <div className="content-browser-overlay" onClick={onClose}>
@@ -338,85 +372,52 @@ export function ContentBrowserOverlay({
                   placeholder="Kapitel suchen…"
                 />
               </div>
-
-              <div className="content-browser-breadcrumbs">
-                <button
-                  type="button"
-                  className="content-browser-crumb-btn"
-                  onClick={goUp}
-                  disabled={currentPath === "."}
-                  title="Eine Ebene hoch (Backspace)"
-                >
-                  <ArrowUp size={13} />
-                </button>
-                <button
-                  type="button"
-                  className={`content-browser-crumb${currentPath === "." ? " active" : ""}`}
-                  onClick={() => setCurrentPath(".")}
-                >
-                  Workspace
-                </button>
-                {crumbs.map((c) => (
-                  <span key={c.path} className="content-browser-crumb-group">
-                    <ChevronRight size={12} className="content-browser-crumb-sep" />
-                    <button
-                      type="button"
-                      className={`content-browser-crumb${c.path === currentPath ? " active" : ""}`}
-                      onClick={() => setCurrentPath(c.path)}
-                    >
-                      {c.label}
-                    </button>
-                  </span>
-                ))}
-              </div>
             </div>
 
             <div className="content-browser-body content-browser-list-body">
-              {treeLoading ? (
+              {chaptersLoading ? (
                 <div className="content-browser-empty">Lade…</div>
               ) : treeError ? (
                 <div className="content-browser-empty">{treeError}</div>
-              ) : chapterTiles.length === 0 ? (
+              ) : flatChapterRows.length === 0 ? (
                 <div className="content-browser-empty">
-                  {chapterQuery.trim() ? "Keine Treffer" : "Nichts gefunden"}
+                  {chapterQuery.trim() ? "Keine Treffer" : "Keine Kapitel gefunden"}
                 </div>
               ) : (
-                <div className="content-browser-list">
-                  {chapterTiles.map((tile, i) => (
-                    <div
-                      key={tile.key}
-                      className={`content-browser-list-row${i === safeChapterIdx ? " selected" : ""}${tile.directory ? " content-browser-list-row--folder" : ""}`}
-                      draggable={!tile.directory}
-                      onDragStart={
-                        tile.directory
-                          ? undefined
-                          : (e) => {
-                              e.dataTransfer.setData("text/plain", `@[${tile.name}](${tile.path})`);
-                              e.dataTransfer.effectAllowed = "copy";
-                            }
-                      }
-                      onMouseEnter={() => setChapterIdx(i)}
-                      onDoubleClick={() => openTile(tile)}
-                      title={
-                        tile.directory
-                          ? `${tile.name}\n\nDoppelklick: öffnen`
-                          : `${tile.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`
-                      }
-                    >
-                      {tile.directory ? (
-                        <Folder size={16} strokeWidth={1.5} className="content-browser-list-icon" />
-                      ) : (
-                        <FileText size={16} strokeWidth={1.5} className="content-browser-list-icon" />
-                      )}
-                      <span className="content-browser-list-name">{tile.name}</span>
+                (() => {
+                  let rowIdx = -1;
+                  return chapterGroups.map((group) => (
+                    <div key={group.projectPath} className="content-browser-chapter-group">
+                      <div className="content-browser-chapter-group-header">
+                        <Folder size={12} strokeWidth={1.75} />
+                        <span>{group.projectName}</span>
+                      </div>
+                      <div className="content-browser-list">
+                        {group.rows.map((row) => {
+                          rowIdx += 1;
+                          const i = rowIdx;
+                          return (
+                            <div
+                              key={row.key}
+                              className={`content-browser-list-row${i === safeChapterIdx ? " selected" : ""}`}
+                              onMouseEnter={() => setChapterIdx(i)}
+                              onDoubleClick={() => openChapterRow(row)}
+                              title={`${row.title}\n\nDoppelklick: öffnen`}
+                            >
+                              <FileText size={16} strokeWidth={1.5} className="content-browser-list-icon" />
+                              <span className="content-browser-list-name">{row.title}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  ));
+                })()
               )}
             </div>
 
             <div className="content-browser-footer">
-              <span>{chapterTiles.length} Einträge</span>
+              <span>{flatChapterRows.length} Kapitel</span>
             </div>
           </div>
 
@@ -479,18 +480,14 @@ export function ContentBrowserOverlay({
                     <div
                       key={tile.key}
                       className={`content-browser-tile${i === safeWikiIdx ? " selected" : ""}`}
-                      style={
-                        tile.category
-                          ? ({ "--cat-hue": categoryHue(tile.category) } as React.CSSProperties)
-                          : undefined
-                      }
+                      style={{ "--cat-hue": categoryHue(tile.category) } as React.CSSProperties}
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData("text/plain", `@[${tile.name}](${tile.path})`);
                         e.dataTransfer.effectAllowed = "copy";
                       }}
                       onMouseEnter={() => setWikiIdx(i)}
-                      onDoubleClick={() => openTile(tile)}
+                      onDoubleClick={() => openWikiTile(tile)}
                       title={`${tile.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`}
                     >
                       <div className="content-browser-thumb">
@@ -499,11 +496,11 @@ export function ContentBrowserOverlay({
                       <div className="content-browser-tile-name">{tile.name}</div>
                       {tile.snippet ? (
                         <div className="content-browser-tile-snippet">{tile.snippet}</div>
-                      ) : tile.category ? (
+                      ) : (
                         <div className="content-browser-tile-cat">
                           <FolderOpen size={11} /> {tile.category}
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   ))}
                 </div>
@@ -517,8 +514,7 @@ export function ContentBrowserOverlay({
         </div>
 
         <div className="content-browser-hint-bar">
-          Doppelklick öffnet · Ziehen fügt Verweis ein · Pfeiltasten navigieren · Backspace zurück (Kapitel) · Esc
-          schließt
+          Doppelklick öffnet · Ziehen fügt Verweis ein (Wiki) · Pfeiltasten navigieren · Esc schließt
         </div>
       </div>
     </div>

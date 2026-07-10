@@ -297,6 +297,22 @@
   gap: 1px;
 }
 
+.content-browser-chapter-group + .content-browser-chapter-group {
+  margin-top: 10px;
+}
+
+.content-browser-chapter-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
 .content-browser-list-row {
   display: flex;
   align-items: center;
