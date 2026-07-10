@@ -75,7 +75,7 @@ import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { EditorTabs } from "./components/editor/EditorTabs.tsx";
 import { SearchPanel } from "./components/editor/SearchPanel.tsx";
 import { ArcTimeline } from "./components/arcs/ArcTimeline.tsx";
-import { WikiContentBrowser } from "./components/wiki/WikiContentBrowser.tsx";
+import { ContentBrowserOverlay } from "./components/outliner/ContentBrowserOverlay.tsx";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
 import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
 import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
@@ -824,6 +824,15 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync once after persisted layout applies
   }, []);
 
+  // Outliner and chat moved out of the permanent UI (Ctrl+Shift+Space popup / Alt+2 /
+  // Alt+4 instead) — force them collapsed on load regardless of a persisted layout.
+  useLayoutEffect(() => {
+    leftPanelRef.current?.collapse();
+    rightPanelRef.current?.collapse();
+    setCenterPaneWide(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
+
   useEffect(() => {
     const syncSidebarsWideState = () => {
       const left = leftPanelRef.current;
@@ -1235,7 +1244,7 @@ function App() {
         <Panel
           id="outliner"
           panelRef={leftPanelRef}
-          defaultSize="18%"
+          defaultSize={0}
           minSize="10%"
           maxSize="50%"
           collapsible
@@ -1464,7 +1473,7 @@ function App() {
         <Panel
           id="chat"
           panelRef={rightPanelRef}
-          defaultSize="37%"
+          defaultSize={0}
           minSize="15%"
           collapsible
           collapsedSize={0}
@@ -1574,12 +1583,18 @@ function App() {
       </Group>
 
       <ArcTimeline open={arcsOpen} onClose={() => setArcsOpen(false)} />
-      {contentBrowserOpen && (
-        <WikiContentBrowser
-          onClose={() => setContentBrowserOpen(false)}
-          onOpenFile={(path) => void fileEditor.openFile(path)}
-        />
-      )}
+      <ContentBrowserOverlay
+        open={contentBrowserOpen}
+        projectPath={project.projectPath ?? null}
+        onClose={() => setContentBrowserOpen(false)}
+        onSelectFile={(path) => {
+          chapter.closeChapter();
+          setSelectedMeta(null);
+          setMetaExpanded(false);
+          setFocusedField(null);
+          void fileEditor.openFile(path);
+        }}
+      />
 
       {credDialogOpen && (
         <GitCredentialsDialog
