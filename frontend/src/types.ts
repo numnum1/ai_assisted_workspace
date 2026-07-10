@@ -58,8 +58,6 @@ export type EnsembleProgressEvent =
   | { phase: "done"; result: EnsembleRunResult }
   | { phase: "error"; message: string };
 
-/** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
-export type ChatSessionKind = 'standard' | 'guided';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
 
 /** Kind of arc — defines its lane identity and which wiki entity it tracks. */
@@ -158,25 +156,7 @@ export interface Mode {
   autoIncludes: string[];
   color: string;
   useReasoning?: boolean;
-  /** When true, only agent presets / guided chats use this mode — hidden from the main chat mode menu. */
-  agentOnly?: boolean;
   llmId?: string;
-}
-
-/** Project-scoped guided chat agent template (`.assistant/agents.json`). */
-export interface AgentPreset {
-  id: string;
-  name: string;
-  modeId: string;
-  /** Legacy; LLM comes from {@link Mode} via modeId. */
-  llmId?: string | null;
-  /** Legacy fork/thread LLM override (prefer threadModeId). */
-  threadLlmId?: string | null;
-  /** Optional mode for fork/thread when the parent chat uses this preset (see conversation agentPresetId). */
-  threadModeId?: string | null;
-  useReasoning: boolean;
-  disabledToolkits: ChatToolkitId[];
-  initialSteeringPlan?: string | null;
 }
 
 export interface SelectionContext {
@@ -290,12 +270,6 @@ export interface ChatRequest {
    */
   disabledToolkits?: string[];
   llmId?: string;
-  /** Default standard; guided injects steering behaviour and optional steeringPlan. */
-  sessionKind?: ChatSessionKind;
-  /** Persisted plan text for guided sessions; sent each request when set. */
-  steeringPlan?: string | null;
-  /** When true, this request originates from a thread conversation (not root). */
-  isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
 }
@@ -341,27 +315,12 @@ export interface Conversation {
    * For {@link isThread} threads this flag is ignored; pinning follows the parent chain.
    */
   savedToProject?: boolean;
-  /** Omitted or standard = normal chat; guided = AI-led session with optional steeringPlan */
-  sessionKind?: ChatSessionKind;
-  /** Project agent template id when this guided chat was started from a preset (fork/thread preset resolution). */
-  agentPresetId?: string;
-  /** Markdown steering plan maintained by the model (guided sessions) */
-  steeringPlan?: string;
   /** True when this conversation was started as a thread from another chat (project pin follows parent). */
   isThread?: boolean;
   /** Parent conversation id when {@link isThread} is true */
   parentConversationId?: string;
   /** True when this thread has been closed (soft-delete). It stays visible in the branch graph but is no longer selectable. */
   isClosed?: boolean;
-  /**
-   * When set: this guided (or other) conversation uses this LLM for sends instead of the global selector.
-   * Snapshot when starting an „Agent“ session from the new-chat dialog.
-   */
-  agentLlmId?: string;
-  /** When set: overrides global reasoning toggle for this conversation. */
-  agentUseReasoning?: boolean;
-  /** When set: fixed disabled toolkits for this conversation (same ids as global). */
-  agentDisabledToolkits?: ChatToolkitId[];
   /**
    * Settled state per snapshotId. Populated when the user accepts or rejects a write_file change.
    * Persisted so the "Pending changes" bar does not reappear after an app restart.

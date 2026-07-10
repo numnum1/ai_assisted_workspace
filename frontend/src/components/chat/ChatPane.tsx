@@ -9,7 +9,6 @@ import {
 import type {
   ChatMessage,
   SelectionContext,
-  ChatSessionKind,
   ContextInfo,
   MessageFeedback,
   ReasoningEffort,
@@ -19,11 +18,6 @@ import { ChatComposerCard } from "./ChatComposerCard.tsx";
 import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
 import { YesNoCard } from "./YesNoCard.tsx";
 import { parseClarificationQuestions, parseYesNoQuestion } from "./clarificationUtils.ts";
-import {
-  parseGuidedThreadOffer,
-  type GuidedThreadOfferPayload,
-} from "./guidedThreadOfferUtils.ts";
-import { GuidedThreadOfferCard } from "./GuidedThreadOfferCard.tsx";
 import type { CardState } from "./ChangeCard.tsx";
 import { ChatMessagesPane } from "./ChatMessagesPane.tsx";
 import { WriteFileBatchComposerBar } from "./WriteFileBatchComposerBar.tsx";
@@ -31,88 +25,11 @@ import {
   collectAllWriteFileItems,
   getTrailingWriteFileBatch,
 } from "./writeFileBatchUtils.ts";
-import {
-  parseSteeringPlan,
-  type ParsedSteeringPlan,
-} from "./planFenceUtils.ts";
-import { SteeringPlanViewer } from "./SteeringPlanViewer.tsx";
 import { ContextBar, type ContextBlock } from "./ContextBar.tsx";
 import "./ChatPane.css";
 
 /** Chars above which auto-scroll stops following during streaming. */
 const AUTOSCROLL_CHAR_LIMIT = 1500;
-
-function SteeringPlanSection({
-  open,
-  onToggleOpen,
-  steeringPlan,
-  parsedSteeringPlan,
-  streaming,
-  onMarkSteeringPlanComplete,
-}: {
-  open: boolean;
-  onToggleOpen: () => void;
-  steeringPlan: string;
-  parsedSteeringPlan: ParsedSteeringPlan;
-  streaming: boolean;
-  onMarkSteeringPlanComplete?: () => void;
-}) {
-  const hasPlan = Boolean(steeringPlan?.trim());
-  const markDisabled =
-    streaming ||
-    !hasPlan ||
-    parsedSteeringPlan.isComplete ||
-    !onMarkSteeringPlanComplete;
-
-  let markTitle: string | undefined;
-  if (parsedSteeringPlan.isComplete) {
-    markTitle = "Plan ist bereits als abgeschlossen markiert";
-  } else if (streaming) {
-    markTitle = "Während einer Antwort nicht möglich";
-  } else if (!hasPlan) {
-    markTitle = "Zuerst einen Plan durch die Assistentin anlegen lassen";
-  }
-
-  return (
-    <div className="chat-steering-plan-panel">
-      <button
-        type="button"
-        className="chat-steering-plan-toggle"
-        onClick={onToggleOpen}
-        aria-expanded={open}
-      >
-        Arbeitsplan
-        <span className="chat-steering-plan-chevron">{open ? "▼" : "▶"}</span>
-      </button>
-      {open && (
-        <div className="chat-steering-plan-body">
-          {hasPlan ? (
-            <>
-              <SteeringPlanViewer parsedPlan={parsedSteeringPlan} />
-              <div className="chat-steering-plan-actions">
-                <button
-                  type="button"
-                  className="chat-steering-plan-mark-complete-btn"
-                  disabled={markDisabled}
-                  title={markTitle}
-                  onClick={() => onMarkSteeringPlanComplete?.()}
-                >
-                  Plan als abgeschlossen markieren
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="chat-steering-plan-empty">
-              Noch kein Plan — die Assistentin legt ihn in der ersten
-              inhaltlichen Antwort als Markdown-Block mit Sprache{" "}
-              <code>plan</code> an.
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export interface ChatPaneProps {
   /** Conversation identity — drives state reset on switch. */
@@ -136,11 +53,6 @@ export interface ChatPaneProps {
   onUseMessageAsThreadSummary?: (index: number) => void;
   onRetry?: () => void;
 
-  onAcceptGuidedThreadOffer?: (
-    assistantMessageIndex: number,
-    payload: GuidedThreadOfferPayload,
-  ) => void;
-
   referencedFiles: string[];
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
@@ -159,10 +71,6 @@ export interface ChatPaneProps {
   fastAvailable?: boolean;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
-
-  activeSessionKind?: ChatSessionKind;
-  steeringPlan?: string;
-  onMarkSteeringPlanComplete?: () => void;
 
   onFileChanged?: (path: string) => void;
   /** Persisted settled state for write_file snapshots (from Conversation.writeFileSettled). */
@@ -204,7 +112,6 @@ export function ChatPane({
   onStartThreadFromMessage,
   onUseMessageAsThreadSummary,
   onRetry,
-  onAcceptGuidedThreadOffer,
   referencedFiles,
   onAddFile,
   onRemoveFile,
@@ -222,9 +129,6 @@ export function ChatPane({
   fastAvailable = true,
   activeSelection = null,
   onDismissSelection,
-  activeSessionKind = "standard",
-  steeringPlan = "",
-  onMarkSteeringPlanComplete,
   onFileChanged,
   writeFileSettled,
   onSettleSnapshots,
@@ -249,10 +153,6 @@ export function ChatPane({
   const autoScrollActiveRef = useRef(true);
 
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [steeringPlanOpen, setSteeringPlanOpen] = useState(true);
-  const [guidedThreadOfferDismissed, setGuidedThreadOfferDismissed] = useState(
-    () => new Set<number>(),
-  );
   const [composerBatchForced, setComposerBatchForced] = useState<
     Record<string, CardState>
   >({});
@@ -262,15 +162,12 @@ export function ChatPane({
   const [bulkDismissIds, setBulkDismissIds] = useState(() => new Set<string>());
   const [clarificationOtherOpen, setClarificationOtherOpen] = useState(false);
 
-  const agentMode = activeSessionKind === "guided";
-
   // Reset all per-conversation state on conversation switch
   useEffect(() => {
     setComposerBatchForced({});
     setToolbarSettledIds(new Set());
     setBulkDismissIds(new Set());
     setEditingIdx(null);
-    setGuidedThreadOfferDismissed(new Set());
     setClarificationOtherOpen(false);
     autoScrollActiveRef.current = true;
     prevLastVisibleRoleRef.current = undefined;
@@ -355,11 +252,6 @@ export function ChatPane({
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, [streaming]);
-
-  const parsedSteeringPlan = useMemo(
-    (): ParsedSteeringPlan => parseSteeringPlan(steeringPlan ?? null),
-    [steeringPlan],
-  );
 
   const visibleEntries = useMemo(
     () =>
@@ -497,66 +389,6 @@ export function ChatPane({
     return null;
   }, [messages, pendingClarification]);
 
-  const pendingGuidedThreadOffer = useMemo(() => {
-    if (!onAcceptGuidedThreadOffer) return null;
-    const vis = messages
-      .map((m, originalIdx) => ({ m, originalIdx }))
-      .filter(({ m }) => !m.hidden);
-    if (vis.length === 0) return null;
-
-    // Find the last user message to scope search to the current assistant turn.
-    let lastUserVisIdx = -1;
-    for (let i = vis.length - 1; i >= 0; i--) {
-      if (vis[i]!.m.role === "user") {
-        lastUserVisIdx = i;
-        break;
-      }
-    }
-
-    // Search backwards through assistant + tool messages in the current turn.
-    // The offer fence lands in a tool-result message (role="tool"), so we must
-    // not restrict to role="assistant" only.
-    for (let i = vis.length - 1; i > lastUserVisIdx; i--) {
-      const { m, originalIdx } = vis[i]!;
-      if (m.role !== "assistant" && m.role !== "tool") continue;
-      const offer = parseGuidedThreadOffer(m.content);
-      if (!offer) continue;
-      // Ensure no user message follows this one.
-      const userAfter = messages
-        .slice(originalIdx + 1)
-        .some((msg) => !msg.hidden && msg.role === "user");
-      if (userAfter) return null;
-      // For tool messages, key the dismiss-set against the owning assistant message.
-      let assistantIdx = originalIdx;
-      if (m.role === "tool") {
-        for (let j = i - 1; j >= 0; j--) {
-          if (vis[j]!.m.role === "assistant") {
-            assistantIdx = vis[j]!.originalIdx;
-            break;
-          }
-        }
-      }
-      if (guidedThreadOfferDismissed.has(assistantIdx)) return null;
-      return { offer, assistantIdx };
-    }
-    return null;
-  }, [messages, onAcceptGuidedThreadOffer, guidedThreadOfferDismissed]);
-
-  const handleDismissGuidedThreadOffer = useCallback(() => {
-    if (!pendingGuidedThreadOffer) return;
-    setGuidedThreadOfferDismissed((prev) =>
-      new Set(prev).add(pendingGuidedThreadOffer.assistantIdx),
-    );
-  }, [pendingGuidedThreadOffer]);
-
-  const handleAcceptGuidedThreadOfferClick = useCallback(() => {
-    if (!pendingGuidedThreadOffer || !onAcceptGuidedThreadOffer) return;
-    onAcceptGuidedThreadOffer(
-      pendingGuidedThreadOffer.assistantIdx,
-      pendingGuidedThreadOffer.offer,
-    );
-  }, [pendingGuidedThreadOffer, onAcceptGuidedThreadOffer]);
-
   const cancelEdit = useCallback(() => setEditingIdx(null), []);
 
   const commitEdit = useCallback(
@@ -603,17 +435,6 @@ export function ChatPane({
           parentLastMessage={parentLastMessage}
         />
 
-        {activeSessionKind === "guided" && (
-          <SteeringPlanSection
-            open={steeringPlanOpen}
-            onToggleOpen={() => setSteeringPlanOpen((o) => !o)}
-            steeringPlan={steeringPlan}
-            parsedSteeringPlan={parsedSteeringPlan}
-            streaming={streaming}
-            onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
-          />
-        )}
-
         <div className="chat-composer-stack">
           {pendingClarification && pendingClarification.length > 0 ? (
             <ChatComposerCard>
@@ -631,17 +452,6 @@ export function ChatPane({
                 question={pendingYesNo}
                 onSubmit={(msg) => onSend(msg)}
                 disabled={streaming}
-              />
-            </ChatComposerCard>
-          ) : null}
-          {pendingGuidedThreadOffer && !pendingClarification ? (
-            <ChatComposerCard>
-              <GuidedThreadOfferCard
-                offer={pendingGuidedThreadOffer.offer}
-                blocked={isThread}
-                disabled={streaming}
-                onAccept={handleAcceptGuidedThreadOfferClick}
-                onDismiss={handleDismissGuidedThreadOffer}
               />
             </ChatComposerCard>
           ) : null}
@@ -664,13 +474,13 @@ export function ChatPane({
             onRemoveFile={onRemoveFile}
             structureRoot={structureRoot}
             useReasoning={useReasoning && reasoningAvailable}
-            onToggleReasoning={agentMode ? undefined : onToggleReasoning}
+            onToggleReasoning={onToggleReasoning}
             reasoningEffort={reasoningEffort}
-            onReasoningEffortChange={agentMode ? undefined : onReasoningEffortChange}
+            onReasoningEffortChange={onReasoningEffortChange}
             disabledToolkits={disabledToolkits}
-            onToggleToolkit={agentMode ? undefined : onToggleToolkit}
+            onToggleToolkit={onToggleToolkit}
             rulesEnabled={rulesEnabled}
-            onToggleRules={agentMode ? undefined : onToggleRules}
+            onToggleRules={onToggleRules}
             reasoningAvailable={reasoningAvailable}
             fastAvailable={fastAvailable}
             activeSelection={activeSelection}

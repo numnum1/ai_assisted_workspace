@@ -210,53 +210,6 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
         },
       },
     },
-    {
-      type: "function",
-      function: {
-        name: "propose_guided_thread",
-        description:
-          "Propose a guided follow-up thread with a steering plan for structured work.",
-        parameters: {
-          type: "object",
-          properties: {
-            steeringPlanMarkdown: { type: "string" },
-            threadTitle: { type: "string" },
-            summary: { type: "string" },
-            modeId: { type: "string" },
-            agentPresetId: { type: "string" },
-          },
-          required: ["steeringPlanMarkdown"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "report_thread_result",
-        description:
-          "Report the completed work of this guided subthread back to the parent conversation. " +
-          "Call this when all steering plan steps are done. Provide a concise markdown summary of what was accomplished.",
-        parameters: {
-          type: "object",
-          properties: {
-            summary: {
-              type: "string",
-              description: "Concise markdown summary of what was accomplished in this subthread.",
-            },
-            threadTitle: {
-              type: "string",
-              description: "Display title of this subthread (for the parent's reference).",
-            },
-            updatedFiles: {
-              type: "array",
-              items: { type: "string" },
-              description: "Relative paths of files created or modified during this subthread.",
-            },
-          },
-          required: ["summary"],
-        },
-      },
-    },
   ],
 };
 
@@ -269,16 +222,9 @@ export function getActiveToolDefinitions(
       ? request.disabledToolkits.map((v) => normalizeText(v)).filter(Boolean)
       : [],
   );
-  const isGuided = request.sessionKind === "guided";
-  const isGuidedThread = isGuided && request.isThread === true;
   return Object.entries(TOOLKIT_TOOL_DEFINITIONS)
     .filter(([toolkitId]) => !disabled.has(toolkitId))
-    .flatMap(([, tools]) => tools)
-    .filter(
-      (tool) =>
-        !(isGuided && tool.function.name === "propose_guided_thread") &&
-        !(tool.function.name === "report_thread_result" && !isGuidedThread),
-    );
+    .flatMap(([, tools]) => tools);
 }
 
 export async function resolveModeSystemPrompt(
@@ -438,27 +384,7 @@ export function buildSystemPrompt(
     }
   }
 
-  // 5. Guided session & steering plan
-  if (request.sessionKind === "guided") {
-    const guidedLines = [
-      "Sitzungstyp: Geführte Sitzung (guided). Führe den Nutzer aktiv durch die Aufgabe und halte dich an den Steuerungsplan.",
-      "Wichtig: Du befindest dich bereits in einer geführten Sitzung. Fange sofort an zu arbeiten – stelle keine Rückfragen und biete keinen neuen Thread an. Handle direkt.",
-    ];
-    if (request.isThread) {
-      guidedLines.push(
-        "Du befindest dich in einem **Subthread**. Wenn alle Schritte des Steuerungsplans abgeschlossen sind, " +
-        "rufe das Werkzeug `report_thread_result` auf, um das Ergebnis an den übergeordneten Chat zu übermitteln. " +
-        "Gib im `summary`-Feld eine präzise Markdown-Zusammenfassung aller durchgeführten Arbeiten an.",
-      );
-    }
-    const steeringPlan = normalizeText(request.steeringPlan ?? "");
-    if (steeringPlan) {
-      guidedLines.push(`Steuerungsplan:\n${steeringPlan}`);
-    }
-    sections.push(guidedLines.join("\n"));
-  }
-
-  // 6. Reasoning hint
+  // 5. Reasoning hint
   if (request.useReasoning) {
     sections.push(
       "Reasoning ist aktiviert. Denke Schritt für Schritt nach, bevor du antwortest.",

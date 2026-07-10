@@ -428,9 +428,7 @@ async function runChatStream(
       }
 
       const hasUserInteractionTool = toolCalls.some(
-        (tc) =>
-          tc.function.name === "ask_clarification" ||
-          tc.function.name === "propose_guided_thread",
+        (tc) => tc.function.name === "ask_clarification",
       );
 
       if (hasUserInteractionTool) {

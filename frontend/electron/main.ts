@@ -23,7 +23,6 @@ import {
   saveContent,
 } from "./services/filesService.js";
 import {
-  deleteProjectAgent as removeAgentPreset,
   deleteProjectMode as removeProjectMode,
   deleteProjectCommentCategory as removeCommentCategory,
   getProjectConfig,
@@ -33,11 +32,9 @@ import {
   getWorkspaceModesDataDir,
   initProjectConfig,
   initProjectConfigFromFile,
-  listProjectAgents as listAgentPresets,
   getProjectModes as listProjectModes,
   listWorkspaceModes,
   revealWorkspaceModesDataDir,
-  saveProjectAgent as saveAgentPreset,
   updateProjectConfig as saveProjectConfig,
   saveProjectMode,
   saveProjectCommentCategory,
@@ -749,16 +746,6 @@ function registerIpcHandlers(): void {
   ipcMain.handle("projectConfig:resetCommentCategories", () =>
     resetProjectCommentCategories(getCurrentProjectPath()),
   );
-  ipcMain.handle("projectConfig:listAgents", () =>
-    listAgentPresets(getCurrentProjectPath()),
-  );
-  ipcMain.handle("projectConfig:saveAgent", (_event, id: string, preset) =>
-    saveAgentPreset(getCurrentProjectPath(), id, preset),
-  );
-  ipcMain.handle("projectConfig:deleteAgent", (_event, id: string) =>
-    removeAgentPreset(getCurrentProjectPath(), id),
-  );
-
   ipcMain.handle("preferences:get", () => getPreferences());
   ipcMain.handle("preferences:set", (_event, patch) =>
     patchPreferences(patch),

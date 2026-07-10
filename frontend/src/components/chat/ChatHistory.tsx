@@ -19,7 +19,7 @@ import {
   ChevronDown,
   Download,
 } from "lucide-react";
-import type { ChatSessionKind, Conversation } from "../../types.ts";
+import type { Conversation } from "../../types.ts";
 import { NewChatButton } from "./NewChatButton.tsx";
 import {
   conversationToMarkdown,
@@ -30,7 +30,7 @@ interface ChatHistoryProps {
   conversations: Conversation[];
   activeId: string;
   onSelect: (id: string) => void;
-  onCreate: (sessionKind?: ChatSessionKind) => void;
+  onCreate: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onToggleSavedToProject: (id: string) => void;
@@ -293,14 +293,6 @@ export function ChatHistory({
                     Thread
                   </span>
                 ) : null}
-                {thread.sessionKind === "guided" && (
-                  <span
-                    className="chat-history-guided-badge"
-                    title="Geführte Sitzung"
-                  >
-                    Geführt
-                  </span>
-                )}
               </div>
             )}
             <div className="chat-history-item-meta">
@@ -413,14 +405,6 @@ export function ChatHistory({
                   Thread
                 </span>
               ) : null}
-              {conv.sessionKind === "guided" && (
-                <span
-                  className="chat-history-guided-badge"
-                  title="Geführte Sitzung"
-                >
-                  Geführt
-                </span>
-              )}
             </div>
           )}
           <div className="chat-history-item-meta">
@@ -523,7 +507,7 @@ export function ChatHistory({
               <Eraser size={14} />
             </button>
           )}
-          <NewChatButton onClick={() => onCreate("standard")} />
+          <NewChatButton onClick={onCreate} />
           <button
             type="button"
             className="chat-history-close-btn"

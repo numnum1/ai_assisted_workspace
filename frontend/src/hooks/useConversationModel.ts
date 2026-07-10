@@ -7,9 +7,7 @@ import {
 } from 'react';
 import { chatApi, type ContextBlock } from '../api.ts';
 import { buildNextMainChatRequest } from '../components/chat/contextPreviewRequest.ts';
-import { getEffectiveChatExecution } from '../components/chat/chatAgentUtils.ts';
-import { effectiveChatModeIdForRequest } from '../components/chat/effectiveChatModeForRequest.ts';
-import type { ChatMessage, Conversation, ContextInfo, Mode, ReasoningEffort, SelectionContext, ChatSessionKind } from '../types.ts';
+import type { ChatMessage, Conversation, ContextInfo, Mode, ReasoningEffort, SelectionContext } from '../types.ts';
 import { useChat } from './useChat.ts';
 
 type UseChatInstance = ReturnType<typeof useChat>;
@@ -116,9 +114,7 @@ export function useConversationModel(p: UseConversationModelParams) {
     const flight = ++previewFlightRef.current;
     previewTimerRef.current = window.setTimeout(() => {
       const {
-        conv: c,
         selectedMode: sm,
-        modes: md,
         modeLlmId: mlid,
         useReasoning: ur,
         disabledToolkits: dt,
@@ -127,18 +123,13 @@ export function useConversationModel(p: UseConversationModelParams) {
         focusedFieldKey: fk,
         messages: hist,
       } = paramsRef.current;
-      const previewModeId = effectiveChatModeIdForRequest(c, sm, md);
-      const exec = getEffectiveChatExecution(c, {
-        llmId: mlid,
-        useReasoning: ur,
-        disabledToolkits: dt,
-      });
+      const previewModeId = sm;
+      const exec = { llmId: mlid, useReasoning: ur, disabledToolkits: [...dt] };
       const req = buildNextMainChatRequest({
         previewModeId,
         exec,
         activeFieldKey: fk,
         referencedFiles: rf,
-        conv: c,
         historyMessages: hist,
         pendingMessage: pendingMessageRef.current,
         rulesDisabled: rd,
@@ -185,36 +176,23 @@ export function useConversationModel(p: UseConversationModelParams) {
 
   const send = useCallback(
     (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => {
-      const c = conv;
-      const modeId = effectiveChatModeIdForRequest(c, selectedMode, modes);
+      const modeId = selectedMode;
       const mode = modes.find((m) => m.id === modeId);
-      const exec = getEffectiveChatExecution(c, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
-      const streamSession = {
-        conversationId: c?.id ?? activeConversationId,
-        sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
-        steeringPlan: c?.steeringPlan,
-        isThread: c?.isThread ?? false,
-      };
       chat.sendMessage(
         message,
         modeId,
         referencedFiles,
         mode?.name,
         mode?.color,
-        exec.useReasoning,
-        exec.llmId,
+        useReasoning,
+        modeLlmId,
         activeSelection ?? undefined,
         focusedFieldKey ?? null,
-        exec.disabledToolkits,
-        streamSession,
+        [...disabledToolkits],
         {
           ...(clarificationData != null ? { clarificationData } : {}),
           ...(rulesDisabled ? { rulesDisabled: true } : {}),
-          ...(exec.useReasoning ? { reasoningEffort } : {}),
+          ...(useReasoning ? { reasoningEffort } : {}),
         },
       );
       patchConversation(activeConversationId, { mode: modeId });
@@ -222,7 +200,6 @@ export function useConversationModel(p: UseConversationModelParams) {
       clearReferencedFiles();
     },
     [
-      conv,
       selectedMode,
       modes,
       modeLlmId,
@@ -243,25 +220,17 @@ export function useConversationModel(p: UseConversationModelParams) {
   const editMessage = useCallback(
     (index: number, newContent: string) => {
       const c = conv;
-      const modeId = effectiveChatModeIdForRequest(c, selectedMode, modes);
-      const exec = getEffectiveChatExecution(c, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
+      const modeId = selectedMode;
       chat.editMessage(index, newContent, {
         mode: modeId,
         referencedFiles,
-        useReasoning: exec.useReasoning,
-        ...(exec.useReasoning ? { reasoningEffort } : {}),
-        llmId: exec.llmId,
+        useReasoning,
+        ...(useReasoning ? { reasoningEffort } : {}),
+        llmId: modeLlmId,
         selectionContext: activeSelection ?? undefined,
         activeFieldKey: focusedFieldKey ?? null,
-        disabledToolkits: exec.disabledToolkits,
+        disabledToolkits: [...disabledToolkits],
         conversationId: c?.id ?? activeConversationId,
-        sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
-        steeringPlan: c?.steeringPlan,
-        isThread: c?.isThread ?? false,
         rulesDisabled,
       });
       patchConversation(activeConversationId, { mode: modeId });
@@ -287,9 +256,7 @@ export function useConversationModel(p: UseConversationModelParams) {
 
   const fetchContextBlocks = useCallback(async (): Promise<ContextBlock[]> => {
     const {
-      conv: c,
       selectedMode: sm,
-      modes: md,
       modeLlmId: mlid,
       useReasoning: ur,
       disabledToolkits: dt,
@@ -298,19 +265,14 @@ export function useConversationModel(p: UseConversationModelParams) {
       focusedFieldKey: fk,
       messages: hist,
     } = paramsRef.current;
-    const previewModeId = effectiveChatModeIdForRequest(c, sm, md);
-    const exec = getEffectiveChatExecution(c, {
-      llmId: mlid,
-      useReasoning: ur,
-      disabledToolkits: dt,
-    });
+    const previewModeId = sm;
+    const exec = { llmId: mlid, useReasoning: ur, disabledToolkits: [...dt] };
     const result = await chatApi.previewContext(
       buildNextMainChatRequest({
         previewModeId,
         exec,
         activeFieldKey: fk,
         referencedFiles: rf,
-        conv: c,
         historyMessages: hist,
         pendingMessage: pendingMessageRef.current,
         rulesDisabled: rd,

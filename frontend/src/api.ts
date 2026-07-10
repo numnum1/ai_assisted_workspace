@@ -1,5 +1,4 @@
 import type {
-  AgentPreset,
   FileNode,
   Mode,
   ChatRequest,
@@ -322,21 +321,6 @@ export const projectConfigApi = {
   resetCommentCategories: async (): Promise<CommentCategoryDef[]> => {
     const api = getElectronApi();
     if (api?.projectConfig) return api.projectConfig.resetCommentCategories();
-    throw new Error("Electron bridge not available");
-  },
-  listAgents: async (): Promise<AgentPreset[]> => {
-    const api = getElectronApi();
-    if (api?.projectConfig) return api.projectConfig.listAgents();
-    throw new Error("Electron bridge not available");
-  },
-  saveAgent: async (id: string, preset: AgentPreset): Promise<AgentPreset> => {
-    const api = getElectronApi();
-    if (api?.projectConfig) return api.projectConfig.saveAgent(id, preset);
-    throw new Error("Electron bridge not available");
-  },
-  deleteAgent: async (id: string): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.projectConfig) return api.projectConfig.deleteAgent(id);
     throw new Error("Electron bridge not available");
   },
 };

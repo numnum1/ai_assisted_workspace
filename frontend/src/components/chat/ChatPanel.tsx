@@ -1,13 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { History, Pencil, GitMerge, Loader2, Waypoints } from "lucide-react";
 import type {
-  AgentPreset,
   ChatMessage,
   Mode,
   Conversation,
   SelectionContext,
   LlmPublic,
-  ChatSessionKind,
   ContextInfo,
   MessageFeedback,
   ReasoningEffort,
@@ -16,24 +14,8 @@ import { ModeSelector } from "./ModeSelector.tsx";
 import { ChatHistory } from "./ChatHistory.tsx";
 import { NewChatButton } from "./NewChatButton.tsx";
 import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
-import type { GuidedThreadOfferPayload } from "./guidedThreadOfferUtils.ts";
 import { ChatPane } from "./ChatPane.tsx";
 import type { ContextBlock } from "./ContextBar.tsx";
-
-function resolveGuidedExecutionSummary(
-  modes: Mode[],
-  selectedMode: string,
-  llms: LlmPublic[],
-  selectedLlmId: string | undefined,
-): { modeLabel: string; llmLabel: string } {
-  const modeLabel =
-    modes.find((m) => m.id === selectedMode)?.name ?? selectedMode;
-  const lid = selectedLlmId?.trim();
-  const llmLabel = lid
-    ? (llms.find((l) => l.id === lid)?.name ?? lid)
-    : "Standard";
-  return { modeLabel, llmLabel };
-}
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -61,22 +43,13 @@ interface ChatPanelProps {
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onStartThreadFromMessage: (messageIndex: number) => void;
-  onAcceptGuidedThreadOffer?: (
-    assistantMessageIndex: number,
-    payload: GuidedThreadOfferPayload,
-  ) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
-  onNewChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
-  onDiscardCurrentChat: (
-    kindOrPayload?: ChatSessionKind | NewChatConfirmPayload,
-  ) => void;
-  activeSessionKind?: ChatSessionKind;
+  onNewChat: (title?: string) => void;
+  onDiscardCurrentChat: (title?: string) => void;
   /** When true, the expand/fullscreen button opens the Thread-Workspace instead. */
   activeIsThread?: boolean;
-  steeringPlan?: string;
-  onMarkSteeringPlanComplete?: () => void;
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
@@ -102,7 +75,6 @@ interface ChatPanelProps {
   onFileChanged?: (path: string) => void;
   writeFileSettled?: Record<string, "applied" | "reverted">;
   onSettleSnapshots?: (patch: Record<string, "applied" | "reverted">) => void;
-  agentPresets?: AgentPreset[];
   onComposerDraftChange?: (text: string) => void;
   theme?: "light" | "dark";
   /** Summarize thread and merge result into parent conversation (only when activeIsThread is true). */
@@ -144,7 +116,6 @@ export function ChatPanel({
   onForkFromMessage,
   onForkToNewConversation,
   onStartThreadFromMessage,
-  onAcceptGuidedThreadOffer,
   onEditMessage,
   onDeleteMessages,
   onSetMessageFeedback,
@@ -175,10 +146,6 @@ export function ChatPanel({
   writeFileSettled,
   onSettleSnapshots,
   onComposerDraftChange,
-  agentPresets = [],
-  activeSessionKind = "standard",
-  steeringPlan = "",
-  onMarkSteeringPlanComplete,
   activeIsThread = false,
   parentLastMessage = null,
   theme = "dark",
@@ -211,68 +178,25 @@ export function ChatPanel({
     if (payload.title.trim() && payload.title.trim() !== activeTitle) {
       onRenameChat(activeConversationId, payload.title.trim());
     }
-    onNewChat(payload);
+    onNewChat(payload.newTitle);
   };
 
   const handleNewChatDiscard = (payload: NewChatConfirmPayload) => {
     setNewChatDialogOpen(false);
-    onDiscardCurrentChat(payload);
+    onDiscardCurrentChat(payload.newTitle);
   };
-
-  /** Guided header must match persisted conversation (agent preset), not global toolbar state. */
-  const guidedExecSummary = useMemo(() => {
-    if (activeSessionKind !== "guided") return null;
-    const conv = conversations.find((c) => c.id === activeConversationId);
-    if (!conv) {
-      return resolveGuidedExecutionSummary(
-        modes,
-        selectedMode,
-        llms,
-        selectedLlmId,
-      );
-    }
-    const llmForLabel =
-      conv.agentLlmId !== undefined ? conv.agentLlmId : selectedLlmId;
-    return resolveGuidedExecutionSummary(modes, conv.mode, llms, llmForLabel);
-  }, [
-    activeSessionKind,
-    conversations,
-    activeConversationId,
-    modes,
-    selectedMode,
-    llms,
-    selectedLlmId,
-  ]);
 
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        {guidedExecSummary ? (
-          <div
-            className="chat-guided-execution-summary"
-            role="status"
-            aria-label={`Geführte Sitzung: Modus ${guidedExecSummary.modeLabel}, LLM ${guidedExecSummary.llmLabel}`}
-            title={`Modus: ${guidedExecSummary.modeLabel} — LLM: ${guidedExecSummary.llmLabel}`}
-          >
-            <span className="chat-guided-execution-summary-text">
-              {guidedExecSummary.modeLabel}
-              <span className="chat-guided-execution-sep" aria-hidden>
-                {" "}
-                ·{" "}
-              </span>
-              {guidedExecSummary.llmLabel}
-            </span>
-          </div>
-        ) : (
-          <ModeSelector
-            modes={modes}
-            selectedMode={selectedMode}
-            onModeChange={onModeChange}
-            theme={theme}
-          />
-        )}
+        <ModeSelector
+          modes={modes}
+          selectedMode={selectedMode}
+          onModeChange={onModeChange}
+          theme={theme}
+        />
         <div className="chat-header-actions">
-          {!guidedExecSummary && llms.length > 0 && onLlmChange && (
+          {llms.length > 0 && onLlmChange && (
             <select
               className="chat-llm-select"
               value={selectedLlmId ?? ""}
@@ -359,7 +283,7 @@ export function ChatPanel({
           conversations={conversations}
           activeId={activeConversationId}
           onSelect={onSwitchChat}
-          onCreate={(sk) => onNewChat(sk ?? "standard")}
+          onCreate={onNewChat}
           onDelete={onDeleteChat}
           onRename={onRenameChat}
           onToggleSavedToProject={onToggleSavedToProject}
@@ -386,7 +310,6 @@ export function ChatPanel({
           onForkFromMessage={onForkFromMessage}
           onForkToNewConversation={onForkToNewConversation}
           onStartThreadFromMessage={onStartThreadFromMessage}
-          onAcceptGuidedThreadOffer={onAcceptGuidedThreadOffer}
           onRetry={onRetry}
           referencedFiles={referencedFiles}
           onAddFile={onAddFile}
@@ -405,9 +328,6 @@ export function ChatPanel({
           fastAvailable={fastAvailable}
           activeSelection={activeSelection}
           onDismissSelection={onDismissSelection}
-          activeSessionKind={activeSessionKind}
-          steeringPlan={steeringPlan}
-          onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
           onFileChanged={onFileChanged}
           writeFileSettled={writeFileSettled}
           onSettleSnapshots={onSettleSnapshots}
@@ -428,7 +348,6 @@ export function ChatPanel({
       {newChatDialogOpen && (
         <NewChatDialog
           currentTitle={activeTitle}
-          agentPresets={agentPresets}
           onConfirm={handleNewChatConfirm}
           onDiscard={handleNewChatDiscard}
           onCancel={() => setNewChatDialogOpen(false)}

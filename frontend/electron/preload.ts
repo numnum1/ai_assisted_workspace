@@ -364,11 +364,6 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("projectConfig:deleteCommentCategory", id),
     resetCommentCategories: () =>
       ipcRenderer.invoke("projectConfig:resetCommentCategories"),
-    listAgents: () => ipcRenderer.invoke("projectConfig:listAgents"),
-    saveAgent: (id: string, preset: unknown) =>
-      ipcRenderer.invoke("projectConfig:saveAgent", id, preset),
-    deleteAgent: (id: string) =>
-      ipcRenderer.invoke("projectConfig:deleteAgent", id),
   },
   preferences: {
     get: () => ipcRenderer.invoke("preferences:get"),

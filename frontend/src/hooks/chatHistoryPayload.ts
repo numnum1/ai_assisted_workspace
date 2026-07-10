@@ -5,7 +5,7 @@ import { stripPlanFencesForDisplay } from '../components/chat/planFenceUtils.ts'
  * Transforms the messages array into the history payload sent to the backend.
  * - User messages: uses resolvedContent (with file data) if available, strips UI-only fields
  * - Tool/hidden messages: passes through role, content, toolCalls, toolCallId
- * - Assistant messages: plan fences stripped (current plan is already sent via steeringPlan field)
+ * - Assistant messages: artifact fences stripped for display
  */
 export function buildHistoryPayload(msgs: ChatMessage[]): ChatMessage[] {
   return msgs.map((msg) => {

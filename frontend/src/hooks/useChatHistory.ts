@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import type { ChatSessionKind, Conversation, ChatMessage } from "../types.ts";
+import type { Conversation, ChatMessage } from "../types.ts";
 import { fetchProjectChatHistory, persistProjectChatHistory } from "../api.ts";
 import {
   buildConversationById,
@@ -89,11 +89,8 @@ function generateTitle(messages: ChatMessage[]): string {
   return text.length > 50 ? text.slice(0, 50) + "…" : text;
 }
 
-function createEmptyConversation(
-  mode: string,
-  sessionKind: ChatSessionKind = "standard",
-): Conversation {
-  const base: Conversation = {
+function createEmptyConversation(mode: string): Conversation {
+  return {
     id: crypto.randomUUID(),
     title: "Neuer Chat",
     messages: [],
@@ -101,10 +98,6 @@ function createEmptyConversation(
     updatedAt: Date.now(),
     mode,
   };
-  if (sessionKind !== "standard") {
-    base.sessionKind = sessionKind;
-  }
-  return base;
 }
 
 function hasVisibleMessages(c: Conversation): boolean {
@@ -372,9 +365,8 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       mode?: string,
       initialMessages?: ChatMessage[],
       title?: string,
-      sessionKind: ChatSessionKind = "standard",
     ) => {
-      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
+      const newConv = createEmptyConversation(mode ?? currentMode);
       if (initialMessages && initialMessages.length > 0) {
         newConv.messages = initialMessages;
         newConv.title = title ?? generateTitle(initialMessages);
@@ -435,8 +427,9 @@ export function useChatHistory(currentMode: string, projectPath: string) {
 
   /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
   const discardActiveAndCreateConversation = useCallback(
-    (mode?: string, sessionKind: ChatSessionKind = "standard") => {
-      const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
+    (mode?: string, title?: string) => {
+      const newConv = createEmptyConversation(mode ?? currentMode);
+      if (title) newConv.title = title;
       setConversations((prev) => {
         const filtered = prev.filter((c) => c.id !== activeId);
         let updated = [newConv, ...filtered];

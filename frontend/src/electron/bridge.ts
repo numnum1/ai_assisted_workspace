@@ -1,6 +1,5 @@
 import type {
   ActionNode,
-  AgentPreset,
   AppPreferences,
   ChapterComment,
   ChapterFilePaths,
@@ -253,9 +252,6 @@ export interface AppBridge {
     ) => Promise<CommentCategoryDef>;
     deleteCommentCategory: (id: string) => Promise<{ status: string }>;
     resetCommentCategories: () => Promise<CommentCategoryDef[]>;
-    listAgents: () => Promise<AgentPreset[]>;
-    saveAgent: (id: string, preset: AgentPreset) => Promise<AgentPreset>;
-    deleteAgent: (id: string) => Promise<{ status: string }>;
   };
   llms?: {
     list: () => Promise<LlmsListResponse>;

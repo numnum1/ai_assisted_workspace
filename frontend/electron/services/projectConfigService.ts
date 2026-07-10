@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type {
-  AgentPreset,
   CommentCategoryDef,
   Mode,
   ProjectConfig,
@@ -19,7 +18,6 @@ import {
 interface StoredProjectData {
   config?: ProjectConfig;
   modes?: Mode[];
-  agents?: AgentPreset[];
   /** AI provider ("LLM") configs to create/update globally on import — matched by id, then by name. */
   llms?: (AiProviderRequest & { id?: string })[];
 }
@@ -27,7 +25,6 @@ interface StoredProjectData {
 const ASSISTANT_DIR = ".assistant";
 const PROJECT_CONFIG_FILE = "project.json";
 const MODES_FILE = "modes.json";
-const AGENTS_FILE = "agents.json";
 const COMMENT_CATEGORIES_FILE = "comment-categories.json";
 const WORKSPACE_MODE_PLUGINS_DIR = "workspace-modes";
 
@@ -302,10 +299,6 @@ function getCommentCategoriesPath(projectPath: string): string {
   return path.join(getAssistantDir(projectPath), COMMENT_CATEGORIES_FILE);
 }
 
-function getAgentsPath(projectPath: string): string {
-  return path.join(getAssistantDir(projectPath), AGENTS_FILE);
-}
-
 function getWorkspaceModesDataDirPath(): string {
   return path.join(
     os.homedir(),
@@ -367,7 +360,6 @@ function normalizeMode(input: Mode): Mode {
     autoIncludes: Array.isArray(input.autoIncludes) ? input.autoIncludes : [],
     color: input.color,
     useReasoning: input.useReasoning,
-    agentOnly: input.agentOnly,
     llmId: input.llmId,
   };
 }
@@ -381,35 +373,17 @@ function normalizeCommentCategory(input: CommentCategoryDef): CommentCategoryDef
   };
 }
 
-function normalizeAgent(input: AgentPreset): AgentPreset {
-  return {
-    id: input.id,
-    name: input.name,
-    modeId: input.modeId,
-    llmId: input.llmId ?? null,
-    threadLlmId: input.threadLlmId ?? null,
-    threadModeId: input.threadModeId ?? null,
-    useReasoning: input.useReasoning,
-    disabledToolkits: Array.isArray(input.disabledToolkits)
-      ? input.disabledToolkits
-      : [],
-    initialSteeringPlan: input.initialSteeringPlan ?? null,
-  };
-}
-
 async function readStoredProjectData(
   projectPath: string,
 ): Promise<StoredProjectData> {
-  const [config, modes, agents] = await Promise.all([
+  const [config, modes] = await Promise.all([
     readJsonFile<ProjectConfig>(getProjectConfigPath(projectPath)),
     readJsonFile<Mode[]>(getModesPath(projectPath)),
-    readJsonFile<AgentPreset[]>(getAgentsPath(projectPath)),
   ]);
 
   return {
     config: config ?? undefined,
     modes: modes ?? undefined,
-    agents: agents ?? undefined,
   };
 }
 
@@ -475,7 +449,6 @@ export async function initProjectConfig(
   await Promise.all([
     writeJsonFile(getProjectConfigPath(resolvedProjectPath), config),
     writeJsonFile(getModesPath(resolvedProjectPath), DEFAULT_MODES),
-    writeJsonFile(getAgentsPath(resolvedProjectPath), []),
   ]);
 
   return config;
@@ -495,11 +468,11 @@ export async function initProjectConfigFromFile(
     throw new Error(`Datei ist kein gültiges JSON: ${sourceFilePath}`);
   }
 
-  // Accept either a full { config, modes, agents, llms } export or a bare ProjectConfig.
+  // Accept either a full { config, modes, llms } export or a bare ProjectConfig.
   const isStructured =
     parsed &&
     typeof parsed === "object" &&
-    ("config" in parsed || "modes" in parsed || "llms" in parsed || "agents" in parsed);
+    ("config" in parsed || "modes" in parsed || "llms" in parsed);
   const stored: StoredProjectData = isStructured
     ? (parsed as StoredProjectData)
     : { config: parsed as ProjectConfig };
@@ -514,14 +487,10 @@ export async function initProjectConfigFromFile(
     Array.isArray(stored.modes) && stored.modes.length > 0
       ? stored.modes.map(normalizeMode)
       : DEFAULT_MODES;
-  const agents = Array.isArray(stored.agents)
-    ? stored.agents.map(normalizeAgent)
-    : [];
 
   await Promise.all([
     writeJsonFile(getProjectConfigPath(resolvedProjectPath), config),
     writeJsonFile(getModesPath(resolvedProjectPath), modes),
-    writeJsonFile(getAgentsPath(resolvedProjectPath), agents),
     importLlmProviders(stored.llms),
   ]);
 
@@ -681,48 +650,6 @@ export async function resetProjectCommentCategories(
   const defaults = DEFAULT_COMMENT_CATEGORIES.map(normalizeCommentCategory);
   await writeJsonFile(getCommentCategoriesPath(resolvedProjectPath), defaults);
   return defaults;
-}
-
-export async function listProjectAgents(
-  projectPath: string | null,
-): Promise<AgentPreset[]> {
-  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
-  const stored = await readJsonFile<AgentPreset[]>(
-    getAgentsPath(resolvedProjectPath),
-  );
-  return Array.isArray(stored) ? stored.map(normalizeAgent) : [];
-}
-
-export async function saveProjectAgent(
-  projectPath: string | null,
-  id: string,
-  preset: AgentPreset,
-): Promise<AgentPreset> {
-  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
-  await ensureAssistantDir(resolvedProjectPath);
-
-  const agents = await listProjectAgents(resolvedProjectPath);
-  const normalized = normalizeAgent({ ...preset, id });
-
-  const next = agents.filter((entry) => entry.id !== id);
-  next.push(normalized);
-  next.sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-  );
-
-  await writeJsonFile(getAgentsPath(resolvedProjectPath), next);
-  return normalized;
-}
-
-export async function deleteProjectAgent(
-  projectPath: string | null,
-  id: string,
-): Promise<{ status: string }> {
-  const resolvedProjectPath = getProjectPathOrThrow(projectPath);
-  const agents = await listProjectAgents(resolvedProjectPath);
-  const next = agents.filter((entry) => entry.id !== id);
-  await writeJsonFile(getAgentsPath(resolvedProjectPath), next);
-  return { status: "ok" };
 }
 
 export async function getWorkspaceMode(

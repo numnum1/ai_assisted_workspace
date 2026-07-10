@@ -36,7 +36,6 @@ import { FileHistoryModal } from "./components/git/FileHistoryModal.tsx";
 import { ProjectSettingsModal } from "./components/settings/ProjectSettingsModal.tsx";
 import type { CommandAction } from "./components/git/CommandPalette.tsx";
 import type {
-  AgentPreset,
   Mode,
   Conversation,
   MetaSelection,
@@ -46,7 +45,6 @@ import type {
   AltVersionSession,
   ChatRequest,
   LlmPublic,
-  ChatSessionKind,
   ReasoningEffort,
 } from "./types.ts";
 import {
@@ -83,37 +81,7 @@ import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
 import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
 import { AlternativeVersionPanel } from "./components/editor/AlternativeVersionPanel.tsx";
 import { QuickChatWindow } from "./components/chat/QuickChatWindow.tsx";
-import {
-  ensureSteeringPlanMarkedComplete,
-  parseSteeringPlanFromAssistant,
-} from "./components/chat/planFenceUtils.ts";
-import {
-  buildAgentExecutionPatchFromGlobals,
-  conversationHasAgentExecution,
-  getEffectiveChatExecution,
-} from "./components/chat/chatAgentUtils.ts";
-import {
-  standardChatModes,
-  resolveDefaultModeId,
-  resolvePersistedChatModeId,
-  effectiveChatModeIdForRequest,
-} from "./components/chat/effectiveChatModeForRequest.ts";
-import {
-  GUIDED_AGENT_KICKOFF_USER_MESSAGE,
-  GUIDED_SIMPLE_KICKOFF_USER_MESSAGE,
-  cancelGuidedAgentKickoffIfPendingMismatchesActive,
-  clearPendingGuidedAgentKickoff,
-  hasPendingGuidedAgentKickoffFor,
-  tryMarkGuidedAgentKickoffStarted,
-} from "./components/chat/guidedAgentKickoff.ts";
-import { hasThreadResultFence, parseThreadResult } from "./components/chat/threadResultUtils.ts";
-import {
-  PARENT_RESULT_INTEGRATION_USER_MESSAGE,
-  consumeNextPendingKickoffFor,
-  hasPendingParentResultKickoffFor,
-  scheduleParentResultKickoff,
-  tryMarkKickoffStarted,
-} from "./components/chat/parentResultKickoffState.ts";
+import { resolveDefaultModeId } from "./components/chat/effectiveChatModeForRequest.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
 import {
   loadInitialDisabledToolkits,
@@ -130,50 +98,6 @@ function conversationHasVisibleMessages(conv: Conversation): boolean {
   return conv.messages.some((m) => !m.hidden);
 }
 
-/** Compare disabled toolkit ids regardless of order or Set vs array (avoids update loops on new references). */
-function disabledToolkitsSignature(
-  ids: ReadonlySet<string> | readonly string[] | undefined | null,
-): string {
-  if (!ids) return "";
-  const list = [...ids];
-  if (list.length === 0) return "";
-  return [...list].sort().join("\0");
-}
-
-function disabledToolkitSetMatchesArray(
-  s: ReadonlySet<string>,
-  arr: readonly string[] | undefined,
-): boolean {
-  return disabledToolkitsSignature(s) === disabledToolkitsSignature(arr);
-}
-
-function agentExecutionMatchesGlobals(
-  conv: Conversation,
-  globals: {
-    llmId: string | undefined;
-    useReasoning: boolean;
-    disabledToolkits: ReadonlySet<string>;
-  },
-): boolean {
-  const patch = buildAgentExecutionPatchFromGlobals(globals);
-  return (
-    conv.agentLlmId === patch.agentLlmId &&
-    conv.agentUseReasoning === patch.agentUseReasoning &&
-    disabledToolkitsSignature(conv.agentDisabledToolkits) ===
-      disabledToolkitsSignature(patch.agentDisabledToolkits)
-  );
-}
-
-/** Fingerprint persisted agent fields so we can tell when the conversation (not the toolbar) changed. */
-function agentPersistSignature(conv: Conversation): string {
-  if (!conversationHasAgentExecution(conv)) return "";
-  return [
-    conv.agentLlmId ?? "∅",
-    conv.agentUseReasoning === undefined ? "∅" : String(conv.agentUseReasoning),
-    disabledToolkitsSignature(conv.agentDisabledToolkits),
-  ].join("|");
-}
-
 function App() {
   const project = useProject();
   const chapter = useChapter();
@@ -183,7 +107,6 @@ function App() {
   chatFontSizePxRef.current = preferences.appearance.chatFontSizePx ?? 14;
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [modes, setModes] = useState<Mode[]>([]);
-  const [agentPresets, setAgentPresets] = useState<AgentPreset[]>([]);
   const [selectedMode, setSelectedMode] = useState("review");
   const [useReasoning, setUseReasoning] = useState(false);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
@@ -228,15 +151,6 @@ function App() {
    */
   const selectedModeRef = useRef(selectedMode);
   selectedModeRef.current = selectedMode;
-  const modeLlmIdRef = useRef(modeLlmId);
-  modeLlmIdRef.current = modeLlmId;
-  const useReasoningRef = useRef(useReasoning);
-  useReasoningRef.current = useReasoning;
-  const disabledToolkitsRef = useRef(disabledToolkits);
-  disabledToolkitsRef.current = disabledToolkits;
-  /** Avoid toolbar ↔ conversation ping-pong: only pull agent fields from conv when conv or active chat actually changed. */
-  const prevModeSyncActiveIdRef = useRef<string | null>(null);
-  const prevAgentPersistSigRef = useRef("");
   /**
    * Skips re-running applyLlmPrefsFromStorage on every mode-sync effect pass (same project/chat/load gen).
    * Re-applying on each pass caused setState + dependency churn → maximum update depth exceeded.
@@ -361,49 +275,7 @@ function App() {
   }, []);
 
   const history = useChatHistory(selectedMode, project.projectPath);
-  const chat = useChat(history.updateMessages, {
-    onAssistantResponseComplete: (fullText, meta) => {
-      if (meta.sessionKind === "standard") {
-        return;
-      }
-
-      if (meta.sessionKind !== "guided") return;
-
-      const parsed = parseSteeringPlanFromAssistant(fullText);
-      if (parsed) {
-        history.patchConversation(meta.conversationId, {
-          steeringPlan: parsed,
-        });
-      }
-
-      if (hasThreadResultFence(fullText)) {
-        const result = parseThreadResult(fullText);
-        if (result) {
-          const thisConv = history.conversations.find(
-            (c) => c.id === meta.conversationId,
-          );
-          const parentId = thisConv?.parentConversationId;
-          if (parentId) {
-            const displayTitle =
-              result.threadTitle ?? thisConv?.title ?? "Thread";
-            history.appendMessageToConversation(parentId, {
-              role: "assistant",
-              content: `**Thread-Ergebnis (${displayTitle}):**\n\n${result.summary}`,
-              hidden: true,
-              turnId: crypto.randomUUID(),
-            });
-            scheduleParentResultKickoff({
-              parentConversationId: parentId,
-              threadTitle: displayTitle,
-            });
-            if (history.activeId !== parentId) {
-              history.switchConversation(parentId);
-            }
-          }
-        }
-      }
-    },
-  });
+  const chat = useChat(history.updateMessages);
 
   /** Bumped after modes + LLM list load so chat mode can sync once project defaults are known. */
   const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
@@ -609,9 +481,7 @@ function App() {
         projectConfigApi.status(),
       ]);
       setModes(mds);
-      const forDefault = standardChatModes(mds);
       let configured: string | undefined;
-      let agents: AgentPreset[] = [];
       if (status.initialized) {
         try {
           const cfg = await projectConfigApi.get();
@@ -619,26 +489,15 @@ function App() {
         } catch {
           /* ignore */
         }
-        try {
-          agents = await projectConfigApi.listAgents();
-        } catch {
-          /* ignore */
-        }
       }
-      setAgentPresets(agents);
-      if (configured) {
-        const cfgMode = mds.find((m) => m.id === configured);
-        if (cfgMode?.agentOnly) configured = undefined;
-      }
-      const resolvedId = resolveDefaultModeId(forDefault, configured);
+      const resolvedId = resolveDefaultModeId(mds, configured);
       projectDefaultChatModeIdRef.current = resolvedId;
-      const resolvedMode = forDefault.find((m) => m.id === resolvedId);
+      const resolvedMode = mds.find((m) => m.id === resolvedId);
       setSelectedMode(resolvedId);
       setUseReasoning(resolvedMode?.useReasoning ?? false);
       setModeLlmId(resolvedMode?.llmId ?? undefined);
     } catch (e) {
       console.error(e);
-      setAgentPresets([]);
     }
   }, []);
 
@@ -689,105 +548,50 @@ function App() {
   // Sync main chat Mode selector with the active conversation (initial load + chat switch).
   useEffect(() => {
     if (!history.hydrated || modes.length === 0) return;
-    const standardSel = standardChatModes(modes);
     const conv = history.activeConversation;
-    const sessionKind = conv.sessionKind ?? "standard";
-    const allowedForSession =
-      sessionKind === "guided" ? modes : standardSel;
     let desired: string;
     /** Threads (and similar) can have only hidden bootstrap messages — still use conv.mode / history, not project default. */
-    /** Guided/agent chats keep {@link Conversation.mode} (preset) until the user sends — do not snap toolbar to project default. */
     const trulyEmptyForModeSync =
-      sessionKind !== "guided" &&
-      !conversationHasVisibleMessages(conv) &&
-      conv.messages.length === 0;
+      !conversationHasVisibleMessages(conv) && conv.messages.length === 0;
     if (trulyEmptyForModeSync) {
       // Prefer the conversation's own stored mode (set at creation or by the useChatHistory
       // single-conv effect) so that manual toolbar changes on empty chats are not snapped back.
-      if (conv.mode && standardSel.some((m) => m.id === conv.mode)) {
+      if (conv.mode && modes.some((m) => m.id === conv.mode)) {
         desired = conv.mode;
       } else {
         desired = projectDefaultChatModeIdRef.current;
-        if (!standardSel.some((m) => m.id === desired)) {
-          desired = resolveDefaultModeId(standardSel, undefined);
+        if (!modes.some((m) => m.id === desired)) {
+          desired = resolveDefaultModeId(modes, undefined);
         }
       }
     } else {
-      const fromConv = resolvePersistedChatModeId(conv, modes);
+      let fromConv: string | null = null;
+      if (conv.mode && modes.some((m) => m.id === conv.mode)) {
+        fromConv = conv.mode;
+      } else {
+        for (let i = conv.messages.length - 1; i >= 0; i--) {
+          const m = conv.messages[i];
+          if (m.hidden || m.role !== "user" || !m.mode) continue;
+          const found = modes.find((mode) => mode.name === m.mode);
+          if (found) {
+            fromConv = found.id;
+            break;
+          }
+        }
+      }
       desired = fromConv ?? projectDefaultChatModeIdRef.current;
-      if (!allowedForSession.some((m) => m.id === desired)) {
-        desired = resolveDefaultModeId(allowedForSession, undefined);
+      if (!modes.some((m) => m.id === desired)) {
+        desired = resolveDefaultModeId(modes, undefined);
       }
     }
     // Only apply mode row when the resolved id differs; otherwise handleModeChange would still
-    // rewrite llm/reasoning from the mode and fight the agent / prefs block below → update depth loops.
+    // rewrite llm/reasoning from the mode and fight the prefs block below → update depth loops.
     // Read via ref so that a manual user mode-change does not re-trigger this effect and snap back.
     if (desired !== selectedModeRef.current) {
       handleModeChange(desired, modes);
     }
-    const convAfter = history.activeConversation;
 
-    const activeIdNow = history.activeId;
-    const switchedConv = prevModeSyncActiveIdRef.current !== activeIdNow;
-    prevModeSyncActiveIdRef.current = activeIdNow;
-
-    const apSig = agentPersistSignature(convAfter);
-    const agentPersistChanged = prevAgentPersistSigRef.current !== apSig;
-    prevAgentPersistSigRef.current = apSig;
-
-    if (conversationHasAgentExecution(convAfter)) {
-      lastNonAgentToolbarPrefsSyncRef.current = null;
-      const pullAgentFromConv = switchedConv || agentPersistChanged;
-
-      if (pullAgentFromConv) {
-        let gLlm: string | undefined = modeLlmIdRef.current;
-        let gReason = useReasoningRef.current;
-        let gDisabled: ReadonlySet<string> = disabledToolkitsRef.current;
-        if (convAfter.agentLlmId !== undefined) gLlm = convAfter.agentLlmId;
-        if (convAfter.agentUseReasoning !== undefined)
-          gReason = convAfter.agentUseReasoning;
-        if (convAfter.agentDisabledToolkits !== undefined) {
-          gDisabled = new Set(convAfter.agentDisabledToolkits);
-        }
-        setModeLlmId((prev) => (prev === gLlm ? prev : gLlm));
-        setUseReasoning((prev) => (prev === gReason ? prev : gReason));
-        if (convAfter.agentDisabledToolkits !== undefined) {
-          setDisabledToolkits((prev) => {
-            if (
-              disabledToolkitSetMatchesArray(
-                prev,
-                convAfter.agentDisabledToolkits,
-              )
-            )
-              return prev;
-            return new Set(convAfter.agentDisabledToolkits);
-          });
-        }
-        const target = {
-          llmId: gLlm,
-          useReasoning: gReason,
-          disabledToolkits: gDisabled,
-        };
-        if (!agentExecutionMatchesGlobals(convAfter, target)) {
-          history.patchConversation(
-            convAfter.id,
-            buildAgentExecutionPatchFromGlobals(target),
-          );
-        }
-      } else {
-        const globals = {
-          llmId: modeLlmIdRef.current,
-          useReasoning: useReasoningRef.current,
-          disabledToolkits: disabledToolkitsRef.current,
-        };
-        if (!agentExecutionMatchesGlobals(convAfter, globals)) {
-          history.patchConversation(
-            convAfter.id,
-            buildAgentExecutionPatchFromGlobals(globals),
-          );
-        }
-      }
-    } else if (prefsHydratedRef.current) {
+    if (prefsHydratedRef.current) {
       const pp = project.projectPath ?? "";
       const aid = history.activeId;
       const gen = modesAndLlmLoadGeneration;
@@ -812,12 +616,7 @@ function App() {
   }, [
     history.hydrated,
     history.activeId,
-    history.patchConversation,
     history.activeConversation.mode,
-    history.activeConversation.sessionKind,
-    history.activeConversation.agentLlmId,
-    history.activeConversation.agentUseReasoning,
-    disabledToolkitsSignature(history.activeConversation.agentDisabledToolkits),
     modes,
     project.projectPath,
     modesAndLlmLoadGeneration,
@@ -1372,175 +1171,16 @@ function App() {
     [conversation.schedulePreviewRefresh],
   );
 
-  const performGuidedAgentPresetKickoff = useCallback(
-    (conv: Conversation) => {
-      const modeId = effectiveChatModeIdForRequest(conv, selectedMode, modes);
-      const mode = modes.find((m) => m.id === modeId);
-      const exec = getEffectiveChatExecution(conv, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
-      const streamSession = {
-        conversationId: conv.id,
-        sessionKind: "guided" as ChatSessionKind,
-        steeringPlan: conv.steeringPlan,
-        isThread: conv.isThread ?? false,
-      };
-      // Mit Steuerungsplan → detaillierte Kickoff-Nachricht; ohne → einfache Begrüßung.
-      const kickoffMessage = conv.steeringPlan?.trim()
-        ? GUIDED_AGENT_KICKOFF_USER_MESSAGE
-        : GUIDED_SIMPLE_KICKOFF_USER_MESSAGE;
-      chat.sendMessage(
-        kickoffMessage,
-        modeId,
-        refs.referencedFiles,
-        mode?.name,
-        mode?.color,
-        exec.useReasoning,
-        exec.llmId,
-        undefined,
-        focusedField?.fieldKey ?? null,
-        exec.disabledToolkits,
-        streamSession,
-        { userHidden: true, ...(!rulesEnabled ? { rulesDisabled: true } : {}) },
-      );
-      history.patchConversation(conv.id, { mode: modeId });
-      setActiveSelection(null);
-    },
-    [
-      chat.sendMessage,
-      selectedMode,
-      modes,
-      refs.referencedFiles,
-      useReasoning,
-      modeLlmId,
-      focusedField,
-      disabledToolkits,
-      rulesEnabled,
-      history.patchConversation,
-    ],
-  );
-
-  const performParentResultKickoff = useCallback(
-    (parentConv: Conversation) => {
-      const modeId = effectiveChatModeIdForRequest(parentConv, selectedMode, modes);
-      const mode = modes.find((m) => m.id === modeId);
-      const exec = getEffectiveChatExecution(parentConv, {
-        llmId: modeLlmId,
-        useReasoning,
-        disabledToolkits,
-      });
-      const streamSession = {
-        conversationId: parentConv.id,
-        sessionKind: "guided" as ChatSessionKind,
-        steeringPlan: parentConv.steeringPlan,
-        // isThread intentionally not set — parent is a root conversation
-      };
-      chat.sendMessage(
-        PARENT_RESULT_INTEGRATION_USER_MESSAGE,
-        modeId,
-        [],
-        mode?.name,
-        mode?.color,
-        exec.useReasoning,
-        exec.llmId,
-        undefined,
-        focusedField?.fieldKey ?? null,
-        exec.disabledToolkits,
-        streamSession,
-        { userHidden: true, ...(!rulesEnabled ? { rulesDisabled: true } : {}) },
-      );
-      history.patchConversation(parentConv.id, { mode: modeId });
-    },
-    [
-      chat.sendMessage,
-      selectedMode,
-      modes,
-      useReasoning,
-      modeLlmId,
-      focusedField,
-      disabledToolkits,
-      rulesEnabled,
-      history.patchConversation,
-    ],
-  );
-
-  // Guided agent preset with initial plan: auto-send hidden bootstrap so the assistant speaks first.
-  useEffect(() => {
-    const conv = history.activeConversation;
-    if (!conv) return;
-
-    cancelGuidedAgentKickoffIfPendingMismatchesActive(conv.id);
-
-    if (!hasPendingGuidedAgentKickoffFor(conv.id)) return;
-    if (conv.sessionKind !== "guided") return;
-    if (conv.messages.length > 0) return;
-    // Wait until loadMessages has applied this conversation (avoid sendMessage using a stale message list).
-    if (chat.messages.length !== conv.messages.length) return;
-    if (chat.streaming) return;
-
-    if (!tryMarkGuidedAgentKickoffStarted(conv.id)) {
-      clearPendingGuidedAgentKickoff();
-      return;
-    }
-
-    clearPendingGuidedAgentKickoff();
-    performGuidedAgentPresetKickoff(conv);
-  }, [
-    history.activeConversation,
-    chat.messages,
-    chat.streaming,
-    performGuidedAgentPresetKickoff,
-  ]);
-
-  // Subthread result: when the parent becomes active and has a pending result kickoff, integrate it.
-  useEffect(() => {
-    const conv = history.activeConversation;
-    if (!conv) return;
-    if (!hasPendingParentResultKickoffFor(conv.id)) return;
-    if (conv.sessionKind !== "guided") return;
-    if (chat.messages.length !== conv.messages.length) return;
-    if (chat.streaming) return;
-
-    const entry = consumeNextPendingKickoffFor(conv.id);
-    if (!entry) return;
-
-    if (!tryMarkKickoffStarted(entry.token)) return;
-
-    performParentResultKickoff(conv);
-  }, [
-    history.activeConversation,
-    chat.messages,
-    chat.streaming,
-    performParentResultKickoff,
-  ]);
-
-  const modesForChat = useMemo(() => {
-    const base = standardChatModes(modes);
-    const cur = modes.find((m) => m.id === selectedMode);
-    if (cur?.agentOnly && !base.some((m) => m.id === cur.id)) {
-      return [...base, cur];
-    }
-    return base;
-  }, [modes, selectedMode]);
-
   const {
     handleNewChat,
     handleDiscardCurrentChat,
     handleForkToNewConversation,
     handleStartThreadFromMessage,
-    handleAcceptGuidedThreadFromOffer,
   } = useConversationActions({
     history,
     chatMessages: chat.messages,
     selectedMode,
     modes,
-    llms,
-    modeLlmId,
-    useReasoning,
-    disabledToolkits,
-    agentPresets,
     handleModeChange,
   });
 
@@ -1550,15 +1190,6 @@ function App() {
     },
     [history],
   );
-
-  const handleMarkSteeringPlanComplete = useCallback(() => {
-    const conv = history.activeConversation;
-    if (!conv || conv.sessionKind !== "guided") return;
-    const current = conv.steeringPlan ?? "";
-    if (!current.trim()) return;
-    const next = ensureSteeringPlanMarkedComplete(current);
-    history.patchConversation(conv.id, { steeringPlan: next });
-  }, [history]);
 
   const activeChapterTitle = chapter.activeChapter?.meta.title ?? null;
 
@@ -1848,7 +1479,7 @@ function App() {
                 theme={
                   preferences.appearance.theme === "light" ? "light" : "dark"
                 }
-                modes={modesForChat}
+                modes={modes}
                 selectedMode={selectedMode}
                 referencedFiles={refs.referencedFiles}
                 conversations={history.conversations}
@@ -1875,19 +1506,12 @@ function App() {
                 onForkFromMessage={conversation.forkFromMessage}
                 onForkToNewConversation={handleForkToNewConversation}
                 onStartThreadFromMessage={handleStartThreadFromMessage}
-                onAcceptGuidedThreadOffer={handleAcceptGuidedThreadFromOffer}
                 onEditMessage={conversation.editMessage}
                 onDeleteMessages={conversation.deleteMessages}
                 onSetMessageFeedback={conversation.setMessageFeedback}
                 onNewChat={handleNewChat}
                 onDiscardCurrentChat={handleDiscardCurrentChat}
-                agentPresets={agentPresets}
-                activeSessionKind={
-                  history.activeConversation?.sessionKind ?? "standard"
-                }
-                steeringPlan={history.activeConversation?.steeringPlan ?? ""}
                 activeIsThread={history.activeConversation?.isThread === true}
-                onMarkSteeringPlanComplete={handleMarkSteeringPlanComplete}
                 onSwitchChat={handleSwitchChat}
                 onDeleteChat={history.deleteConversation}
                 onRenameChat={history.renameConversation}

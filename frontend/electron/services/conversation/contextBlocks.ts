@@ -115,31 +115,6 @@ export function buildToolkitBlock(request: ChatRequest): ContextBlock | null {
   };
 }
 
-export function buildSessionBlock(request: ChatRequest): ContextBlock | null {
-  const sessionKind = normalizeText(request.sessionKind);
-  const steeringPlan =
-    typeof request.steeringPlan === "string" ? request.steeringPlan.trim() : "";
-
-  if (!sessionKind && !steeringPlan) return null;
-
-  const lines: string[] = [];
-  if (sessionKind) {
-    lines.push(`Sitzungstyp: ${sessionKind}`);
-  }
-  if (steeringPlan) {
-    lines.push("Steuerungsplan:");
-    lines.push(steeringPlan);
-  }
-
-  const content = lines.join("\n");
-  return {
-    type: "session",
-    label: "Sitzung",
-    content,
-    estimatedTokens: estimateTokens(content),
-  };
-}
-
 export async function buildPreviewContext(
   projectPath: string | null,
   request: ChatRequest,
@@ -231,9 +206,6 @@ export async function buildPreviewContext(
 
   const toolkitBlock = buildToolkitBlock(request);
   if (toolkitBlock) blocks.push(toolkitBlock);
-
-  const sessionBlock = buildSessionBlock(request);
-  if (sessionBlock) blocks.push(sessionBlock);
 
   return {
     projectConfig,

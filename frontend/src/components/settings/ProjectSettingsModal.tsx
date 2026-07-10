@@ -11,13 +11,10 @@ import {
   FolderOpen,
   RefreshCw,
   Copy,
-  Bot,
   Upload,
 } from "lucide-react";
 import { projectConfigApi, llmApi } from "../../api.ts";
 import type {
-  AgentPreset,
-  ChatToolkitId,
   ProjectConfig,
   ProjectRule,
   Mode,
@@ -25,7 +22,6 @@ import type {
   LlmPublic,
   LlmsListResponse,
 } from "../../types.ts";
-import { CHAT_TOOLKIT_IDS } from "../../types.ts";
 import { usePreferences } from "../../hooks/usePreferences.ts";
 import { effectiveModeColor } from "../chat/modeColorTheme.ts";
 import { CommentCategoriesTab } from "./CommentCategoriesTab.tsx";
@@ -43,26 +39,8 @@ type Tab =
   | "quickChat"
   | "modes"
   | "commentCategories"
-  | "agents"
   | "workspacePlugins"
   | "aiProviders";
-
-interface AgentFormState {
-  editingId: string | null;
-  id: string;
-  name: string;
-  modeId: string;
-  threadModeId: string;
-  useReasoning: boolean;
-  disabledToolkits: ChatToolkitId[];
-  initialSteeringPlan: string;
-}
-
-const TOOLKIT_LABELS: Record<ChatToolkitId, string> = {
-  web: "Websuche",
-  dateisystem: "Dateisystem",
-  assistant: "Assistant-Tools",
-};
 
 interface LlmFormState {
   editingId: string | null;
@@ -84,7 +62,6 @@ interface ModeForm {
   systemPrompt: string;
   autoIncludes: string;
   useReasoning: boolean;
-  agentOnly: boolean;
   llmId: string;
 }
 
@@ -319,13 +296,6 @@ export function ProjectSettingsModal({
   );
   const [resettingModes, setResettingModes] = useState(false);
 
-  // Agent presets (.assistant/agents.json)
-  const [agents, setAgents] = useState<AgentPreset[]>([]);
-  const [loadingAgents, setLoadingAgents] = useState(false);
-  const [agentForm, setAgentForm] = useState<AgentFormState | null>(null);
-  const [savingAgent, setSavingAgent] = useState(false);
-  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
-
   // Workspace mode plugins (YAML under app data)
   const [workspaceModesList, setWorkspaceModesList] = useState<
     WorkspaceModeInfo[]
@@ -394,30 +364,11 @@ export function ProjectSettingsModal({
       (tab === "aiProviders" ||
         tab === "modes" ||
         tab === "quickChat" ||
-        tab === "agents" ||
         tab === "general")
     ) {
       void loadLlms();
     }
   }, [loading, tab, loadLlms]);
-
-  const loadAgents = useCallback(async () => {
-    if (!initialized) return;
-    setLoadingAgents(true);
-    setError(null);
-    try {
-      const list = await projectConfigApi.listAgents();
-      setAgents(list);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Agenten konnten nicht geladen werden",
-      );
-    } finally {
-      setLoadingAgents(false);
-    }
-  }, [initialized]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -430,16 +381,12 @@ export function ProjectSettingsModal({
       setInitialized(status.initialized);
       if (llmsData) setLlmsState(llmsData);
       if (status.initialized) {
-        const [cfg, mds, agentList] = await Promise.all([
+        const [cfg, mds] = await Promise.all([
           projectConfigApi.get(),
           projectConfigApi.getModes(),
-          projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
         ]);
         setConfig(cfg);
         setModes(mds);
-        setAgents(agentList);
-      } else {
-        setAgents([]);
       }
     } catch (err) {
       setError(
@@ -469,12 +416,8 @@ export function ProjectSettingsModal({
       const cfg = await projectConfigApi.init();
       setConfig(cfg);
       setInitialized(true);
-      const [mds, agentList] = await Promise.all([
-        projectConfigApi.getModes(),
-        projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
-      ]);
+      const mds = await projectConfigApi.getModes();
       setModes(mds);
-      setAgents(agentList);
       onModesChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Initialization failed");
@@ -491,12 +434,8 @@ export function ProjectSettingsModal({
       if (!cfg) return; // user cancelled file picker
       setConfig(cfg);
       setInitialized(true);
-      const [mds, agentList] = await Promise.all([
-        projectConfigApi.getModes(),
-        projectConfigApi.listAgents().catch(() => [] as AgentPreset[]),
-      ]);
+      const mds = await projectConfigApi.getModes();
       setModes(mds);
-      setAgents(agentList);
       onModesChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Initialization failed");
@@ -549,7 +488,6 @@ export function ProjectSettingsModal({
       systemPrompt: "",
       autoIncludes: "",
       useReasoning: false,
-      agentOnly: false,
       llmId: "",
     });
   };
@@ -564,7 +502,6 @@ export function ProjectSettingsModal({
       systemPrompt: mode.systemPrompt || "",
       autoIncludes: (mode.autoIncludes || []).join("\n"),
       useReasoning: mode.useReasoning ?? false,
-      agentOnly: mode.agentOnly ?? false,
       llmId: mode.llmId ?? "",
     });
   };
@@ -585,7 +522,6 @@ export function ProjectSettingsModal({
           .map((s) => s.trim())
           .filter(Boolean),
         useReasoning: modeForm.useReasoning,
-        agentOnly: modeForm.agentOnly,
         llmId: modeForm.llmId.trim() || undefined,
       };
       await projectConfigApi.saveMode(mode.id, mode);
@@ -662,112 +598,6 @@ export function ProjectSettingsModal({
       setError(err instanceof Error ? err.message : "Failed to duplicate mode");
     } finally {
       setDuplicatingModeId(null);
-    }
-  };
-
-  // ── Agent presets (.assistant/agents.json) ───────────────────────────────────
-
-  const openNewAgent = () => {
-    const chatModesList = modes;
-    setAgentForm({
-      editingId: null,
-      id: "",
-      name: "",
-      modeId: chatModesList[0]?.id ?? "",
-      threadModeId: "",
-      useReasoning: false,
-      disabledToolkits: [],
-      initialSteeringPlan: "",
-    });
-  };
-
-  const openEditAgent = (a: AgentPreset) => {
-    setAgentForm({
-      editingId: a.id,
-      id: a.id,
-      name: a.name,
-      modeId: a.modeId,
-      threadModeId: a.threadModeId ?? "",
-      useReasoning: a.useReasoning ?? false,
-      disabledToolkits: [...(a.disabledToolkits ?? [])],
-      initialSteeringPlan: a.initialSteeringPlan ?? "",
-    });
-  };
-
-  const setAgentToolkitEnabled = (
-    toolkitId: ChatToolkitId,
-    enabled: boolean,
-  ) => {
-    setAgentForm((prev) => {
-      if (!prev) return prev;
-      const next = new Set(prev.disabledToolkits);
-      if (enabled) next.delete(toolkitId);
-      else next.add(toolkitId);
-      return { ...prev, disabledToolkits: Array.from(next) as ChatToolkitId[] };
-    });
-  };
-
-  const handleSaveAgent = async () => {
-    if (!agentForm || !agentForm.name.trim() || !agentForm.modeId) return;
-    const effectiveId =
-      agentForm.editingId ??
-      agentForm.id.trim().replace(/\s+/g, "-").toLowerCase();
-    if (agentForm.editingId === null && !agentForm.id.trim()) {
-      setError("Bitte eine ID angeben");
-      return;
-    }
-    if (!/^[a-zA-Z0-9_-]+$/.test(effectiveId)) {
-      setError("Ungültige ID (nur Buchstaben, Ziffern, _ und -)");
-      return;
-    }
-    const preset: AgentPreset = {
-      id: effectiveId,
-      name: agentForm.name.trim(),
-      modeId: agentForm.modeId,
-      ...(agentForm.threadModeId.trim()
-        ? { threadModeId: agentForm.threadModeId.trim() }
-        : {}),
-      useReasoning: agentForm.useReasoning,
-      disabledToolkits: [...agentForm.disabledToolkits],
-      ...(agentForm.initialSteeringPlan.trim()
-        ? { initialSteeringPlan: agentForm.initialSteeringPlan.trim() }
-        : {}),
-    };
-    setSavingAgent(true);
-    setError(null);
-    try {
-      await projectConfigApi.saveAgent(effectiveId, preset);
-      await loadAgents();
-      setAgentForm(null);
-      onModesChanged();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Agent konnte nicht gespeichert werden",
-      );
-    } finally {
-      setSavingAgent(false);
-    }
-  };
-
-  const handleDeleteAgent = async (id: string) => {
-    if (!window.confirm(`Agent-Vorlage „${id}“ wirklich löschen?`)) return;
-    setDeletingAgentId(id);
-    setError(null);
-    try {
-      await projectConfigApi.deleteAgent(id);
-      await loadAgents();
-      if (agentForm?.editingId === id) setAgentForm(null);
-      onModesChanged();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Agent konnte nicht gelöscht werden",
-      );
-    } finally {
-      setDeletingAgentId(null);
     }
   };
 
@@ -910,7 +740,6 @@ export function ProjectSettingsModal({
                   "quickChat",
                   "modes",
                   "commentCategories",
-                  "agents",
                   "workspacePlugins",
                   "aiProviders",
                 ] as Tab[]
@@ -935,18 +764,6 @@ export function ProjectSettingsModal({
                     `Modes (${modes.length})`
                   ) : t === "commentCategories" ? (
                     "Kommentar-Kategorien"
-                  ) : t === "agents" ? (
-                    <>
-                      <Bot
-                        size={13}
-                        style={{
-                          display: "inline",
-                          verticalAlign: "text-bottom",
-                          marginRight: 4,
-                        }}
-                      />
-                      Agenten ({agents.length})
-                    </>
                   ) : t === "workspacePlugins" ? (
                     "Workspace plugins"
                   ) : (
@@ -1050,13 +867,11 @@ export function ProjectSettingsModal({
                   <option value="">
                     Automatic (review, or first mode if review is missing)
                   </option>
-                  {modes
-                    .filter((m) => !m.agentOnly)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.id})
-                      </option>
-                    ))}
+                  {modes.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.id})
+                    </option>
+                  ))}
                 </select>
 
                 <p className="ps-hint">
@@ -1318,31 +1133,6 @@ export function ProjectSettingsModal({
                       placeholder="e.g. Game Design"
                     />
 
-                    <label className="ps-label">Verfügbarkeit im Chat</label>
-                    <p className="ps-hint">
-                      „Nur Agenten“: Modus erscheint nicht im
-                      Haupt-Chat-Modusmenü, bleibt aber für Agent-Vorlagen und
-                      geführte Chats wählbar.
-                    </p>
-                    <select
-                      className="ps-input"
-                      value={modeForm.agentOnly ? "agent" : "chat"}
-                      onChange={(e) =>
-                        setModeForm(
-                          (p) =>
-                            p && {
-                              ...p,
-                              agentOnly: e.target.value === "agent",
-                            },
-                        )
-                      }
-                    >
-                      <option value="chat">Normaler Chat + Agenten</option>
-                      <option value="agent">
-                        Nur Agenten / geführte Chats
-                      </option>
-                    </select>
-
                     <label className="ps-label">Color</label>
                     <div className="ps-color-row">
                       <input
@@ -1501,18 +1291,6 @@ export function ProjectSettingsModal({
                             }}
                           />
                           <span className="ps-list-item-name">{mode.name}</span>
-                          {mode.agentOnly && (
-                            <span
-                              className="ps-mode-agent-badge"
-                              title="Nur Agenten / geführte Chats"
-                              aria-label="Nur Agenten"
-                            >
-                              <Bot
-                                size={12}
-                                style={{ display: "block", opacity: 0.85 }}
-                              />
-                            </span>
-                          )}
                           <span className="ps-list-item-id">{mode.id}</span>
                           <button
                             type="button"
@@ -1583,313 +1361,6 @@ export function ProjectSettingsModal({
             {initialized && tab === "commentCategories" && (
               <div className="ps-tab-content">
                 <CommentCategoriesTab />
-              </div>
-            )}
-
-            {/* Agent presets (guided chat templates) */}
-            {initialized && tab === "agents" && (
-              <div className="ps-tab-content">
-                {agentForm ? (
-                  <div className="ps-mode-form">
-                    <div className="ps-form-nav">
-                      <button
-                        type="button"
-                        className="ps-back-btn"
-                        onClick={() => setAgentForm(null)}
-                      >
-                        <ChevronLeft size={14} />
-                        Back
-                      </button>
-                      <span className="ps-form-title">
-                        {agentForm.editingId
-                          ? "Agent-Vorlage bearbeiten"
-                          : "Neue Agent-Vorlage"}
-                      </span>
-                    </div>
-
-                    <label className="ps-label">
-                      ID{" "}
-                      <span className="ps-label-hint">
-                        (nur Buchstaben, Ziffern, _ und -)
-                      </span>
-                    </label>
-                    <input
-                      className="ps-input"
-                      value={agentForm.id}
-                      onChange={(e) =>
-                        setAgentForm((p) => p && { ...p, id: e.target.value })
-                      }
-                      placeholder="z. B. revisor"
-                      disabled={agentForm.editingId !== null}
-                    />
-
-                    <label className="ps-label">Name</label>
-                    <input
-                      className="ps-input"
-                      value={agentForm.name}
-                      onChange={(e) =>
-                        setAgentForm((p) => p && { ...p, name: e.target.value })
-                      }
-                      placeholder="Anzeigename"
-                    />
-
-                    <label className="ps-label">Modus</label>
-                    <p className="ps-hint">
-                      LLM und Kontext kommen aus dem gewählten Modus (Tab{" "}
-                      <strong>Modes</strong>).
-                    </p>
-                    <select
-                      className="ps-input"
-                      value={agentForm.modeId}
-                      onChange={(e) => {
-                        const nextModeId = e.target.value;
-                        const modeLlm = modes.find(
-                          (m) => m.id === nextModeId,
-                        )?.llmId;
-                        const lp = modeLlm
-                          ? (llmsState?.providers ?? []).find(
-                              (x) => x.id === modeLlm,
-                            )
-                          : undefined;
-                        const supports = !!lp?.reasoningModel;
-                        setAgentForm(
-                          (p) =>
-                            p && {
-                              ...p,
-                              modeId: nextModeId,
-                              useReasoning: supports ? p.useReasoning : false,
-                            },
-                        );
-                      }}
-                    >
-                      {modes
-                        .map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} ({m.id})
-                          </option>
-                        ))}
-                    </select>
-
-                    <label className="ps-label">
-                      Modus für Threads{" "}
-                      <span className="ps-label-hint">
-                        (optional — leer = wie Eltern-Chat; nur wenn dieser Chat
-                        die Vorlage nutzt)
-                      </span>
-                    </label>
-                    <select
-                      className="ps-input"
-                      value={agentForm.threadModeId}
-                      onChange={(e) =>
-                        setAgentForm(
-                          (p) => p && { ...p, threadModeId: e.target.value },
-                        )
-                      }
-                    >
-                      <option value="">— wie Eltern-Chat —</option>
-                      {modes
-                        .map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} ({m.id})
-                          </option>
-                        ))}
-                    </select>
-
-                    {(() => {
-                      const modeLlm = modes.find(
-                        (m) => m.id === agentForm.modeId,
-                      )?.llmId;
-                      const lp = modeLlm
-                        ? (llmsState?.providers ?? []).find(
-                            (x) => x.id === modeLlm,
-                          )
-                        : undefined;
-                      const supportsReasoning = !!lp?.reasoningModel;
-                      if (!supportsReasoning) return null;
-                      return (
-                        <>
-                          <label className="ps-label">Reasoning</label>
-                          <div className="ps-toggle-row">
-                            <input
-                              type="checkbox"
-                              id="agentPresetUseReasoning"
-                              checked={agentForm.useReasoning}
-                              onChange={(e) =>
-                                setAgentForm(
-                                  (p) =>
-                                    p && {
-                                      ...p,
-                                      useReasoning: e.target.checked,
-                                    },
-                                )
-                              }
-                            />
-                            <label
-                              htmlFor="agentPresetUseReasoning"
-                              className="ps-toggle-label"
-                            >
-                              Reasoning für diese Vorlage standardmäßig aktiv
-                            </label>
-                          </div>
-                        </>
-                      );
-                    })()}
-
-                    <label className="ps-label">Toolkits / Features</label>
-                    <p className="ps-hint">
-                      Aktiviert = Toolkit steht in geführten Chats mit dieser
-                      Vorlage zur Verfügung.
-                    </p>
-                    <div className="ps-toggle-column">
-                      {CHAT_TOOLKIT_IDS.map((kitId) => (
-                        <div key={kitId} className="ps-toggle-row">
-                          <input
-                            type="checkbox"
-                            id={`agentTk-${kitId}`}
-                            checked={
-                              !agentForm.disabledToolkits.includes(kitId)
-                            }
-                            onChange={(e) =>
-                              setAgentToolkitEnabled(kitId, e.target.checked)
-                            }
-                          />
-                          <label
-                            htmlFor={`agentTk-${kitId}`}
-                            className="ps-toggle-label"
-                          >
-                            {TOOLKIT_LABELS[kitId]} ({kitId})
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-
-                    <label className="ps-label">Arbeitsplan (optional)</label>
-                    <textarea
-                      className="ps-textarea ps-textarea-tall"
-                      value={agentForm.initialSteeringPlan}
-                      onChange={(e) =>
-                        setAgentForm(
-                          (p) =>
-                            p && { ...p, initialSteeringPlan: e.target.value },
-                        )
-                      }
-                      placeholder="Markdown für den Start einer geführten Sitzung…"
-                      rows={6}
-                      spellCheck={false}
-                    />
-
-                    <div className="ps-actions">
-                      <button
-                        type="button"
-                        className="ps-save-btn"
-                        onClick={() => void handleSaveAgent()}
-                        disabled={
-                          savingAgent ||
-                          !agentForm.name.trim() ||
-                          !agentForm.modeId ||
-                          (agentForm.editingId === null && !agentForm.id.trim())
-                        }
-                      >
-                        {savingAgent ? (
-                          <>
-                            <Loader size={13} className="ps-spinner" />{" "}
-                            Speichern…
-                          </>
-                        ) : (
-                          <>
-                            <Save size={13} /> Vorlage speichern
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {loadingAgents && (
-                      <p className="ps-hint">
-                        <Loader
-                          size={12}
-                          className="ps-spinner"
-                          style={{ display: "inline", verticalAlign: "middle" }}
-                        />{" "}
-                        Agenten werden geladen…
-                      </p>
-                    )}
-                    <div className="ps-list">
-                      {!loadingAgents && agents.length === 0 && (
-                        <div className="ps-empty">
-                          Keine Agent-Vorlagen. Lege eine an, um sie beim neuen
-                          geführten Chat auszuwählen.
-                        </div>
-                      )}
-                      {agents.map((a) => {
-                        const modeOk = modes.some((m) => m.id === a.modeId);
-                        const modeLabel =
-                          modes.find((m) => m.id === a.modeId)?.name ??
-                          a.modeId;
-                        const threadModeLabel = a.threadModeId
-                          ? (modes.find((m) => m.id === a.threadModeId)?.name ??
-                            a.threadModeId)
-                          : null;
-                        const legacyThreadLlm = a.threadLlmId
-                          ? ((llmsState?.providers ?? []).find(
-                              (l) => l.id === a.threadLlmId,
-                            )?.name ?? a.threadLlmId)
-                          : null;
-                        const rowTitle = `${a.id} · Modus: ${modeLabel}${
-                          threadModeLabel
-                            ? ` · Thread-Modus: ${threadModeLabel}`
-                            : ""
-                        }${legacyThreadLlm ? ` · (Legacy Thread-LLM: ${legacyThreadLlm})` : ""}${
-                          !modeOk ? " · Modus fehlt" : ""
-                        }`;
-                        return (
-                          <div
-                            key={a.id}
-                            className="ps-list-item"
-                            onClick={() => openEditAgent(a)}
-                            title={rowTitle}
-                          >
-                            <Bot
-                              size={14}
-                              style={{ flexShrink: 0, opacity: 0.85 }}
-                            />
-                            <span className="ps-list-item-name">{a.name}</span>
-                            <span className="ps-list-item-id">
-                              {a.id}
-                              {!modeOk ? " · Modus?" : ` · ${modeLabel}`}
-                            </span>
-                            <button
-                              type="button"
-                              className="ps-list-item-delete"
-                              title="Vorlage löschen"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void handleDeleteAgent(a.id);
-                              }}
-                              disabled={deletingAgentId === a.id}
-                            >
-                              {deletingAgentId === a.id ? (
-                                <Loader size={12} className="ps-spinner" />
-                              ) : (
-                                <Trash2 size={12} />
-                              )}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="ps-actions">
-                      <button
-                        type="button"
-                        className="ps-add-btn"
-                        onClick={openNewAgent}
-                      >
-                        <Plus size={13} /> Neue Vorlage
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
             )}
 

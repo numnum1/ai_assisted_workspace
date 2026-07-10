@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react
 import type {
   ChatMessage,
   ChatRequest,
-  ChatSessionKind,
   ContextInfo,
   MessageFeedback,
   ReasoningEffort,
@@ -23,22 +22,11 @@ export interface EditMessageSendParams {
   /** Toolkit ids whose tools are omitted for this request. */
   disabledToolkits?: string[];
   conversationId: string;
-  sessionKind: ChatSessionKind;
-  steeringPlan?: string;
-  isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
 }
 
-/** Active conversation id + session kind; sent with each chat request for guided mode / plan persistence. */
-export interface ChatStreamSessionMeta {
-  conversationId: string;
-  sessionKind: ChatSessionKind;
-  steeringPlan?: string;
-  isThread?: boolean;
-}
-
-/** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. guided preset bootstrap). */
+/** Optional flags for {@link useChat}'s {@code sendMessage} (e.g. clarification answers). */
 export interface SendMessageOptions {
   /** When true, the new user message is stored and sent to the API but not shown in the chat UI. */
   userHidden?: boolean;
@@ -53,29 +41,7 @@ export interface SendMessageOptions {
   reasoningEffort?: ReasoningEffort;
 }
 
-export interface UseChatOptions {
-  onAssistantResponseComplete?: (
-    fullText: string,
-    meta: { conversationId: string; sessionKind: ChatSessionKind },
-  ) => void;
-}
-
-function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
-  if (!meta) {
-    return { sessionKind: 'standard' };
-  }
-  const sk = meta.sessionKind ?? 'standard';
-  if (sk === 'guided') {
-    return {
-      sessionKind: 'guided',
-      steeringPlan: meta.steeringPlan ?? null,
-      ...(meta.isThread ? { isThread: true } : {}),
-    };
-  }
-  return { sessionKind: 'standard' };
-}
-
-export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, options?: UseChatOptions) {
+export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
@@ -85,12 +51,9 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
   const lastStreamCallRef = useRef<{
     chatRequest: ChatRequest;
     selectionContext?: SelectionContext;
-    streamMeta?: { conversationId: string; sessionKind: ChatSessionKind };
   } | null>(null);
   const onMessagesChangeRef = useRef(onMessagesChange);
   onMessagesChangeRef.current = onMessagesChange;
-  const onAssistantResponseCompleteRef = useRef(options?.onAssistantResponseComplete);
-  onAssistantResponseCompleteRef.current = options?.onAssistantResponseComplete;
 
   // Tracks the evolving base message list during an active stream so that
   // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
@@ -136,7 +99,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       selectionContext?: SelectionContext,
       activeFieldKey?: string | null,
       disabledToolkits?: string[],
-      streamSession?: ChatStreamSessionMeta,
       sendOpts?: SendMessageOptions,
     ) => {
       syncEnabledRef.current = true;
@@ -167,11 +129,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         turnId,
       };
 
-      const streamMeta =
-        streamSession != null
-          ? { conversationId: streamSession.conversationId, sessionKind: streamSession.sessionKind }
-          : undefined;
-
       const streamCbs: StreamCallbacks = streamCbsBase;
 
       const request: ChatRequest = {
@@ -186,18 +143,11 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         ...(disabledToolkits != null && disabledToolkits.length > 0
           ? { disabledToolkits: [...disabledToolkits] }
           : {}),
-        ...buildSessionChatRequestFields(streamSession),
         ...(sendOpts?.rulesDisabled ? { rulesDisabled: true } : {}),
       };
-      lastStreamCallRef.current = { chatRequest: request, selectionContext, streamMeta };
+      lastStreamCallRef.current = { chatRequest: request, selectionContext };
 
-      const onComplete =
-        streamMeta && onAssistantResponseCompleteRef.current
-          ? (fullText: string) =>
-              onAssistantResponseCompleteRef.current?.(fullText, streamMeta)
-          : undefined;
-
-      abortRef.current = attachAssistantStream(request, selectionContext, streamCbs, onComplete);
+      abortRef.current = attachAssistantStream(request, selectionContext, streamCbs);
     },
     [],
   );
@@ -214,11 +164,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
     setError(null);
     setStreaming(true);
     setToolActivity(null);
-    const { chatRequest, selectionContext, streamMeta } = last;
-    const onComplete =
-      streamMeta && onAssistantResponseCompleteRef.current
-        ? (fullText: string) => onAssistantResponseCompleteRef.current?.(fullText, streamMeta)
-        : undefined;
+    const { chatRequest, selectionContext } = last;
     const streamCbs = {
       setMessages,
       setStreaming,
@@ -227,7 +173,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
       setContextInfo,
       currentBaseRef,
     };
-    abortRef.current = attachAssistantStream(chatRequest, selectionContext, streamCbs, onComplete);
+    abortRef.current = attachAssistantStream(chatRequest, selectionContext, streamCbs);
   }, []);
 
   const forkFromMessage = useCallback((upToIndex: number) => {
@@ -284,10 +230,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         turnId,
       };
 
-      const streamMeta = {
-        conversationId: sendParams.conversationId,
-        sessionKind: sendParams.sessionKind,
-      };
       const request: ChatRequest = {
         message: trimmed,
         activeFieldKey: sendParams.activeFieldKey ?? null,
@@ -300,32 +242,18 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         ...(sendParams.disabledToolkits != null && sendParams.disabledToolkits.length > 0
           ? { disabledToolkits: [...sendParams.disabledToolkits] }
           : {}),
-        ...buildSessionChatRequestFields({
-          conversationId: sendParams.conversationId,
-          sessionKind: sendParams.sessionKind,
-          steeringPlan: sendParams.steeringPlan,
-          isThread: sendParams.isThread,
-        }),
         ...(sendParams.rulesDisabled ? { rulesDisabled: true } : {}),
       };
-
-      const onComplete =
-        onAssistantResponseCompleteRef.current != null
-          ? (fullText: string) =>
-              onAssistantResponseCompleteRef.current?.(fullText, streamMeta)
-          : undefined;
 
       lastStreamCallRef.current = {
         chatRequest: request,
         selectionContext: sendParams.selectionContext,
-        streamMeta,
       };
 
       abortRef.current = attachAssistantStream(
         request,
         sendParams.selectionContext,
         streamCbs,
-        onComplete,
       );
     },
     [],

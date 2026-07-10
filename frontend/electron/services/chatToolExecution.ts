@@ -149,49 +149,6 @@ export function buildYesNoFence(question: string): string {
   return `\`\`\`yes_no\n${JSON.stringify({ question })}\n\`\`\``;
 }
 
-export function buildGuidedThreadOfferFence(args: {
-  steeringPlanMarkdown?: unknown;
-  threadTitle?: unknown;
-  summary?: unknown;
-  modeId?: unknown;
-  agentPresetId?: unknown;
-}): string | null {
-  const steeringPlanMarkdown =
-    typeof args.steeringPlanMarkdown === "string" ? args.steeringPlanMarkdown.trim() : "";
-  if (!steeringPlanMarkdown) return null;
-
-  const payload: Record<string, string> = { steeringPlanMarkdown };
-  if (typeof args.threadTitle === "string" && args.threadTitle.trim())
-    payload.threadTitle = args.threadTitle.trim();
-  if (typeof args.summary === "string" && args.summary.trim())
-    payload.summary = args.summary.trim();
-  if (typeof args.modeId === "string" && args.modeId.trim())
-    payload.modeId = args.modeId.trim();
-  if (typeof args.agentPresetId === "string" && args.agentPresetId.trim())
-    payload.agentPresetId = args.agentPresetId.trim();
-
-  return `\`\`\`guided_thread_offer\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
-}
-
-export function buildThreadResultFence(args: {
-  summary?: unknown;
-  threadTitle?: unknown;
-  updatedFiles?: unknown;
-}): string | null {
-  const summary = typeof args.summary === "string" ? args.summary.trim() : "";
-  if (!summary) return null;
-
-  const payload: Record<string, unknown> = { summary };
-  if (typeof args.threadTitle === "string" && args.threadTitle.trim())
-    payload.threadTitle = args.threadTitle.trim();
-  if (Array.isArray(args.updatedFiles) && args.updatedFiles.length > 0) {
-    const files = args.updatedFiles.filter((f) => typeof f === "string" && (f as string).trim());
-    if (files.length > 0) payload.updatedFiles = files;
-  }
-
-  return `\`\`\`thread_result\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
-}
-
 export function describeStreamingToolCall(toolCall: ToolCall): string {
   const name = toolCall.function.name;
   if (name === "read_file") return "Lese Datei";
@@ -201,8 +158,6 @@ export function describeStreamingToolCall(toolCall: ToolCall): string {
   if (name === "edit_file") return "Bearbeite Datei";
   if (name === "ask_clarification") return "Stelle Rückfrage";
   if (name === "ask_yes_no") return "Ja/Nein-Frage";
-  if (name === "propose_guided_thread") return "Biete Guided Thread an";
-  if (name === "report_thread_result") return "Übermittle Thread-Ergebnis";
   return `Tool: ${name}`;
 }
 
@@ -267,24 +222,6 @@ export async function executeToolCall(
     const question = normalizeText(String(args.question ?? ""));
     if (!question) throw new Error("ask_yes_no requires a non-empty question.");
     result = buildYesNoFence(question);
-  } else if (name === "propose_guided_thread") {
-    const offer = buildGuidedThreadOfferFence({
-      steeringPlanMarkdown: args.steeringPlanMarkdown,
-      threadTitle: args.threadTitle,
-      summary: args.summary,
-      modeId: args.modeId,
-      agentPresetId: args.agentPresetId,
-    });
-    if (!offer) throw new Error("propose_guided_thread requires steeringPlanMarkdown.");
-    result = offer;
-  } else if (name === "report_thread_result") {
-    const fence = buildThreadResultFence({
-      summary: args.summary,
-      threadTitle: args.threadTitle,
-      updatedFiles: args.updatedFiles,
-    });
-    if (!fence) throw new Error("report_thread_result requires a non-empty summary.");
-    result = fence;
   } else {
     throw new Error(`Unknown tool: ${name}`);
   }
