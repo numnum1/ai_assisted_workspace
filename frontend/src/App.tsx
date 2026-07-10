@@ -15,8 +15,6 @@ import {
   Check,
   GitCommitHorizontal,
   RefreshCw,
-  Maximize2,
-  Minimize2,
   Upload,
   Database,
   Settings,
@@ -806,22 +804,8 @@ function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const [centerPaneWide, setCenterPaneWide] = useState(false);
-
   const handleMainPanelLayoutChanged = useCallback((layout: Layout) => {
     saveMainPanelLayout(layout);
-    const left = leftPanelRef.current;
-    const right = rightPanelRef.current;
-    if (left && right)
-      setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
-  }, []);
-
-  useLayoutEffect(() => {
-    const left = leftPanelRef.current;
-    const right = rightPanelRef.current;
-    if (left && right)
-      setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync once after persisted layout applies
   }, []);
 
   // Outliner and chat moved out of the permanent UI (Ctrl+Shift+Space popup / Alt+2 /
@@ -829,18 +813,10 @@ function App() {
   useLayoutEffect(() => {
     leftPanelRef.current?.collapse();
     rightPanelRef.current?.collapse();
-    setCenterPaneWide(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   useEffect(() => {
-    const syncSidebarsWideState = () => {
-      const left = leftPanelRef.current;
-      const right = rightPanelRef.current;
-      if (left && right)
-        setCenterPaneWide(left.isCollapsed() && right.isCollapsed());
-    };
-
     const onKey = (e: KeyboardEvent) => {
       // Allow regular character input (like "ß", "ä", "ö", "ü", etc.)
       // Don't interfere with normal typing
@@ -894,7 +870,6 @@ function App() {
         if (!p) return;
         if (p.isCollapsed()) p.expand();
         else p.collapse();
-        syncSidebarsWideState();
         return;
       }
       if (code === "Digit3" || code === "Numpad3") {
@@ -911,7 +886,6 @@ function App() {
         if (!p) return;
         if (p.isCollapsed()) p.expand();
         else p.collapse();
-        syncSidebarsWideState();
         return;
       }
       if (code === "Digit5" || code === "Numpad5") {
@@ -925,21 +899,6 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- panel refs stable; single global shortcut registration
-  }, []);
-
-  const handleToggleCenterPanels = useCallback(() => {
-    const left = leftPanelRef.current;
-    const right = rightPanelRef.current;
-    if (!left || !right) return;
-    if (left.isCollapsed() && right.isCollapsed()) {
-      left.expand();
-      right.expand();
-      setCenterPaneWide(false);
-    } else {
-      left.collapse();
-      right.collapse();
-      setCenterPaneWide(true);
-    }
   }, []);
 
   const syncBadge = useMemo(() => {
@@ -1372,23 +1331,6 @@ function App() {
                 onClose={() => setSearchOpen(false)}
               />
             )}
-            <button
-              type="button"
-              className="center-pane-wide-toggle"
-              onClick={handleToggleCenterPanels}
-              title={
-                centerPaneWide
-                  ? "Seitenleisten wieder anzeigen"
-                  : "Seitenleisten ausblenden (breiter Editor)"
-              }
-              aria-pressed={centerPaneWide}
-            >
-              {centerPaneWide ? (
-                <Minimize2 size={17} strokeWidth={2} />
-              ) : (
-                <Maximize2 size={17} strokeWidth={2} />
-              )}
-            </button>
             {focusedField && showMetaChrome ? (
               <div className="field-editor-center">
                 <FieldEditorPanel
