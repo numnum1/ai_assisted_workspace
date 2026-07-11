@@ -291,6 +291,13 @@ export function ChapterView({
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
+  // Note: `padding` (the persisted user preference) is intentionally never
+  // clamped/overwritten. The container can be temporarily narrow (e.g.
+  // during initial layout or a resized window), and permanently shrinking
+  // the stored value in that moment would silently discard the user's
+  // setting. Rendering uses `effectivePadding` instead, which clamps only
+  // for display.
+  const effectivePadding = Math.min(padding, paddingSliderMax);
 
   const { preferences } = usePreferences();
   const showSceneHeadings = preferences.appearance.showSceneHeadings ?? true;
@@ -636,7 +643,7 @@ export function ChapterView({
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [computeLayout, comments.length, fontSize, padding, lineHeight, collapsedScenes]);
+  }, [computeLayout, comments.length, fontSize, effectivePadding, lineHeight, collapsedScenes]);
 
   const registerRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) {
@@ -677,10 +684,6 @@ export function ChapterView({
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
   }, [commentSidebarWidth]);
-
-  useEffect(() => {
-    setPadding(p => (p > paddingSliderMax ? paddingSliderMax : p));
-  }, [paddingSliderMax]);
 
   // Ctrl+S saves all dirty
   useEffect(() => {
@@ -805,7 +808,7 @@ export function ChapterView({
               min={0}
               max={paddingSliderMax}
               step={READING_PADDING_SLIDER_STEP}
-              value={padding}
+              value={effectivePadding}
               onChange={e => setPadding(Number(e.target.value))}
             />
           </div>
@@ -947,7 +950,7 @@ export function ChapterView({
         <div className="chapter-view-content-col" ref={contentColRef}>
         <div
           className="section-separator chapter-heading"
-          style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
+          style={{ paddingLeft: `${effectivePadding}px`, paddingRight: `${effectivePadding}px`, borderColor: mutedText }}
         >
           <span className="section-separator-line" style={{ borderColor: mutedText }} />
           <span className="section-separator-title" style={{ color: colors.text }}>
@@ -964,7 +967,7 @@ export function ChapterView({
                 <div
                   ref={el => registerRef(`scene-${scene.id}`, el)}
                   className="section-separator scene-heading scene-heading-clickable"
-                  style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px`, borderColor: mutedText }}
+                  style={{ paddingLeft: `${effectivePadding}px`, paddingRight: `${effectivePadding}px`, borderColor: mutedText }}
                   role="button"
                   tabIndex={0}
                   onClick={() => toggleSceneCollapsed(scene.id)}
@@ -1013,7 +1016,7 @@ export function ChapterView({
                       content={content}
                       colors={colors}
                       fontSize={fontSize}
-                      padding={padding}
+                      padding={effectivePadding}
                       lineHeight={lineHeight}
                       onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}

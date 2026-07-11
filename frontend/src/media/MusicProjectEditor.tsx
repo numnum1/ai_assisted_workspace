@@ -106,9 +106,10 @@ export function MusicProjectEditor({
   useEffect(() => { localStorage.setItem(NIGHT_VARIANT_KEY, String(nightVariant)); }, [nightVariant]);
   useEffect(() => { localStorage.setItem(HIDE_METATAGS_KEY, String(hideMetatags)); }, [hideMetatags]);
 
-  useEffect(() => {
-    setPadding(p => (p > paddingSliderMax ? paddingSliderMax : p));
-  }, [paddingSliderMax]);
+  // See ChapterView.tsx: don't clamp/overwrite the persisted preference here,
+  // only the display value, so a temporarily narrow container doesn't
+  // permanently shrink the stored setting.
+  const effectivePadding = Math.min(padding, paddingSliderMax);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -191,7 +192,7 @@ export function MusicProjectEditor({
               min={0}
               max={paddingSliderMax}
               step={READING_PADDING_SLIDER_STEP}
-              value={padding}
+              value={effectivePadding}
               onChange={e => setPadding(Number(e.target.value))}
             />
           </div>
@@ -258,7 +259,7 @@ export function MusicProjectEditor({
         {/* Song header */}
         <div
           className="song-view-song-header"
-          style={{ paddingLeft: `${padding}px`, paddingRight: `${padding}px` }}
+          style={{ paddingLeft: `${effectivePadding}px`, paddingRight: `${effectivePadding}px` }}
         >
           <div className="song-view-song-icon" style={{ color: accentColor }}>
             <Music size={32} />
@@ -283,8 +284,8 @@ export function MusicProjectEditor({
                 <div
                   className="song-verse-metatags"
                   style={{
-                    paddingLeft: `${padding}px`,
-                    paddingRight: `${padding}px`,
+                    paddingLeft: `${effectivePadding}px`,
+                    paddingRight: `${effectivePadding}px`,
                     color: metatagColor,
                   }}
                 >
@@ -309,7 +310,7 @@ export function MusicProjectEditor({
                       content={content}
                       colors={colors}
                       fontSize={fontSize}
-                      padding={padding}
+                      padding={effectivePadding}
                       lineHeight={lineHeight}
                       onChange={c => onActionChange(chapter.id, scene.id, action.id, c)}
                       onSave={() => onActionSave(chapter.id, scene.id, action.id)}

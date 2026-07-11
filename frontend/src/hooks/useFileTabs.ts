@@ -12,6 +12,34 @@ export interface PendingEditorScroll {
   nonce: number;
 }
 
+const LAST_FILE_STORAGE_KEY = 'assistant-last-file-path';
+
+function loadLastFilePath(projectPath: string): string | null {
+  try {
+    const raw = localStorage.getItem(LAST_FILE_STORAGE_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, string>;
+    return map[projectPath]?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLastFilePath(projectPath: string, path: string | null): void {
+  try {
+    const raw = localStorage.getItem(LAST_FILE_STORAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    if (path) {
+      map[projectPath] = path;
+    } else {
+      delete map[projectPath];
+    }
+    localStorage.setItem(LAST_FILE_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function useFileTabs(projectPath: string | null) {
   const [tabs, setTabs] = useState<FileTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
@@ -24,7 +52,33 @@ export function useFileTabs(projectPath: string | null) {
     setActiveTabPath(null);
     setError(null);
     setPendingScroll(null);
+    if (!projectPath) return;
+    const lastPath = loadLastFilePath(projectPath);
+    if (!lastPath) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await filesApi.getContent(lastPath);
+        if (cancelled) return;
+        setTabs((prev) =>
+          prev.find((t) => t.path === lastPath)
+            ? prev
+            : [...prev, { path: lastPath, content: res.content, dirty: false }],
+        );
+        setActiveTabPath(lastPath);
+      } catch {
+        /* file may have been deleted or moved since last session; ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [projectPath]);
+
+  useEffect(() => {
+    if (!projectPath) return;
+    saveLastFilePath(projectPath, activeTabPath);
+  }, [projectPath, activeTabPath]);
 
   const activeTab = tabs.find((t) => t.path === activeTabPath) ?? null;
   const selectedPath = activeTabPath;
