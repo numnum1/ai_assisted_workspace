@@ -272,12 +272,23 @@ function App() {
     [],
   );
 
-  // Project root changes: reset structure and editor state
+  // Project root changes: reset structure and editor state, then default into the chapter view
   useEffect(() => {
     if (!project.projectPath) return;
-    chapter.setProjectPath(project.projectPath);
+    const projectPath = project.projectPath;
+    chapter.setProjectPath(projectPath);
     chapter.closeChapter();
-    void chapter.refreshChapters();
+    void (async () => {
+      const list = await chapter.refreshChapters();
+      if (list.length === 0) return;
+      const restored = chapter.restoreLastPosition(projectPath, null);
+      const restoredValid = restored && list.some((c) => c.id === restored.chapterId);
+      if (restoredValid) {
+        await chapter.openChapter(restored.chapterId, restored.scrollTarget);
+      } else {
+        await chapter.openChapter(list[0].id);
+      }
+    })();
     setSelectedMeta(null);
     setMetaExpanded(false);
     setFocusedField(null);

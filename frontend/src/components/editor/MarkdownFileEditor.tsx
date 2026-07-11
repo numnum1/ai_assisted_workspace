@@ -1,4 +1,4 @@
-import { Save, FileText, X } from 'lucide-react';
+import { Save, X } from 'lucide-react';
 import { UnifiedMarkdownEditor } from './UnifiedMarkdownEditor';
 import type { SelectionContext, AltVersionSession } from '../../types.ts';
 
@@ -47,12 +47,7 @@ export function MarkdownFileEditor({
   onExitDiff,
 }: MarkdownFileEditorProps) {
   if (!path) {
-    return (
-      <div className="markdown-file-editor markdown-file-editor--empty editor-empty">
-        <FileText size={40} strokeWidth={1} />
-        <p>Datei im Baum auswählen</p>
-      </div>
-    );
+    return null;
   }
 
   const fileName = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;

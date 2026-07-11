@@ -671,14 +671,6 @@ body.file-tree-native-dragging {
     overflow: hidden;
 }
 
-.markdown-file-editor--empty {
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 12px;
-    color: var(--text-muted);
-}
-
 .markdown-file-editor-toolbar {
     display: flex;
     align-items: center;
