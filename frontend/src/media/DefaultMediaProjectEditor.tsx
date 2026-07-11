@@ -10,6 +10,11 @@ export function DefaultMediaProjectEditor({
   proseLeafAtScene,
   chapter,
   structureRoot,
+  bookProjects,
+  currentBookProjectPath,
+  onSelectBookProject,
+  chapterTabs,
+  onSelectChapterTab,
   actionContents,
   scrollTarget,
   hasDirtyActions,
@@ -28,6 +33,11 @@ export function DefaultMediaProjectEditor({
         proseLeafAtScene={proseLeafAtScene}
         chapter={chapter}
         structureRoot={structureRoot}
+        bookProjects={bookProjects}
+        currentBookProjectPath={currentBookProjectPath}
+        onSelectBookProject={onSelectBookProject}
+        chapterTabs={chapterTabs}
+        onSelectChapterTab={onSelectChapterTab}
         actionContents={actionContents}
         scrollTarget={scrollTarget}
         hasDirtyActions={hasDirtyActions}

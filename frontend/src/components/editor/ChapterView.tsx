@@ -5,8 +5,9 @@ import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownE
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
-import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef } from '../../types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
+import type { BookProject } from '../../utils/bookProjects.ts';
 import { chapterApi, projectConfigApi } from '../../api.ts';
 import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../../hooks/useReadingPaddingMax.ts';
 import { usePreferences } from '../../hooks/usePreferences.ts';
@@ -112,6 +113,14 @@ interface ChapterViewProps {
   chapter: ChapterNode;
   /** Subproject/workspace root the chapter lives under (null = project root). Used to resolve git history paths. */
   structureRoot?: string | null;
+  /** Root project plus every book-like subproject, for the project picker. */
+  bookProjects: BookProject[];
+  /** Path of the currently active book project ("." for the project root). */
+  currentBookProjectPath: string;
+  onSelectBookProject: (path: string, subprojectType: string | null) => void;
+  /** Chapters of the currently active book project, for the chapter tab strip. */
+  chapterTabs: ChapterSummary[];
+  onSelectChapterTab: (chapterId: string) => void;
   actionContents: Map<string, { content: string; dirty: boolean }>;
   scrollTarget: ScrollTarget | null;
   hasDirtyActions: boolean;
@@ -133,6 +142,11 @@ export function ChapterView({
   proseLeafAtScene = false,
   chapter,
   structureRoot = null,
+  bookProjects,
+  currentBookProjectPath,
+  onSelectBookProject,
+  chapterTabs,
+  onSelectChapterTab,
   actionContents,
   scrollTarget,
   hasDirtyActions,
@@ -746,10 +760,42 @@ export function ChapterView({
     >
       {/* Toolbar */}
       <div className="chapter-view-toolbar" style={{ backgroundColor: headerBg, borderBottomColor: borderColor }}>
-        <span className="chapter-view-title-label" style={{ color: mutedText }}>
-          {chapter.meta.title || chapter.id}
-          {hasDirtyActions && <span className="editor-dirty"> *</span>}
-        </span>
+        <div className="chapter-view-toolbar-nav">
+          <select
+            className="chapter-view-project-select"
+            style={{ color: mutedText, borderColor: borderColor }}
+            value={currentBookProjectPath}
+            onChange={e => {
+              const proj = bookProjects.find(p => p.path === e.target.value);
+              onSelectBookProject(e.target.value, proj?.subprojectType ?? null);
+            }}
+            title="Buchprojekt wählen"
+          >
+            {bookProjects.map(p => (
+              <option key={p.path} value={p.path}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <div className="chapter-view-chapter-tabs">
+            {chapterTabs.map(c => {
+              const active = c.id === chapter.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`chapter-view-chapter-tab${active ? ' active' : ''}`}
+                  style={active ? { color: colors.text } : { color: mutedText }}
+                  onClick={() => onSelectChapterTab(c.id)}
+                  title={c.meta.title || c.id}
+                >
+                  {c.meta.title || c.id}
+                  {active && hasDirtyActions && <span className="editor-dirty"> *</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="chapter-view-toolbar-actions">
           <div className="reading-padding-control" title="Seitenabstand">
             <MoveHorizontal size={12} />

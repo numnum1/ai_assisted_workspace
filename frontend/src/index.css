@@ -1500,13 +1500,61 @@ body.file-tree-native-dragging {
     z-index: 10;
 }
 
-.chapter-view-title-label {
+.chapter-view-toolbar-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    margin-right: 12px;
+}
+
+.chapter-view-project-select {
+    flex-shrink: 0;
+    max-width: 160px;
     font-size: 12px;
     font-weight: 500;
+    background: transparent;
+    border: 1px solid;
+    border-radius: 4px;
+    padding: 3px 6px;
+    cursor: pointer;
+}
+
+.chapter-view-chapter-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    min-width: 0;
+}
+
+.chapter-view-chapter-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.chapter-view-chapter-tab {
+    flex-shrink: 0;
+    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 50%;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.chapter-view-chapter-tab:hover {
+    opacity: 0.85;
+}
+
+.chapter-view-chapter-tab.active {
+    border-bottom-color: var(--accent, #89b4fa);
 }
 
 .chapter-view-toolbar-actions {

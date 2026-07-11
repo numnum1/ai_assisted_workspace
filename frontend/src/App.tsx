@@ -53,6 +53,7 @@ import { usePreferences } from "./hooks/usePreferences.ts";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import { useProject } from "./hooks/useProject.ts";
 import { useChapter } from "./hooks/useChapter.ts";
+import { useBookProjects } from "./hooks/useBookProjects.ts";
 import { useChat } from "./hooks/useChat.ts";
 import { useChatHistory } from "./hooks/useChatHistory.ts";
 import { useWorkspaceMode } from "./hooks/useWorkspaceMode.ts";
@@ -84,6 +85,7 @@ function conversationHasVisibleMessages(conv: Conversation): boolean {
 function App() {
   const project = useProject();
   const chapter = useChapter();
+  const bookProjects = useBookProjects(project.projectPath ?? null);
   const { preferences, updatePreferences } = usePreferences();
   const chatFontSizePxRef = useRef(preferences.appearance.chatFontSizePx ?? 14);
   chatFontSizePxRef.current = preferences.appearance.chatFontSizePx ?? 14;
@@ -702,6 +704,33 @@ function App() {
     [chapter, fileEditor],
   );
 
+  const handleSelectBookProject = useCallback(
+    async (path: string, subprojectType: string | null) => {
+      const root = path === "." ? null : path;
+      setSelectedMeta(null);
+      setMetaExpanded(false);
+      setFocusedField(null);
+      chapter.setStructureRoot(root, subprojectType);
+      const list = await chapter.refreshChapters();
+      if (list.length > 0) {
+        await chapter.openChapter(list[0].id);
+      } else {
+        chapter.closeChapter();
+      }
+    },
+    [chapter],
+  );
+
+  const handleSelectChapterTab = useCallback(
+    (chapterId: string) => {
+      setSelectedMeta(null);
+      setMetaExpanded(false);
+      setFocusedField(null);
+      void chapter.openChapter(chapterId);
+    },
+    [chapter],
+  );
+
   const commandActions: CommandAction[] = useMemo(() => {
     const actions: CommandAction[] = [
       ...(isRunningInElectron()
@@ -922,6 +951,11 @@ function App() {
             }
             chapter={chapter.activeChapter}
             structureRoot={chapter.structureRoot}
+            bookProjects={bookProjects}
+            currentBookProjectPath={chapter.structureRoot ?? "."}
+            onSelectBookProject={handleSelectBookProject}
+            chapterTabs={chapter.chapters}
+            onSelectChapterTab={handleSelectChapterTab}
             actionContents={chapter.actionContents}
             scrollTarget={chapter.scrollTarget}
             hasDirtyActions={chapter.hasDirtyActions}
@@ -958,6 +992,7 @@ function App() {
           setMetaExpanded(false);
           setFocusedField(null);
           chapter.setStructureRoot(structureRoot, subprojectType);
+          void chapter.refreshChapters();
           void chapter.openChapter(chapterId);
         }}
       />

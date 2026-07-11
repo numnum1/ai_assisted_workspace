@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
-import type { ChapterNode, ScrollTarget, SelectionContext, AltVersionSession } from './types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession } from './types.ts';
+import type { BookProject } from './utils/bookProjects.ts';
 
 /** Props for the main editor area when a chapter is open in a media subproject */
 export interface MediaProjectEditorProps {
@@ -9,6 +10,14 @@ export interface MediaProjectEditorProps {
   chapter: ChapterNode;
   /** Subproject/workspace root the chapter lives under (null = project root). Used to resolve git history paths. */
   structureRoot?: string | null;
+  /** Root project plus every book-like subproject, for the project picker. */
+  bookProjects: BookProject[];
+  /** Path of the currently active book project ("." for the project root). */
+  currentBookProjectPath: string;
+  onSelectBookProject: (path: string, subprojectType: string | null) => void;
+  /** Chapters of the currently active book project, for the chapter tab strip. */
+  chapterTabs: ChapterSummary[];
+  onSelectChapterTab: (chapterId: string) => void;
   actionContents: Map<string, { content: string; dirty: boolean }>;
   scrollTarget: ScrollTarget | null;
   hasDirtyActions: boolean;

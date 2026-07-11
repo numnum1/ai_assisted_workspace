@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Search, Folder, FileText, X, FolderOpen } from "lucide-react";
 import { chapterApi, filesApi, wikiApi } from "../../api.ts";
+import { collectBookProjects } from "../../utils/bookProjects.ts";
 import type { FileNode } from "../../types.ts";
 import "./ContentBrowserOverlay.css";
 
@@ -23,14 +24,6 @@ interface WikiTile {
   path: string;
 }
 
-/** A book-like subproject (or the project root itself) that owns a chapter list. */
-interface BookProject {
-  /** "." for the project root, otherwise the subproject's relative folder path. */
-  path: string;
-  name: string;
-  subprojectType: string | null;
-}
-
 interface ChapterRow {
   key: string;
   chapterId: string;
@@ -48,21 +41,6 @@ interface ContentBrowserOverlayProps {
   onSelectFile: (path: string) => void;
   /** Opens a chapter within its owning book project (project root when structureRoot is null). */
   onSelectChapter: (chapterId: string, structureRoot: string | null, subprojectType: string | null) => void;
-}
-
-function collectBookProjects(root: FileNode): BookProject[] {
-  const projects: BookProject[] = [
-    { path: ".", name: root.name || "Projekt", subprojectType: root.subprojectType ?? null },
-  ];
-  const visit = (node: FileNode) => {
-    if (node.directory && node.subprojectType) {
-      projects.push({ path: node.path, name: node.name, subprojectType: node.subprojectType });
-      return;
-    }
-    node.children?.forEach(visit);
-  };
-  root.children?.forEach(visit);
-  return projects;
 }
 
 function fileDisplayName(path: string): string {

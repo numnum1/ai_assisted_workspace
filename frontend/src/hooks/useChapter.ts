@@ -98,12 +98,14 @@ export function useChapter() {
 
   // ─── Chapter list ──────────────────────────────────────────────────────────
 
-  const refreshChapters = useCallback(async () => {
+  const refreshChapters = useCallback(async (): Promise<ChapterSummary[]> => {
     try {
       const list = await chapterApi.list(sr());
       setChapters(list);
+      return list;
     } catch (err) {
       console.error('Failed to load chapters:', err);
+      return [];
     }
   }, [sr]);
 
