@@ -21,7 +21,6 @@ export function DefaultMediaProjectEditor({
   onActionChange,
   onActionSave,
   onSaveAll,
-  onClose,
   onScrollTargetConsumed,
   onEditorFocus,
   onCtrlL,
@@ -44,7 +43,6 @@ export function DefaultMediaProjectEditor({
         onActionChange={onActionChange}
         onActionSave={onActionSave}
         onSaveAll={onSaveAll}
-        onClose={onClose}
         onScrollTargetConsumed={onScrollTargetConsumed}
         onEditorFocus={onEditorFocus}
         onCtrlL={onCtrlL}

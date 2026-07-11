@@ -47,7 +47,9 @@ import {
   vectorApi,
   gitApi,
   streamChat,
+  filesApi,
 } from "./api.ts";
+import { collectBookProjects } from "./utils/bookProjects.ts";
 
 import { usePreferences } from "./hooks/usePreferences.ts";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
@@ -279,9 +281,25 @@ function App() {
     chapter.setProjectPath(projectPath);
     chapter.closeChapter();
     void (async () => {
+      // The last-edited chapter may live under a book subproject rather than the
+      // project root, so resolve its structure root/type before listing chapters.
+      const lastPos = chapter.peekLastPosition(projectPath);
+      let root: string | null = null;
+      let subprojectType: string | null = null;
+      if (lastPos?.structureRoot) {
+        root = lastPos.structureRoot;
+        try {
+          const tree = await filesApi.getTree();
+          const match = collectBookProjects(tree).find((p) => p.path === root);
+          subprojectType = match?.subprojectType ?? null;
+        } catch {
+          /* fall back to root project below */
+        }
+      }
+      chapter.setStructureRoot(root, subprojectType);
       const list = await chapter.refreshChapters();
       if (list.length === 0) return;
-      const restored = chapter.restoreLastPosition(projectPath, null);
+      const restored = chapter.restoreLastPosition(projectPath, root);
       const restoredValid = restored && list.some((c) => c.id === restored.chapterId);
       if (restoredValid) {
         await chapter.openChapter(restored.chapterId, restored.scrollTarget);

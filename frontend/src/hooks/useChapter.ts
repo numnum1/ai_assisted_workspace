@@ -75,25 +75,32 @@ export function useChapter() {
     } catch { /* ignore */ }
   }, []);
 
+  /** Reads the raw stored position for a project, regardless of the currently active structure root. */
+  const peekLastPosition = useCallback((projectPath: string): StoredPosition | null => {
+    try {
+      const raw = localStorage.getItem(LAST_POSITION_KEY);
+      if (!raw) return null;
+      const pos = JSON.parse(raw) as StoredPosition;
+      if (pos.projectPath !== projectPath) return null;
+      return pos;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const restoreLastPosition = useCallback(
     (projectPath: string, structureRoot?: string | null): { chapterId: string; scrollTarget: ScrollTarget | null } | null => {
-      try {
-        const raw = localStorage.getItem(LAST_POSITION_KEY);
-        if (!raw) return null;
-        const pos = JSON.parse(raw) as StoredPosition;
-        if (pos.projectPath !== projectPath) return null;
-        const rootNorm = structureRoot && structureRoot !== '.' ? structureRoot : null;
-        const posRoot = pos.structureRoot && pos.structureRoot !== '.' ? pos.structureRoot : null;
-        if (rootNorm !== posRoot) return null;
-        const target = (pos.sceneId || pos.actionId)
-          ? { sceneId: pos.sceneId, actionId: pos.actionId }
-          : null;
-        return { chapterId: pos.chapterId, scrollTarget: target };
-      } catch {
-        return null;
-      }
+      const pos = peekLastPosition(projectPath);
+      if (!pos) return null;
+      const rootNorm = structureRoot && structureRoot !== '.' ? structureRoot : null;
+      const posRoot = pos.structureRoot && pos.structureRoot !== '.' ? pos.structureRoot : null;
+      if (rootNorm !== posRoot) return null;
+      const target = (pos.sceneId || pos.actionId)
+        ? { sceneId: pos.sceneId, actionId: pos.actionId }
+        : null;
+      return { chapterId: pos.chapterId, scrollTarget: target };
     },
-    [],
+    [peekLastPosition],
   );
 
   // ─── Chapter list ──────────────────────────────────────────────────────────
@@ -448,6 +455,7 @@ export function useChapter() {
     structureRoot,
     activeSubprojectType,
     restoreLastPosition,
+    peekLastPosition,
     actionContents,
     updateActionContent,
     saveAction,

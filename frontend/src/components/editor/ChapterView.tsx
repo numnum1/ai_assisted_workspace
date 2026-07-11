@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, ChevronDown, ChevronRight, History, MessageSquareText, Sparkles, Loader2 } from 'lucide-react';
+import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, ChevronDown, ChevronRight, History, MessageSquareText, Sparkles, Loader2 } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
 import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
@@ -127,7 +127,6 @@ interface ChapterViewProps {
   onActionChange: (chapterId: string, sceneId: string, actionId: string, content: string) => void;
   onActionSave: (chapterId: string, sceneId: string, actionId: string) => void;
   onSaveAll: () => void;
-  onClose: () => void;
   onScrollTargetConsumed: () => void;
   onEditorFocus?: (sceneId: string, actionId: string) => void;
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
@@ -153,7 +152,6 @@ export function ChapterView({
   onActionChange,
   onActionSave,
   onSaveAll,
-  onClose,
   onScrollTargetConsumed,
   onEditorFocus,
   onCtrlL,
@@ -924,13 +922,6 @@ export function ChapterView({
             title="Git-Verlauf des Kapitels"
           >
             <History size={14} />
-          </button>
-          <button
-            className="editor-close-btn"
-            onClick={onClose}
-            title="Datei schließen"
-          >
-            <X size={14} />
           </button>
         </div>
       </div>
