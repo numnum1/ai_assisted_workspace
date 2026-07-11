@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, ChevronDown, ChevronRight, History, MessageSquareText, Sparkles, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
 import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
+import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
+import { useTopBarContent } from '../app/TopBarContext.ts';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
 import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
 import type { BookProject } from '../../utils/bookProjects.ts';
 import { chapterApi, projectConfigApi } from '../../api.ts';
-import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../../hooks/useReadingPaddingMax.ts';
+import { useReadingPaddingMax } from '../../hooks/useReadingPaddingMax.ts';
 import { usePreferences } from '../../hooks/usePreferences.ts';
 
 const FONT_SIZE_KEY = 'reading-font-size';
@@ -21,9 +23,6 @@ const COLLAPSED_SCENES_KEY = 'chapter-collapsed-scenes';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 64;
 const DEFAULT_LINE_HEIGHT = 1.5;
-const LINE_HEIGHT_MIN = 1.1;
-const LINE_HEIGHT_MAX = 2.4;
-const LINE_HEIGHT_STEP = 0.1;
 const COMMENT_SIDEBAR_WIDTH_KEY = 'comment-sidebar-width';
 const DEFAULT_COMMENT_SIDEBAR_WIDTH = 280;
 const COMMENT_SIDEBAR_MIN_WIDTH = 180;
@@ -754,178 +753,68 @@ export function ChapterView({
   const borderColor = nightAlt ? 'rgba(201,209,217,0.2)' : nightMode ? 'rgba(223,201,156,0.2)' : 'rgba(44,42,37,0.18)';
   const mutedText = nightAlt ? '#7d8590' : nightMode ? '#9a7d50' : '#6b6560';
 
+  // Register this editor's tools into the app-wide TopBar. Memoized so the
+  // provider only re-renders when a referenced value actually changes.
+  const topBarContent = useMemo(
+    () => (
+      <ChapterViewToolbar
+        headerBg={headerBg}
+        borderColor={borderColor}
+        mutedText={mutedText}
+        textColor={colors.text}
+        currentBookProjectPath={currentBookProjectPath}
+        bookProjects={bookProjects}
+        onSelectBookProject={onSelectBookProject}
+        chapterTabs={chapterTabs}
+        chapterId={chapter.id}
+        hasDirtyActions={hasDirtyActions}
+        onSelectChapterTab={onSelectChapterTab}
+        paddingSliderMax={paddingSliderMax}
+        effectivePadding={effectivePadding}
+        setPadding={setPadding}
+        lineHeight={lineHeight}
+        setLineHeight={setLineHeight}
+        nightMode={nightMode}
+        setNightMode={setNightMode}
+        setNightVariant={setNightVariant}
+        nightPalettesLength={NIGHT_PALETTES.length}
+        onSaveAll={onSaveAll}
+        commentPanelOpen={commentPanelOpen}
+        setCommentPanelOpen={setCommentPanelOpen}
+        categoryDefs={categoryDefs}
+        activeCategories={activeCategories}
+        onToggleCategory={toggleCategory}
+        commentFreeText={commentFreeText}
+        setCommentFreeText={setCommentFreeText}
+        commentsError={commentsError}
+        onGenerateComments={handleGenerateComments}
+        commentsLoading={commentsLoading}
+        commentsCount={comments.length}
+        sidebarVisible={sidebarVisible}
+        setSidebarVisible={setSidebarVisible}
+        setHistoryOpen={setHistoryOpen}
+      />
+    ),
+    [
+      headerBg, borderColor, mutedText, colors.text,
+      currentBookProjectPath, bookProjects, onSelectBookProject,
+      chapterTabs, chapter.id, hasDirtyActions, onSelectChapterTab,
+      paddingSliderMax, effectivePadding, setPadding, lineHeight, setLineHeight,
+      nightMode, setNightMode, setNightVariant,
+      onSaveAll, commentPanelOpen, setCommentPanelOpen,
+      categoryDefs, activeCategories, toggleCategory,
+      commentFreeText, setCommentFreeText, commentsError,
+      handleGenerateComments, commentsLoading, comments.length,
+      sidebarVisible, setSidebarVisible, setHistoryOpen,
+    ],
+  );
+  useTopBarContent(topBarContent);
+
   return (
     <div
       className={`chapter-view${nightMode ? ' chapter-view-night' : ''}${nightAlt ? ' chapter-view-night-alt' : ''}`}
       style={{ backgroundColor: colors.bg, color: colors.text } as React.CSSProperties}
     >
-      {/* Toolbar */}
-      <div className="chapter-view-toolbar" style={{ backgroundColor: headerBg, borderBottomColor: borderColor }}>
-        <div className="chapter-view-toolbar-nav">
-          <select
-            className="chapter-view-project-select"
-            style={{ color: mutedText, borderColor: borderColor }}
-            value={currentBookProjectPath}
-            onChange={e => {
-              const proj = bookProjects.find(p => p.path === e.target.value);
-              onSelectBookProject(e.target.value, proj?.subprojectType ?? null);
-            }}
-            title="Buchprojekt wählen"
-          >
-            {bookProjects.map(p => (
-              <option key={p.path} value={p.path}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <div className="chapter-view-chapter-tabs">
-            {chapterTabs.map(c => {
-              const active = c.id === chapter.id;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`chapter-view-chapter-tab${active ? ' active' : ''}`}
-                  style={active ? { color: colors.text } : { color: mutedText }}
-                  onClick={() => onSelectChapterTab(c.id)}
-                  title={c.meta.title || c.id}
-                >
-                  {c.meta.title || c.id}
-                  {active && hasDirtyActions && <span className="editor-dirty"> *</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="chapter-view-toolbar-actions">
-          <div className="reading-padding-control" title="Seitenabstand">
-            <MoveHorizontal size={12} />
-            <input
-              type="range"
-              className="reading-padding-slider"
-              min={0}
-              max={paddingSliderMax}
-              step={READING_PADDING_SLIDER_STEP}
-              value={effectivePadding}
-              onChange={e => setPadding(Number(e.target.value))}
-            />
-          </div>
-          <div className="reading-padding-control" title="Zeilenabstand">
-            <MoveVertical size={12} />
-            <input
-              type="range"
-              className="reading-padding-slider"
-              min={LINE_HEIGHT_MIN}
-              max={LINE_HEIGHT_MAX}
-              step={LINE_HEIGHT_STEP}
-              value={lineHeight}
-              onChange={e => setLineHeight(Number(e.target.value))}
-            />
-          </div>
-          <button
-            className={`editor-mode-btn${nightMode ? ' active' : ''}`}
-            onClick={() => setNightMode(prev => !prev)}
-            title={nightMode ? 'Tagmodus' : 'Nachtmodus'}
-          >
-            {nightMode ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          {nightMode && (
-            <button
-              className="editor-mode-btn"
-              onClick={() => setNightVariant(prev => (prev + 1) % NIGHT_PALETTES.length)}
-              title="Nachtmodus-Palette wechseln"
-            >
-              <Palette size={14} />
-            </button>
-          )}
-          <button
-            className="editor-save-btn"
-            onClick={onSaveAll}
-            disabled={!hasDirtyActions}
-            title="Alles speichern (Ctrl+S)"
-          >
-            <Save size={14} />
-          </button>
-          <div className="comment-menu-anchor">
-            <button
-              className={`editor-mode-btn${commentPanelOpen ? ' active' : ''}`}
-              onClick={() => setCommentPanelOpen(o => !o)}
-              title="KI-Kommentare"
-            >
-              <Sparkles size={14} />
-            </button>
-            {commentPanelOpen && (
-              <div className="comment-menu">
-                <div className="comment-menu-title">KI-Kommentare</div>
-                <div className="comment-menu-chips">
-                  {categoryDefs.map(cat => {
-                    const active = activeCategories.has(cat.id);
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        className={`comment-chip${active ? ' active' : ''}`}
-                        style={active ? { borderColor: cat.color, color: cat.color } : undefined}
-                        onClick={() => toggleCategory(cat.id)}
-                      >
-                        {cat.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <textarea
-                  className="comment-menu-freetext"
-                  placeholder="Zusätzliche Anweisung (optional)…"
-                  value={commentFreeText}
-                  onChange={e => setCommentFreeText(e.target.value)}
-                  rows={2}
-                />
-                {commentsError && (
-                  <div className="comment-menu-error">{commentsError}</div>
-                )}
-                <div className="comment-menu-actions">
-                  <button
-                    type="button"
-                    className="comment-menu-run"
-                    onClick={handleGenerateComments}
-                    disabled={
-                      commentsLoading ||
-                      (activeCategories.size === 0 && commentFreeText.trim().length === 0)
-                    }
-                  >
-                    {commentsLoading ? (
-                      <>
-                        <Loader2 size={13} className="comment-spin" /> Analysiere…
-                      </>
-                    ) : (
-                      <>
-                        <MessageSquareText size={13} /> Kommentieren
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          {comments.length > 0 && (
-            <button
-              className={`editor-mode-btn${sidebarVisible ? ' active' : ''}`}
-              onClick={() => setSidebarVisible(v => !v)}
-              title={sidebarVisible ? 'Kommentarspalte ausblenden' : 'Kommentarspalte einblenden'}
-            >
-              <MessageSquareText size={14} />
-            </button>
-          )}
-          <button
-            className="editor-mode-btn"
-            onClick={() => setHistoryOpen(true)}
-            title="Git-Verlauf des Kapitels"
-          >
-            <History size={14} />
-          </button>
-        </div>
-      </div>
-
       {chapterDiff && (
         <div className="chapter-view-diff-banner">
           <span>Vergleich mit {chapterDiff.label}</span>

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, Moon, Sun, Palette, MoveHorizontal, MoveVertical, X, Music, Eye, EyeOff } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Music } from 'lucide-react';
 import { ActionEditor } from '../components/editor/ActionEditor.tsx';
 import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
 import type { ActionEditorColors } from '../components/editor/ActionEditor.tsx';
-import { useReadingPaddingMax, READING_PADDING_SLIDER_STEP } from '../hooks/useReadingPaddingMax.ts';
+import { useReadingPaddingMax } from '../hooks/useReadingPaddingMax.ts';
+import { useTopBarContent } from '../components/app/TopBarContext.ts';
+import { MusicProjectToolbar } from './MusicProjectToolbar.tsx';
 
 const FONT_SIZE_KEY = 'music-font-size';
 const PADDING_KEY = 'music-padding';
@@ -14,9 +16,6 @@ const HIDE_METATAGS_KEY = 'music-hide-metatags';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 48;
 const DEFAULT_LINE_HEIGHT = 1.5;
-const LINE_HEIGHT_MIN = 1.1;
-const LINE_HEIGHT_MAX = 2.4;
-const LINE_HEIGHT_STEP = 0.1;
 
 const DAY_COLORS: ActionEditorColors = {
   bg:             '#f5f0e8',
@@ -153,6 +152,49 @@ export function MusicProjectEditor({
     onScrollTargetConsumed();
   }, [scrollTarget, onScrollTargetConsumed]);
 
+  const nightAlt = nightMode && nightVariant === 1;
+  const toolbarBg = nightAlt ? '#0a0e14' : nightMode ? '#120a04' : '#ebe5db';
+  const toolbarBorder = nightAlt ? 'rgba(201,209,217,0.2)' : nightMode ? 'rgba(223,201,156,0.2)' : 'rgba(44,42,37,0.18)';
+  const accentColor = nightAlt ? '#58a6ff' : nightMode ? '#c8a870' : '#2c2a25';
+  const mutedColor = nightAlt ? '#7d8590' : nightMode ? '#9a7d50' : '#6b6560';
+  const metatagColor = nightAlt ? '#58a6ff' : nightMode ? '#c89846' : '#8b7355';
+  const title = chapter.meta.title || chapter.id;
+
+  // Register this editor's tools into the app-wide TopBar (only in prose mode).
+  const topBarContent = useMemo(
+    () =>
+      editorMode !== 'prose' ? null : (
+        <MusicProjectToolbar
+          toolbarBg={toolbarBg}
+          toolbarBorder={toolbarBorder}
+          accentColor={accentColor}
+          mutedColor={mutedColor}
+          title={title}
+          hasDirtyActions={hasDirtyActions}
+          paddingSliderMax={paddingSliderMax}
+          effectivePadding={effectivePadding}
+          setPadding={setPadding}
+          lineHeight={lineHeight}
+          setLineHeight={setLineHeight}
+          hideMetatags={hideMetatags}
+          setHideMetatags={setHideMetatags}
+          nightMode={nightMode}
+          setNightMode={setNightMode}
+          setNightVariant={setNightVariant}
+          nightPalettesLength={NIGHT_PALETTES.length}
+          onSaveAll={onSaveAll}
+          onClose={onClose}
+        />
+      ),
+    [
+      editorMode, toolbarBg, toolbarBorder, accentColor, mutedColor, title,
+      hasDirtyActions, paddingSliderMax, effectivePadding, setPadding,
+      lineHeight, setLineHeight, hideMetatags, setHideMetatags,
+      nightMode, setNightMode, setNightVariant, onSaveAll, onClose,
+    ],
+  );
+  useTopBarContent(topBarContent);
+
   if (editorMode !== 'prose') {
     return (
       <div className="editor-mode-placeholder editor-empty">
@@ -161,99 +203,11 @@ export function MusicProjectEditor({
     );
   }
 
-  const nightAlt = nightMode && nightVariant === 1;
-  const toolbarBg = nightAlt ? '#0a0e14' : nightMode ? '#120a04' : '#ebe5db';
-  const toolbarBorder = nightAlt ? 'rgba(201,209,217,0.2)' : nightMode ? 'rgba(223,201,156,0.2)' : 'rgba(44,42,37,0.18)';
-  const accentColor = nightAlt ? '#58a6ff' : nightMode ? '#c8a870' : '#2c2a25';
-  const mutedColor = nightAlt ? '#7d8590' : nightMode ? '#9a7d50' : '#6b6560';
-  const metatagColor = nightAlt ? '#58a6ff' : nightMode ? '#c89846' : '#8b7355';
-
   return (
     <div
       className={`song-view${nightMode ? ' song-view-night' : ''}${nightAlt ? ' song-view-night-alt' : ''}`}
       style={{ backgroundColor: colors.bg, color: colors.text } as React.CSSProperties}
     >
-      {/* Toolbar */}
-      <div
-        className="song-view-toolbar"
-        style={{ backgroundColor: toolbarBg, borderBottomColor: toolbarBorder }}
-      >
-        <span className="song-view-title-label" style={{ color: accentColor }}>
-          <Music size={13} />
-          {chapter.meta.title || chapter.id}
-          {hasDirtyActions && <span className="editor-dirty"> *</span>}
-        </span>
-        <div className="chapter-view-toolbar-actions">
-          <div className="reading-padding-control" title="Seitenabstand" style={{ color: mutedColor }}>
-            <MoveHorizontal size={12} />
-            <input
-              type="range"
-              className="reading-padding-slider"
-              min={0}
-              max={paddingSliderMax}
-              step={READING_PADDING_SLIDER_STEP}
-              value={effectivePadding}
-              onChange={e => setPadding(Number(e.target.value))}
-            />
-          </div>
-          <div className="reading-padding-control" title="Zeilenabstand" style={{ color: mutedColor }}>
-            <MoveVertical size={12} />
-            <input
-              type="range"
-              className="reading-padding-slider"
-              min={LINE_HEIGHT_MIN}
-              max={LINE_HEIGHT_MAX}
-              step={LINE_HEIGHT_STEP}
-              value={lineHeight}
-              onChange={e => setLineHeight(Number(e.target.value))}
-            />
-          </div>
-          <button
-            className={`song-view-btn${hideMetatags ? ' active' : ''}`}
-            onClick={() => setHideMetatags(prev => !prev)}
-            title={hideMetatags ? 'Metatags anzeigen' : 'Metatags verstecken'}
-            style={{ color: mutedColor, borderColor: toolbarBorder }}
-          >
-            {hideMetatags ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-          <button
-            className={`song-view-btn${nightMode ? ' active' : ''}`}
-            onClick={() => setNightMode(prev => !prev)}
-            title={nightMode ? 'Studio-Modus' : 'Tagmodus'}
-            style={{ color: mutedColor, borderColor: toolbarBorder }}
-          >
-            {nightMode ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          {nightMode && (
-            <button
-              className="song-view-btn"
-              onClick={() => setNightVariant(prev => (prev + 1) % NIGHT_PALETTES.length)}
-              title="Nachtmodus-Palette wechseln"
-              style={{ color: mutedColor, borderColor: toolbarBorder }}
-            >
-              <Palette size={14} />
-            </button>
-          )}
-          <button
-            className="song-view-btn"
-            onClick={onSaveAll}
-            disabled={!hasDirtyActions}
-            title="Alles speichern (Ctrl+S)"
-            style={{ color: mutedColor, borderColor: toolbarBorder }}
-          >
-            <Save size={14} />
-          </button>
-          <button
-            className="song-view-btn song-view-close-btn"
-            onClick={onClose}
-            title="Datei schließen"
-            style={{ color: mutedColor, borderColor: toolbarBorder }}
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-
       {/* Scrollable song content */}
       <div className="song-view-scroll" ref={scrollContainerRef}>
         {/* Song header */}

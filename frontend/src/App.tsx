@@ -18,14 +18,10 @@ import {
   Palette,
   Bug,
 } from "lucide-react";
-import { MarkdownFileEditor } from "./components/editor/MarkdownFileEditor.tsx";
-import { SubprojectTypeDialog } from "./components/settings/SubprojectTypeDialog.tsx";
-import { MetaPanel } from "./components/meta/MetaPanel.tsx";
-import { FieldEditorPanel } from "./components/editor/FieldEditorPanel.tsx";
-import { CommandPalette } from "./components/git/CommandPalette.tsx";
-import { GitCredentialsDialog } from "./components/git/GitCredentialsDialog.tsx";
-import { FileHistoryModal } from "./components/git/FileHistoryModal.tsx";
-import { ProjectSettingsModal } from "./components/settings/ProjectSettingsModal.tsx";
+import { AppOverlays } from "./components/app/AppOverlays.tsx";
+import { TopBarProvider } from "./components/app/TopBarProvider.tsx";
+import { Main } from "./components/app/Main.tsx";
+import { Editor } from "./components/app/Editor.tsx";
 import type { CommandAction } from "./components/git/CommandPalette.tsx";
 import type {
   Mode,
@@ -52,7 +48,6 @@ import {
 import { collectBookProjects } from "./utils/bookProjects.ts";
 
 import { usePreferences } from "./hooks/usePreferences.ts";
-import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import { useProject } from "./hooks/useProject.ts";
 import { useChapter } from "./hooks/useChapter.ts";
 import { useBookProjects } from "./hooks/useBookProjects.ts";
@@ -61,15 +56,11 @@ import { useChatHistory } from "./hooks/useChatHistory.ts";
 import { useWorkspaceMode } from "./hooks/useWorkspaceMode.ts";
 import { useFileTabs } from "./hooks/useFileTabs.ts";
 import { useGitState } from "./hooks/useGitState.ts";
-import { EditorTabs } from "./components/editor/EditorTabs.tsx";
-import { SearchPanel } from "./components/editor/SearchPanel.tsx";
 import { ArcTimeline } from "./components/arcs/ArcTimeline.tsx";
-import { ContentBrowserOverlay } from "./components/outliner/ContentBrowserOverlay.tsx";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
 import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
 import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
 import { AlternativeVersionPanel } from "./components/editor/AlternativeVersionPanel.tsx";
-import { QuickChatWindow } from "./components/chat/QuickChatWindow.tsx";
 import { resolveDefaultModeId } from "./components/chat/effectiveChatModeForRequest.ts";
 import {
   loadInitialDisabledToolkits,
@@ -91,6 +82,10 @@ function App() {
   const { preferences, updatePreferences } = usePreferences();
   const chatFontSizePxRef = useRef(preferences.appearance.chatFontSizePx ?? 14);
   chatFontSizePxRef.current = preferences.appearance.chatFontSizePx ?? 14;
+  // Mirror of the active chapter for the global keydown listener (Alt+E), which
+  // is registered once and must read the current value without re-binding.
+  const activeChapterRef = useRef(chapter.activeChapter);
+  activeChapterRef.current = chapter.activeChapter;
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [modes, setModes] = useState<Mode[]>([]);
   const [selectedMode, setSelectedMode] = useState("review");
@@ -206,9 +201,6 @@ function App() {
   /** Bumped after modes + LLM list load so chat mode can sync once project defaults are known. */
   const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
 
-  const [, setTreeRefreshKey] = useState(0);
-  const [, setWorkspaceModesRefreshNonce] = useState(0);
-  const [, setInlineChaptersNonce] = useState(0);
   const [subprojectDialog, setSubprojectDialog] = useState<{
     path: string;
     initialType?: string | null;
@@ -639,7 +631,8 @@ function App() {
 
       if (e.altKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();
-        setQuickChatOpen((v) => !v);
+        // QuickChat is writer-scoped: only toggle when a chapter is open.
+        if (activeChapterRef.current) setQuickChatOpen((v) => !v);
         return;
       }
 
@@ -668,6 +661,12 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- single global shortcut registration
   }, []);
+
+  // QuickChat is writer-scoped: close it whenever no chapter is open so it does
+  // not reappear when a chapter is later reopened.
+  useEffect(() => {
+    if (!chapter.activeChapter) setQuickChatOpen(false);
+  }, [chapter.activeChapter]);
 
   const syncBadge = useMemo(() => {
     if (!syncStatus) return null;
@@ -881,193 +880,132 @@ function App() {
   }, [loadModes, refreshWorkspaceModeSchema]);
 
   const onWorkspacePluginsChanged = useCallback(() => {
-    setWorkspaceModesRefreshNonce((n) => n + 1);
     void refreshWorkspaceModeSchema();
   }, [refreshWorkspaceModeSchema]);
 
+  // ── AppOverlays callbacks (lifted out of inline JSX) ──────────────────────
+  const handleContentBrowserSelectFile = useCallback(
+    (path: string) => {
+      chapter.closeChapter();
+      setSelectedMeta(null);
+      setMetaExpanded(false);
+      setFocusedField(null);
+      void fileEditor.openFile(path);
+    },
+    [chapter, fileEditor],
+  );
+
+  const handleContentBrowserSelectChapter = useCallback(
+    (chapterId: string, structureRoot: string | null, subprojectType: string | null) => {
+      fileEditor.closeFile();
+      setSelectedMeta(null);
+      setMetaExpanded(false);
+      setFocusedField(null);
+      chapter.setStructureRoot(structureRoot, subprojectType);
+      void chapter.refreshChapters();
+      void chapter.openChapter(chapterId);
+    },
+    [chapter, fileEditor],
+  );
+
+  const handleCredSuccess = useCallback(() => {
+    setCredDialogOpen(false);
+    pendingRetry?.();
+    setPendingRetry(null);
+  }, [setCredDialogOpen, pendingRetry, setPendingRetry]);
+
+  const handleCredCancel = useCallback(() => {
+    setCredDialogOpen(false);
+    setPendingRetry(null);
+  }, [setCredDialogOpen, setPendingRetry]);
+
+  const handleSubprojectSaved = useCallback(() => {
+    // The subproject-type dialog trigger is not currently wired; when it is,
+    // refresh the structure/schema so the new type takes effect.
+    void chapter.refreshChapters();
+    void refreshWorkspaceModeSchema();
+  }, [chapter, refreshWorkspaceModeSchema]);
+
+  const handleClearMeta = useCallback(() => {
+    setSelectedMeta(null);
+    setMetaExpanded(false);
+    setFocusedField(null);
+  }, []);
+
   return (
     <div className="app">
-      <CommandPalette
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-        actions={commandActions}
+      <AppOverlays
+        paletteOpen={paletteOpen}
+        onClosePalette={() => setPaletteOpen(false)}
+        commandActions={commandActions}
         onOpenFolder={handleOpenProject}
         onGitRefresh={fetchGitState}
-        gitStatus={gitStatus ?? undefined}
+        gitStatus={gitStatus}
         onAuthRequired={showCredentialsDialog}
         onOpenFileDiff={handleOpenFileDiff}
+        contentBrowserOpen={contentBrowserOpen}
+        projectPath={project.projectPath ?? null}
+        onCloseContentBrowser={() => setContentBrowserOpen(false)}
+        onSelectFile={handleContentBrowserSelectFile}
+        onSelectChapter={handleContentBrowserSelectChapter}
+        credDialogOpen={credDialogOpen}
+        onCredSuccess={handleCredSuccess}
+        onCredCancel={handleCredCancel}
+        settingsOpen={settingsOpen}
+        onCloseSettings={() => setSettingsOpen(false)}
+        onModesChanged={loadModes}
+        onGeneralConfigSaved={onProjectGeneralSaved}
+        onWorkspacePluginsChanged={onWorkspacePluginsChanged}
+        subprojectDialog={subprojectDialog}
+        onCloseSubproject={() => setSubprojectDialog(null)}
+        onSubprojectSaved={handleSubprojectSaved}
+        fileHistoryPath={fileHistoryPath}
+        onCloseFileHistory={() => setFileHistoryPath(null)}
+        appearanceOpen={appearanceOpen}
+        preferences={preferences}
+        onUpdatePreferences={updatePreferences}
+        onCloseAppearance={() => setAppearanceOpen(false)}
+        importFileInputRef={importFileInputRef}
+        onImportChatFile={handleImportChatFile}
       />
 
-      <div className="center-editor-pane">
-        <EditorTabs
-          tabs={fileEditor.tabs}
-          activeTabPath={fileEditor.activeTabPath}
-          onSelectTab={(path) => void fileEditor.openFile(path)}
-          onCloseTab={fileEditor.closeTab}
-          onCloseOtherTabs={fileEditor.closeOtherTabs}
-          onCloseAllTabs={fileEditor.closeAllTabs}
-        />
-        {searchOpen && (
-          <SearchPanel
-            onOpenFile={(path, line) => {
-              void fileEditor.openFile(path, line);
-              setSearchOpen(false);
-            }}
-            onClose={() => setSearchOpen(false)}
-          />
-        )}
-        {focusedField && showMetaChrome ? (
-          <div className="field-editor-center">
-            <FieldEditorPanel
-              fieldLabel={focusedField.fieldLabel}
-              sceneTitle={selectedMeta?.meta.title || undefined}
-              value={focusedField.value}
-              onSave={handleFieldEditorSave}
-              onClose={() => setFocusedField(null)}
-            />
-          </div>
-        ) : selectedMeta && showMetaChrome ? (
-          <div className="meta-panel-center">
-            <MetaPanel
-              selection={selectedMeta}
-              metaSchemas={workspaceMetaSchemas}
-              onSave={handleSaveMeta}
-              onClose={() => {
-                setSelectedMeta(null);
-                setMetaExpanded(false);
-                setFocusedField(null);
-              }}
-              expanded={true}
-              onFocusField={handleOpenFieldEditor}
-              onOpenFile={(path) => void fileEditor.openFile(path)}
-            />
-          </div>
-        ) : !chapter.activeChapter ? (
-          <MarkdownFileEditor
-            path={fileEditor.selectedPath}
-            content={fileEditor.content}
-            dirty={fileEditor.dirty}
-            loading={fileEditor.loading}
-            error={fileEditor.error}
-            onChange={fileEditor.setContent}
-            onSave={() => {
-              void fileEditor.save();
-              fetchGitState();
-            }}
-            onClearError={fileEditor.clearError}
-            onCloseFile={() => {
-              setFileDiffView(null);
-              fileEditor.closeFile();
-            }}
-            onCtrlL={handleCtrlL}
-            onAltVersion={handleAltVersion}
-            scrollToLine={fileEditor.pendingScroll?.line}
-            scrollNonce={fileEditor.pendingScroll?.nonce}
-            onScrollHandled={fileEditor.clearPendingScroll}
-            diffOriginal={
-              fileDiffView && fileDiffView.path === fileEditor.selectedPath
-                ? fileDiffView.content
-                : null
-            }
-            diffLabel={fileDiffView?.label}
-            onExitDiff={() => setFileDiffView(null)}
-          />
-        ) : (
-          <MediaProjectEditor
-            editorMode={proseEditorMode}
-            proseLeafAtScene={
-              workspaceModeSchema?.proseLeafLevel === "scene"
-            }
-            chapter={chapter.activeChapter}
-            structureRoot={chapter.structureRoot}
+      <TopBarProvider>
+        <Main>
+          <Editor
+            fileEditor={fileEditor}
+            chapter={chapter}
+            MediaProjectEditor={MediaProjectEditor}
+            proseEditorMode={proseEditorMode}
+            proseLeafAtScene={workspaceModeSchema?.proseLeafLevel === "scene"}
             bookProjects={bookProjects}
-            currentBookProjectPath={chapter.structureRoot ?? "."}
             onSelectBookProject={handleSelectBookProject}
-            chapterTabs={chapter.chapters}
             onSelectChapterTab={handleSelectChapterTab}
-            actionContents={chapter.actionContents}
-            scrollTarget={chapter.scrollTarget}
-            hasDirtyActions={chapter.hasDirtyActions}
-            onActionChange={chapter.updateActionContent}
-            onActionSave={chapter.saveAction}
-            onSaveAll={() => {
-              chapter.saveAllDirty();
-              fetchGitState();
-            }}
-            onClose={chapter.closeChapter}
-            onScrollTargetConsumed={chapter.clearScrollTarget}
-            onEditorFocus={chapter.updateEditorPosition}
+            searchOpen={searchOpen}
+            onCloseSearch={() => setSearchOpen(false)}
+            selectedMeta={selectedMeta}
+            focusedField={focusedField}
+            showMetaChrome={showMetaChrome}
+            workspaceMetaSchemas={workspaceMetaSchemas}
+            onSaveMeta={handleSaveMeta}
+            onFieldEditorSave={handleFieldEditorSave}
+            onOpenFieldEditor={handleOpenFieldEditor}
+            onClearMeta={handleClearMeta}
+            onCloseFieldEditor={() => setFocusedField(null)}
+            fileDiffView={fileDiffView}
+            setFileDiffView={setFileDiffView}
+            fetchGitState={fetchGitState}
             onCtrlL={handleCtrlL}
             onAltVersion={handleAltVersion}
+            quickChatOpen={quickChatOpen}
+            onCloseQuickChat={() => setQuickChatOpen(false)}
+            llms={llms}
+            webSearchAvailable={webSearchAvailable}
+            disabledToolkits={disabledToolkits}
           />
-        )}
-      </div>
+        </Main>
+      </TopBarProvider>
 
       <ArcTimeline open={arcsOpen} onClose={() => setArcsOpen(false)} />
-      <ContentBrowserOverlay
-        open={contentBrowserOpen}
-        projectPath={project.projectPath ?? null}
-        onClose={() => setContentBrowserOpen(false)}
-        onSelectFile={(path) => {
-          chapter.closeChapter();
-          setSelectedMeta(null);
-          setMetaExpanded(false);
-          setFocusedField(null);
-          void fileEditor.openFile(path);
-        }}
-        onSelectChapter={(chapterId, structureRoot, subprojectType) => {
-          fileEditor.closeFile();
-          setSelectedMeta(null);
-          setMetaExpanded(false);
-          setFocusedField(null);
-          chapter.setStructureRoot(structureRoot, subprojectType);
-          void chapter.refreshChapters();
-          void chapter.openChapter(chapterId);
-        }}
-      />
-
-      {credDialogOpen && (
-        <GitCredentialsDialog
-          onSuccess={() => {
-            setCredDialogOpen(false);
-            pendingRetry?.();
-            setPendingRetry(null);
-          }}
-          onCancel={() => {
-            setCredDialogOpen(false);
-            setPendingRetry(null);
-          }}
-        />
-      )}
-
-      {settingsOpen && (
-        <ProjectSettingsModal
-          onClose={() => setSettingsOpen(false)}
-          onModesChanged={loadModes}
-          onGeneralConfigSaved={onProjectGeneralSaved}
-          onWorkspacePluginsChanged={onWorkspacePluginsChanged}
-        />
-      )}
-
-      {subprojectDialog && (
-        <SubprojectTypeDialog
-          folderPath={subprojectDialog.path}
-          initialTypeId={subprojectDialog.initialType}
-          onClose={() => setSubprojectDialog(null)}
-          onSaved={() => {
-            setTreeRefreshKey((k) => k + 1);
-            setInlineChaptersNonce((n) => n + 1);
-          }}
-        />
-      )}
-
-      {fileHistoryPath && (
-        <FileHistoryModal
-          filePath={fileHistoryPath}
-          onClose={() => setFileHistoryPath(null)}
-          onOpenDiff={handleOpenFileDiff}
-        />
-      )}
 
       {altVersionSession && (
         <AlternativeVersionPanel
@@ -1076,30 +1014,6 @@ function App() {
           onGenerate={inlineGenerate}
         />
       )}
-
-      {appearanceOpen && (
-        <AppearanceModal
-          preferences={preferences}
-          onUpdate={updatePreferences}
-          onClose={() => setAppearanceOpen(false)}
-        />
-      )}
-
-      <QuickChatWindow
-        open={quickChatOpen}
-        onClose={() => setQuickChatOpen(false)}
-        llms={llms}
-        webSearchAvailable={webSearchAvailable}
-        disabledToolkits={disabledToolkits}
-      />
-
-      <input
-        ref={importFileInputRef}
-        type="file"
-        accept=".json,application/json"
-        style={{ display: "none" }}
-        onChange={handleImportChatFile}
-      />
     </div>
   );
 }

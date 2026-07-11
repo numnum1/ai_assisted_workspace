@@ -107,9 +107,21 @@ body {
     height: 100vh;
 }
 
-.app-panels {
+/* Main working area: fixed TopBar above the active editor */
+.main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
+}
+
+/* Fixed shell filled by the active editor's tools; zero height when empty.
+   Column flex so the registered tools stretch to full width. */
+.top-bar {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Middle column: hosts editor + floating control to collapse side panels */
@@ -117,7 +129,7 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
     min-height: 0;
     min-width: 0;
     overflow: hidden;
@@ -1481,7 +1493,8 @@ body.file-tree-native-dragging {
     position: relative;
 }
 
-.chapter-view-toolbar {
+/* Writer tools inside the app-wide TopBar (formerly .chapter-view-toolbar) */
+.top-bar-tools--writer {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2201,7 +2214,8 @@ body.file-tree-native-dragging {
     position: relative;
 }
 
-.song-view-toolbar {
+/* Music tools inside the app-wide TopBar (formerly .song-view-toolbar) */
+.top-bar-tools--music {
     display: flex;
     align-items: center;
     justify-content: space-between;
