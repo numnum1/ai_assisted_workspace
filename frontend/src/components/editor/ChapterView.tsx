@@ -829,17 +829,10 @@ export function ChapterView({
 
       <ChapterOutlinePanel
         chapter={chapter}
-        textInset={effectivePadding}
         textColor={colors.text}
         mutedColor={mutedText}
-        accentColor="#4ec98a"
       />
-      <ChapterAIPanel
-        textInset={effectivePadding}
-        textColor={colors.text}
-        mutedColor={mutedText}
-        accentColor="#e05d5d"
-      />
+      <ChapterAIPanel />
 
       {/* Scrollable content */}
       <div className="chapter-view-scroll" ref={scrollContainerRef}>

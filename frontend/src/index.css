@@ -1673,15 +1673,6 @@ body.file-tree-native-dragging {
     right: 0;
 }
 
-.chapter-side-panel-divider {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    opacity: 0.55;
-    pointer-events: none;
-}
-
 .chapter-side-panel-inner {
     position: absolute;
     top: 16px;
