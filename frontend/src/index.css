@@ -1975,15 +1975,6 @@ body.file-tree-native-dragging {
     white-space: nowrap;
 }
 
-.chapter-heading {
-    font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
-    font-size: 1.9em;
-    font-weight: 600;
-    padding-top: 48px;
-    padding-bottom: 24px;
-    letter-spacing: 0.02em;
-}
-
 .scene-heading {
     font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
     font-size: 1.35em;

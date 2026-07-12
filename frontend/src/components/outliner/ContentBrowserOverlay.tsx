@@ -525,14 +525,9 @@ export function ContentBrowserOverlay({
                         key={item.key}
                         className={`content-browser-tile${i === safeWikiIdx ? " selected" : ""}`}
                         style={{ "--cat-hue": categoryHue(item.category) } as React.CSSProperties}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("text/plain", `@[${item.name}](${item.path})`);
-                          e.dataTransfer.effectAllowed = "copy";
-                        }}
                         onMouseEnter={() => setWikiIdx(i)}
                         onDoubleClick={() => openWikiFile(item.path)}
-                        title={`${item.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`}
+                        title={`${item.path}\n\nDoppelklick: öffnen`}
                       >
                         <div className="content-browser-thumb">
                           <FileText size={26} strokeWidth={1.5} />
@@ -561,7 +556,7 @@ export function ContentBrowserOverlay({
         </div>
 
         <div className="content-browser-hint-bar">
-          Doppelklick öffnet · Ziehen fügt Verweis ein · Pfeiltasten navigieren
+          Doppelklick öffnet · Pfeiltasten navigieren
           {showFolders ? " · Backspace geht zurück · Rechtsklick: neuer Ordner/Eintrag" : ""} · Esc
           schließt
         </div>

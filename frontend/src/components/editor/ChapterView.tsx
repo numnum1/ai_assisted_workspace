@@ -828,17 +828,6 @@ export function ChapterView({
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
        <div className="chapter-view-layout" ref={layoutRef}>
         <div className="chapter-view-content-col" ref={contentColRef}>
-        <div
-          className="section-separator chapter-heading"
-          style={{ paddingLeft: `${effectivePadding}px`, paddingRight: `${effectivePadding}px`, borderColor: mutedText }}
-        >
-          <span className="section-separator-line" style={{ borderColor: mutedText }} />
-          <span className="section-separator-title" style={{ color: colors.text }}>
-            {chapter.meta.title || chapter.id}
-          </span>
-          <span className="section-separator-line" style={{ borderColor: mutedText }} />
-        </div>
-
         {chapter.scenes.map(scene => {
           const isCollapsed = showSceneHeadings && collapsedScenes.has(scene.id);
           return (
