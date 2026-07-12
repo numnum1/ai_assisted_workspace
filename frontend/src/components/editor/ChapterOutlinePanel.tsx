@@ -24,27 +24,59 @@ interface ChapterOutlinePanelProps {
   onSelectAction: (actionId: string) => void;
 }
 
-const ACTION_LABEL_WIDTH = 84;
-const ACTION_LABEL_GAP = 8;
-const SCENE_LABEL_WIDTH = 100;
-const SCENE_LABEL_GAP = 8;
-const RAIL_GUTTER = 12; // gap kept between the scene rail and where the text actually starts
+export const CHAPTER_OUTLINE_PANEL_WIDTH = 260;
 
-const ACTION_RAIL_LEFT = ACTION_LABEL_WIDTH + ACTION_LABEL_GAP;
-const SCENE_RAIL_MIN = ACTION_RAIL_LEFT + SCENE_LABEL_GAP + SCENE_LABEL_WIDTH + SCENE_LABEL_GAP;
+// Labels up to this length (e.g. roman numerals like "III") stay horizontal;
+// longer titles are set vertically (top-to-bottom) to save horizontal space.
+const VERTICAL_LABEL_THRESHOLD = 4;
+
+const ACTION_LABEL_GAP = 6;
+const SCENE_LABEL_GAP = 6;
+const RAIL_SPACING = 40; // gap between the action rail and the scene rail
+const RAIL_GUTTER = 10; // gap kept between the scene rail and where the text actually starts
+const SCENE_RAIL_MIN = 60 + RAIL_SPACING;
+
+/** A label positioned relative to the outline panel itself, right-anchored just left of its rail. */
+function OutlineLabel({
+  label, top, height, railLeft, gap, color, onClick,
+}: {
+  label: string;
+  top: number;
+  height: number;
+  railLeft: number;
+  gap: number;
+  color: string;
+  onClick: () => void;
+}) {
+  const vertical = label.length > VERTICAL_LABEL_THRESHOLD;
+  return (
+    <button
+      type="button"
+      className={`chapter-outline-label${vertical ? ' chapter-outline-label-vertical' : ''}`}
+      style={{ top: top + height / 2, right: CHAPTER_OUTLINE_PANEL_WIDTH - railLeft + gap, color }}
+      onClick={onClick}
+      title={label}
+    >
+      {label}
+    </button>
+  );
+}
 
 /**
  * Left-hand outline panel. Lives inside the scrollable chapter layout (not
  * pinned to the viewport) so its two bracket rails — scenes and actions
  * ("Handlungseinheiten") — track the actual text 1:1 as the reader scrolls.
- * The scene rail scales with the reading padding so it always sits just
- * outside where the text itself begins.
+ * Both rails hug the text edge, scaling with the reading padding, so most of
+ * the panel stays free for scene/action metadata (added later). Labels run
+ * vertically once they're longer than a few characters, keeping the whole
+ * cluster narrow; short labels (e.g. roman numerals) stay horizontal.
  */
 export function ChapterOutlinePanel({
   sceneSpans, actionSpans, contentHeight, textInset, textColor, mutedColor, accentColor,
   focusedSceneId, focusedActionId, onSelectScene, onSelectAction,
 }: ChapterOutlinePanelProps) {
   const sceneRailLeft = Math.max(SCENE_RAIL_MIN, textInset - RAIL_GUTTER);
+  const actionRailLeft = sceneRailLeft - RAIL_SPACING;
 
   return (
     <div className="chapter-outline-panel" style={{ height: contentHeight || '100%' }}>
@@ -57,25 +89,29 @@ export function ChapterOutlinePanel({
             style={{
               top: span.top,
               height: span.height,
-              left: ACTION_RAIL_LEFT,
+              left: actionRailLeft,
               ...(active ? { '--rail-color': accentColor } as CSSProperties : {}),
             }}
-          >
-            <button
-              type="button"
-              className="chapter-outline-label chapter-outline-label-action"
-              style={{ color: active ? accentColor : mutedColor, width: ACTION_LABEL_WIDTH, left: -(ACTION_LABEL_WIDTH + ACTION_LABEL_GAP) }}
-              onClick={() => onSelectAction(span.id)}
-              title={span.label}
-            >
-              {span.label}
-            </button>
-          </div>
+          />
+        );
+      })}
+      {actionSpans.map(span => {
+        const active = span.id === focusedActionId;
+        return (
+          <OutlineLabel
+            key={span.id}
+            label={span.label}
+            top={span.top}
+            height={span.height}
+            railLeft={actionRailLeft}
+            gap={ACTION_LABEL_GAP}
+            color={active ? accentColor : mutedColor}
+            onClick={() => onSelectAction(span.id)}
+          />
         );
       })}
       {sceneSpans.map(span => {
         const active = span.id === focusedSceneId;
-        const labelWidth = sceneRailLeft - ACTION_RAIL_LEFT - SCENE_LABEL_GAP * 2;
         return (
           <div
             key={span.id}
@@ -86,17 +122,22 @@ export function ChapterOutlinePanel({
               left: sceneRailLeft,
               ...(active ? { '--rail-color': accentColor } as CSSProperties : {}),
             }}
-          >
-            <button
-              type="button"
-              className="chapter-outline-label chapter-outline-label-scene"
-              style={{ color: active ? accentColor : textColor, width: labelWidth, left: -(labelWidth + SCENE_LABEL_GAP) }}
-              onClick={() => onSelectScene(span.id)}
-              title={span.label}
-            >
-              {span.label}
-            </button>
-          </div>
+          />
+        );
+      })}
+      {sceneSpans.map(span => {
+        const active = span.id === focusedSceneId;
+        return (
+          <OutlineLabel
+            key={span.id}
+            label={span.label}
+            top={span.top}
+            height={span.height}
+            railLeft={sceneRailLeft}
+            gap={SCENE_LABEL_GAP}
+            color={active ? accentColor : textColor}
+            onClick={() => onSelectScene(span.id)}
+          />
         );
       })}
     </div>

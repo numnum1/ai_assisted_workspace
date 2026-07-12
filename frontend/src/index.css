@@ -1747,8 +1747,8 @@ body.file-tree-native-dragging {
 
 .chapter-outline-label {
     position: absolute;
-    top: 50%;
     transform: translateY(-50%);
+    max-width: 64px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1758,16 +1758,20 @@ body.file-tree-native-dragging {
     cursor: pointer;
     pointer-events: auto;
     text-align: right;
-}
-
-.chapter-outline-label-action {
-    font-size: 11px;
-}
-
-.chapter-outline-label-scene {
     font-size: 12px;
     font-weight: 600;
-    text-align: center;
+}
+
+/* Vertical (top-to-bottom) labels for titles longer than a few characters —
+   keeps the outline cluster narrow so most of the panel stays free for
+   scene/action metadata. */
+.chapter-outline-label-vertical {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: translateY(-50%);
+    max-width: none;
+    max-height: 140px;
+    text-align: left;
 }
 
 .chapter-outline-label:hover {
