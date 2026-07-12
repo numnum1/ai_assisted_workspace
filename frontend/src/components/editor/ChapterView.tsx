@@ -9,7 +9,7 @@ import { ChapterAIPanel } from './ChapterAIPanel.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
 import { useTopBarContent, useTopBarBackground } from '../app/TopBarContext.ts';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
-import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef } from '../../types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef, UserChapterSelection } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
 import type { BookProject } from '../../utils/bookProjects.ts';
 import { chapterApi, projectConfigApi } from '../../api.ts';
@@ -140,6 +140,9 @@ interface ChapterViewProps {
   onEditorFocus?: (sceneId: string, actionId: string) => void;
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
   onAltVersion?: (session: AltVersionSession) => void;
+  /** Scene/action the user currently has selected (outline click or text focus); drives the metadata editor and AI context panel. */
+  selection?: UserChapterSelection;
+  onSelectionChange?: (selection: UserChapterSelection) => void;
 }
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
@@ -165,6 +168,8 @@ export function ChapterView({
   onEditorFocus,
   onCtrlL,
   onAltVersion,
+  selection = null,
+  onSelectionChange,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -302,8 +307,17 @@ export function ChapterView({
   const [outlineScenes, setOutlineScenes] = useState<OutlineSpan[]>([]);
   const [outlineActions, setOutlineActions] = useState<(OutlineSpan & { sceneId: string })[]>([]);
   const outlineSigRef = useRef<string>('');
-  const [focusedSceneId, setFocusedSceneId] = useState<string | null>(null);
-  const [focusedActionId, setFocusedActionId] = useState<string | null>(null);
+
+  // Highlight state for the outline panel, derived from the lifted selection.
+  // Selecting an action also highlights its parent scene's bracket.
+  const focusedActionId = selection?.type === 'action' ? selection.id : null;
+  const focusedSceneId = useMemo(() => {
+    if (selection?.type === 'scene') return selection.id;
+    if (selection?.type === 'action') {
+      return chapter.scenes.find(s => s.actions.some(a => a.id === selection.id))?.id ?? null;
+    }
+    return null;
+  }, [selection, chapter.scenes]);
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
   // Note: `padding` (the persisted user preference) is intentionally never
@@ -934,8 +948,14 @@ export function ChapterView({
           accentColor="#89b4fa"
           focusedSceneId={focusedSceneId}
           focusedActionId={focusedActionId}
-          onSelectScene={id => scrollToNode(`scene-${id}`)}
-          onSelectAction={id => scrollToNode(`action-${id}`)}
+          onSelectScene={id => {
+            onSelectionChange?.({ type: 'scene', id });
+            scrollToNode(`scene-${id}`);
+          }}
+          onSelectAction={id => {
+            onSelectionChange?.({ type: 'action', id });
+            scrollToNode(`action-${id}`);
+          }}
         />
         <div className="chapter-view-content-col" ref={contentColRef}>
         {chapter.scenes.map(scene => {
@@ -983,8 +1003,7 @@ export function ChapterView({
                     className="action-block"
                     onFocus={() => {
                       focusedActionIdRef.current = action.id;
-                      setFocusedSceneId(scene.id);
-                      setFocusedActionId(action.id);
+                      onSelectionChange?.({ type: 'action', id: action.id });
                       onEditorFocus?.(scene.id, action.id);
                     }}
                   >

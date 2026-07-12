@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession } from './types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, UserChapterSelection } from './types.ts';
 import type { BookProject } from './utils/bookProjects.ts';
 
 /** Props for the main editor area when a chapter is open in a media subproject */
@@ -29,6 +29,9 @@ export interface MediaProjectEditorProps {
   onEditorFocus?: (sceneId: string, actionId: string) => void;
   onCtrlL?: (sel: SelectionContext, replaceFn: (from: number, to: number, text: string) => void) => void;
   onAltVersion?: (session: AltVersionSession) => void;
+  /** Scene/action the user currently has selected (outline click or text focus); drives the metadata editor and AI context panel. */
+  selection?: UserChapterSelection;
+  onSelectionChange?: (selection: UserChapterSelection) => void;
 }
 
 export interface MediaProjectPlugin {

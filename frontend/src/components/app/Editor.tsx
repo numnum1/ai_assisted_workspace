@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { EditorTabs } from "../editor/EditorTabs.tsx";
 import { SearchPanel } from "../editor/SearchPanel.tsx";
 import { FieldEditorPanel } from "../editor/FieldEditorPanel.tsx";
@@ -17,6 +17,7 @@ import type {
   SelectionContext,
   AltVersionSession,
   LlmPublic,
+  UserChapterSelection,
 } from "../../types.ts";
 
 type FileEditorApi = ReturnType<typeof useFileTabs>;
@@ -111,6 +112,18 @@ export function Editor({
   webSearchAvailable,
   disabledToolkits,
 }: EditorProps) {
+  // The scene/action the user currently has selected in the chapter editor
+  // (outline click or text focus). Not persisted; scoped to the open chapter.
+  // `chapter.activeChapter` is already the "selected chapter" (which chapter is
+  // open in the editor) — reset the selection during render when it changes,
+  // rather than in an effect, to avoid an extra cascading render.
+  const [userChapterSelection, setUserChapterSelection] = useState<UserChapterSelection>(null);
+  const [selectionChapterId, setSelectionChapterId] = useState<string | null>(null);
+  if (chapter.activeChapter?.id !== selectionChapterId) {
+    setSelectionChapterId(chapter.activeChapter?.id ?? null);
+    setUserChapterSelection(null);
+  }
+
   return (
     <div className="center-editor-pane">
       <EditorTabs
@@ -207,6 +220,8 @@ export function Editor({
           onEditorFocus={chapter.updateEditorPosition}
           onCtrlL={onCtrlL}
           onAltVersion={onAltVersion}
+          selection={userChapterSelection}
+          onSelectionChange={setUserChapterSelection}
         />
       )}
 
