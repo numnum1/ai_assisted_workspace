@@ -200,6 +200,39 @@ export async function createWikiFolder(
   return { path: normalizeRelativePath(path.relative(wikiRoot, targetPath)) };
 }
 
+export async function createWikiFile(
+  projectRoot: string | null,
+  parentRelativePath: string,
+  name: string,
+): Promise<{ path: string }> {
+  if (!name.trim() || name.includes('/') || name.includes('\\')) {
+    throw new Error('Ungültiger Dateiname.');
+  }
+  if (!parentRelativePath.trim()) {
+    throw new Error('Wiki-Einträge dürfen nur innerhalb eines Ordners angelegt werden.');
+  }
+
+  const fileName = isMarkdownFile(name) ? name : `${name}.md`;
+
+  const wikiRoot = await getWikiRoot(projectRoot);
+  const parentPath = path.resolve(wikiRoot, ...splitRelativePath(parentRelativePath));
+  const relativeToRoot = path.relative(wikiRoot, parentPath);
+
+  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
+    throw new Error(`Wiki path escapes wiki root: ${parentRelativePath}`);
+  }
+
+  const targetPath = path.join(parentPath, fileName);
+  if (await pathExists(targetPath)) {
+    throw new Error(`Datei existiert bereits: ${fileName}`);
+  }
+
+  await fs.mkdir(parentPath, { recursive: true });
+  await fs.writeFile(targetPath, '', 'utf8');
+
+  return { path: normalizeRelativePath(path.relative(wikiRoot, targetPath)) };
+}
+
 export async function readWikiFile(
   projectRoot: string | null,
   relativeWikiPath: string,

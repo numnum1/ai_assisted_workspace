@@ -1,5 +1,14 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Search, FileText, Folder, FolderOpen, FolderPlus, X, ChevronRight } from "lucide-react";
+import {
+  Search,
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  FilePlus,
+  X,
+  ChevronRight,
+} from "lucide-react";
 import { wikiApi } from "../../api.ts";
 import { useTextPrompt } from "../../hooks/useTextPrompt.tsx";
 import "./ContentBrowserOverlay.css";
@@ -342,6 +351,21 @@ export function ContentBrowserOverlay({
     }
   }, [currentFolder, prompt, reloadWiki]);
 
+  const handleNewFile = useCallback(async () => {
+    setFolderMenu(null);
+    if (!currentFolder) return;
+    const raw = await prompt("Name des neuen Wiki-Eintrags:", "unbenannt.md");
+    const name = raw != null ? normalizeFolderName(raw) : null;
+    if (name == null) return;
+    try {
+      const { path: newPath } = await wikiApi.createFile(currentFolder, name);
+      await reloadWiki();
+      onSelectFile(`wiki/${newPath}`);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Eintrag konnte nicht erstellt werden");
+    }
+  }, [currentFolder, prompt, reloadWiki, onSelectFile]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -538,7 +562,7 @@ export function ContentBrowserOverlay({
 
         <div className="content-browser-hint-bar">
           Doppelklick öffnet · Ziehen fügt Verweis ein · Pfeiltasten navigieren
-          {showFolders ? " · Backspace geht zurück · Rechtsklick: neuer Ordner" : ""} · Esc
+          {showFolders ? " · Backspace geht zurück · Rechtsklick: neuer Ordner/Eintrag" : ""} · Esc
           schließt
         </div>
       </div>
@@ -556,6 +580,15 @@ export function ContentBrowserOverlay({
             <FolderPlus size={14} />
             Neuer Ordner
           </button>
+          {currentFolder && (
+            <button
+              className="content-browser-context-menu-item"
+              onClick={() => void handleNewFile()}
+            >
+              <FilePlus size={14} />
+              Neuer Wiki-Eintrag
+            </button>
+          )}
         </div>
       )}
 

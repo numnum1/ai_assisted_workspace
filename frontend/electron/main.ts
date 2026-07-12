@@ -50,6 +50,7 @@ import {
   listWikiFiles,
   listWikiFolders,
   createWikiFolder,
+  createWikiFile,
   searchWiki,
 } from "./services/wikiService.js";
 import { readArcs, writeArcs, computeArcCoverage } from "./services/arcService.js";
@@ -171,6 +172,9 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("wiki:createFolder", (_event, parentPath: string, name: string) =>
     createWikiFolder(getCurrentProjectPath(), parentPath, name),
+  );
+  ipcMain.handle("wiki:createFile", (_event, parentPath: string, name: string) =>
+    createWikiFile(getCurrentProjectPath(), parentPath, name),
   );
   ipcMain.handle("wiki:search", (_event, query: string, limit?: number) =>
     searchWiki(getCurrentProjectPath(), query, limit),

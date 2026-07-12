@@ -205,6 +205,7 @@ export interface AppBridge {
     listFiles: () => Promise<string[]>;
     listFolders: () => Promise<string[]>;
     createFolder: (parentPath: string, name: string) => Promise<{ path: string }>;
+    createFile: (parentPath: string, name: string) => Promise<{ path: string }>;
     search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
   };
   arcs?: {
