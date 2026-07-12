@@ -1796,52 +1796,35 @@ body.file-tree-native-dragging {
     text-decoration: underline;
 }
 
-.chapter-meta-editor {
+/* Positioned relative to `.chapter-view` (not the scrollable layout), so it
+   stays vertically centred on the visible pane regardless of scroll position
+   or which scene/action/chapter is selected. */
+.chapter-outline-meta-wrap {
     position: absolute;
     left: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 200px;
+    max-height: 70vh;
     border-radius: 8px;
     background: rgba(20, 20, 24, 0.4);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     pointer-events: auto;
+    overflow: hidden;
+    display: flex;
+    z-index: 6;
 }
 
-.chapter-meta-editor-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+.chapter-outline-meta-wrap .meta-panel {
+    width: 100%;
+    height: auto;
+    max-height: 420px;
+    background: transparent;
 }
 
-.chapter-meta-editor-title {
-    background: none;
-    border: none;
-    border-bottom: 1px solid rgba(150, 150, 160, 0.35);
-    padding: 2px 0 4px;
-    font-size: 14px;
-    font-weight: 700;
-}
-
-.chapter-meta-editor-title:focus {
-    outline: none;
-    border-bottom-color: currentColor;
-}
-
-.chapter-meta-editor-description {
-    background: none;
-    border: none;
-    resize: vertical;
-    font-size: 12px;
-    line-height: 1.4;
-    font-family: inherit;
-}
-
-.chapter-meta-editor-description:focus {
-    outline: none;
+.chapter-outline-meta-wrap .meta-panel-body {
+    padding: 8px 10px 16px;
 }
 
 /* --- AI comment sidebar layout --- */

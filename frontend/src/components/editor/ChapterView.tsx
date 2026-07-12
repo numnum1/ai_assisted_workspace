@@ -6,10 +6,13 @@ import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
 import { ChapterOutlinePanel } from './ChapterOutlinePanel.tsx';
 import { ChapterAIPanel } from './ChapterAIPanel.tsx';
+import { MetaPanel } from '../meta/MetaPanel.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
 import { useTopBarContent, useTopBarBackground } from '../app/TopBarContext.ts';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
-import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef, UserChapterSelection, NodeMeta } from '../../types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef, UserChapterSelection, NodeMeta, MetaSelection, MetaNodeType } from '../../types.ts';
+import type { MetaTypeSchema } from '../../meta/metaSchema.ts';
+import { defaultMetaSchemas } from '../../meta/workspaceMeta.ts';
 import type { ActionEditorColors } from './ActionEditor';
 import type { BookProject } from '../../utils/bookProjects.ts';
 import { chapterApi, projectConfigApi } from '../../api.ts';
@@ -146,6 +149,10 @@ interface ChapterViewProps {
   onSaveChapterMeta?: (chapterId: string, meta: NodeMeta) => void;
   onSaveSceneMeta?: (chapterId: string, sceneId: string, meta: NodeMeta) => void;
   onSaveActionMeta?: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) => void;
+  /** Schema per node type (title/description + workspace-configured extra fields), for the inline metadata editor. */
+  workspaceMetaSchemas?: Record<MetaNodeType, MetaTypeSchema>;
+  /** Opens a file in the main editor (used by the ensemble "run scene" result). */
+  onOpenFile?: (path: string) => void;
 }
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
@@ -176,6 +183,8 @@ export function ChapterView({
   onSaveChapterMeta,
   onSaveSceneMeta,
   onSaveActionMeta,
+  workspaceMetaSchemas = defaultMetaSchemas,
+  onOpenFile,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -334,40 +343,39 @@ export function ChapterView({
     ? outlineActions.find(a => a.id === focusedActionId)?.label ?? null
     : null;
 
-  // Metadata editor (left panel): resolve the selection to its NodeMeta and a
-  // display label, and persist edits through the matching save callback.
-  const selectionMeta: NodeMeta | null = useMemo(() => {
+  // Metadata editor (left panel): resolve the selection to a full MetaSelection
+  // (schema-driven, same shape as the classic MetaPanel/AssetPanel) and persist
+  // edits through the matching save callback.
+  const metaSelection: MetaSelection | null = useMemo(() => {
     if (!selection) return null;
-    if (selection.type === 'chapter') return chapter.meta;
-    if (selection.type === 'scene') return chapter.scenes.find(s => s.id === selection.id)?.meta ?? null;
-    for (const scene of chapter.scenes) {
-      const action = scene.actions.find(a => a.id === selection.id);
-      if (action) return action.meta;
-    }
-    return null;
-  }, [selection, chapter]);
-
-  const selectionLabel = selection?.type === 'chapter' ? 'Kapitel' : selection?.type === 'scene' ? 'Szene' : selection?.type === 'action' ? unitLabel : '';
-
-  const handleSaveSelectionMeta = useCallback((patch: { title: string; description: string }) => {
-    if (!selection) return;
     if (selection.type === 'chapter') {
-      onSaveChapterMeta?.(chapter.id, { ...chapter.meta, ...patch });
-      return;
+      return { type: 'chapter', chapterId: chapter.id, meta: chapter.meta };
     }
     if (selection.type === 'scene') {
       const scene = chapter.scenes.find(s => s.id === selection.id);
-      if (scene) onSaveSceneMeta?.(chapter.id, scene.id, { ...scene.meta, ...patch });
-      return;
+      return scene ? { type: 'scene', chapterId: chapter.id, sceneId: scene.id, meta: scene.meta } : null;
     }
     for (const scene of chapter.scenes) {
       const action = scene.actions.find(a => a.id === selection.id);
       if (action) {
-        onSaveActionMeta?.(chapter.id, scene.id, action.id, { ...action.meta, ...patch });
-        break;
+        return { type: 'action', chapterId: chapter.id, sceneId: scene.id, actionId: action.id, meta: action.meta };
       }
     }
-  }, [selection, chapter, onSaveChapterMeta, onSaveSceneMeta, onSaveActionMeta]);
+    return null;
+  }, [selection, chapter]);
+
+  const handleSaveMeta = useCallback(
+    (type: MetaNodeType, meta: NodeMeta, chapterId: string, sceneId?: string, actionId?: string) => {
+      if (type === 'chapter') {
+        onSaveChapterMeta?.(chapterId, meta);
+      } else if (type === 'scene' && sceneId) {
+        onSaveSceneMeta?.(chapterId, sceneId, meta);
+      } else if (type === 'action' && sceneId && actionId) {
+        onSaveActionMeta?.(chapterId, sceneId, actionId, meta);
+      }
+    },
+    [onSaveChapterMeta, onSaveSceneMeta, onSaveActionMeta],
+  );
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
   // Note: `padding` (the persisted user preference) is intentionally never
@@ -989,6 +997,19 @@ export function ChapterView({
 
       <ChapterAIPanel />
 
+      {metaSelection && (
+        <div className="chapter-outline-meta-wrap">
+          <MetaPanel
+            key={`${selection?.type}:${selection?.id}`}
+            selection={metaSelection}
+            metaSchemas={workspaceMetaSchemas}
+            onSave={handleSaveMeta}
+            onClose={() => onSelectionChange?.(null)}
+            onOpenFile={onOpenFile}
+          />
+        </div>
+      )}
+
       {/* Scrollable content */}
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
        <div className="chapter-view-layout" ref={layoutRef}>
@@ -1010,10 +1031,6 @@ export function ChapterView({
             onSelectionChange?.({ type: 'action', id });
             scrollToNode(`action-${id}`);
           }}
-          selection={selection}
-          selectionMeta={selectionMeta}
-          selectionLabel={selectionLabel}
-          onSaveSelectionMeta={handleSaveSelectionMeta}
         />
         <div className="chapter-view-content-col" ref={contentColRef}>
         {chapter.scenes.map(scene => {

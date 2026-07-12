@@ -1,6 +1,4 @@
 import type { CSSProperties } from 'react';
-import type { NodeMeta, UserChapterSelection } from '../../types.ts';
-import { ChapterMetaEditor } from './ChapterMetaEditor.tsx';
 
 interface OutlineSpan {
   id: string;
@@ -24,11 +22,6 @@ interface ChapterOutlinePanelProps {
   focusedActionId: string | null;
   onSelectScene: (sceneId: string) => void;
   onSelectAction: (actionId: string) => void;
-  /** Drives the inline metadata editor card. */
-  selection: UserChapterSelection;
-  selectionMeta: NodeMeta | null;
-  selectionLabel: string;
-  onSaveSelectionMeta: (patch: { title: string; description: string }) => void;
 }
 
 // Reference width for the `right` (panel-relative) coordinate math below —
@@ -83,22 +76,16 @@ function OutlineLabel({
  * ("Handlungseinheiten") — track the actual text 1:1 as the reader scrolls.
  * Both rails hug the text edge, scaling with the reading padding. The strip
  * from the panel's left edge up to the rails is reserved for the metadata
- * editor, which appears next to whatever is currently selected. Labels run
- * vertically once they're longer than a few characters, keeping the bracket
- * cluster narrow.
+ * editor (rendered separately by {@link ChapterView}, fixed to the pane
+ * rather than scrolling with the text). Labels run vertically once they're
+ * longer than a few characters, keeping the bracket cluster narrow.
  */
 export function ChapterOutlinePanel({
   sceneSpans, actionSpans, contentHeight, textInset, textColor, mutedColor, accentColor,
   focusedSceneId, focusedActionId, onSelectScene, onSelectAction,
-  selection, selectionMeta, selectionLabel, onSaveSelectionMeta,
 }: ChapterOutlinePanelProps) {
   const sceneRailLeft = Math.max(SCENE_RAIL_MIN, textInset - RAIL_GUTTER);
   const actionRailLeft = sceneRailLeft - RAIL_SPACING;
-
-  const selectionTop = !selection ? null
-    : selection.type === 'chapter' ? 0
-    : selection.type === 'scene' ? sceneSpans.find(s => s.id === selection.id)?.top ?? null
-    : actionSpans.find(a => a.id === selection.id)?.top ?? null;
 
   return (
     <div className="chapter-outline-panel" style={{ height: contentHeight || '100%' }}>
@@ -162,19 +149,6 @@ export function ChapterOutlinePanel({
           />
         );
       })}
-      {selection && selectionMeta && selectionTop !== null && (
-        <ChapterMetaEditor
-          key={`${selection.type}:${selection.id}`}
-          label={selectionLabel}
-          title={selectionMeta.title}
-          description={selectionMeta.description}
-          top={selectionTop}
-          width={META_ZONE_WIDTH}
-          textColor={textColor}
-          mutedColor={mutedColor}
-          onSave={onSaveSelectionMeta}
-        />
-      )}
     </div>
   );
 }

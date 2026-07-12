@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
-import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, UserChapterSelection, NodeMeta } from './types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, UserChapterSelection, NodeMeta, MetaNodeType } from './types.ts';
+import type { MetaTypeSchema } from './meta/metaSchema.ts';
 import type { BookProject } from './utils/bookProjects.ts';
 
 /** Props for the main editor area when a chapter is open in a media subproject */
@@ -36,6 +37,10 @@ export interface MediaProjectEditorProps {
   onSaveChapterMeta?: (chapterId: string, meta: NodeMeta) => void;
   onSaveSceneMeta?: (chapterId: string, sceneId: string, meta: NodeMeta) => void;
   onSaveActionMeta?: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) => void;
+  /** Schema per node type (title/description + workspace-configured extra fields), for the inline metadata editor. */
+  workspaceMetaSchemas?: Record<MetaNodeType, MetaTypeSchema>;
+  /** Opens a file in the main editor (used by the ensemble "run scene" result). */
+  onOpenFile?: (path: string) => void;
 }
 
 export interface MediaProjectPlugin {
