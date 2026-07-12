@@ -203,6 +203,8 @@ export interface AppBridge {
   };
   wiki?: {
     listFiles: () => Promise<string[]>;
+    listFolders: () => Promise<string[]>;
+    createFolder: (parentPath: string, name: string) => Promise<{ path: string }>;
     search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
   };
   arcs?: {

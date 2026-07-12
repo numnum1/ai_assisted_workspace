@@ -380,3 +380,34 @@
   flex-shrink: 0;
   text-align: center;
 }
+
+/* ---- Folder context menu ---- */
+.content-browser-context-menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.content-browser-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.content-browser-context-menu-item:hover {
+  background: var(--bg-hover);
+}

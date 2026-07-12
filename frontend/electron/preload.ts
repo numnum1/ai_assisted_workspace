@@ -321,6 +321,9 @@ contextBridge.exposeInMainWorld("appBridge", {
   },
   wiki: {
     listFiles: () => ipcRenderer.invoke("wiki:listFiles"),
+    listFolders: () => ipcRenderer.invoke("wiki:listFolders"),
+    createFolder: (parentPath: string, name: string) =>
+      ipcRenderer.invoke("wiki:createFolder", parentPath, name),
     search: (query: string, limit?: number) =>
       ipcRenderer.invoke("wiki:search", query, limit),
   },

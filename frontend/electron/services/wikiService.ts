@@ -136,6 +136,70 @@ export async function listWikiFiles(projectRoot: string | null): Promise<string[
   return files;
 }
 
+async function collectFolders(
+  rootPath: string,
+  currentPath: string,
+  acc: string[],
+): Promise<void> {
+  const entries = await fs.readdir(currentPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === '.git' || entry.name === 'node_modules') continue;
+
+    const absPath = path.join(currentPath, entry.name);
+    const relativePath = normalizeRelativePath(path.relative(rootPath, absPath));
+    acc.push(relativePath);
+    await collectFolders(rootPath, absPath, acc);
+  }
+}
+
+/** Every folder in the wiki, including empty ones (listWikiFiles only surfaces folders that contain a .md file). */
+export async function listWikiFolders(projectRoot: string | null): Promise<string[]> {
+  const wikiRoot = await getWikiRoot(projectRoot);
+  if (!(await pathExists(wikiRoot))) {
+    return [];
+  }
+
+  const stat = await fs.stat(wikiRoot);
+  if (!stat.isDirectory()) {
+    throw new Error('wiki exists but is not a directory.');
+  }
+
+  const folders: string[] = [];
+  await collectFolders(wikiRoot, wikiRoot, folders);
+
+  folders.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  return folders;
+}
+
+export async function createWikiFolder(
+  projectRoot: string | null,
+  parentRelativePath: string,
+  name: string,
+): Promise<{ path: string }> {
+  if (!name.trim() || name.includes('/') || name.includes('\\')) {
+    throw new Error('Ungültiger Ordnername.');
+  }
+
+  const wikiRoot = await getWikiRoot(projectRoot);
+  const parentPath = path.resolve(wikiRoot, ...splitRelativePath(parentRelativePath));
+  const relativeToRoot = path.relative(wikiRoot, parentPath);
+
+  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
+    throw new Error(`Wiki path escapes wiki root: ${parentRelativePath}`);
+  }
+
+  const targetPath = path.join(parentPath, name);
+  if (await pathExists(targetPath)) {
+    throw new Error(`Ordner existiert bereits: ${name}`);
+  }
+
+  await fs.mkdir(targetPath, { recursive: false });
+
+  return { path: normalizeRelativePath(path.relative(wikiRoot, targetPath)) };
+}
+
 export async function readWikiFile(
   projectRoot: string | null,
   relativeWikiPath: string,

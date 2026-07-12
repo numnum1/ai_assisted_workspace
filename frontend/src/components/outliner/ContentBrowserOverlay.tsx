@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Search, FileText, Folder, FolderOpen, X, ChevronRight } from "lucide-react";
+import { Search, FileText, Folder, FolderOpen, FolderPlus, X, ChevronRight } from "lucide-react";
 import { wikiApi } from "../../api.ts";
+import { useTextPrompt } from "../../hooks/useTextPrompt.tsx";
 import "./ContentBrowserOverlay.css";
 
 interface WikiAsset {
@@ -80,6 +81,16 @@ function writeShowFoldersPref(value: boolean): void {
   }
 }
 
+function normalizeFolderName(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (t.includes("/") || t.includes("\\")) {
+    window.alert("Der Name darf keine Pfadtrenner enthalten.");
+    return null;
+  }
+  return t;
+}
+
 export function ContentBrowserOverlay({
   open,
   projectPath,
@@ -87,6 +98,7 @@ export function ContentBrowserOverlay({
   onSelectFile,
 }: ContentBrowserOverlayProps) {
   const [allWikiAssets, setAllWikiAssets] = useState<WikiAsset[]>([]);
+  const [allWikiFolders, setAllWikiFolders] = useState<string[]>([]);
   const [wikiSearchHits, setWikiSearchHits] = useState<WikiAsset[] | null>(null);
   const [showFolders, setShowFoldersState] = useState(readShowFoldersPref);
   const setShowFolders = useCallback((value: boolean) => {
@@ -98,23 +110,14 @@ export function ContentBrowserOverlay({
   const [wikiLoading, setWikiLoading] = useState(true);
   const [wikiQuery, setWikiQuery] = useState("");
   const [wikiIdx, setWikiIdx] = useState(0);
+  const [folderMenu, setFolderMenu] = useState<{ x: number; y: number } | null>(null);
   const wikiInputRef = useRef<HTMLInputElement>(null);
+  const [promptDialog, prompt] = useTextPrompt();
 
-  // Reset navigation state and (re)load data each time the popup opens.
-  useEffect(() => {
-    if (!open || !projectPath) return;
-    let cancelled = false;
-    setWikiQuery("");
-    setWikiIdx(0);
-    setCurrentFolder("");
-    setActiveCategory(null);
-    setWikiSearchHits(null);
-
+  const reloadWiki = useCallback(() => {
     setWikiLoading(true);
-    wikiApi
-      .listFiles()
-      .then((paths) => {
-        if (cancelled) return;
+    return Promise.all([wikiApi.listFiles(), wikiApi.listFolders()])
+      .then(([paths, folders]) => {
         setAllWikiAssets(
           paths.map((path) => ({
             path,
@@ -122,17 +125,28 @@ export function ContentBrowserOverlay({
             category: fileCategory(path),
           })),
         );
+        setAllWikiFolders(folders);
       })
-      .finally(() => {
-        if (!cancelled) setWikiLoading(false);
-      });
+      .finally(() => setWikiLoading(false));
+  }, []);
+
+  // Reset navigation state and (re)load data each time the popup opens.
+  useEffect(() => {
+    if (!open || !projectPath) return;
+    setWikiQuery("");
+    setWikiIdx(0);
+    setCurrentFolder("");
+    setActiveCategory(null);
+    setWikiSearchHits(null);
+    setFolderMenu(null);
+
+    void reloadWiki();
 
     const focusTimer = setTimeout(() => wikiInputRef.current?.focus(), 60);
     return () => {
-      cancelled = true;
       clearTimeout(focusTimer);
     };
-  }, [open, projectPath]);
+  }, [open, projectPath, reloadWiki]);
 
   // Full-text wiki search (debounced).
   useEffect(() => {
@@ -173,9 +187,8 @@ export function ContentBrowserOverlay({
       return entry;
     };
     ensure("");
-    for (const asset of allWikiAssets) {
-      const parts = asset.path.split("/");
-      parts.pop();
+    const addFolderPath = (folderPath: string) => {
+      const parts = folderPath.split("/");
       let cur = "";
       for (const seg of parts) {
         const parent = cur;
@@ -183,10 +196,18 @@ export function ContentBrowserOverlay({
         ensure(parent).folders.add(cur);
         ensure(cur);
       }
-      ensure(cur).files.push(asset);
+    };
+    for (const folderPath of allWikiFolders) {
+      addFolderPath(folderPath);
+    }
+    for (const asset of allWikiAssets) {
+      const parts = asset.path.split("/");
+      parts.pop();
+      if (parts.length > 0) addFolderPath(parts.join("/"));
+      ensure(parts.join("/")).files.push(asset);
     }
     return map;
-  }, [allWikiAssets]);
+  }, [allWikiAssets, allWikiFolders]);
 
   const breadcrumbSegments = useMemo(() => {
     if (!currentFolder) return [];
@@ -284,11 +305,52 @@ export function ContentBrowserOverlay({
     [enterFolder, openWikiFile],
   );
 
+  // Close the folder context menu on any outside click or Escape.
+  useEffect(() => {
+    if (!folderMenu) return;
+    const close = () => setFolderMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [folderMenu]);
+
+  const handleBodyContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!showFolders || wikiQuery.trim()) return;
+      e.preventDefault();
+      setFolderMenu({ x: e.clientX, y: e.clientY });
+    },
+    [showFolders, wikiQuery],
+  );
+
+  const handleNewFolder = useCallback(async () => {
+    setFolderMenu(null);
+    const raw = await prompt("Name des neuen Ordners:");
+    const name = raw != null ? normalizeFolderName(raw) : null;
+    if (name == null) return;
+    try {
+      await wikiApi.createFolder(currentFolder, name);
+      await reloadWiki();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Ordner konnte nicht erstellt werden");
+    }
+  }, [currentFolder, prompt, reloadWiki]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        if (folderMenu) {
+          setFolderMenu(null);
+        } else {
+          onClose();
+        }
         return;
       }
       if (showFolders && e.key === "Backspace" && !wikiQuery && currentFolder) {
@@ -318,6 +380,7 @@ export function ContentBrowserOverlay({
       currentFolder,
       enterFolder,
       showFolders,
+      folderMenu,
     ],
   );
 
@@ -410,7 +473,7 @@ export function ContentBrowserOverlay({
               )}
             </div>
 
-            <div className="content-browser-body">
+            <div className="content-browser-body" onContextMenu={handleBodyContextMenu}>
               {wikiLoading ? (
                 <div className="content-browser-empty">Lade…</div>
               ) : wikiItems.length === 0 ? (
@@ -475,9 +538,28 @@ export function ContentBrowserOverlay({
 
         <div className="content-browser-hint-bar">
           Doppelklick öffnet · Ziehen fügt Verweis ein · Pfeiltasten navigieren
-          {showFolders ? " · Backspace geht zurück" : ""} · Esc schließt
+          {showFolders ? " · Backspace geht zurück · Rechtsklick: neuer Ordner" : ""} · Esc
+          schließt
         </div>
       </div>
+
+      {folderMenu && (
+        <div
+          className="content-browser-context-menu"
+          style={{ left: folderMenu.x, top: folderMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="content-browser-context-menu-item"
+            onClick={() => void handleNewFolder()}
+          >
+            <FolderPlus size={14} />
+            Neuer Ordner
+          </button>
+        </div>
+      )}
+
+      {promptDialog && <div onClick={(e) => e.stopPropagation()}>{promptDialog}</div>}
     </div>
   );
 }

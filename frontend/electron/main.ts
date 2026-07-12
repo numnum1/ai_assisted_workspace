@@ -46,7 +46,12 @@ import {
   initSubproject,
   removeSubproject,
 } from "./services/subprojectService.js";
-import { listWikiFiles, searchWiki } from "./services/wikiService.js";
+import {
+  listWikiFiles,
+  listWikiFolders,
+  createWikiFolder,
+  searchWiki,
+} from "./services/wikiService.js";
 import { readArcs, writeArcs, computeArcCoverage } from "./services/arcService.js";
 import type { ArcData } from "../src/types.js";
 import {
@@ -160,6 +165,12 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("wiki:listFiles", () =>
     listWikiFiles(getCurrentProjectPath()),
+  );
+  ipcMain.handle("wiki:listFolders", () =>
+    listWikiFolders(getCurrentProjectPath()),
+  );
+  ipcMain.handle("wiki:createFolder", (_event, parentPath: string, name: string) =>
+    createWikiFolder(getCurrentProjectPath(), parentPath, name),
   );
   ipcMain.handle("wiki:search", (_event, query: string, limit?: number) =>
     searchWiki(getCurrentProjectPath(), query, limit),

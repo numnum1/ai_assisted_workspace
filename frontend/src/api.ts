@@ -743,6 +743,16 @@ export const wikiApi = {
     if (api?.wiki) return api.wiki.listFiles();
     throw new Error("Electron bridge not available");
   },
+  listFolders: async (): Promise<string[]> => {
+    const api = getElectronApi();
+    if (api?.wiki) return api.wiki.listFolders();
+    throw new Error("Electron bridge not available");
+  },
+  createFolder: async (parentPath: string, name: string): Promise<{ path: string }> => {
+    const api = getElectronApi();
+    if (api?.wiki) return api.wiki.createFolder(parentPath, name);
+    throw new Error("Electron bridge not available");
+  },
   search: async (
     q: string,
     limit?: number,
