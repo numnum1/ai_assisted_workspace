@@ -1587,6 +1587,12 @@ body.file-tree-native-dragging {
     display: none;
 }
 
+.chapter-view-chapter-tab-group {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
 .chapter-view-chapter-tab {
     flex-shrink: 0;
     max-width: 160px;
@@ -1608,6 +1614,18 @@ body.file-tree-native-dragging {
 
 .chapter-view-chapter-tab.active {
     border-bottom-color: var(--accent, #89b4fa);
+}
+
+.chapter-view-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    padding: 4px 8px;
 }
 
 .chapter-view-toolbar-actions {

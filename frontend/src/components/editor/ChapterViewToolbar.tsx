@@ -44,6 +44,9 @@ export interface ChapterViewToolbarProps {
   onSelectChapterTab: (chapterId: string) => void;
   /** Clicking the already-active chapter tab selects the chapter itself (for the metadata editor). */
   onSelectChapterMeta?: () => void;
+  /** Scene/action currently being written in, shown as a breadcrumb after the chapter tabs. */
+  breadcrumbSceneLabel?: string | null;
+  breadcrumbActionLabel?: string | null;
   // Reading controls
   paddingSliderMax: number;
   effectivePadding: number;
@@ -88,6 +91,8 @@ export function ChapterViewToolbar({
   hasDirtyActions,
   onSelectChapterTab,
   onSelectChapterMeta,
+  breadcrumbSceneLabel,
+  breadcrumbActionLabel,
   paddingSliderMax,
   effectivePadding,
   setPadding,
@@ -139,17 +144,24 @@ export function ChapterViewToolbar({
           {chapterTabs.map((c) => {
             const active = c.id === chapterId;
             return (
-              <button
-                key={c.id}
-                type="button"
-                className={`chapter-view-chapter-tab${active ? " active" : ""}`}
-                style={active ? { color: textColor } : { color: mutedText }}
-                onClick={() => active ? onSelectChapterMeta?.() : onSelectChapterTab(c.id)}
-                title={c.meta.title || c.id}
-              >
-                {c.meta.title || c.id}
-                {active && hasDirtyActions && <span className="editor-dirty"> *</span>}
-              </button>
+              <span key={c.id} className="chapter-view-chapter-tab-group">
+                <button
+                  type="button"
+                  className={`chapter-view-chapter-tab${active ? " active" : ""}`}
+                  style={active ? { color: textColor } : { color: mutedText }}
+                  onClick={() => active ? onSelectChapterMeta?.() : onSelectChapterTab(c.id)}
+                  title={c.meta.title || c.id}
+                >
+                  {c.meta.title || c.id}
+                  {active && hasDirtyActions && <span className="editor-dirty"> *</span>}
+                </button>
+                {active && (breadcrumbSceneLabel || breadcrumbActionLabel) && (
+                  <span className="chapter-view-breadcrumb" style={{ color: mutedText }}>
+                    {breadcrumbSceneLabel && <span>&gt;&gt; {breadcrumbSceneLabel}</span>}
+                    {breadcrumbActionLabel && <span>&gt;&gt; {breadcrumbActionLabel}</span>}
+                  </span>
+                )}
+              </span>
             );
           })}
         </div>

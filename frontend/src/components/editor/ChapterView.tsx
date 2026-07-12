@@ -325,6 +325,15 @@ export function ChapterView({
     return null;
   }, [selection, chapter.scenes]);
 
+  // Breadcrumb (toolbar): which scene/action the user is currently writing
+  // in, reusing the same fallback-labeled spans as the outline panel.
+  const breadcrumbSceneLabel = focusedSceneId
+    ? outlineScenes.find(s => s.id === focusedSceneId)?.label ?? null
+    : null;
+  const breadcrumbActionLabel = focusedActionId
+    ? outlineActions.find(a => a.id === focusedActionId)?.label ?? null
+    : null;
+
   // Metadata editor (left panel): resolve the selection to its NodeMeta and a
   // display label, and persist edits through the matching save callback.
   const selectionMeta: NodeMeta | null = useMemo(() => {
@@ -919,6 +928,8 @@ export function ChapterView({
         hasDirtyActions={hasDirtyActions}
         onSelectChapterTab={onSelectChapterTab}
         onSelectChapterMeta={() => onSelectionChange?.({ type: 'chapter', id: chapter.id })}
+        breadcrumbSceneLabel={breadcrumbSceneLabel}
+        breadcrumbActionLabel={breadcrumbActionLabel}
         paddingSliderMax={paddingSliderMax}
         effectivePadding={effectivePadding}
         setPadding={setPadding}
@@ -949,6 +960,7 @@ export function ChapterView({
       headerBg, borderColor, mutedText, colors.text,
       currentBookProjectPath, bookProjects, onSelectBookProject,
       chapterTabs, chapter.id, hasDirtyActions, onSelectChapterTab, onSelectionChange,
+      breadcrumbSceneLabel, breadcrumbActionLabel,
       paddingSliderMax, effectivePadding, setPadding, lineHeight, setLineHeight,
       nightMode, setNightMode, setNightVariant,
       onSaveAll, commentPanelOpen, setCommentPanelOpen,

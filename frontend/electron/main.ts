@@ -840,8 +840,6 @@ function createWindow(): void {
       error instanceof Error ? error.stack ?? error.message : error,
     );
   });
-  win.webContents.openDevTools();
-
   win.webContents.on("before-input-event", (_event, input) => {
     if (input.key === "F12" && input.type === "keyDown") {
       win.webContents.toggleDevTools();

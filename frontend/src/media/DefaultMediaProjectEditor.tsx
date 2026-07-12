@@ -25,6 +25,11 @@ export function DefaultMediaProjectEditor({
   onEditorFocus,
   onCtrlL,
   onAltVersion,
+  selection,
+  onSelectionChange,
+  onSaveChapterMeta,
+  onSaveSceneMeta,
+  onSaveActionMeta,
 }: MediaProjectEditorProps) {
   if (editorMode === 'prose') {
     return (
@@ -47,6 +52,11 @@ export function DefaultMediaProjectEditor({
         onEditorFocus={onEditorFocus}
         onCtrlL={onCtrlL}
         onAltVersion={onAltVersion}
+        selection={selection}
+        onSelectionChange={onSelectionChange}
+        onSaveChapterMeta={onSaveChapterMeta}
+        onSaveSceneMeta={onSaveSceneMeta}
+        onSaveActionMeta={onSaveActionMeta}
       />
     );
   }
