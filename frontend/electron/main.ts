@@ -766,6 +766,16 @@ function registerIpcHandlers(): void {
     patchPreferences(patch),
   );
 
+  ipcMain.handle("window:minimize", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.minimize();
+  });
+
+  ipcMain.handle("window:close", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.close();
+  });
+
   ipcMain.handle("spellcheck:fixAtCursor", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return { status: "no-window" };
@@ -815,6 +825,7 @@ function createWindow(): void {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
+    fullscreen: true,
     webPreferences: {
       /** CJS-Bundle (`preload.cjs` via esbuild): `tsc`-ESM-Preload + `"type":"module"` führt oft dazu, dass der Preload nicht läuft → kein `window.appBridge`. */
       preload: path.join(__dirname, "preload.cjs"),

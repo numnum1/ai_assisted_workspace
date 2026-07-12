@@ -439,6 +439,10 @@ export interface AppBridge {
   spellcheck?: {
     fixAtCursor: () => Promise<{ status: string }>;
   };
+  window?: {
+    minimize: () => Promise<void>;
+    close: () => Promise<void>;
+  };
 }
 
 export function getAppBridge(): AppBridge | null {

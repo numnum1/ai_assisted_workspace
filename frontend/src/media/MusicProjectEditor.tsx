@@ -4,7 +4,7 @@ import { ActionEditor } from '../components/editor/ActionEditor.tsx';
 import type { MediaProjectEditorProps } from '../mediaProjectRegistry.ts';
 import type { ActionEditorColors } from '../components/editor/ActionEditor.tsx';
 import { useReadingPaddingMax } from '../hooks/useReadingPaddingMax.ts';
-import { useTopBarContent } from '../components/app/TopBarContext.ts';
+import { useTopBarContent, useTopBarBackground } from '../components/app/TopBarContext.ts';
 import { MusicProjectToolbar } from './MusicProjectToolbar.tsx';
 
 const FONT_SIZE_KEY = 'music-font-size';
@@ -194,6 +194,7 @@ export function MusicProjectEditor({
     ],
   );
   useTopBarContent(topBarContent);
+  useTopBarBackground(toolbarBg);
 
   if (editorMode !== 'prose') {
     return (

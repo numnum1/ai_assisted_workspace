@@ -380,4 +380,8 @@ contextBridge.exposeInMainWorld("appBridge", {
   spellcheck: {
     fixAtCursor: () => ipcRenderer.invoke("spellcheck:fixAtCursor"),
   },
+  window: {
+    minimize: () => ipcRenderer.invoke("window:minimize"),
+    close: () => ipcRenderer.invoke("window:close"),
+  },
 });

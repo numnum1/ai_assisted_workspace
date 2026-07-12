@@ -5,7 +5,7 @@ import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownE
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
-import { useTopBarContent } from '../app/TopBarContext.ts';
+import { useTopBarContent, useTopBarBackground } from '../app/TopBarContext.ts';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
 import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
@@ -809,6 +809,7 @@ export function ChapterView({
     ],
   );
   useTopBarContent(topBarContent);
+  useTopBarBackground(headerBg);
 
   return (
     <div
