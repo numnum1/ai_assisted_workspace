@@ -119,8 +119,9 @@ export function Editor({
   // rather than in an effect, to avoid an extra cascading render.
   const [userChapterSelection, setUserChapterSelection] = useState<UserChapterSelection>(null);
   const [selectionChapterId, setSelectionChapterId] = useState<string | null>(null);
-  if (chapter.activeChapter?.id !== selectionChapterId) {
-    setSelectionChapterId(chapter.activeChapter?.id ?? null);
+  const activeChapterId = chapter.activeChapter?.id ?? null;
+  if (activeChapterId !== selectionChapterId) {
+    setSelectionChapterId(activeChapterId);
     setUserChapterSelection(null);
   }
 

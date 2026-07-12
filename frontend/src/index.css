@@ -1774,27 +1774,6 @@ body.file-tree-native-dragging {
     text-align: left;
 }
 
-.chapter-outline-chapter-label {
-    position: absolute;
-    top: 0;
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: none;
-    border: none;
-    padding: 0 4px 6px;
-    cursor: pointer;
-    pointer-events: auto;
-    text-align: right;
-    font-size: 14px;
-    font-weight: 700;
-}
-
-.chapter-outline-chapter-label:hover {
-    text-decoration: underline;
-}
-
 .chapter-outline-label:hover {
     text-decoration: underline;
 }

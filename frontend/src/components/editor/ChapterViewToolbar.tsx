@@ -42,6 +42,8 @@ export interface ChapterViewToolbarProps {
   chapterId: string;
   hasDirtyActions: boolean;
   onSelectChapterTab: (chapterId: string) => void;
+  /** Clicking the already-active chapter tab selects the chapter itself (for the metadata editor). */
+  onSelectChapterMeta?: () => void;
   // Reading controls
   paddingSliderMax: number;
   effectivePadding: number;
@@ -85,6 +87,7 @@ export function ChapterViewToolbar({
   chapterId,
   hasDirtyActions,
   onSelectChapterTab,
+  onSelectChapterMeta,
   paddingSliderMax,
   effectivePadding,
   setPadding,
@@ -141,7 +144,7 @@ export function ChapterViewToolbar({
                 type="button"
                 className={`chapter-view-chapter-tab${active ? " active" : ""}`}
                 style={active ? { color: textColor } : { color: mutedText }}
-                onClick={() => onSelectChapterTab(c.id)}
+                onClick={() => active ? onSelectChapterMeta?.() : onSelectChapterTab(c.id)}
                 title={c.meta.title || c.id}
               >
                 {c.meta.title || c.id}

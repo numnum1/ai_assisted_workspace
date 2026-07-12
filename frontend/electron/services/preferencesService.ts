@@ -34,6 +34,7 @@ const DEFAULT_APPEARANCE: Required<AppearancePreferences> = {
   fontFamily: "system-ui",
   chatFontSizePx: 14,
   theme: "dark",
+  showSceneHeadings: true,
 };
 
 const DEFAULT_PREFERENCES: AppPreferences = {

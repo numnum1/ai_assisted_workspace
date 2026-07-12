@@ -10,9 +10,6 @@ interface OutlineSpan {
 }
 
 interface ChapterOutlinePanelProps {
-  chapterLabel: string;
-  focusedChapter: boolean;
-  onSelectChapter: () => void;
   /** Scenes, one bracket each, spanning the full range of their actions. */
   sceneSpans: OutlineSpan[];
   /** Actions ("Handlungseinheiten"), nested inside their scene's span. */
@@ -88,10 +85,9 @@ function OutlineLabel({
  * from the panel's left edge up to the rails is reserved for the metadata
  * editor, which appears next to whatever is currently selected. Labels run
  * vertically once they're longer than a few characters, keeping the bracket
- * cluster narrow. A chapter-level label sits above everything.
+ * cluster narrow.
  */
 export function ChapterOutlinePanel({
-  chapterLabel, focusedChapter, onSelectChapter,
   sceneSpans, actionSpans, contentHeight, textInset, textColor, mutedColor, accentColor,
   focusedSceneId, focusedActionId, onSelectScene, onSelectAction,
   selection, selectionMeta, selectionLabel, onSaveSelectionMeta,
@@ -106,15 +102,6 @@ export function ChapterOutlinePanel({
 
   return (
     <div className="chapter-outline-panel" style={{ height: contentHeight || '100%' }}>
-      <button
-        type="button"
-        className="chapter-outline-chapter-label"
-        style={{ right: CHAPTER_OUTLINE_PANEL_WIDTH - sceneRailLeft, color: focusedChapter ? accentColor : textColor }}
-        onClick={onSelectChapter}
-        title={chapterLabel}
-      >
-        {chapterLabel}
-      </button>
       {actionSpans.map(span => {
         const active = span.id === focusedActionId;
         return (

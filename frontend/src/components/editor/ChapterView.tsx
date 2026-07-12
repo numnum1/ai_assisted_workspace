@@ -918,6 +918,7 @@ export function ChapterView({
         chapterId={chapter.id}
         hasDirtyActions={hasDirtyActions}
         onSelectChapterTab={onSelectChapterTab}
+        onSelectChapterMeta={() => onSelectionChange?.({ type: 'chapter', id: chapter.id })}
         paddingSliderMax={paddingSliderMax}
         effectivePadding={effectivePadding}
         setPadding={setPadding}
@@ -947,7 +948,7 @@ export function ChapterView({
     [
       headerBg, borderColor, mutedText, colors.text,
       currentBookProjectPath, bookProjects, onSelectBookProject,
-      chapterTabs, chapter.id, hasDirtyActions, onSelectChapterTab,
+      chapterTabs, chapter.id, hasDirtyActions, onSelectChapterTab, onSelectionChange,
       paddingSliderMax, effectivePadding, setPadding, lineHeight, setLineHeight,
       nightMode, setNightMode, setNightVariant,
       onSaveAll, commentPanelOpen, setCommentPanelOpen,
@@ -980,9 +981,6 @@ export function ChapterView({
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
        <div className="chapter-view-layout" ref={layoutRef}>
         <ChapterOutlinePanel
-          chapterLabel={chapter.meta.title || chapter.id}
-          focusedChapter={selection?.type === 'chapter'}
-          onSelectChapter={() => onSelectionChange?.({ type: 'chapter', id: chapter.id })}
           sceneSpans={outlineScenes}
           actionSpans={outlineActions}
           contentHeight={contentHeight}

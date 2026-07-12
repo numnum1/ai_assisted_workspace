@@ -613,6 +613,10 @@ function App() {
         e.preventDefault();
         setContentBrowserOpen((prev) => !prev);
       }
+      if (e.key === "F12" && isRunningInElectron()) {
+        e.preventDefault();
+        void getAppBridge()?.shell?.openDevTools?.();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
