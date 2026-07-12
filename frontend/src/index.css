@@ -1647,12 +1647,74 @@ body.file-tree-native-dragging {
 .chapter-view-scroll {
     flex: 1;
     overflow-y: auto;
-    padding-top: 24px;
-    padding-bottom: 24px;
+    padding-top: 30px;
+    padding-bottom: 30px;
 }
 
 .chapter-view-scroll-end {
     min-height: 80vh;
+}
+
+/* --- Floating side panels (outline left / AI right) --- */
+.chapter-side-panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 15;
+    pointer-events: none;
+}
+
+.chapter-side-panel-left {
+    left: 0;
+}
+
+.chapter-side-panel-right {
+    right: 0;
+}
+
+.chapter-side-panel-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.chapter-side-panel-inner {
+    position: absolute;
+    top: 16px;
+    bottom: 16px;
+    width: 100%;
+    overflow-y: auto;
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: rgba(20, 20, 24, 0.32);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: auto;
+}
+
+.chapter-side-panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+}
+
+.chapter-side-panel-placeholder {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.chapter-side-panel-item {
+    padding: 6px 8px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 /* --- AI comment sidebar layout --- */

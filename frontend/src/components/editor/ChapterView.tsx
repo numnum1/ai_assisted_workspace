@@ -4,6 +4,8 @@ import { ActionEditor } from './ActionEditor';
 import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
+import { ChapterOutlinePanel } from './ChapterOutlinePanel.tsx';
+import { ChapterAIPanel } from './ChapterAIPanel.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
 import { useTopBarContent, useTopBarBackground } from '../app/TopBarContext.ts';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
@@ -824,6 +826,20 @@ export function ChapterView({
           </button>
         </div>
       )}
+
+      <ChapterOutlinePanel
+        chapter={chapter}
+        textInset={effectivePadding}
+        textColor={colors.text}
+        mutedColor={mutedText}
+        accentColor="#4ec98a"
+      />
+      <ChapterAIPanel
+        textInset={effectivePadding}
+        textColor={colors.text}
+        mutedColor={mutedText}
+        accentColor="#e05d5d"
+      />
 
       {/* Scrollable content */}
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
