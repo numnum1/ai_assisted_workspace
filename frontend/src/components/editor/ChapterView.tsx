@@ -9,7 +9,7 @@ import { ChapterAIPanel } from './ChapterAIPanel.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
 import { useTopBarContent, useTopBarBackground } from '../app/TopBarContext.ts';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
-import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef, UserChapterSelection } from '../../types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, ChapterComment, CommentCategory, CommentCategoryDef, UserChapterSelection, NodeMeta } from '../../types.ts';
 import type { ActionEditorColors } from './ActionEditor';
 import type { BookProject } from '../../utils/bookProjects.ts';
 import { chapterApi, projectConfigApi } from '../../api.ts';
@@ -143,6 +143,9 @@ interface ChapterViewProps {
   /** Scene/action the user currently has selected (outline click or text focus); drives the metadata editor and AI context panel. */
   selection?: UserChapterSelection;
   onSelectionChange?: (selection: UserChapterSelection) => void;
+  onSaveChapterMeta?: (chapterId: string, meta: NodeMeta) => void;
+  onSaveSceneMeta?: (chapterId: string, sceneId: string, meta: NodeMeta) => void;
+  onSaveActionMeta?: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) => void;
 }
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
@@ -170,6 +173,9 @@ export function ChapterView({
   onAltVersion,
   selection = null,
   onSelectionChange,
+  onSaveChapterMeta,
+  onSaveSceneMeta,
+  onSaveActionMeta,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -318,6 +324,41 @@ export function ChapterView({
     }
     return null;
   }, [selection, chapter.scenes]);
+
+  // Metadata editor (left panel): resolve the selection to its NodeMeta and a
+  // display label, and persist edits through the matching save callback.
+  const selectionMeta: NodeMeta | null = useMemo(() => {
+    if (!selection) return null;
+    if (selection.type === 'chapter') return chapter.meta;
+    if (selection.type === 'scene') return chapter.scenes.find(s => s.id === selection.id)?.meta ?? null;
+    for (const scene of chapter.scenes) {
+      const action = scene.actions.find(a => a.id === selection.id);
+      if (action) return action.meta;
+    }
+    return null;
+  }, [selection, chapter]);
+
+  const selectionLabel = selection?.type === 'chapter' ? 'Kapitel' : selection?.type === 'scene' ? 'Szene' : selection?.type === 'action' ? unitLabel : '';
+
+  const handleSaveSelectionMeta = useCallback((patch: { title: string; description: string }) => {
+    if (!selection) return;
+    if (selection.type === 'chapter') {
+      onSaveChapterMeta?.(chapter.id, { ...chapter.meta, ...patch });
+      return;
+    }
+    if (selection.type === 'scene') {
+      const scene = chapter.scenes.find(s => s.id === selection.id);
+      if (scene) onSaveSceneMeta?.(chapter.id, scene.id, { ...scene.meta, ...patch });
+      return;
+    }
+    for (const scene of chapter.scenes) {
+      const action = scene.actions.find(a => a.id === selection.id);
+      if (action) {
+        onSaveActionMeta?.(chapter.id, scene.id, action.id, { ...action.meta, ...patch });
+        break;
+      }
+    }
+  }, [selection, chapter, onSaveChapterMeta, onSaveSceneMeta, onSaveActionMeta]);
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
   // Note: `padding` (the persisted user preference) is intentionally never
@@ -939,6 +980,9 @@ export function ChapterView({
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
        <div className="chapter-view-layout" ref={layoutRef}>
         <ChapterOutlinePanel
+          chapterLabel={chapter.meta.title || chapter.id}
+          focusedChapter={selection?.type === 'chapter'}
+          onSelectChapter={() => onSelectionChange?.({ type: 'chapter', id: chapter.id })}
           sceneSpans={outlineScenes}
           actionSpans={outlineActions}
           contentHeight={contentHeight}
@@ -956,6 +1000,10 @@ export function ChapterView({
             onSelectionChange?.({ type: 'action', id });
             scrollToNode(`action-${id}`);
           }}
+          selection={selection}
+          selectionMeta={selectionMeta}
+          selectionLabel={selectionLabel}
+          onSaveSelectionMeta={handleSaveSelectionMeta}
         />
         <div className="chapter-view-content-col" ref={contentColRef}>
         {chapter.scenes.map(scene => {

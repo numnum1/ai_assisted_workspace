@@ -222,6 +222,9 @@ export function Editor({
           onAltVersion={onAltVersion}
           selection={userChapterSelection}
           onSelectionChange={setUserChapterSelection}
+          onSaveChapterMeta={chapter.updateChapterMeta}
+          onSaveSceneMeta={chapter.updateSceneMeta}
+          onSaveActionMeta={chapter.updateActionMeta}
         />
       )}
 

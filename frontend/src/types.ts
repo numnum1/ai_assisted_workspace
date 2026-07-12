@@ -535,12 +535,12 @@ export interface ScrollTarget {
 }
 
 /**
- * The scene or action the user currently has selected in the chapter editor
- * (via the outline panel or by focusing its text). Drives the metadata
- * editor and the AI context panel — `null` when nothing is selected.
+ * The chapter, scene, or action the user currently has selected in the
+ * chapter editor (via the outline panel or by focusing its text). Drives the
+ * metadata editor and the AI context panel — `null` when nothing is selected.
  * Scoped to whichever chapter is currently open; not persisted.
  */
-export type UserChapterSelection = { type: 'scene' | 'action'; id: string } | null;
+export type UserChapterSelection = { type: 'chapter' | 'scene' | 'action'; id: string } | null;
 
 export type MetaNodeType = 'book' | 'chapter' | 'scene' | 'action';
 

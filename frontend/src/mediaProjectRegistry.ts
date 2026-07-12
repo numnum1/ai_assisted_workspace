@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, UserChapterSelection } from './types.ts';
+import type { ChapterNode, ChapterSummary, ScrollTarget, SelectionContext, AltVersionSession, UserChapterSelection, NodeMeta } from './types.ts';
 import type { BookProject } from './utils/bookProjects.ts';
 
 /** Props for the main editor area when a chapter is open in a media subproject */
@@ -32,6 +32,10 @@ export interface MediaProjectEditorProps {
   /** Scene/action the user currently has selected (outline click or text focus); drives the metadata editor and AI context panel. */
   selection?: UserChapterSelection;
   onSelectionChange?: (selection: UserChapterSelection) => void;
+  /** Persist an edit made in the inline metadata editor. */
+  onSaveChapterMeta?: (chapterId: string, meta: NodeMeta) => void;
+  onSaveSceneMeta?: (chapterId: string, sceneId: string, meta: NodeMeta) => void;
+  onSaveActionMeta?: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) => void;
 }
 
 export interface MediaProjectPlugin {
