@@ -1798,20 +1798,19 @@ body.file-tree-native-dragging {
 
 /* Positioned relative to `.chapter-view` (not the scrollable layout), so it
    stays vertically centred on the visible pane regardless of scroll position
-   or which scene/action/chapter is selected. */
+   or which scene/action/chapter is selected. `left`/`width` are set inline
+   by ChapterView to centre it within the empty reading-margin strip. No card
+   background of its own — only the individual fields (which keep their own
+   `--bg-tertiary` fill) should read as distinct boxes floating over the
+   editor background. */
 .chapter-outline-meta-wrap {
     position: absolute;
-    left: 0;
     top: 50%;
     transform: translateY(-50%);
-    width: 200px;
     max-height: 70vh;
-    border-radius: 8px;
-    background: rgba(20, 20, 24, 0.4);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: none;
     pointer-events: auto;
-    overflow: hidden;
+    overflow: hidden auto;
     display: flex;
     z-index: 6;
 }
@@ -1819,12 +1818,16 @@ body.file-tree-native-dragging {
 .chapter-outline-meta-wrap .meta-panel {
     width: 100%;
     height: auto;
-    max-height: 420px;
-    background: transparent;
+    background: none;
+}
+
+.chapter-outline-meta-wrap .meta-panel-header {
+    border-bottom: none;
+    padding: 6px 8px 6px 2px;
 }
 
 .chapter-outline-meta-wrap .meta-panel-body {
-    padding: 8px 10px 16px;
+    padding: 4px 2px 16px;
 }
 
 /* --- AI comment sidebar layout --- */

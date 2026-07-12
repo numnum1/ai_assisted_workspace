@@ -4,7 +4,7 @@ import { ActionEditor } from './ActionEditor';
 import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
-import { ChapterOutlinePanel } from './ChapterOutlinePanel.tsx';
+import { ChapterOutlinePanel, META_ZONE_WIDTH } from './ChapterOutlinePanel.tsx';
 import { ChapterAIPanel } from './ChapterAIPanel.tsx';
 import { MetaPanel } from '../meta/MetaPanel.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
@@ -998,7 +998,13 @@ export function ChapterView({
       <ChapterAIPanel />
 
       {metaSelection && (
-        <div className="chapter-outline-meta-wrap">
+        <div
+          className="chapter-outline-meta-wrap"
+          style={{
+            width: META_ZONE_WIDTH * 1.1,
+            left: Math.max(0, (effectivePadding - META_ZONE_WIDTH) / 2 - effectivePadding * 0.1),
+          }}
+        >
           <MetaPanel
             key={`${selection?.type}:${selection?.id}`}
             selection={metaSelection}

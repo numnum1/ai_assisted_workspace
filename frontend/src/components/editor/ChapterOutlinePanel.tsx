@@ -38,8 +38,9 @@ const RAIL_SPACING = 40; // gap between the action rail and the scene rail
 const RAIL_GUTTER = 10; // gap kept between the scene rail and where the text actually starts
 
 // Space reserved at the panel's left edge for the metadata editor card, plus
-// worst-case room for a (short, horizontal) action label to its right.
-const META_ZONE_WIDTH = 200;
+// worst-case room for a (short, horizontal) action label to its right. Kept
+// in sync with the inline width `ChapterView` gives `.chapter-outline-meta-wrap`.
+export const META_ZONE_WIDTH = 340;
 const META_ZONE_GAP = 10;
 const ACTION_LABEL_RESERVE = 70;
 const SCENE_RAIL_MIN = META_ZONE_WIDTH + META_ZONE_GAP + ACTION_LABEL_RESERVE + RAIL_SPACING;
