@@ -895,19 +895,6 @@ function App() {
     [chapter, fileEditor],
   );
 
-  const handleContentBrowserSelectChapter = useCallback(
-    (chapterId: string, structureRoot: string | null, subprojectType: string | null) => {
-      fileEditor.closeFile();
-      setSelectedMeta(null);
-      setMetaExpanded(false);
-      setFocusedField(null);
-      chapter.setStructureRoot(structureRoot, subprojectType);
-      void chapter.refreshChapters();
-      void chapter.openChapter(chapterId);
-    },
-    [chapter, fileEditor],
-  );
-
   const handleCredSuccess = useCallback(() => {
     setCredDialogOpen(false);
     pendingRetry?.();
@@ -947,7 +934,6 @@ function App() {
         projectPath={project.projectPath ?? null}
         onCloseContentBrowser={() => setContentBrowserOpen(false)}
         onSelectFile={handleContentBrowserSelectFile}
-        onSelectChapter={handleContentBrowserSelectChapter}
         credDialogOpen={credDialogOpen}
         onCredSuccess={handleCredSuccess}
         onCredCancel={handleCredCancel}

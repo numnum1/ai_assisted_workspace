@@ -31,11 +31,6 @@ export interface AppOverlaysProps {
   projectPath: string | null;
   onCloseContentBrowser: () => void;
   onSelectFile: (path: string) => void;
-  onSelectChapter: (
-    chapterId: string,
-    structureRoot: string | null,
-    subprojectType: string | null,
-  ) => void;
 
   // Git credentials
   credDialogOpen: boolean;
@@ -82,7 +77,6 @@ export function AppOverlays({
   projectPath,
   onCloseContentBrowser,
   onSelectFile,
-  onSelectChapter,
   credDialogOpen,
   onCredSuccess,
   onCredCancel,
@@ -121,7 +115,6 @@ export function AppOverlays({
         projectPath={projectPath}
         onClose={onCloseContentBrowser}
         onSelectFile={onSelectFile}
-        onSelectChapter={onSelectChapter}
       />
 
       {credDialogOpen && (

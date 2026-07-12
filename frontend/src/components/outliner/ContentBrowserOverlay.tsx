@@ -1,11 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Search, Folder, FileText, X, FolderOpen } from "lucide-react";
-import { chapterApi, filesApi, wikiApi } from "../../api.ts";
-import { collectBookProjects } from "../../utils/bookProjects.ts";
-import type { FileNode } from "../../types.ts";
+import { Search, FileText, Folder, FolderOpen, X, ChevronRight } from "lucide-react";
+import { wikiApi } from "../../api.ts";
 import "./ContentBrowserOverlay.css";
-
-type Column = "buch" | "wiki";
 
 interface WikiAsset {
   /** Path relative to the wiki root, e.g. "charaktere/anna.md" */
@@ -15,32 +11,30 @@ interface WikiAsset {
   snippet?: string;
 }
 
-interface WikiTile {
-  key: string;
-  name: string;
-  category: string;
-  snippet?: string;
-  /** Project-relative path to open. */
-  path: string;
+interface FolderEntry {
+  /** Folder path relative to the wiki root ("" is the root itself). */
+  folders: Set<string>;
+  files: WikiAsset[];
 }
 
-interface ChapterRow {
-  key: string;
-  chapterId: string;
-  title: string;
-  projectPath: string;
-  projectName: string;
-  subprojectType: string | null;
-}
+type WikiGridItem =
+  | { type: "folder"; key: string; name: string; folderPath: string }
+  | {
+      type: "file";
+      key: string;
+      name: string;
+      category: string;
+      snippet?: string;
+      /** Project-relative path to open. */
+      path: string;
+    };
 
 interface ContentBrowserOverlayProps {
   open: boolean;
   projectPath: string | null;
   onClose: () => void;
-  /** Opens a project-relative path in the editor (used by the Wiki column). */
+  /** Opens a project-relative path in the editor. */
   onSelectFile: (path: string) => void;
-  /** Opens a chapter within its owning book project (project root when structureRoot is null). */
-  onSelectChapter: (chapterId: string, structureRoot: string | null, subprojectType: string | null) => void;
 }
 
 function fileDisplayName(path: string): string {
@@ -53,6 +47,11 @@ function fileCategory(path: string): string {
   return parts.length > 1 ? parts[parts.length - 2] : "wiki";
 }
 
+function folderDisplayName(folderPath: string): string {
+  const name = folderPath.split("/").pop() ?? folderPath;
+  return name.replace(/[-_]/g, " ");
+}
+
 /** Deterministic hue per category, so each wiki asset type gets a stable accent color. */
 function categoryHue(category: string): number {
   let hash = 0;
@@ -62,27 +61,39 @@ function categoryHue(category: string): number {
   return hash;
 }
 
+const SHOW_FOLDERS_STORAGE_KEY = "markdown_assistant_content_browser_show_folders_v1";
+
+function readShowFoldersPref(): boolean {
+  try {
+    const raw = localStorage.getItem(SHOW_FOLDERS_STORAGE_KEY);
+    return raw === null ? true : raw === "true";
+  } catch {
+    return true;
+  }
+}
+
+function writeShowFoldersPref(value: boolean): void {
+  try {
+    localStorage.setItem(SHOW_FOLDERS_STORAGE_KEY, String(value));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function ContentBrowserOverlay({
   open,
   projectPath,
   onClose,
   onSelectFile,
-  onSelectChapter,
 }: ContentBrowserOverlayProps) {
-  const [focusedColumn, setFocusedColumn] = useState<Column>("buch");
-
-  // --- Chapter data (left column) ---
-  const [root, setRoot] = useState<FileNode | null>(null);
-  const [treeError, setTreeError] = useState<string | null>(null);
-  const [chapterRows, setChapterRows] = useState<ChapterRow[]>([]);
-  const [chaptersLoading, setChaptersLoading] = useState(true);
-  const [chapterQuery, setChapterQuery] = useState("");
-  const [chapterIdx, setChapterIdx] = useState(0);
-  const chapterInputRef = useRef<HTMLInputElement>(null);
-
-  // --- Wiki data (right column) ---
   const [allWikiAssets, setAllWikiAssets] = useState<WikiAsset[]>([]);
   const [wikiSearchHits, setWikiSearchHits] = useState<WikiAsset[] | null>(null);
+  const [showFolders, setShowFoldersState] = useState(readShowFoldersPref);
+  const setShowFolders = useCallback((value: boolean) => {
+    setShowFoldersState(value);
+    writeShowFoldersPref(value);
+  }, []);
+  const [currentFolder, setCurrentFolder] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [wikiLoading, setWikiLoading] = useState(true);
   const [wikiQuery, setWikiQuery] = useState("");
@@ -93,27 +104,11 @@ export function ContentBrowserOverlay({
   useEffect(() => {
     if (!open || !projectPath) return;
     let cancelled = false;
-    setChapterQuery("");
-    setChapterIdx(0);
     setWikiQuery("");
     setWikiIdx(0);
+    setCurrentFolder("");
     setActiveCategory(null);
     setWikiSearchHits(null);
-    setFocusedColumn("buch");
-
-    setChaptersLoading(true);
-    setTreeError(null);
-    filesApi
-      .getTree()
-      .then((tree) => {
-        if (!cancelled) setRoot(tree);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setTreeError(e instanceof Error ? e.message : "Baum konnte nicht geladen werden");
-          setChaptersLoading(false);
-        }
-      });
 
     setWikiLoading(true);
     wikiApi
@@ -132,48 +127,12 @@ export function ContentBrowserOverlay({
         if (!cancelled) setWikiLoading(false);
       });
 
-    const focusTimer = setTimeout(() => chapterInputRef.current?.focus(), 60);
+    const focusTimer = setTimeout(() => wikiInputRef.current?.focus(), 60);
     return () => {
       cancelled = true;
       clearTimeout(focusTimer);
     };
   }, [open, projectPath]);
-
-  // Once the file tree is in, load every book project's chapter list.
-  useEffect(() => {
-    if (!root) return;
-    let cancelled = false;
-    const projects = collectBookProjects(root);
-    setChaptersLoading(true);
-    Promise.all(
-      projects.map((project) =>
-        chapterApi
-          .list(project.path === "." ? undefined : project.path)
-          .then((list) => ({ project, list }))
-          .catch(() => ({ project, list: [] })),
-      ),
-    ).then((results) => {
-      if (cancelled) return;
-      const rows: ChapterRow[] = [];
-      for (const { project, list } of results) {
-        for (const c of list) {
-          rows.push({
-            key: `${project.path}::${c.id}`,
-            chapterId: c.id,
-            title: c.meta.title || c.id,
-            projectPath: project.path,
-            projectName: project.name,
-            subprojectType: project.subprojectType,
-          });
-        }
-      }
-      setChapterRows(rows);
-      setChaptersLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [root]);
 
   // Full-text wiki search (debounced).
   useEffect(() => {
@@ -202,68 +161,127 @@ export function ContentBrowserOverlay({
     };
   }, [wikiQuery]);
 
+  // Build the folder tree: folder path -> its immediate subfolders and files.
+  const folderMap = useMemo(() => {
+    const map = new Map<string, FolderEntry>();
+    const ensure = (key: string) => {
+      let entry = map.get(key);
+      if (!entry) {
+        entry = { folders: new Set(), files: [] };
+        map.set(key, entry);
+      }
+      return entry;
+    };
+    ensure("");
+    for (const asset of allWikiAssets) {
+      const parts = asset.path.split("/");
+      parts.pop();
+      let cur = "";
+      for (const seg of parts) {
+        const parent = cur;
+        cur = cur ? `${cur}/${seg}` : seg;
+        ensure(parent).folders.add(cur);
+        ensure(cur);
+      }
+      ensure(cur).files.push(asset);
+    }
+    return map;
+  }, [allWikiAssets]);
+
+  const breadcrumbSegments = useMemo(() => {
+    if (!currentFolder) return [];
+    const parts = currentFolder.split("/");
+    let acc = "";
+    return parts.map((part) => {
+      acc = acc ? `${acc}/${part}` : part;
+      return { name: folderDisplayName(part), path: acc };
+    });
+  }, [currentFolder]);
+
   const wikiCategories = useMemo(() => {
     const set = new Set(allWikiAssets.map((a) => a.category));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [allWikiAssets]);
 
-  const chapterGroups = useMemo(() => {
-    const trimmed = chapterQuery.trim().toLowerCase();
-    const filtered = trimmed
-      ? chapterRows.filter(
-          (r) =>
-            r.title.toLowerCase().includes(trimmed) || r.projectName.toLowerCase().includes(trimmed),
-        )
-      : chapterRows;
-    const groups: { projectPath: string; projectName: string; rows: ChapterRow[] }[] = [];
-    for (const row of filtered) {
-      let group = groups.find((g) => g.projectPath === row.projectPath);
-      if (!group) {
-        group = { projectPath: row.projectPath, projectName: row.projectName, rows: [] };
-        groups.push(group);
-      }
-      group.rows.push(row);
-    }
-    return groups;
-  }, [chapterRows, chapterQuery]);
-
-  const flatChapterRows = useMemo(() => chapterGroups.flatMap((g) => g.rows), [chapterGroups]);
-
-  const wikiTiles = useMemo<WikiTile[]>(() => {
+  const wikiItems = useMemo<WikiGridItem[]>(() => {
     const trimmed = wikiQuery.trim().toLowerCase();
+
+    if (showFolders && !trimmed) {
+      const entry = folderMap.get(currentFolder) ?? { folders: new Set<string>(), files: [] };
+      const folders: WikiGridItem[] = Array.from(entry.folders)
+        .sort((a, b) => folderDisplayName(a).localeCompare(folderDisplayName(b)))
+        .map((folderPath) => ({
+          type: "folder",
+          key: folderPath,
+          name: folderDisplayName(folderPath),
+          folderPath,
+        }));
+      const files: WikiGridItem[] = [...entry.files]
+        .sort((a, b) => a.displayName.localeCompare(b.displayName))
+        .map((a) => ({
+          type: "file",
+          key: a.path,
+          name: a.displayName,
+          category: a.category,
+          snippet: a.snippet,
+          path: `wiki/${a.path}`,
+        }));
+      return [...folders, ...files];
+    }
+
+    // Flat views: while searching (any mode) or when folders are switched off.
     let base: WikiAsset[];
     if (!trimmed) {
       base = allWikiAssets;
     } else {
-      const byName = allWikiAssets.filter((a) => a.displayName.toLowerCase().includes(trimmed));
+      const byName = allWikiAssets.filter((a) =>
+        a.displayName.toLowerCase().includes(trimmed),
+      );
       base = wikiSearchHits && wikiSearchHits.length > 0 ? wikiSearchHits : byName;
     }
-    const filtered = activeCategory ? base.filter((a) => a.category === activeCategory) : base;
+    const filtered =
+      !showFolders && activeCategory ? base.filter((a) => a.category === activeCategory) : base;
     return filtered.map((a) => ({
+      type: "file",
       key: a.path,
       name: a.displayName,
       category: a.category,
       snippet: a.snippet,
       path: `wiki/${a.path}`,
     }));
-  }, [allWikiAssets, wikiSearchHits, activeCategory, wikiQuery]);
+  }, [
+    showFolders,
+    folderMap,
+    currentFolder,
+    allWikiAssets,
+    wikiSearchHits,
+    wikiQuery,
+    activeCategory,
+  ]);
 
-  const safeChapterIdx =
-    flatChapterRows.length === 0 ? 0 : Math.min(chapterIdx, flatChapterRows.length - 1);
-  const safeWikiIdx = wikiTiles.length === 0 ? 0 : Math.min(wikiIdx, wikiTiles.length - 1);
+  const safeWikiIdx = wikiItems.length === 0 ? 0 : Math.min(wikiIdx, wikiItems.length - 1);
 
-  const openChapterRow = useCallback(
-    (row: ChapterRow) => {
-      onSelectChapter(row.chapterId, row.projectPath === "." ? null : row.projectPath, row.subprojectType);
-    },
-    [onSelectChapter],
-  );
-
-  const openWikiTile = useCallback(
-    (tile: WikiTile) => {
-      onSelectFile(tile.path);
+  const openWikiFile = useCallback(
+    (path: string) => {
+      onSelectFile(path);
     },
     [onSelectFile],
+  );
+
+  const enterFolder = useCallback((folderPath: string) => {
+    setCurrentFolder(folderPath);
+    setWikiIdx(0);
+  }, []);
+
+  const activateItem = useCallback(
+    (item: WikiGridItem) => {
+      if (item.type === "folder") {
+        enterFolder(item.folderPath);
+      } else {
+        openWikiFile(item.path);
+      }
+    },
+    [enterFolder, openWikiFile],
   );
 
   const handleKeyDown = useCallback(
@@ -273,43 +291,40 @@ export function ContentBrowserOverlay({
         onClose();
         return;
       }
-      if (focusedColumn === "buch") {
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          setChapterIdx((i) => Math.min(i + 1, flatChapterRows.length - 1));
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          setChapterIdx((i) => Math.max(i - 1, 0));
-        } else if (e.key === "Enter" && flatChapterRows[safeChapterIdx]) {
-          e.preventDefault();
-          openChapterRow(flatChapterRows[safeChapterIdx]);
-        }
-      } else {
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          setWikiIdx((i) => Math.min(i + 1, wikiTiles.length - 1));
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          setWikiIdx((i) => Math.max(i - 1, 0));
-        } else if (e.key === "Enter" && wikiTiles[safeWikiIdx]) {
-          e.preventDefault();
-          openWikiTile(wikiTiles[safeWikiIdx]);
-        }
+      if (showFolders && e.key === "Backspace" && !wikiQuery && currentFolder) {
+        e.preventDefault();
+        const parts = currentFolder.split("/");
+        parts.pop();
+        enterFolder(parts.join("/"));
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setWikiIdx((i) => Math.min(i + 1, wikiItems.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setWikiIdx((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter" && wikiItems[safeWikiIdx]) {
+        e.preventDefault();
+        activateItem(wikiItems[safeWikiIdx]);
       }
     },
     [
-      focusedColumn,
-      flatChapterRows,
-      safeChapterIdx,
-      openChapterRow,
-      wikiTiles,
+      wikiItems,
       safeWikiIdx,
-      openWikiTile,
+      activateItem,
       onClose,
+      wikiQuery,
+      currentFolder,
+      enterFolder,
+      showFolders,
     ],
   );
 
   if (!open) return null;
+
+  const showBreadcrumbs = showFolders && !wikiQuery.trim();
+  const showCategoryTabs = !showFolders;
 
   return (
     <div className="content-browser-overlay" onClick={onClose}>
@@ -326,88 +341,7 @@ export function ContentBrowserOverlay({
         </div>
 
         <div className="content-browser-columns">
-          <div
-            className="content-browser-col content-browser-col-left"
-            onFocus={() => setFocusedColumn("buch")}
-            onMouseEnter={() => setFocusedColumn("buch")}
-          >
-            <div className="content-browser-col-title-row">
-              <span className="content-browser-col-title">Kapitel</span>
-            </div>
-
-            <div className="content-browser-header">
-              <div className="content-browser-search-row">
-                <Search size={15} className="content-browser-search-icon" />
-                <input
-                  ref={chapterInputRef}
-                  className="content-browser-search-input"
-                  value={chapterQuery}
-                  onFocus={() => setFocusedColumn("buch")}
-                  onChange={(e) => {
-                    setChapterQuery(e.target.value);
-                    setChapterIdx(0);
-                  }}
-                  placeholder="Kapitel suchen…"
-                />
-              </div>
-            </div>
-
-            <div className="content-browser-body content-browser-list-body">
-              {chaptersLoading ? (
-                <div className="content-browser-empty">Lade…</div>
-              ) : treeError ? (
-                <div className="content-browser-empty">{treeError}</div>
-              ) : flatChapterRows.length === 0 ? (
-                <div className="content-browser-empty">
-                  {chapterQuery.trim() ? "Keine Treffer" : "Keine Kapitel gefunden"}
-                </div>
-              ) : (
-                (() => {
-                  let rowIdx = -1;
-                  return chapterGroups.map((group) => (
-                    <div key={group.projectPath} className="content-browser-chapter-group">
-                      <div className="content-browser-chapter-group-header">
-                        <Folder size={12} strokeWidth={1.75} />
-                        <span>{group.projectName}</span>
-                      </div>
-                      <div className="content-browser-list">
-                        {group.rows.map((row) => {
-                          rowIdx += 1;
-                          const i = rowIdx;
-                          return (
-                            <div
-                              key={row.key}
-                              className={`content-browser-list-row${i === safeChapterIdx ? " selected" : ""}`}
-                              onMouseEnter={() => setChapterIdx(i)}
-                              onDoubleClick={() => openChapterRow(row)}
-                              title={`${row.title}\n\nDoppelklick: öffnen`}
-                            >
-                              <FileText size={16} strokeWidth={1.5} className="content-browser-list-icon" />
-                              <span className="content-browser-list-name">{row.title}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ));
-                })()
-              )}
-            </div>
-
-            <div className="content-browser-footer">
-              <span>{flatChapterRows.length} Kapitel</span>
-            </div>
-          </div>
-
-          <div
-            className="content-browser-col content-browser-col-right"
-            onFocus={() => setFocusedColumn("wiki")}
-            onMouseEnter={() => setFocusedColumn("wiki")}
-          >
-            <div className="content-browser-col-title-row">
-              <span className="content-browser-col-title">Wiki</span>
-            </div>
-
+          <div className="content-browser-col content-browser-col-right">
             <div className="content-browser-header">
               <div className="content-browser-search-row">
                 <Search size={15} className="content-browser-search-icon" />
@@ -415,84 +349,133 @@ export function ContentBrowserOverlay({
                   ref={wikiInputRef}
                   className="content-browser-search-input"
                   value={wikiQuery}
-                  onFocus={() => setFocusedColumn("wiki")}
                   onChange={(e) => {
                     setWikiQuery(e.target.value);
                     setWikiIdx(0);
                   }}
                   placeholder="Wiki durchsuchen…"
                 />
+                <label className="content-browser-folder-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showFolders}
+                    onChange={(e) => setShowFolders(e.target.checked)}
+                  />
+                  Zeige Ordner
+                </label>
               </div>
 
-              <div className="content-browser-wiki-tabs">
-                <button
-                  className={`content-browser-cat-tab${activeCategory === null ? " active" : ""}`}
-                  onClick={() => setActiveCategory(null)}
-                >
-                  Alle
-                </button>
-                {wikiCategories.map((cat) => (
+              {showBreadcrumbs && (
+                <div className="content-browser-breadcrumbs">
                   <button
-                    key={cat}
-                    className={`content-browser-cat-tab${activeCategory === cat ? " active" : ""}`}
-                    onClick={() => setActiveCategory((c) => (c === cat ? null : cat))}
-                    style={{ "--cat-hue": categoryHue(cat) } as React.CSSProperties}
+                    className={`content-browser-crumb${currentFolder === "" ? " active" : ""}`}
+                    onClick={() => enterFolder("")}
                   >
-                    <span className="content-browser-cat-dot" />
-                    {cat}
+                    Wiki
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="content-browser-body">
-              {wikiLoading ? (
-                <div className="content-browser-empty">Lade…</div>
-              ) : wikiTiles.length === 0 ? (
-                <div className="content-browser-empty">
-                  {wikiQuery.trim() ? "Keine Treffer" : "Nichts gefunden"}
+                  {breadcrumbSegments.map((seg) => (
+                    <span key={seg.path} className="content-browser-crumb-group">
+                      <ChevronRight size={13} className="content-browser-crumb-sep" />
+                      <button
+                        className={`content-browser-crumb${currentFolder === seg.path ? " active" : ""}`}
+                        onClick={() => enterFolder(seg.path)}
+                      >
+                        {seg.name}
+                      </button>
+                    </span>
+                  ))}
                 </div>
-              ) : (
-                <div className="content-browser-grid">
-                  {wikiTiles.map((tile, i) => (
-                    <div
-                      key={tile.key}
-                      className={`content-browser-tile${i === safeWikiIdx ? " selected" : ""}`}
-                      style={{ "--cat-hue": categoryHue(tile.category) } as React.CSSProperties}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/plain", `@[${tile.name}](${tile.path})`);
-                        e.dataTransfer.effectAllowed = "copy";
-                      }}
-                      onMouseEnter={() => setWikiIdx(i)}
-                      onDoubleClick={() => openWikiTile(tile)}
-                      title={`${tile.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`}
+              )}
+
+              {showCategoryTabs && (
+                <div className="content-browser-wiki-tabs">
+                  <button
+                    className={`content-browser-cat-tab${activeCategory === null ? " active" : ""}`}
+                    onClick={() => setActiveCategory(null)}
+                  >
+                    Alle
+                  </button>
+                  {wikiCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      className={`content-browser-cat-tab${activeCategory === cat ? " active" : ""}`}
+                      onClick={() => setActiveCategory((c) => (c === cat ? null : cat))}
+                      style={{ "--cat-hue": categoryHue(cat) } as React.CSSProperties}
                     >
-                      <div className="content-browser-thumb">
-                        <FileText size={26} strokeWidth={1.5} />
-                      </div>
-                      <div className="content-browser-tile-name">{tile.name}</div>
-                      {tile.snippet ? (
-                        <div className="content-browser-tile-snippet">{tile.snippet}</div>
-                      ) : (
-                        <div className="content-browser-tile-cat">
-                          <FolderOpen size={11} /> {tile.category}
-                        </div>
-                      )}
-                    </div>
+                      <span className="content-browser-cat-dot" />
+                      {cat}
+                    </button>
                   ))}
                 </div>
               )}
             </div>
 
+            <div className="content-browser-body">
+              {wikiLoading ? (
+                <div className="content-browser-empty">Lade…</div>
+              ) : wikiItems.length === 0 ? (
+                <div className="content-browser-empty">
+                  {wikiQuery.trim() ? "Keine Treffer" : "Kein Inhalt in diesem Ordner"}
+                </div>
+              ) : (
+                <div className="content-browser-grid">
+                  {wikiItems.map((item, i) =>
+                    item.type === "folder" ? (
+                      <div
+                        key={item.key}
+                        className={`content-browser-tile content-browser-tile-folder${i === safeWikiIdx ? " selected" : ""}`}
+                        onMouseEnter={() => setWikiIdx(i)}
+                        onDoubleClick={() => enterFolder(item.folderPath)}
+                        title={`${item.name}\n\nDoppelklick: öffnen`}
+                      >
+                        <div className="content-browser-thumb content-browser-thumb-folder">
+                          <Folder size={26} strokeWidth={1.5} />
+                        </div>
+                        <div className="content-browser-tile-name">{item.name}</div>
+                      </div>
+                    ) : (
+                      <div
+                        key={item.key}
+                        className={`content-browser-tile${i === safeWikiIdx ? " selected" : ""}`}
+                        style={{ "--cat-hue": categoryHue(item.category) } as React.CSSProperties}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", `@[${item.name}](${item.path})`);
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        onMouseEnter={() => setWikiIdx(i)}
+                        onDoubleClick={() => openWikiFile(item.path)}
+                        title={`${item.path}\n\nDoppelklick: öffnen · Ziehen: als Verweis einfügen`}
+                      >
+                        <div className="content-browser-thumb">
+                          <FileText size={26} strokeWidth={1.5} />
+                        </div>
+                        <div className="content-browser-tile-name">{item.name}</div>
+                        {item.snippet ? (
+                          <div className="content-browser-tile-snippet">{item.snippet}</div>
+                        ) : (
+                          !showFolders && (
+                            <div className="content-browser-tile-cat">
+                              <FolderOpen size={11} /> {item.category}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="content-browser-footer">
-              <span>{wikiTiles.length} Einträge</span>
+              <span>{wikiItems.length} Einträge</span>
             </div>
           </div>
         </div>
 
         <div className="content-browser-hint-bar">
-          Doppelklick öffnet · Ziehen fügt Verweis ein (Wiki) · Pfeiltasten navigieren · Esc schließt
+          Doppelklick öffnet · Ziehen fügt Verweis ein · Pfeiltasten navigieren
+          {showFolders ? " · Backspace geht zurück" : ""} · Esc schließt
         </div>
       </div>
     </div>
