@@ -40,6 +40,14 @@ const CARD_HEIGHT_ESTIMATE = 96;
 /** Stable empty anchor list so actions without comments don't churn editor re-renders. */
 const EMPTY_ANCHORS: CommentAnchorSpec[] = [];
 
+/** A scene or action's vertical extent within the scrollable chapter layout. */
+interface OutlineSpan {
+  id: string;
+  label: string;
+  top: number;
+  height: number;
+}
+
 /** A drawn connector from an underlined passage to its comment card. */
 interface CommentConnector {
   id: string;
@@ -288,6 +296,14 @@ export function ChapterView({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  // Outline (left panel): vertical spans of each scene and action, measured
+  // against the actual rendered text so the outline brackets track it 1:1.
+  const [outlineScenes, setOutlineScenes] = useState<OutlineSpan[]>([]);
+  const [outlineActions, setOutlineActions] = useState<(OutlineSpan & { sceneId: string })[]>([]);
+  const outlineSigRef = useRef<string>('');
+  const [focusedSceneId, setFocusedSceneId] = useState<string | null>(null);
+  const [focusedActionId, setFocusedActionId] = useState<string | null>(null);
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
   // Note: `padding` (the persisted user preference) is intentionally never
@@ -652,6 +668,82 @@ export function ChapterView({
     }
   }, []);
 
+  // Measure each scene's and action's ("Handlungseinheit") vertical extent
+  // against the rendered text, so the outline brackets in the left panel line
+  // up 1:1 with the passage they represent (same technique as computeLayout).
+  const computeOutlineSpans = useCallback(() => {
+    const layout = layoutRef.current;
+    if (!layout) return;
+    const layoutTop = layout.getBoundingClientRect().top;
+    if (contentColRef.current) setContentHeight(contentColRef.current.scrollHeight);
+
+    const nextScenes: OutlineSpan[] = [];
+    const nextActions: (OutlineSpan & { sceneId: string })[] = [];
+
+    chapter.scenes.forEach((scene, sceneIdx) => {
+      const isCollapsed = showSceneHeadings && collapsedScenes.has(scene.id);
+      const headingEl = nodeRefs.current.get(`scene-${scene.id}`);
+      const actionEls = isCollapsed
+        ? []
+        : scene.actions
+            .map((action, actionIdx) => ({ action, actionIdx, el: nodeRefs.current.get(`action-${action.id}`) }))
+            .filter((a): a is { action: typeof scene.actions[number]; actionIdx: number; el: HTMLElement } => !!a.el);
+
+      const firstEl = headingEl ?? actionEls[0]?.el;
+      if (!firstEl) return;
+      const top = firstEl.getBoundingClientRect().top - layoutTop;
+
+      const lastEl = actionEls.length > 0 ? actionEls[actionEls.length - 1].el : firstEl;
+      const lastRect = lastEl.getBoundingClientRect();
+      const bottom = lastRect.top - layoutTop + lastRect.height;
+
+      nextScenes.push({
+        id: scene.id,
+        label: scene.meta.title || `Szene ${sceneIdx + 1}`,
+        top,
+        height: Math.max(4, bottom - top),
+      });
+
+      for (const { action, actionIdx, el } of actionEls) {
+        const rect = el.getBoundingClientRect();
+        nextActions.push({
+          id: action.id,
+          sceneId: scene.id,
+          label: action.meta.title || `Handlungseinheit ${actionIdx + 1}`,
+          top: rect.top - layoutTop,
+          height: Math.max(4, rect.height),
+        });
+      }
+    });
+
+    const sig = JSON.stringify([
+      nextScenes.map(s => [s.id, Math.round(s.top), Math.round(s.height)]),
+      nextActions.map(a => [a.id, Math.round(a.top), Math.round(a.height)]),
+    ]);
+    if (sig === outlineSigRef.current) return;
+    outlineSigRef.current = sig;
+    setOutlineScenes(nextScenes);
+    setOutlineActions(nextActions);
+  }, [chapter.scenes, showSceneHeadings, collapsedScenes]);
+
+  useEffect(() => {
+    let raf = requestAnimationFrame(computeOutlineSpans);
+    const contentCol = contentColRef.current;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(computeOutlineSpans);
+    });
+    if (contentCol) observer.observe(contentCol);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [computeOutlineSpans, fontSize, effectivePadding, lineHeight]);
+
+  const scrollToNode = useCallback((key: string) => {
+    nodeRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   // Persist settings
   useEffect(() => { localStorage.setItem(FONT_SIZE_KEY, String(fontSize)); }, [fontSize]);
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
@@ -827,16 +919,24 @@ export function ChapterView({
         </div>
       )}
 
-      <ChapterOutlinePanel
-        chapter={chapter}
-        textColor={colors.text}
-        mutedColor={mutedText}
-      />
       <ChapterAIPanel />
 
       {/* Scrollable content */}
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
        <div className="chapter-view-layout" ref={layoutRef}>
+        <ChapterOutlinePanel
+          sceneSpans={outlineScenes}
+          actionSpans={outlineActions}
+          contentHeight={contentHeight}
+          textInset={effectivePadding}
+          textColor={colors.text}
+          mutedColor={mutedText}
+          accentColor="#89b4fa"
+          focusedSceneId={focusedSceneId}
+          focusedActionId={focusedActionId}
+          onSelectScene={id => scrollToNode(`scene-${id}`)}
+          onSelectAction={id => scrollToNode(`action-${id}`)}
+        />
         <div className="chapter-view-content-col" ref={contentColRef}>
         {chapter.scenes.map(scene => {
           const isCollapsed = showSceneHeadings && collapsedScenes.has(scene.id);
@@ -883,6 +983,8 @@ export function ChapterView({
                     className="action-block"
                     onFocus={() => {
                       focusedActionIdRef.current = action.id;
+                      setFocusedSceneId(scene.id);
+                      setFocusedActionId(action.id);
                       onEditorFocus?.(scene.id, action.id);
                     }}
                   >

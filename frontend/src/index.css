@@ -1665,10 +1665,6 @@ body.file-tree-native-dragging {
     pointer-events: none;
 }
 
-.chapter-side-panel-left {
-    left: 0;
-}
-
 .chapter-side-panel-right {
     right: 0;
 }
@@ -1706,6 +1702,76 @@ body.file-tree-native-dragging {
     padding: 6px 8px;
     border-radius: 5px;
     background: rgba(255, 255, 255, 0.05);
+}
+
+/* --- Chapter outline panel (scene/action brackets, tracks the text 1:1) --- */
+.chapter-outline-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 260px;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.chapter-outline-rail {
+    position: absolute;
+    width: 10px;
+    pointer-events: none;
+    transition: border-color 0.15s;
+}
+
+.chapter-outline-rail::before,
+.chapter-outline-rail::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 10px;
+    height: 2px;
+    background: var(--rail-color);
+    transition: background 0.15s;
+}
+
+.chapter-outline-rail::before { top: 0; }
+.chapter-outline-rail::after { bottom: 0; }
+
+.chapter-outline-rail-action {
+    --rail-color: rgba(150, 150, 160, 0.35);
+    border-left: 2px solid var(--rail-color);
+}
+
+.chapter-outline-rail-scene {
+    --rail-color: rgba(150, 150, 160, 0.55);
+    border-left: 2px solid var(--rail-color);
+}
+
+.chapter-outline-label {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    pointer-events: auto;
+    text-align: right;
+}
+
+.chapter-outline-label-action {
+    font-size: 11px;
+}
+
+.chapter-outline-label-scene {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.chapter-outline-label:hover {
+    text-decoration: underline;
 }
 
 /* --- AI comment sidebar layout --- */
