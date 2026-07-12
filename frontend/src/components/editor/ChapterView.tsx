@@ -344,26 +344,35 @@ export function ChapterView({
     ? outlineActions.find(a => a.id === focusedActionId)?.label ?? null
     : null;
 
-  // Metadata editor (left panel): resolve the selection to a full MetaSelection
-  // (schema-driven, same shape as the classic MetaPanel/AssetPanel) and persist
-  // edits through the matching save callback.
+  // Metadata editor (left panel): opened only by an explicit click — the
+  // outline's bracket label or the active chapter tab — never by merely
+  // focusing/typing in the text. Kept separate from `selection` (which also
+  // tracks "where the user is currently writing" for the breadcrumb and rail
+  // highlighting) so that clicking into a paragraph doesn't pop the editor.
+  const [metaTarget, setMetaTarget] = useState<UserChapterSelection>(null);
+  const [metaTargetChapterId, setMetaTargetChapterId] = useState<string | null>(null);
+  if (chapter.id !== metaTargetChapterId) {
+    setMetaTargetChapterId(chapter.id);
+    setMetaTarget(null);
+  }
+
   const metaSelection: MetaSelection | null = useMemo(() => {
-    if (!selection) return null;
-    if (selection.type === 'chapter') {
+    if (!metaTarget) return null;
+    if (metaTarget.type === 'chapter') {
       return { type: 'chapter', chapterId: chapter.id, meta: chapter.meta };
     }
-    if (selection.type === 'scene') {
-      const scene = chapter.scenes.find(s => s.id === selection.id);
+    if (metaTarget.type === 'scene') {
+      const scene = chapter.scenes.find(s => s.id === metaTarget.id);
       return scene ? { type: 'scene', chapterId: chapter.id, sceneId: scene.id, meta: scene.meta } : null;
     }
     for (const scene of chapter.scenes) {
-      const action = scene.actions.find(a => a.id === selection.id);
+      const action = scene.actions.find(a => a.id === metaTarget.id);
       if (action) {
         return { type: 'action', chapterId: chapter.id, sceneId: scene.id, actionId: action.id, meta: action.meta };
       }
     }
     return null;
-  }, [selection, chapter]);
+  }, [metaTarget, chapter]);
 
   const handleSaveMeta = useCallback(
     (type: MetaNodeType, meta: NodeMeta, chapterId: string, sceneId?: string, actionId?: string) => {
@@ -971,7 +980,10 @@ export function ChapterView({
         chapterId={chapter.id}
         hasDirtyActions={hasDirtyActions}
         onSelectChapterTab={onSelectChapterTab}
-        onSelectChapterMeta={() => onSelectionChange?.({ type: 'chapter', id: chapter.id })}
+        onSelectChapterMeta={() => {
+          onSelectionChange?.({ type: 'chapter', id: chapter.id });
+          setMetaTarget({ type: 'chapter', id: chapter.id });
+        }}
         breadcrumbSceneLabel={breadcrumbSceneLabel}
         breadcrumbActionLabel={breadcrumbActionLabel}
         paddingSliderMax={paddingSliderMax}
@@ -1045,12 +1057,12 @@ export function ChapterView({
           }}
         >
           <AssetPanel
-            key={`${selection?.type}:${selection?.id}`}
+            key={`${metaTarget?.type}:${metaTarget?.id}`}
             schema={metaSchema}
             values={metaFieldValues}
             title={metaSchema.filename}
             onSave={handleSaveMetaValues}
-            onClose={() => onSelectionChange?.(null)}
+            onClose={() => setMetaTarget(null)}
           />
         </div>
       )}
@@ -1070,10 +1082,12 @@ export function ChapterView({
           focusedActionId={focusedActionId}
           onSelectScene={id => {
             onSelectionChange?.({ type: 'scene', id });
+            setMetaTarget({ type: 'scene', id });
             scrollToNode(`scene-${id}`);
           }}
           onSelectAction={id => {
             onSelectionChange?.({ type: 'action', id });
+            setMetaTarget({ type: 'action', id });
             scrollToNode(`action-${id}`);
           }}
         />
