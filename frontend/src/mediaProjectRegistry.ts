@@ -39,8 +39,6 @@ export interface MediaProjectEditorProps {
   onSaveActionMeta?: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) => void;
   /** Schema per node type (title/description + workspace-configured extra fields), for the inline metadata editor. */
   workspaceMetaSchemas?: Record<MetaNodeType, MetaTypeSchema>;
-  /** Opens a file in the main editor (used by the ensemble "run scene" result). */
-  onOpenFile?: (path: string) => void;
 }
 
 export interface MediaProjectPlugin {

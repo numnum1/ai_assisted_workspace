@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   Sparkles,
   Loader2,
+  Info,
 } from "lucide-react";
 import type {
   ChapterSummary,
@@ -58,6 +59,9 @@ export interface ChapterViewToolbarProps {
   setNightMode: Dispatch<SetStateAction<boolean>>;
   setNightVariant: Dispatch<SetStateAction<number>>;
   nightPalettesLength: number;
+  // Metadata editor
+  metaPanelVisible: boolean;
+  setMetaPanelVisible: Dispatch<SetStateAction<boolean>>;
   // Save
   onSaveAll: () => void;
   // AI comments
@@ -102,6 +106,8 @@ export function ChapterViewToolbar({
   setNightMode,
   setNightVariant,
   nightPalettesLength,
+  metaPanelVisible,
+  setMetaPanelVisible,
   onSaveAll,
   commentPanelOpen,
   setCommentPanelOpen,
@@ -207,6 +213,13 @@ export function ChapterViewToolbar({
             <Palette size={14} />
           </button>
         )}
+        <button
+          className={`editor-mode-btn${metaPanelVisible ? " active" : ""}`}
+          onClick={() => setMetaPanelVisible((prev) => !prev)}
+          title={metaPanelVisible ? "Metadaten-Editor ausblenden" : "Metadaten-Editor einblenden"}
+        >
+          <Info size={14} />
+        </button>
         <button
           className="editor-save-btn"
           onClick={onSaveAll}

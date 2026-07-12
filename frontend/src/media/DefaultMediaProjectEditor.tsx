@@ -31,7 +31,6 @@ export function DefaultMediaProjectEditor({
   onSaveSceneMeta,
   onSaveActionMeta,
   workspaceMetaSchemas,
-  onOpenFile,
 }: MediaProjectEditorProps) {
   if (editorMode === 'prose') {
     return (
@@ -60,7 +59,6 @@ export function DefaultMediaProjectEditor({
         onSaveSceneMeta={onSaveSceneMeta}
         onSaveActionMeta={onSaveActionMeta}
         workspaceMetaSchemas={workspaceMetaSchemas}
-        onOpenFile={onOpenFile}
       />
     );
   }

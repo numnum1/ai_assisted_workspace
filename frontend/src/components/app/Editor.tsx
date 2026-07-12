@@ -227,7 +227,6 @@ export function Editor({
           onSaveSceneMeta={chapter.updateSceneMeta}
           onSaveActionMeta={chapter.updateActionMeta}
           workspaceMetaSchemas={workspaceMetaSchemas}
-          onOpenFile={(path) => void fileEditor.openFile(path)}
         />
       )}
 

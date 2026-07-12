@@ -6,7 +6,7 @@ import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
 import { ChapterOutlinePanel, META_ZONE_WIDTH } from './ChapterOutlinePanel.tsx';
 import { ChapterAIPanel } from './ChapterAIPanel.tsx';
-import { MetaPanel } from '../meta/MetaPanel.tsx';
+import { AssetPanel } from '../meta/AssetPanel.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
 import { useTopBarContent, useTopBarBackground } from '../app/TopBarContext.ts';
 import { DEFAULT_COMMENT_CATEGORIES, categoryColor } from './commentCategories.ts';
@@ -25,6 +25,7 @@ const LINE_HEIGHT_KEY = 'reading-line-height';
 const NIGHT_MODE_KEY = 'reading-night-mode';
 const NIGHT_VARIANT_KEY = 'reading-night-variant';
 const COLLAPSED_SCENES_KEY = 'chapter-collapsed-scenes';
+const META_PANEL_VISIBLE_KEY = 'chapter-meta-panel-visible';
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_PADDING = 64;
 const DEFAULT_LINE_HEIGHT = 1.5;
@@ -151,8 +152,6 @@ interface ChapterViewProps {
   onSaveActionMeta?: (chapterId: string, sceneId: string, actionId: string, meta: NodeMeta) => void;
   /** Schema per node type (title/description + workspace-configured extra fields), for the inline metadata editor. */
   workspaceMetaSchemas?: Record<MetaNodeType, MetaTypeSchema>;
-  /** Opens a file in the main editor (used by the ensemble "run scene" result). */
-  onOpenFile?: (path: string) => void;
 }
 
 function actionKey(chapterId: string, sceneId: string, actionId: string): string {
@@ -184,7 +183,6 @@ export function ChapterView({
   onSaveSceneMeta,
   onSaveActionMeta,
   workspaceMetaSchemas = defaultMetaSchemas,
-  onOpenFile,
 }: ChapterViewProps) {
   const [fontSize, setFontSize] = useState<number>(() => {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -200,6 +198,9 @@ export function ChapterView({
   });
   const [nightMode, setNightMode] = useState<boolean>(() =>
     localStorage.getItem(NIGHT_MODE_KEY) === 'true'
+  );
+  const [metaPanelVisible, setMetaPanelVisible] = useState<boolean>(() =>
+    localStorage.getItem(META_PANEL_VISIBLE_KEY) !== 'false'
   );
   const [nightVariant, setNightVariant] = useState<number>(() => {
     const stored = Number(localStorage.getItem(NIGHT_VARIANT_KEY));
@@ -375,6 +376,40 @@ export function ChapterView({
       }
     },
     [onSaveChapterMeta, onSaveSceneMeta, onSaveActionMeta],
+  );
+
+  // The bare metadata form (title/description/extras) — deliberately not the
+  // classic MetaPanel wrapper, which also renders the "Szene durchspielen"
+  // ensemble button; the inline outline editor only wants the plain fields.
+  const metaSchema = metaSelection ? workspaceMetaSchemas[metaSelection.type] : null;
+
+  const metaFieldValues: Record<string, string> = useMemo(() => {
+    if (!metaSelection || !metaSchema) return {};
+    const values: Record<string, string> = {};
+    for (const field of metaSchema.fields) {
+      if (field.key === 'title') values[field.key] = metaSelection.meta.title ?? field.defaultValue;
+      else if (field.key === 'description') values[field.key] = metaSelection.meta.description ?? field.defaultValue;
+      else values[field.key] = metaSelection.meta.extras?.[field.key] ?? field.defaultValue;
+    }
+    return values;
+  }, [metaSelection, metaSchema]);
+
+  const handleSaveMetaValues = useCallback(
+    (values: Record<string, string>) => {
+      if (!metaSelection) return;
+      const extras: Record<string, string> = {};
+      for (const key of Object.keys(values)) {
+        if (key !== 'title' && key !== 'description') extras[key] = values[key];
+      }
+      const meta: NodeMeta = {
+        title: (values['title'] ?? '').trim(),
+        description: (values['description'] ?? '').trim(),
+        sortOrder: metaSelection.meta.sortOrder,
+        extras: Object.keys(extras).length > 0 ? extras : undefined,
+      };
+      handleSaveMeta(metaSelection.type, meta, metaSelection.chapterId, metaSelection.sceneId, metaSelection.actionId);
+    },
+    [metaSelection, handleSaveMeta],
   );
 
   const paddingSliderMax = useReadingPaddingMax(scrollContainerRef);
@@ -821,6 +856,7 @@ export function ChapterView({
   useEffect(() => { localStorage.setItem(PADDING_KEY, String(padding)); }, [padding]);
   useEffect(() => { localStorage.setItem(LINE_HEIGHT_KEY, String(lineHeight)); }, [lineHeight]);
   useEffect(() => { localStorage.setItem(NIGHT_MODE_KEY, String(nightMode)); }, [nightMode]);
+  useEffect(() => { localStorage.setItem(META_PANEL_VISIBLE_KEY, String(metaPanelVisible)); }, [metaPanelVisible]);
   useEffect(() => { localStorage.setItem(NIGHT_VARIANT_KEY, String(nightVariant)); }, [nightVariant]);
   useEffect(() => { localStorage.setItem(COMMENT_SIDEBAR_WIDTH_KEY, String(commentSidebarWidth)); }, [commentSidebarWidth]);
 
@@ -947,6 +983,8 @@ export function ChapterView({
         setNightMode={setNightMode}
         setNightVariant={setNightVariant}
         nightPalettesLength={NIGHT_PALETTES.length}
+        metaPanelVisible={metaPanelVisible}
+        setMetaPanelVisible={setMetaPanelVisible}
         onSaveAll={onSaveAll}
         commentPanelOpen={commentPanelOpen}
         setCommentPanelOpen={setCommentPanelOpen}
@@ -971,6 +1009,7 @@ export function ChapterView({
       breadcrumbSceneLabel, breadcrumbActionLabel,
       paddingSliderMax, effectivePadding, setPadding, lineHeight, setLineHeight,
       nightMode, setNightMode, setNightVariant,
+      metaPanelVisible, setMetaPanelVisible,
       onSaveAll, commentPanelOpen, setCommentPanelOpen,
       categoryDefs, activeCategories, toggleCategory,
       commentFreeText, setCommentFreeText, commentsError,
@@ -997,7 +1036,7 @@ export function ChapterView({
 
       <ChapterAIPanel />
 
-      {metaSelection && (
+      {metaSelection && metaSchema && metaPanelVisible && (
         <div
           className="chapter-outline-meta-wrap"
           style={{
@@ -1005,13 +1044,13 @@ export function ChapterView({
             left: Math.max(0, (effectivePadding - META_ZONE_WIDTH) / 2 - effectivePadding * 0.1),
           }}
         >
-          <MetaPanel
+          <AssetPanel
             key={`${selection?.type}:${selection?.id}`}
-            selection={metaSelection}
-            metaSchemas={workspaceMetaSchemas}
-            onSave={handleSaveMeta}
+            schema={metaSchema}
+            values={metaFieldValues}
+            title={metaSchema.filename}
+            onSave={handleSaveMetaValues}
             onClose={() => onSelectionChange?.(null)}
-            onOpenFile={onOpenFile}
           />
         </div>
       )}
