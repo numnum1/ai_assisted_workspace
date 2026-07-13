@@ -1077,7 +1077,7 @@ export function ChapterView({
           textInset={effectivePadding}
           textColor={colors.text}
           mutedColor={mutedText}
-          accentColor="#89b4fa"
+          accentColor="rgba(150, 150, 160, 0.85)"
           focusedSceneId={focusedSceneId}
           focusedActionId={focusedActionId}
           onSelectScene={id => {
