@@ -55,6 +55,9 @@ export function createReadingTheme(overrides: Partial<ReadingThemeConfig> = {}):
       height: 'auto',
       backgroundColor: cfg.backgroundColor,
     },
+    '&.cm-focused': {
+      outline: 'none',
+    },
     '.cm-scroller': {
       overflow: 'visible',
       display: 'flex',
