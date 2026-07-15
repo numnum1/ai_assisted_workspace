@@ -15,22 +15,13 @@ import { TurnCard } from "./TurnCard.tsx";
 import type { ChatMessage, MessageFeedback, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { ToolCallDisplay } from "./ToolCallDisplay.tsx";
-import { ChangeCardGroup } from "./ChangeCardGroup.tsx";
 import { hasClarificationFence } from "./clarificationUtils.ts";
-import type { CardState } from "./ChangeCard.tsx";
 import type { SubRenderUnit } from "./chatRenderUnits.ts";
 import { toolResultShownInAssistantTurns } from "./chatRenderUnits.ts";
 import type { ChatRenderUnit } from "./chatRenderUnits.ts";
-import {
-  getTrailingWriteFileBatch,
-  isSameWriteFileBatch,
-} from "./writeFileBatchUtils.ts";
 import "./AssistantTurnCard.css";
 
 function subUnitReactKey(su: SubRenderUnit): string {
-  if (su.type === "writeFileGroup") {
-    return `wf-${su.items.map((x) => x.originalIdx).join("-")}`;
-  }
   if (su.type === "toolCall") {
     return `tool-${su.assistantIdx}-${su.toolCallIdx}`;
   }
@@ -51,13 +42,6 @@ export interface AssistantTurnCardProps {
   readOnly: boolean;
   streaming: boolean;
   activeIsThread: boolean;
-  bulkDismissIds: Set<string>;
-  composerBatchForced: Record<string, CardState>;
-  onFileChanged?: (path: string) => void;
-  onSnapshotSettled?: (
-    snapshotId: string,
-    state: "applied" | "reverted" | "dismissed",
-  ) => void;
 
   onForkFromMessage: (index: number) => void;
   onStartThreadFromMessage: (index: number) => void;
@@ -83,10 +67,6 @@ export function AssistantTurnCard({
   readOnly,
   streaming,
   activeIsThread,
-  bulkDismissIds,
-  composerBatchForced,
-  onFileChanged,
-  onSnapshotSettled,
   onForkFromMessage,
   onStartThreadFromMessage,
   onForkToNewConversation,
@@ -99,11 +79,6 @@ export function AssistantTurnCard({
   naviStep,
   naviStateId,
 }: AssistantTurnCardProps) {
-  const trailingWriteFileBatch = getTrailingWriteFileBatch(visibleEntries);
-  const dismissIds = bulkDismissIds;
-  const fileCb = readOnly ? undefined : onFileChanged;
-  const snapshotCb = readOnly ? undefined : onSnapshotSettled;
-
   const showNormalActions = !readOnly && !streaming && !naviStateId;
   /** Feedback stays available during Navi-guided turns too — this is exactly what beta testers rate. */
   const showFeedback = !readOnly && !streaming;
@@ -178,31 +153,6 @@ export function AssistantTurnCard({
   }, [streaming, isLiveTurn]);
 
   const renderSubUnit = (su: SubRenderUnit, key: string) => {
-    if (su.type === "writeFileGroup") {
-      const isComposerBatch =
-        !readOnly &&
-        Boolean(
-          trailingWriteFileBatch &&
-          isSameWriteFileBatch(
-            su.items.map((x) => ({ originalIdx: x.originalIdx, data: x.data })),
-            trailingWriteFileBatch,
-          ),
-        );
-      const visibleWriteItems = su.items.filter(
-        (i) => !dismissIds.has(i.data.snapshotId),
-      );
-      if (visibleWriteItems.length === 0) return null;
-      return (
-        <ChangeCardGroup
-          key={key}
-          items={visibleWriteItems}
-          onFileChanged={fileCb}
-          externalForced={isComposerBatch ? composerBatchForced : undefined}
-          onSnapshotSettled={snapshotCb}
-        />
-      );
-    }
-
     if (su.type === "toolCall") {
       // create_artifact produces an ```artifact fence as its tool result. Render it as the
       // inline ArtifactCard (via ChatMessageMarkdown) instead of the raw tool-call chrome.

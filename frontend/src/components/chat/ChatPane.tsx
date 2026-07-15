@@ -21,13 +21,7 @@ import { ChatComposerCard } from "./ChatComposerCard.tsx";
 import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
 import { YesNoCard } from "./YesNoCard.tsx";
 import { parseClarificationQuestions, parseYesNoQuestion } from "./clarificationUtils.ts";
-import type { CardState } from "./ChangeCard.tsx";
 import { ChatMessagesPane } from "./ChatMessagesPane.tsx";
-import { WriteFileBatchComposerBar } from "./WriteFileBatchComposerBar.tsx";
-import {
-  collectAllWriteFileItems,
-  getTrailingWriteFileBatch,
-} from "./writeFileBatchUtils.ts";
 import { ContextBar, type ContextBlock } from "./ContextBar.tsx";
 import "./ChatPane.css";
 
@@ -80,12 +74,6 @@ export interface ChatPaneProps {
   activeSessionKind?: ChatSessionKind;
   simulationConfig?: SimulationConfig;
 
-  onFileChanged?: (path: string) => void;
-  /** Persisted settled state for write_file snapshots (from Conversation.writeFileSettled). */
-  writeFileSettled?: Record<string, "applied" | "reverted">;
-  /** Called when snapshots are settled so the state can be persisted to the conversation. */
-  onSettleSnapshots?: (patch: Record<string, "applied" | "reverted">) => void;
-
   /** Glossary toolkit support (optional). */
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
@@ -96,7 +84,6 @@ export interface ChatPaneProps {
   systemPromptPreview?: string | null;
   onFetchContextBlocks?: () => Promise<ContextBlock[]>;
 
-  structureRoot?: string | null;
   theme?: "light" | "dark";
   fieldLabels?: Record<string, string>;
   /** When this is a thread: the last visible message from the parent conversation to show as context banner. */
@@ -141,9 +128,6 @@ export function ChatPane({
   onDismissSelection,
   activeSessionKind = "standard",
   simulationConfig,
-  onFileChanged,
-  writeFileSettled,
-  onSettleSnapshots,
   onReplaceSelection,
   onApplyFieldUpdate,
   contextInfo,
@@ -151,7 +135,6 @@ export function ChatPane({
   isDirty,
   systemPromptPreview,
   onFetchContextBlocks,
-  structureRoot = null,
   theme = "dark",
   fieldLabels,
   parentLastMessage = null,
@@ -165,22 +148,12 @@ export function ChatPane({
   const autoScrollActiveRef = useRef(true);
 
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [composerBatchForced, setComposerBatchForced] = useState<
-    Record<string, CardState>
-  >({});
-  const [toolbarSettledIds, setToolbarSettledIds] = useState(
-    () => new Set<string>(),
-  );
-  const [bulkDismissIds, setBulkDismissIds] = useState(() => new Set<string>());
   const [clarificationOtherOpen, setClarificationOtherOpen] = useState(false);
 
   void activeSessionKind;
 
   // Reset all per-conversation state on conversation switch
   useEffect(() => {
-    setComposerBatchForced({});
-    setToolbarSettledIds(new Set());
-    setBulkDismissIds(new Set());
     setEditingIdx(null);
     setClarificationOtherOpen(false);
     autoScrollActiveRef.current = true;
@@ -266,82 +239,6 @@ export function ChatPane({
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, [streaming]);
-
-  const visibleEntries = useMemo(
-    () =>
-      messages
-        .map((msg, originalIdx) => ({ msg, originalIdx }))
-        .filter(({ msg }) => !msg.hidden),
-    [messages],
-  );
-
-  const trailingWriteFileBatch = useMemo(
-    () => getTrailingWriteFileBatch(visibleEntries, writeFileSettled),
-    [visibleEntries, writeFileSettled],
-  );
-  const composerBatchKey =
-    trailingWriteFileBatch?.map((i) => i.data.snapshotId).join("\0") ?? "";
-
-  useEffect(() => {
-    setComposerBatchForced({});
-  }, [composerBatchKey]);
-
-  const allWriteFileItems = useMemo(
-    () => collectAllWriteFileItems(visibleEntries, writeFileSettled),
-    [visibleEntries, writeFileSettled],
-  );
-  const pendingWriteFileItems = useMemo(
-    () =>
-      allWriteFileItems.filter(
-        (i) => !toolbarSettledIds.has(i.data.snapshotId),
-      ),
-    [allWriteFileItems, toolbarSettledIds],
-  );
-
-  const mergeComposerBatchForced = useCallback(
-    (patch: Record<string, CardState>) => {
-      setComposerBatchForced((p) => ({ ...p, ...patch }));
-    },
-    [],
-  );
-
-  const handleSnapshotSettled = useCallback(
-    (snapshotId: string, state: "applied" | "reverted" | "dismissed") => {
-      setToolbarSettledIds((prev) => new Set(prev).add(snapshotId));
-      if (state === "applied" || state === "reverted") {
-        onSettleSnapshots?.({ [snapshotId]: state });
-      }
-    },
-    [onSettleSnapshots],
-  );
-
-  const handleWriteFileBulkComplete = useCallback(
-    (patch: Record<string, CardState>) => {
-      mergeComposerBatchForced(patch);
-      const ids = Object.keys(patch);
-      if (ids.length === 0) return;
-      setToolbarSettledIds((prev) => {
-        const n = new Set(prev);
-        ids.forEach((id) => n.add(id));
-        return n;
-      });
-      setBulkDismissIds((prev) => {
-        const n = new Set(prev);
-        ids.forEach((id) => n.add(id));
-        return n;
-      });
-      const settlePatch: Record<string, "applied" | "reverted"> = {};
-      for (const [id, state] of Object.entries(patch)) {
-        if (state === "applied" || state === "reverted") {
-          settlePatch[id] = state;
-        }
-      }
-      if (Object.keys(settlePatch).length > 0) {
-        onSettleSnapshots?.(settlePatch);
-      }
-    },
-    [mergeComposerBatchForced, onSettleSnapshots],
-  );
 
   const pendingClarification = useMemo(() => {
     const vis = messages
@@ -430,10 +327,6 @@ export function ChatPane({
           activeIsThread={isThread}
           editingIdx={editingIdx}
           setEditingIdx={setEditingIdx}
-          bulkDismissIds={bulkDismissIds}
-          composerBatchForced={composerBatchForced}
-          onFileChanged={onFileChanged}
-          onSnapshotSettled={handleSnapshotSettled}
           onForkFromMessage={onForkFromMessage}
           onStartThreadFromMessage={onStartThreadFromMessage}
           onForkToNewConversation={onForkToNewConversation}
@@ -475,14 +368,6 @@ export function ChatPane({
               />
             </ChatComposerCard>
           ) : null}
-          {pendingWriteFileItems.length > 0 && !streaming ? (
-            <WriteFileBatchComposerBar
-              items={pendingWriteFileItems}
-              onBulkComplete={handleWriteFileBulkComplete}
-              onFileChanged={onFileChanged}
-              disabled={streaming}
-            />
-          ) : null}
           <ChatInput
             key={conversationId}
             onSend={onSend}
@@ -492,7 +377,6 @@ export function ChatPane({
             referencedFiles={referencedFiles}
             onAddFile={onAddFile}
             onRemoveFile={onRemoveFile}
-            structureRoot={structureRoot}
             useReasoning={useReasoning && reasoningAvailable}
             onToggleReasoning={onToggleReasoning}
             reasoningEffort={reasoningEffort}

@@ -73,13 +73,11 @@ interface ChatPanelProps {
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
-  onToggleSavedToProject: (id: string) => void;
   onClearAllBrowserChats?: () => void;
   clearAllBrowserChatsDisabled?: boolean;
   chatDownloadEnabled?: boolean;
   /** Opens the arc timeline workspace (story/character/relationship arcs). */
   onOpenArcs?: () => void;
-  structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
@@ -92,9 +90,6 @@ interface ChatPanelProps {
   reasoningAvailable?: boolean;
   fastAvailable?: boolean;
   onRetry?: () => void;
-  onFileChanged?: (path: string) => void;
-  writeFileSettled?: Record<string, "applied" | "reverted">;
-  onSettleSnapshots?: (patch: Record<string, "applied" | "reverted">) => void;
   onComposerDraftChange?: (text: string) => void;
   theme?: "light" | "dark";
   /** Summarize thread and merge result into parent conversation (only when activeIsThread is true). */
@@ -148,12 +143,10 @@ export function ChatPanel({
   onSwitchChat,
   onDeleteChat,
   onRenameChat,
-  onToggleSavedToProject,
   onClearAllBrowserChats,
   clearAllBrowserChatsDisabled = true,
   chatDownloadEnabled = false,
   onOpenArcs,
-  structureRoot = null,
   activeSelection = null,
   onDismissSelection,
   onReplaceSelection,
@@ -166,9 +159,6 @@ export function ChatPanel({
   reasoningAvailable = true,
   fastAvailable = true,
   onRetry,
-  onFileChanged,
-  writeFileSettled,
-  onSettleSnapshots,
   onComposerDraftChange,
   activeSessionKind = "standard",
   activeIsThread = false,
@@ -409,7 +399,6 @@ export function ChatPanel({
           onCreate={(sk) => onNewChat(sk ?? "standard")}
           onDelete={onDeleteChat}
           onRename={onRenameChat}
-          onToggleSavedToProject={onToggleSavedToProject}
           onClearAllBrowserChats={onClearAllBrowserChats}
           clearAllBrowserDisabled={clearAllBrowserChatsDisabled}
           chatDownloadEnabled={chatDownloadEnabled}
@@ -455,9 +444,6 @@ export function ChatPanel({
           onDismissSelection={onDismissSelection}
           activeSessionKind={activeSessionKind}
           simulationConfig={simulationConfig}
-          onFileChanged={onFileChanged}
-          writeFileSettled={writeFileSettled}
-          onSettleSnapshots={onSettleSnapshots}
           onReplaceSelection={onReplaceSelection}
           onApplyFieldUpdate={onApplyFieldUpdate}
           contextInfo={contextInfo}
@@ -465,7 +451,6 @@ export function ChatPanel({
           isDirty={isDirty}
           systemPromptPreview={systemPromptPreview}
           onFetchContextBlocks={onFetchContextBlocks}
-          structureRoot={structureRoot}
           theme={theme}
           fieldLabels={fieldLabels}
           parentLastMessage={parentLastMessage}

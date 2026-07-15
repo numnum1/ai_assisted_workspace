@@ -12,8 +12,6 @@ import {
   MessageSquare,
   X,
   Pencil,
-  FolderInput,
-  FolderCheck,
   Eraser,
   ChevronRight,
   ChevronDown,
@@ -33,7 +31,6 @@ interface ChatHistoryProps {
   onCreate: (sessionKind?: ChatSessionKind) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
-  onToggleSavedToProject: (id: string) => void;
   onClearAllBrowserChats?: () => void;
   clearAllBrowserDisabled?: boolean;
   /** Project setting `extraFeatures.chatDownload` */
@@ -130,7 +127,6 @@ export function ChatHistory({
   onCreate,
   onDelete,
   onRename,
-  onToggleSavedToProject,
   onClearAllBrowserChats,
   clearAllBrowserDisabled = true,
   chatDownloadEnabled = false,
@@ -309,13 +305,6 @@ export function ChatHistory({
             </div>
           </div>
           <div className="chat-history-item-actions">
-            <span
-              className="chat-history-action-btn"
-              style={{ visibility: "hidden" }}
-              aria-hidden
-            >
-              <FolderInput size={12} />
-            </span>
             {chatDownloadEnabled && (
               <button
                 type="button"
@@ -429,35 +418,6 @@ export function ChatHistory({
           </div>
         </div>
         <div className="chat-history-item-actions">
-          {variant === "root" ? (
-            <button
-              type="button"
-              className={`chat-history-action-btn ${conv.savedToProject ? "chat-history-saved-active" : ""}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSavedToProject(conv.id);
-              }}
-              title={
-                conv.savedToProject
-                  ? "Aus Projektdatei entfernen (nicht mehr per Git synchron)"
-                  : "Im Projekt speichern (.assistant/chat-history.json)"
-              }
-            >
-              {conv.savedToProject ? (
-                <FolderCheck size={12} />
-              ) : (
-                <FolderInput size={12} />
-              )}
-            </button>
-          ) : (
-            <span
-              className="chat-history-action-btn"
-              style={{ visibility: "hidden" }}
-              aria-hidden
-            >
-              <FolderInput size={12} />
-            </span>
-          )}
           {chatDownloadEnabled && (
             <button
               type="button"
@@ -508,17 +468,12 @@ export function ChatHistory({
               className="chat-history-clear-all-btn"
               disabled={clearAllBrowserDisabled}
               onClick={() => {
-                if (
-                  !window.confirm(
-                    "Alle rein lokalen Chats dieses Projekts löschen?\n\n" +
-                      "Chats mit aktivem „Im Projekt speichern“ (Ordner-Häkchen) bleiben erhalten — in der Liste, im Browser und in .assistant/chat-history.json.",
-                  )
-                ) {
+                if (!window.confirm("Alle Chats löschen?")) {
                   return;
                 }
                 onClearAllBrowserChats();
               }}
-              title="Nur lokale Chats löschen (projektgespeicherte behalten)"
+              title="Alle Chats löschen"
             >
               <Eraser size={14} />
             </button>

@@ -15,7 +15,6 @@ interface ConversationActionsDeps {
   selectedMode: string;
   modes: Mode[];
   llms: LlmPublic[];
-  naviConfigRef: React.RefObject<{ modeId?: string; llmId?: string }>;
 }
 
 /** Deep-clone chat messages for a new thread (incl. toolCalls, selectionContext). */
@@ -57,17 +56,16 @@ export function useConversationActions({
   selectedMode,
   modes,
   llms,
-  naviConfigRef,
 }: ConversationActionsDeps) {
   const applyNewChatPayload = useCallback(
     (newConvId: string) => {
       history.patchConversation(
         newConvId,
-        buildNaviConversationPatch(naviConfigRef.current, modes, llms),
+        buildNaviConversationPatch({}, modes, llms),
       );
       scheduleNaviGreetingKickoff(newConvId);
     },
-    [history, modes, llms, naviConfigRef],
+    [history, modes, llms],
   );
 
   const handleNewChat = useCallback(

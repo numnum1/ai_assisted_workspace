@@ -23,8 +23,7 @@ import {
 import { buildNaviKnowledgePrompt } from "../naviKnowledgeBase.js";
 import { NAVI_DEFAULT_ROLE, NAVI_FULL_PERSONA_RULES, NAVI_NARROW_PERSONA_RULES } from "./naviVoice.js";
 import { NAVI_TIPS } from "../../../src/naviTips.js";
-import { getProjectConfig } from "../projectConfigService.js";
-import { TOOLKIT_TOOL_DEFINITIONS, resolveModeSystemPrompt, type ToolDefinition } from "./systemPrompt.js";
+import { TOOLKIT_TOOL_DEFINITIONS, type ToolDefinition } from "./systemPrompt.js";
 import type { ChatRequest, ChatMessage, ToolCall, NaviFacts } from "../../../src/types.js";
 import type { ChatStreamEvent } from "../chatTypes.js";
 
@@ -557,7 +556,6 @@ async function runRedirectClassifier(
 
 export async function runNaviChatStream(
   streamId: string,
-  projectPath: string | null,
   request: ChatRequest,
   emit: (event: ChatStreamEvent) => void,
 ): Promise<void> {
@@ -580,26 +578,9 @@ export async function runNaviChatStream(
     const currentStateId = normalizeText(request.naviStateId ?? "") || "greeting";
     const currentState = getNaviState(currentStateId) ?? getNaviState("greeting")!;
 
-    let projConfig: import("../../../src/types.js").ProjectConfig | null = null;
-    try {
-      projConfig = await getProjectConfig(projectPath);
-    } catch {
-      // Non-fatal: fall back to defaults
-    }
-
-    let roleIntro = NAVI_DEFAULT_ROLE;
-    const naviModeId = projConfig?.naviModeId?.trim();
-    if (naviModeId && request.mode === naviModeId) {
-      try {
-        const modeRole = (await resolveModeSystemPrompt(projectPath, naviModeId)).trim();
-        if (modeRole) roleIntro = modeRole;
-      } catch {
-        // Non-fatal: keep the default role
-      }
-    }
-
-    const naviWorkPlans = projConfig?.naviWorkPlans;
-    const naviInstructions = projConfig?.naviInstructions;
+    const roleIntro = NAVI_DEFAULT_ROLE;
+    const naviWorkPlans: Record<string, string[]> | undefined = undefined;
+    const naviInstructions: Record<string, string> | undefined = undefined;
 
     const facts: NaviFacts = request.naviFacts
       ? {
@@ -755,7 +736,7 @@ export async function runNaviChatStream(
       if (otherReplyCalls.length > 0) {
         for (const tc of otherReplyCalls) emit({ type: "tool_call", data: describeStreamingToolCall(tc) });
         const executedResults: ToolExecutionResult[] = [];
-        for (const tc of otherReplyCalls) executedResults.push(await executeToolCall(projectPath, tc));
+        for (const tc of otherReplyCalls) executedResults.push(await executeToolCall(tc));
         const toolHistoryMessages: ChatMessage[] = [
           { role: "assistant", content: roundResult.roundAssistantText, toolCalls: otherReplyCalls, hidden: true },
           ...executedResults.map((r) => ({

@@ -7,22 +7,6 @@ export function buildConversationById(
 }
 
 /**
- * Project sync follows the root chat's pin. Threads inherit from their parent chain;
- * orphans (missing parent) are never effectively pinned.
- */
-export function effectiveSavedToProject(
-  conv: Conversation,
-  byId: Map<string, Conversation>,
-): boolean {
-  if (conv.isThread && conv.parentConversationId) {
-    const parent = byId.get(conv.parentConversationId);
-    if (!parent) return false;
-    return effectiveSavedToProject(parent, byId);
-  }
-  return conv.savedToProject === true;
-}
-
-/**
  * Walk the parent chain of `active` upward until we reach a conversation that
  * is not itself a thread (i.e. the true root of the branch tree).
  *

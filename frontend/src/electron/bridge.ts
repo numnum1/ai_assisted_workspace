@@ -1,55 +1,11 @@
 import type {
-  AgentPreset,
   AppPreferences,
-  CommentCategoryDef,
   ChatMessage,
   ChatRequest,
-  FileNode,
   LlmsListResponse,
   LlmPublic,
-  Mode,
   Persona,
-  ProjectConfig,
-  WorkspaceModeInfo,
-  WorkspaceModeSchema,
 } from "../types.ts";
-
-export interface ContextBlock {
-  type: string;
-  label: string;
-  content: string;
-  estimatedTokens: number;
-}
-
-export interface WikiSearchResult {
-  path: string;
-  title: string;
-  snippet: string;
-}
-
-export interface SnapshotData {
-  id: string;
-  path: string;
-  oldContent: string;
-  wasNew: boolean;
-}
-
-export interface SnapshotApplyResult {
-  status: string;
-}
-
-export interface SnapshotRevertResult {
-  status: string;
-  path: string;
-  wasNew: boolean;
-}
-
-export interface ChatContextPreviewResult {
-  includedFiles: string[];
-  estimatedTokens: number;
-  contextBlocks: ContextBlock[];
-  systemPrompt: string;
-}
 
 export interface ChatContextInfo {
   includedFiles: string[];
@@ -102,23 +58,6 @@ export interface LlmUpdateRequest {
   maxTokens?: number;
 }
 
-export interface ProjectCurrentResult {
-  path: string;
-  hasProject: boolean;
-  initialized: boolean;
-}
-
-export interface ProjectBrowseResult {
-  cancelled: boolean;
-  path?: string;
-}
-
-export interface FileContentResult {
-  path: string;
-  content: string;
-  lines: number;
-}
-
 export interface AppBridge {
   platform: NodeJS.Platform;
   isElectron: boolean;
@@ -127,68 +66,13 @@ export interface AppBridge {
     chrome: string;
     node: string;
   };
-  project?: {
-    current: () => Promise<ProjectCurrentResult>;
-    reveal: () => Promise<{ status: string }>;
-    browse: () => Promise<ProjectBrowseResult>;
-    open: (path: string) => Promise<{
-      status: string;
-      path: string;
-      tree: FileNode;
-      initialized: boolean;
-    }>;
-  };
-  files?: {
-    getContent: (path: string) => Promise<FileContentResult>;
-    saveContent: (path: string, content: string) => Promise<{ status: string }>;
-  };
-  wiki?: {
-    listFiles: () => Promise<string[]>;
-    search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
-  };
-  snapshots?: {
-    get: (id: string) => Promise<SnapshotData>;
-    apply: (id: string) => Promise<SnapshotApplyResult>;
-    revert: (id: string) => Promise<SnapshotRevertResult>;
-  };
   chat?: {
-    previewContext: (body: ChatRequest) => Promise<ChatContextPreviewResult>;
     startStream: (body: ChatRequest) => Promise<ChatStreamStartResult>;
     stopStream: (streamId: string) => Promise<{ status: string }>;
-    summarizeThread: (body: {
-      messages: import('../types.ts').ChatMessage[];
-      focusInstructions?: string | null;
-      parentMessages?: import('../types.ts').ChatMessage[];
-    }) => Promise<{ summary: string; title: string }>;
     onStreamEvent: (
       streamId: string,
       listener: (event: ChatStreamEvent) => void,
     ) => ChatStreamSubscription;
-  };
-  projectConfig?: {
-    status: () => Promise<{ initialized: boolean }>;
-    getWorkspaceMode: (modeId?: string | null) => Promise<WorkspaceModeSchema>;
-    listWorkspaceModes: () => Promise<WorkspaceModeInfo[]>;
-    getWorkspaceModesDataDir: () => Promise<{ path: string; exists: boolean }>;
-    revealWorkspaceModesDataDir: () => Promise<{ status: string }>;
-    get: () => Promise<ProjectConfig>;
-    init: () => Promise<ProjectConfig>;
-    initFromFile: () => Promise<ProjectConfig | null>;
-    update: (config: ProjectConfig) => Promise<ProjectConfig>;
-    getModes: () => Promise<Mode[]>;
-    saveMode: (id: string, mode: Mode) => Promise<Mode>;
-    deleteMode: (id: string) => Promise<{ status: string }>;
-    resetModes: () => Promise<Mode[]>;
-    getCommentCategories: () => Promise<CommentCategoryDef[]>;
-    saveCommentCategory: (
-      id: string,
-      category: CommentCategoryDef,
-    ) => Promise<CommentCategoryDef>;
-    deleteCommentCategory: (id: string) => Promise<{ status: string }>;
-    resetCommentCategories: () => Promise<CommentCategoryDef[]>;
-    listAgents: () => Promise<AgentPreset[]>;
-    saveAgent: (id: string, preset: AgentPreset) => Promise<AgentPreset>;
-    deleteAgent: (id: string) => Promise<{ status: string }>;
   };
   llms?: {
     list: () => Promise<LlmsListResponse>;
@@ -197,14 +81,6 @@ export interface AppBridge {
     remove: (id: string) => Promise<{ status: string }>;
   };
   simulation?: {
-    listBooks: () => Promise<Array<{
-      structureRoot: string | null;
-      label: string;
-      characters: Array<{ wikiPath: string; name: string }>;
-    }>>;
-    writeResult: (name: string, content: string) => Promise<{ path: string }>;
-    readResult: (name: string) => Promise<{ content: string; exists: boolean }>;
-    listResults: () => Promise<string[]>;
     generateUserReply: (req: {
       goal: string;
       characterNames?: string[];

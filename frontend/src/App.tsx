@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { FolderOpen } from "lucide-react";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { NaviStatePanel } from "./components/chat/NaviStatePanel.tsx";
 import {
@@ -8,27 +7,25 @@ import {
 } from "./components/simulation/SimulationSetupModal.tsx";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import type {
-  Mode,
   Conversation,
   SelectionContext,
   LlmPublic,
   ReasoningEffort,
 } from "./types.ts";
-import { modesApi, projectApi, projectConfigApi, llmApi } from "./api.ts";
+import { llmApi } from "./api.ts";
+import { NAVI_MODES } from "./naviConfig.ts";
 
 import { usePreferences } from "./hooks/usePreferences.ts";
-import { useProject } from "./hooks/useProject.ts";
 import { useChat } from "./hooks/useChat.ts";
 import { useReferencedFiles } from "./hooks/useContext.ts";
 import { useChatHistory } from "./hooks/useChatHistory.ts";
 import { useSimulationRunner } from "./hooks/useSimulationRunner.ts";
 import { useConversationActions } from "./hooks/useConversationActions.ts";
 import { useConversationModel } from "./hooks/useConversationModel.ts";
-import { getAppBridge } from "./electron/bridge.ts";
 import {
   buildNaviConversationPatch,
 } from "./components/chat/chatAgentUtils.ts";
-import { standardChatModes, resolveDefaultModeId } from "./components/chat/effectiveChatModeForRequest.ts";
+import { standardChatModes } from "./components/chat/effectiveChatModeForRequest.ts";
 import { scheduleNaviGreetingKickoff } from "./components/chat/naviGreetingKickoff.ts";
 import {
   cancelNaviGreetingKickoffIfMismatch,
@@ -46,14 +43,15 @@ import {
   saveRulesEnabled,
 } from "./utils/chatStorage.ts";
 
+const NAVI_MODE_ID = NAVI_MODES[0].id;
+
 function App() {
-  const project = useProject();
   const refs = useReferencedFiles();
   const { preferences, updatePreferences } = usePreferences();
   const [appearanceOpen, setAppearanceOpen] = useState(false);
-  const [modes, setModes] = useState<Mode[]>([]);
+  const modes = NAVI_MODES;
   const [simulationSetupOpen, setSimulationSetupOpen] = useState(false);
-  const [selectedMode, setSelectedMode] = useState("review");
+  const [selectedMode] = useState(NAVI_MODE_ID);
   const [useReasoning, setUseReasoning] = useState(false);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
   const [modeLlmId, setModeLlmId] = useState<string | undefined>(undefined);
@@ -64,10 +62,6 @@ function App() {
     loadInitialDisabledToolkits,
   );
   const [rulesEnabled, setRulesEnabled] = useState(loadInitialRulesEnabled);
-  const [browsePathInput, setBrowsePathInput] = useState("");
-
-  const naviConfigRef = useRef<{ modeId?: string; llmId?: string }>({});
-  const projectDefaultChatModeIdRef = useRef("review");
 
   const [activeSelection, setActiveSelection] =
     useState<SelectionContext | null>(null);
@@ -130,28 +124,6 @@ function App() {
     return !llm || !!llm.fastModel;
   }, [modeLlmId, llms]);
 
-  const handleModeChange = useCallback(
-    (modeId: string, modeList?: typeof modes) => {
-      const list = modeList ?? modes;
-      const m = list.find((x) => x.id === modeId);
-      const llmId = m?.llmId ?? undefined;
-      let newUseReasoning = m?.useReasoning ?? false;
-      if (llmId) {
-        const llm = llms.find((l) => l.id === llmId);
-        if (llm) {
-          const hasReasoning = !!llm.reasoningModel;
-          const hasFast = !!llm.fastModel;
-          if (!hasReasoning) newUseReasoning = false;
-          else if (!hasFast) newUseReasoning = true;
-        }
-      }
-      setSelectedMode((prev) => (prev === modeId ? prev : modeId));
-      setModeLlmId((prev) => (prev === llmId ? prev : llmId));
-      setUseReasoning((prev) => (prev === newUseReasoning ? prev : newUseReasoning));
-    },
-    [modes, llms],
-  );
-
   const applyLlmPrefsFromStorage = useCallback(() => {
     const providers = llmsRef.current;
     const prefs = loadLlmPrefs();
@@ -175,7 +147,7 @@ function App() {
     }
   }, []);
 
-  const history = useChatHistory(selectedMode, project.projectPath);
+  const history = useChatHistory(selectedMode);
   const chat = useChat(history.updateMessages, {
     onNaviStateTransition: (stateId, conversationId) => {
       history.patchConversation(conversationId, { naviStateId: stateId });
@@ -210,7 +182,6 @@ function App() {
     },
   });
 
-  const [modesAndLlmLoadGeneration, setModesAndLlmLoadGeneration] = useState(0);
   const prefsHydratedRef = useRef(false);
 
   // Load messages when switching conversations
@@ -221,86 +192,24 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.activeId]);
 
-  const loadModes = useCallback(async () => {
-    try {
-      const [mds, status] = await Promise.all([
-        modesApi.getAll(),
-        projectConfigApi.status(),
-      ]);
-      setModes(mds);
-      const forDefault = standardChatModes(mds);
-      let configured: string | undefined;
-      if (status.initialized) {
-        try {
-          const cfg = await projectConfigApi.get();
-          configured = cfg.defaultMode;
-          naviConfigRef.current = {
-            modeId: cfg.naviModeId,
-            llmId: cfg.naviLlmId,
-          };
-        } catch {
-          /* ignore */
-        }
-      }
-      if (configured) {
-        const cfgMode = mds.find((m) => m.id === configured);
-        if (cfgMode?.agentOnly) configured = undefined;
-      }
-      const resolvedId = resolveDefaultModeId(forDefault, configured);
-      projectDefaultChatModeIdRef.current = resolvedId;
-      const resolvedMode = forDefault.find((m) => m.id === resolvedId);
-      setSelectedMode(resolvedId);
-      setUseReasoning(resolvedMode?.useReasoning ?? false);
-      setModeLlmId(resolvedMode?.llmId ?? undefined);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
   useEffect(() => {
     prefsHydratedRef.current = false;
     let cancelled = false;
-    const llmsPromise = llmApi
+    llmApi
       .list()
       .then((r) => {
-        if (!cancelled) {
-          setLlms(r.providers);
-          llmsRef.current = r.providers;
-        }
+        if (cancelled) return;
+        setLlms(r.providers);
+        llmsRef.current = r.providers;
+        prefsHydratedRef.current = true;
+        applyLlmPrefsFromStorage();
       })
       .catch(console.error);
-
-    Promise.all([loadModes(), llmsPromise]).then(() => {
-      if (cancelled) return;
-      prefsHydratedRef.current = true;
-      applyLlmPrefsFromStorage();
-      setModesAndLlmLoadGeneration((g) => g + 1);
-    });
 
     return () => {
       cancelled = true;
     };
-  }, [loadModes, project.projectPath, applyLlmPrefsFromStorage]);
-
-  // Keep the toolbar mode selector in sync with the active (navi) conversation.
-  useEffect(() => {
-    if (!history.hydrated || modes.length === 0) return;
-    const conv = history.activeConversation;
-    const desired =
-      conv.mode && modes.some((m) => m.id === conv.mode)
-        ? conv.mode
-        : projectDefaultChatModeIdRef.current;
-    if (desired !== selectedMode) {
-      handleModeChange(desired, modes);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    history.hydrated,
-    history.activeId,
-    history.activeConversation.mode,
-    modes,
-    modesAndLlmLoadGeneration,
-  ]);
+  }, [applyLlmPrefsFromStorage]);
 
   useEffect(() => {
     if (!prefsHydratedRef.current) return;
@@ -322,7 +231,6 @@ function App() {
   }, [history.activeId]);
 
   const conversation = useConversationModel({
-    projectPath: project.projectPath,
     activeConversation: history.activeConversation,
     activeConversationId: history.activeId,
     selectedMode,
@@ -343,13 +251,9 @@ function App() {
     clearReferencedFiles: refs.clearFiles,
   });
 
-  const handleComposerDraftChange = useCallback(
-    (text: string) => {
-      mainChatComposerDraftRef.current = text;
-      conversation.schedulePreviewRefresh();
-    },
-    [conversation.schedulePreviewRefresh],
-  );
+  const handleComposerDraftChange = useCallback((text: string) => {
+    mainChatComposerDraftRef.current = text;
+  }, []);
 
   // Navi session: trigger greeting call when a new navi conversation has no messages yet.
   useEffect(() => {
@@ -414,17 +318,10 @@ function App() {
     useReasoning,
     disabledToolkits,
     rulesEnabled,
-    openFile: () => {},
+    appendMessageToConversation: history.appendMessageToConversation,
   });
 
-  const modesForChat = useMemo(() => {
-    const base = standardChatModes(modes);
-    const cur = modes.find((m) => m.id === selectedMode);
-    if (cur?.agentOnly && !base.some((m) => m.id === cur.id)) {
-      return [...base, cur];
-    }
-    return base;
-  }, [modes, selectedMode]);
+  const modesForChat = useMemo(() => standardChatModes(modes), [modes]);
 
   const {
     handleNewChat,
@@ -437,7 +334,6 @@ function App() {
     selectedMode,
     modes,
     llms,
-    naviConfigRef,
   });
 
   const handleCreateSimulation = useCallback(
@@ -447,26 +343,9 @@ function App() {
       const newConv = history.createConversation(selectedMode, undefined, title, "navi");
       history.patchConversation(newConv.id, {
         simulationConfig,
-        ...buildNaviConversationPatch(naviConfigRef.current, modes, llms),
+        ...buildNaviConversationPatch({}, modes, llms),
       });
       scheduleNaviGreetingKickoff(newConv.id);
-      const bridge = getAppBridge();
-      if (bridge?.simulation?.writeResult) {
-        const header = [
-          `# ${title}`,
-          ``,
-          simulationConfig.personaName
-            ? `**Persona:** ${simulationConfig.personaName}`
-            : undefined,
-          simulationConfig.goal
-            ? `**Testfokus:** ${simulationConfig.goal}`
-            : undefined,
-          ``,
-          `_Simulation läuft…_`,
-          ``,
-        ].filter((l) => l !== undefined).join("\n");
-        await bridge.simulation.writeResult(simulationConfig.resultFile, header).catch(() => {});
-      }
     },
     [history, selectedMode, modes, llms],
   );
@@ -478,64 +357,19 @@ function App() {
     [history],
   );
 
-  const handleOpenProject = useCallback(
-    async (path: string) => {
-      await project.openProject(path);
-      loadModes();
-    },
-    [project, loadModes],
-  );
-
-  const handleBrowseProject = useCallback(async () => {
-    try {
-      const result = await projectApi.browse();
-      if (result?.path) {
-        await handleOpenProject(result.path);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }, [handleOpenProject]);
-
   function conversationHasVisibleMessages(conv: Conversation): boolean {
     return conv.messages.some((m) => !m.hidden);
   }
   void conversationHasVisibleMessages;
 
-  if (!project.projectPath) {
-    return (
-      <div className="app app-no-project">
-        <div className="no-project-prompt">
-          <FolderOpen size={32} />
-          <p>Kein Projekt geöffnet.</p>
-          <input
-            className="new-chat-dialog-input"
-            value={browsePathInput}
-            onChange={(e) => setBrowsePathInput(e.target.value)}
-            placeholder="Projektpfad eingeben…"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && browsePathInput.trim()) {
-                void handleOpenProject(browsePathInput.trim());
-              }
-            }}
-          />
-          <button type="button" onClick={handleBrowseProject}>
-            Ordner auswählen…
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleModeChange = useCallback(() => {
+    // Only one mode ("navi") exists — nothing to switch.
+  }, []);
 
   return (
     <div className="app">
       <div className="navi-app-header">
-        <span className="navi-app-project-path" title={project.projectPath}>
-          {project.projectPath}
-        </span>
-        <button type="button" onClick={handleBrowseProject} title="Anderes Projekt öffnen">
-          <FolderOpen size={14} />
-        </button>
+        <span className="navi-app-project-path">KI Navi</span>
         <button type="button" onClick={() => setAppearanceOpen(true)} title="Darstellung">
           Darstellung
         </button>
@@ -588,22 +422,15 @@ function App() {
             onSwitchChat={handleSwitchChat}
             onDeleteChat={history.deleteConversation}
             onRenameChat={history.renameConversation}
-            onToggleSavedToProject={history.toggleSavedToProject}
             onClearAllBrowserChats={history.clearAllBrowserChats}
-            clearAllBrowserChatsDisabled={!project.projectPath || !history.hydrated}
+            clearAllBrowserChatsDisabled={!history.hydrated}
             activeSelection={activeSelection}
             onDismissSelection={handleDismissSelection}
             chatFocusTriggerRef={chatFocusTriggerRef}
-            writeFileSettled={history.activeConversation?.writeFileSettled}
-            onSettleSnapshots={(patch) => {
-              history.settleWriteFileSnapshots(history.activeId, patch);
-            }}
             onComposerDraftChange={handleComposerDraftChange}
             contextInfo={conversation.contextInfo}
             activeFile={null}
             isDirty={false}
-            systemPromptPreview={conversation.systemPrompt}
-            onFetchContextBlocks={conversation.fetchContextBlocks}
           />
         </div>
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import type { Conversation, Mode } from "../types.ts";
+import type { ChatMessage, Conversation, Mode } from "../types.ts";
 import { getEffectiveChatExecution } from "../components/chat/chatAgentUtils.ts";
 import { effectiveChatModeIdForRequest } from "../components/chat/effectiveChatModeForRequest.ts";
 import {
@@ -25,8 +25,8 @@ interface SimulationRunnerDeps {
   useReasoning: boolean;
   disabledToolkits: ReadonlySet<string>;
   rulesEnabled: boolean;
-  /** Opens the written simulation result file (no-op if no file viewer is available). */
-  openFile: (path: string) => void | Promise<void>;
+  /** Posts the finished transcript/evaluation as a message into the conversation. */
+  appendMessageToConversation: (id: string, message: ChatMessage) => void;
 }
 
 export function useSimulationRunner({
@@ -40,7 +40,7 @@ export function useSimulationRunner({
   useReasoning,
   disabledToolkits,
   rulesEnabled,
-  openFile,
+  appendMessageToConversation,
 }: SimulationRunnerDeps) {
   const performSimulationReply = useCallback(
     async (conv: Conversation) => {
@@ -123,19 +123,13 @@ export function useSimulationRunner({
       const sim = conv.simulationConfig;
       if (!sim) return;
       const bridge = getAppBridge();
-      if (!bridge?.simulation?.writeResult) return;
+      if (!bridge?.simulation?.evaluateRun) return;
 
       const visibleMessages = conv.messages.filter(
         (m) =>
           !m.hidden &&
           (m.role === "user" || m.role === "assistant") &&
           m.content.trim().length > 0,
-      );
-
-      const lines = visibleMessages.map((m) =>
-        m.role === "assistant"
-          ? `**Navi:** ${m.content.trim()}`
-          : `**Händler:** ${m.content.trim()}`,
       );
 
       const transcript = visibleMessages.map((m) => ({
@@ -145,65 +139,30 @@ export function useSimulationRunner({
         content: m.content,
       }));
 
-      let evaluationSection: string[] = [];
-      if (bridge.simulation.evaluateRun) {
-        try {
-          const exec = getEffectiveChatExecution(conv, {
-            llmId: modeLlmId,
-            useReasoning,
-            disabledToolkits,
+      try {
+        const exec = getEffectiveChatExecution(conv, {
+          llmId: modeLlmId,
+          useReasoning,
+          disabledToolkits,
+        });
+        const evaluation = await bridge.simulation.evaluateRun({
+          persona: sim.personaPrompt?.trim() || sim.goal,
+          personaName: sim.personaName,
+          transcript,
+          llmId: exec.llmId,
+        });
+        if (evaluation?.report) {
+          appendMessageToConversation(conv.id, {
+            role: "assistant",
+            content: `## KI-Bewertung des Navi\n\n${evaluation.report}`,
+            hidden: false,
           });
-          const evaluation = await bridge.simulation.evaluateRun({
-            persona: sim.personaPrompt?.trim() || sim.goal,
-            personaName: sim.personaName,
-            transcript,
-            llmId: exec.llmId,
-          });
-          if (evaluation?.report) {
-            evaluationSection = [
-              ``,
-              `---`,
-              ``,
-              `## KI-Bewertung des Navi`,
-              ``,
-              evaluation.report,
-              ``,
-            ];
-          }
-        } catch (err) {
-          console.error("[simulation] navi evaluation failed", err);
         }
-      }
-
-      const body = [
-        `# ${conv.title ?? "Simulation"}`,
-        ``,
-        sim.personaName ? `**Persona:** ${sim.personaName}` : undefined,
-        sim.goal ? `**Ziel:** ${sim.goal}` : undefined,
-        sim.characters.length > 0
-          ? `**Charaktere:** ${sim.characters.map((c) => c.name).join(", ")}`
-          : undefined,
-        ``,
-        `---`,
-        ``,
-        `## Gesprächsverlauf`,
-        ``,
-        lines.join("\n\n"),
-        ``,
-        ...evaluationSection,
-      ]
-        .filter((l) => l !== undefined)
-        .join("\n");
-
-      const writeResult = await bridge.simulation
-        .writeResult(sim.resultFile, body)
-        .catch(() => null);
-
-      if (writeResult?.path) {
-        void openFile(writeResult.path);
+      } catch (err) {
+        console.error("[simulation] navi evaluation failed", err);
       }
     },
-    [modeLlmId, useReasoning, disabledToolkits, openFile],
+    [modeLlmId, useReasoning, disabledToolkits, appendMessageToConversation],
   );
 
   useEffect(() => {

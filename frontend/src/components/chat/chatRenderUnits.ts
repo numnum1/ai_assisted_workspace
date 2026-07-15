@@ -1,6 +1,4 @@
 import type { ChatMessage, ToolCall } from '../../types.ts';
-import type { ChangeCardData } from './ChangeCard.tsx';
-import { parseWriteFileToolMessage } from './writeFileToolParse.ts';
 
 /** Pre-tool assistant deltas like "## " stream as non-blank but render as empty markdown headings. */
 function isHeadingOnlyPreToolText(trimmed: string): boolean {
@@ -8,7 +6,6 @@ function isHeadingOnlyPreToolText(trimmed: string): boolean {
 }
 
 export type SubRenderUnit =
-  | { type: 'writeFileGroup'; items: { originalIdx: number; data: ChangeCardData }[] }
   | {
       type: 'toolCall';
       assistantIdx: number;
@@ -84,22 +81,6 @@ function buildTurnSubUnits(
 
     if (msg.role === 'tool' && isToolResultRenderedInline(visible, i)) {
       i += 1;
-      continue;
-    }
-
-    const data = msg.role === 'tool' ? parseWriteFileToolMessage(msg.content) : null;
-    if (data) {
-      const items: { originalIdx: number; data: ChangeCardData }[] = [];
-      let j = i;
-      while (j < end) {
-        const v = visible[j]!;
-        const d = v.msg.role === 'tool' ? parseWriteFileToolMessage(v.msg.content) : null;
-        if (!d) break;
-        items.push({ originalIdx: v.originalIdx, data: d });
-        j++;
-      }
-      out.push({ type: 'writeFileGroup', items });
-      i = j;
       continue;
     }
 
