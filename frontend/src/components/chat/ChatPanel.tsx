@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, Waypoints } from "lucide-react";
 import type {
-  AgentPreset,
   ChatMessage,
   Mode,
   Conversation,
@@ -17,7 +16,6 @@ import { ModeSelector } from "./ModeSelector.tsx";
 import { ChatHistory } from "./ChatHistory.tsx";
 import { NewChatButton } from "./NewChatButton.tsx";
 import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
-import type { GuidedThreadOfferPayload } from "./guidedThreadOfferUtils.ts";
 import { ChatPane } from "./ChatPane.tsx";
 import type { ContextBlock } from "./ContextBar.tsx";
 
@@ -62,10 +60,6 @@ interface ChatPanelProps {
   onForkFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
   onStartThreadFromMessage: (messageIndex: number) => void;
-  onAcceptGuidedThreadOffer?: (
-    assistantMessageIndex: number,
-    payload: GuidedThreadOfferPayload,
-  ) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
@@ -76,8 +70,6 @@ interface ChatPanelProps {
   activeSessionKind?: ChatSessionKind;
   /** When true, the expand/fullscreen button opens the Thread-Workspace instead. */
   activeIsThread?: boolean;
-  steeringPlan?: string;
-  onMarkSteeringPlanComplete?: () => void;
   onSwitchChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, title: string) => void;
@@ -103,7 +95,6 @@ interface ChatPanelProps {
   onFileChanged?: (path: string) => void;
   writeFileSettled?: Record<string, "applied" | "reverted">;
   onSettleSnapshots?: (patch: Record<string, "applied" | "reverted">) => void;
-  agentPresets?: AgentPreset[];
   onComposerDraftChange?: (text: string) => void;
   theme?: "light" | "dark";
   /** Summarize thread and merge result into parent conversation (only when activeIsThread is true). */
@@ -149,7 +140,6 @@ export function ChatPanel({
   onForkFromMessage,
   onForkToNewConversation,
   onStartThreadFromMessage,
-  onAcceptGuidedThreadOffer,
   onEditMessage,
   onDeleteMessages,
   onSetMessageFeedback,
@@ -180,10 +170,7 @@ export function ChatPanel({
   writeFileSettled,
   onSettleSnapshots,
   onComposerDraftChange,
-  agentPresets = [],
   activeSessionKind = "standard",
-  steeringPlan = "",
-  onMarkSteeringPlanComplete,
   activeIsThread = false,
   parentLastMessage = null,
   theme = "dark",
@@ -448,7 +435,6 @@ export function ChatPanel({
           onForkFromMessage={onForkFromMessage}
           onForkToNewConversation={onForkToNewConversation}
           onStartThreadFromMessage={onStartThreadFromMessage}
-          onAcceptGuidedThreadOffer={onAcceptGuidedThreadOffer}
           onRetry={onRetry}
           referencedFiles={referencedFiles}
           onAddFile={onAddFile}
@@ -468,8 +454,6 @@ export function ChatPanel({
           activeSelection={activeSelection}
           onDismissSelection={onDismissSelection}
           activeSessionKind={activeSessionKind}
-          steeringPlan={steeringPlan}
-          onMarkSteeringPlanComplete={onMarkSteeringPlanComplete}
           simulationConfig={simulationConfig}
           onFileChanged={onFileChanged}
           writeFileSettled={writeFileSettled}
@@ -491,7 +475,6 @@ export function ChatPanel({
       {newChatDialogOpen && (
         <NewChatDialog
           currentTitle={activeTitle}
-          agentPresets={agentPresets}
           onConfirm={handleNewChatConfirm}
           onDiscard={handleNewChatDiscard}
           onCancel={() => setNewChatDialogOpen(false)}

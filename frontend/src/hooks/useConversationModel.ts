@@ -195,8 +195,7 @@ export function useConversationModel(p: UseConversationModelParams) {
       });
       const streamSession = {
         conversationId: c?.id ?? activeConversationId,
-        sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
-        steeringPlan: c?.steeringPlan,
+        sessionKind: (c?.sessionKind ?? 'navi') as ChatSessionKind,
         isThread: c?.isThread ?? false,
         naviStateId: c?.naviStateId ?? null,
         ...(c?.naviFacts ? { naviFacts: c.naviFacts } : {}),
@@ -263,8 +262,7 @@ export function useConversationModel(p: UseConversationModelParams) {
         activeFieldKey: focusedFieldKey ?? null,
         disabledToolkits: exec.disabledToolkits,
         conversationId: c?.id ?? activeConversationId,
-        sessionKind: (c?.sessionKind ?? 'standard') as ChatSessionKind,
-        steeringPlan: c?.steeringPlan,
+        sessionKind: (c?.sessionKind ?? 'navi') as ChatSessionKind,
         isThread: c?.isThread ?? false,
         rulesDisabled,
       });

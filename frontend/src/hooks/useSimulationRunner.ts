@@ -11,7 +11,6 @@ import {
 } from "../components/chat/simulationReplyKickoff.ts";
 import { getAppBridge } from "../electron/bridge.ts";
 import type { useChat } from "./useChat.ts";
-import type { useFileTabs } from "./useFileTabs.ts";
 
 const SIMULATION_MAX_TURNS = 12;
 
@@ -26,7 +25,8 @@ interface SimulationRunnerDeps {
   useReasoning: boolean;
   disabledToolkits: ReadonlySet<string>;
   rulesEnabled: boolean;
-  openFile: ReturnType<typeof useFileTabs>["openFile"];
+  /** Opens the written simulation result file (no-op if no file viewer is available). */
+  openFile: (path: string) => void | Promise<void>;
 }
 
 export function useSimulationRunner({

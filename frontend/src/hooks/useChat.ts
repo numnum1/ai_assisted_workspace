@@ -27,17 +27,15 @@ export interface EditMessageSendParams {
   disabledToolkits?: string[];
   conversationId: string;
   sessionKind: ChatSessionKind;
-  steeringPlan?: string;
   isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
 }
 
-/** Active conversation id + session kind; sent with each chat request for guided mode / plan persistence. */
+/** Active conversation id + session kind; sent with each chat request for Navi state / plan persistence. */
 export interface ChatStreamSessionMeta {
   conversationId: string;
   sessionKind: ChatSessionKind;
-  steeringPlan?: string;
   isThread?: boolean;
   naviStateId?: string | null;
   naviFacts?: NaviFacts;
@@ -74,28 +72,16 @@ export interface UseChatOptions {
 
 function buildSessionChatRequestFields(meta: ChatStreamSessionMeta | undefined): Partial<ChatRequest> {
   if (!meta) {
-    return { sessionKind: 'standard' };
+    return { sessionKind: 'navi' };
   }
-  const sk = meta.sessionKind ?? 'standard';
   const simPart = meta.simulationConfig ? { simulationConfig: meta.simulationConfig } : {};
-  if (sk === 'guided') {
-    return {
-      sessionKind: 'guided',
-      steeringPlan: meta.steeringPlan ?? null,
-      ...(meta.isThread ? { isThread: true } : {}),
-      ...simPart,
-    };
-  }
-  if (sk === 'navi') {
-    return {
-      sessionKind: 'navi',
-      naviStateId: meta.naviStateId ?? null,
-      ...(meta.naviFacts ? { naviFacts: meta.naviFacts } : {}),
-      ...(meta.naviCoveredTips && meta.naviCoveredTips.length > 0 ? { naviCoveredTips: meta.naviCoveredTips } : {}),
-      ...simPart,
-    };
-  }
-  return { sessionKind: 'standard', ...simPart };
+  return {
+    sessionKind: 'navi',
+    naviStateId: meta.naviStateId ?? null,
+    ...(meta.naviFacts ? { naviFacts: meta.naviFacts } : {}),
+    ...(meta.naviCoveredTips && meta.naviCoveredTips.length > 0 ? { naviCoveredTips: meta.naviCoveredTips } : {}),
+    ...simPart,
+  };
 }
 
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, options?: UseChatOptions) {
@@ -213,26 +199,22 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           : undefined;
 
       const naviConversationId = streamSession?.conversationId ?? '';
-      const onNaviState =
-        streamSession?.sessionKind === 'navi' && onNaviStateTransitionRef.current
-          ? (stateId: string, completedStateId?: string) =>
-              onNaviStateTransitionRef.current!(stateId, naviConversationId, completedStateId)
-          : undefined;
+      const onNaviState = onNaviStateTransitionRef.current
+        ? (stateId: string, completedStateId?: string) =>
+            onNaviStateTransitionRef.current!(stateId, naviConversationId, completedStateId)
+        : undefined;
 
-      const onNaviTipsCoveredCb =
-        streamSession?.sessionKind === 'navi' && onNaviTipsCoveredRef.current
-          ? (coveredIds: string[]) => onNaviTipsCoveredRef.current!(coveredIds, naviConversationId)
-          : undefined;
+      const onNaviTipsCoveredCb = onNaviTipsCoveredRef.current
+        ? (coveredIds: string[]) => onNaviTipsCoveredRef.current!(coveredIds, naviConversationId)
+        : undefined;
 
-      const onNaviFactsCb =
-        streamSession?.sessionKind === 'navi' && onNaviFactsRef.current
-          ? (facts: NaviFacts) => onNaviFactsRef.current!(facts, naviConversationId)
-          : undefined;
+      const onNaviFactsCb = onNaviFactsRef.current
+        ? (facts: NaviFacts) => onNaviFactsRef.current!(facts, naviConversationId)
+        : undefined;
 
-      const onNaviTraceCb =
-        streamSession?.sessionKind === 'navi' && onNaviTraceRef.current
-          ? (entry: NaviTraceEntry) => onNaviTraceRef.current!(entry, naviConversationId)
-          : undefined;
+      const onNaviTraceCb = onNaviTraceRef.current
+        ? (entry: NaviTraceEntry) => onNaviTraceRef.current!(entry, naviConversationId)
+        : undefined;
 
       const streamCbs: StreamCallbacks = {
         ...streamCbsBase,
@@ -375,7 +357,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         ...buildSessionChatRequestFields({
           conversationId: sendParams.conversationId,
           sessionKind: sendParams.sessionKind,
-          steeringPlan: sendParams.steeringPlan,
           isThread: sendParams.isThread,
         }),
         ...(sendParams.rulesDisabled ? { rulesDisabled: true } : {}),

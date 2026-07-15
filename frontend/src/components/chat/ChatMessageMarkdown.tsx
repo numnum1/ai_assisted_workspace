@@ -4,7 +4,6 @@ import remarkGfm from 'remark-gfm';
 import { Replace, Copy, Check, HelpCircle, PenLine, Brain, ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 import type { Components } from 'react-markdown';
 import type { SelectionContext } from '../../types.ts';
-import { stripPlanFencesForDisplay } from './planFenceUtils.ts';
 import { parseThinkSegments } from './thinkSegmentUtils.ts';
 import { ArtifactCard } from './ArtifactCard.tsx';
 
@@ -345,9 +344,8 @@ export function ChatMessageMarkdown({
     [content, onApplyFieldUpdate],
   );
   const displayContent = useMemo(() => {
-    const stripped = stripPlanFencesForDisplay(processedContent, !!streamingCursor);
-    return stripBuchentwicklungStatusLine(stripped);
-  }, [processedContent, streamingCursor]);
+    return stripBuchentwicklungStatusLine(processedContent);
+  }, [processedContent]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = useCallback((text: string, key: string) => {

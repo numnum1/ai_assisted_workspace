@@ -91,20 +91,17 @@ function generateTitle(messages: ChatMessage[]): string {
 
 function createEmptyConversation(
   mode: string,
-  sessionKind: ChatSessionKind = "standard",
+  sessionKind: ChatSessionKind = "navi",
 ): Conversation {
-  const base: Conversation = {
+  return {
     id: crypto.randomUUID(),
     title: "Neuer Chat",
     messages: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
     mode,
+    sessionKind,
   };
-  if (sessionKind !== "standard") {
-    base.sessionKind = sessionKind;
-  }
-  return base;
 }
 
 function hasVisibleMessages(c: Conversation): boolean {
@@ -372,7 +369,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
       mode?: string,
       initialMessages?: ChatMessage[],
       title?: string,
-      sessionKind: ChatSessionKind = "standard",
+      sessionKind: ChatSessionKind = "navi",
     ) => {
       const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       if (initialMessages && initialMessages.length > 0) {
@@ -435,7 +432,7 @@ export function useChatHistory(currentMode: string, projectPath: string) {
 
   /** Removes the active conversation (even if it has messages) and opens a new empty chat. */
   const discardActiveAndCreateConversation = useCallback(
-    (mode?: string, sessionKind: ChatSessionKind = "standard") => {
+    (mode?: string, sessionKind: ChatSessionKind = "navi") => {
       const newConv = createEmptyConversation(mode ?? currentMode, sessionKind);
       setConversations((prev) => {
         const filtered = prev.filter((c) => c.id !== activeId);

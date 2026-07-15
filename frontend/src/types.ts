@@ -86,144 +86,9 @@ export interface SimulationConfig {
   personaPrompt?: string;
 }
 
-/** One character in an ensemble scene run (played by its own LLM agent). */
-export interface EnsembleCharacterInput {
-  /** Relative wiki path, e.g. `wiki/characters/mara-voss.md`. */
-  wikiPath: string;
-  /** Speaker label shown in the transcript. */
-  name: string;
-}
-
-/** Scene context handed to the director + character agents. */
-export interface EnsembleSceneContext {
-  title?: string;
-  location?: string;
-  time?: string;
-  initialSituation?: string;
-  goal?: string;
-  tone?: string;
-  pov?: string;
-}
-
-/** Request to play out a scene as a director-orchestrated multi-agent ensemble. */
-export interface EnsembleRunRequest {
-  scene: EnsembleSceneContext;
-  characters: EnsembleCharacterInput[];
-  /** Result file name slug (maps to `.assistant/ensembles/<resultFile>.md`). */
-  resultFile: string;
-  /** Provider to use; falls back to the default provider. */
-  llmId?: string | null;
-  /** Hard cap on beats (director may end earlier). */
-  maxBeats?: number;
-}
-
-/** A single beat in an ensemble transcript. */
-export interface EnsembleBeat {
-  kind: "dialogue" | "narration";
-  /** Character name, or `Erzähler` for narration. */
-  speaker: string;
-  content: string;
-  /** Optional stage direction / action beat. */
-  action?: string;
-}
-
-/** Result of a finished ensemble run: raw screenplay + prose rewrite. */
-export interface EnsembleRunResult {
-  beats: EnsembleBeat[];
-  screenplay: string;
-  prose: string;
-  /** Relative path of the written result file, if persisted. */
-  path?: string;
-}
-
-/** Live progress event streamed while a scene is played out. */
-export type EnsembleProgressEvent =
-  | { phase: "beat"; index: number; beat: EnsembleBeat }
-  | { phase: "prose" }
-  | { phase: "done"; result: EnsembleRunResult }
-  | { phase: "error"; message: string };
-
 /** Chat session kind: standard chat vs. AI-led guided session with steering plan. */
 export type ChatSessionKind = 'standard' | 'guided' | 'navi';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
-
-/** Kind of arc — defines its lane identity and which wiki entity it tracks. */
-export type ArcKind = "story" | "character" | "relationship";
-
-/** A single tracked thread (story / character / relationship), drawn as one lane. */
-export interface Arc {
-  id: string;
-  kind: ArcKind;
-  title: string;
-  /** Wiki entry this arc tracks (story/character). Absent for free-standing arcs. */
-  wikiRef?: string;
-  /** Wiki entries that form a relationship arc (typically two). */
-  members?: string[];
-  /** Hex lane color; falls back to a kind default when absent. */
-  color?: string;
-  /** Vertical lane order, ascending top-to-bottom. */
-  order: number;
-}
-
-/**
- * A user-placed marker on an arc, positioned by story-time (`at`) — "here
- * something important happens". This is the planning unit of the arc workspace,
- * deliberately *not* a narrative "beat": the story plan (declaration) never
- * references the prose that realizes it; book structure points back to it.
- * UI label: „Punkt".
- */
-export interface ArcPoint {
-  id: string;
-  arcId: string;
-  /** Story-time position on the shared timeline (unit defined by Timeline). */
-  at: number;
-  title: string;
-  note?: string;
-}
-
-/** Typed cause→effect edge between two arc points. */
-export type ArcLinkType = "enables" | "forces" | "prevents" | "triggers";
-
-export interface ArcLink {
-  id: string;
-  /** Source arc-point id (the cause). */
-  from: string;
-  /** Target arc-point id (the effect). */
-  to: string;
-  type: ArcLinkType;
-  note?: string;
-}
-
-/** Story-time axis definition for the arc workspace. */
-export interface Timeline {
-  /** Axis unit label, e.g. "Tag", "Jahr". */
-  unit: string;
-  start: number;
-  end: number;
-  /** Named fixed points rendered as vertical guides. */
-  markers: Array<{ at: number; label: string }>;
-}
-
-/** Full contents of the arc workspace (.assistant/arcs/). */
-export interface ArcData {
-  timeline: Timeline;
-  arcs: Arc[];
-  points: ArcPoint[];
-  links: ArcLink[];
-}
-
-/**
- * Which arcs/points are realized by the book — the computed "coverage" of the
- * plan. Derived by scanning structure metadata for references back to the arc
- * workspace (never stored on the arc side). Ids absent here are unrealized,
- * like an unimplemented header method.
- */
-export interface ArcCoverage {
-  /** Arc ids referenced by at least one structure node. */
-  arcs: string[];
-  /** Arc-point ids referenced by at least one structure node. */
-  points: string[];
-}
 
 export interface FileNode {
   name: string;
@@ -270,39 +135,6 @@ export interface SelectionContext {
   to: number;
   /** Which editor the selection came from */
   editorId: 'file' | 'chapter';
-}
-
-/**
- * Steering context for inline AI generation, derived from the action unit
- * ("Handlungseinheit") the cursor was in when the panel opened. The full text is
- * always sent to the AI on every request so it can write in-place with the whole
- * unit in view; description/extras convey the author's intent for the unit.
- */
-export interface InlineUnitContext {
-  /** Full text content of the action unit — always included in every AI request. */
-  fullText: string;
-  /** The unit's meta.description (author intent for this unit), if any. */
-  description?: string;
-  /** The unit's meta.extras — free-form steering fields (goal/beat, tone, boundaries…). */
-  extras?: Record<string, string>;
-  /** Human label of the structural level, e.g. "Handlungseinheit". */
-  unitLabel?: string;
-  /** Title of the unit / scene for orientation. */
-  title?: string;
-}
-
-export interface AltVersionSession {
-  originalText: string;
-  from: number;
-  to: number;
-  editorId: 'file' | 'chapter';
-  /** Returns current viewport-relative coordinates of the selection anchor, or null when off-screen */
-  getAnchorCoords: () => { top: number; bottom: number; left: number; right: number } | null;
-  replaceFn: (from: number, to: number, insert: string) => void;
-  /** Full document text of the source editor (the action unit's content) at open time. */
-  fullText?: string;
-  /** Inline-AI steering context; present when the selection came from an action unit. */
-  inlineContext?: InlineUnitContext;
 }
 
 export interface ToolCall {
@@ -397,29 +229,6 @@ export interface ContextInfo {
   includedFiles: string[];
   estimatedTokens: number;
   maxContextTokens?: number;
-}
-
-export interface GitStatus {
-  isRepo: boolean;
-  added?: string[];
-  modified?: string[];
-  removed?: string[];
-  untracked?: string[];
-  changed?: string[];
-  missing?: string[];
-  isClean?: boolean;
-}
-
-export interface GitCommit {
-  hash: string;
-  message: string;
-  author: string;
-  date: string;
-}
-
-export interface GitSyncStatus {
-  ahead: number;
-  behind: number;
 }
 
 export interface Conversation {
@@ -531,15 +340,6 @@ export interface LlmsListResponse {
   webSearchAvailable?: boolean;
 }
 
-/** Persisted browser tab: folder + display metadata */
-export interface WorkspaceEntry {
-  id: string;
-  path: string;
-  name: string;
-  /** Mirrors last known project workspaceMode (e.g. book, music) */
-  mode: string;
-}
-
 export interface WorkspaceLevelConfig {
   key: string;
   label: string;
@@ -588,57 +388,6 @@ export interface WorkspaceModeInfo {
   mediaType: boolean;
 }
 
-/** Resolved labels/icons for the three structure levels + root meta button */
-export interface OutlinerLevelConfig {
-  chapter: { label: string; labelNew: string; icon: string };
-  scene: { label: string; labelNew: string; icon: string };
-  action: { label: string; labelNew: string; icon: string };
-  /** True when workspace mode stores prose on scenes only (no visible action tier). */
-  proseLeafAtScene: boolean;
-  rootMetaLabel: string;
-  rootMetaIcon: string;
-  /** Path from media-project root, e.g. `.project/book.json` (for drag-to-chat). */
-  rootMetaRelativePath: string;
-  /** Icon for subproject folder rows in the file tree */
-  folderIcon: string;
-}
-
-export interface NodeMeta {
-  title: string;
-  description: string;
-  sortOrder: number;
-  extras?: Record<string, string>;
-}
-
-export interface ChapterSummary {
-  id: string;
-  meta: NodeMeta;
-}
-
-export interface ActionNode {
-  id: string;
-  meta: NodeMeta;
-}
-
-export interface SceneNode {
-  id: string;
-  meta: NodeMeta;
-  actions: ActionNode[];
-}
-
-export interface ChapterNode {
-  id: string;
-  meta: NodeMeta;
-  scenes: SceneNode[];
-}
-
-/**
- * Category id of an AI-generated chapter comment. Free-form: besides the
- * built-in defaults, projects can define their own via CommentCategoryDef
- * (see ProjectSettingsModal's "Kommentar-Kategorien" tab).
- */
-export type CommentCategory = string;
-
 /** A project-configurable comment category, toggled as a chip before commenting. */
 export interface CommentCategoryDef {
   id: string;
@@ -648,52 +397,6 @@ export interface CommentCategoryDef {
   color: string;
   /** Instruction fragment injected into the LLM prompt when this category is active. */
   promptFragment: string;
-}
-
-/** A single AI-generated comment anchored to a quote in the chapter text. */
-export interface ChapterComment {
-  id: string;
-  /** Verbatim quote from the chapter text, used to anchor the comment card. */
-  quote: string;
-  /** The AI's remark about the quoted passage. */
-  comment: string;
-  category: CommentCategory;
-  /**
-   * Optional concrete rewrite of the quoted passage that the user can accept.
-   * Only set when the AI proposes a replacement; a plain remark leaves it empty.
-   */
-  suggestion?: string;
-  /**
-   * True once the user has accepted the suggestion (its text was applied to the
-   * chapter). Accepted comments stay visible but struck through.
-   */
-  accepted?: boolean;
-}
-
-export interface ChapterActionFilePath {
-  sceneId: string;
-  actionId: string;
-  relPath: string;
-}
-
-export interface ChapterFilePaths {
-  chapterDirRelPath: string;
-  actions: ChapterActionFilePath[];
-}
-
-export interface ScrollTarget {
-  sceneId?: string;
-  actionId?: string;
-}
-
-export type MetaNodeType = 'book' | 'chapter' | 'scene' | 'action';
-
-export interface MetaSelection {
-  type: MetaNodeType;
-  chapterId: string;
-  sceneId?: string;
-  actionId?: string;
-  meta: NodeMeta;
 }
 
 /** Global appearance preferences (stored in ~/.writing-assistant/preferences.json). */

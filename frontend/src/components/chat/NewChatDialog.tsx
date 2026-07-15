@@ -1,19 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
-import type { AgentPreset, ChatSessionKind } from "../../types.ts";
+import type { ChatSessionKind } from "../../types.ts";
 
 export interface NewChatConfirmPayload {
   title: string;
   sessionKind: ChatSessionKind;
-  /** Optional markdown; for guided sessions, stored as initial steering plan. */
-  initialSteeringPlan?: string;
-  /** When set with guided session, {@link App} applies the matching project agent preset. */
-  agentPresetId?: string;
 }
 
 interface NewChatDialogProps {
   currentTitle: string;
-  agentPresets?: AgentPreset[];
   onConfirm: (payload: NewChatConfirmPayload) => void;
   onDiscard: (payload: NewChatConfirmPayload) => void;
   onCancel: () => void;
@@ -21,14 +16,11 @@ interface NewChatDialogProps {
 
 export function NewChatDialog({
   currentTitle,
-  agentPresets = [],
   onConfirm,
   onDiscard,
   onCancel,
 }: NewChatDialogProps) {
   const [title, setTitle] = useState(currentTitle);
-  const [sessionKind, setSessionKind] = useState<ChatSessionKind>("standard");
-  const [agentPresetId, setAgentPresetId] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,8 +30,7 @@ export function NewChatDialog({
 
   const buildPayload = (): NewChatConfirmPayload => ({
     title: title.trim() || currentTitle,
-    sessionKind,
-    ...(sessionKind === "guided" && agentPresetId ? { agentPresetId } : {}),
+    sessionKind: "navi",
   });
 
   const handleConfirm = () => {
@@ -91,91 +82,6 @@ export function NewChatDialog({
             onKeyDown={handleKeyDown}
             placeholder="Name des Chats…"
           />
-          <fieldset className="new-chat-dialog-session-fieldset">
-            <legend className="new-chat-dialog-session-legend">
-              Sitzungsart
-            </legend>
-            <label className="new-chat-dialog-radio-row">
-              <input
-                type="radio"
-                name="sessionKind"
-                checked={sessionKind === "standard"}
-                onChange={() => {
-                  setSessionKind("standard");
-                  setAgentPresetId("");
-                }}
-              />
-              <span>
-                <strong>Standard</strong> — freies Gespräch wie bisher
-              </span>
-            </label>
-            <label className="new-chat-dialog-radio-row">
-              <input
-                type="radio"
-                name="sessionKind"
-                checked={sessionKind === "guided"}
-                onChange={() => setSessionKind("guided")}
-              />
-              <span>
-                <strong>Geführte Sitzung (Agent)</strong> — Arbeitsplan, Modus
-                und Tool-Toggles werden für diese Sitzung gespeichert (LLM aus
-                dem Modus)
-              </span>
-            </label>
-            <label className="new-chat-dialog-radio-row">
-              <input
-                type="radio"
-                name="sessionKind"
-                checked={sessionKind === "navi"}
-                onChange={() => {
-                  setSessionKind("navi");
-                  setAgentPresetId("");
-                }}
-              />
-              <span>
-                <strong>Navi</strong> — KI-Berater für Händler in NRW, führt
-                durch eine strukturierte Software-Beratung
-              </span>
-            </label>
-          </fieldset>
-          {sessionKind === "guided" && (
-            <div className="new-chat-dialog-guided-extra">
-              {agentPresets.length > 0 && (
-                <>
-                  <label
-                    className="new-chat-dialog-plan-label"
-                    htmlFor="new-chat-agent-preset"
-                  >
-                    Vorlage (optional)
-                  </label>
-                  <select
-                    id="new-chat-agent-preset"
-                    className="new-chat-dialog-input"
-                    value={agentPresetId}
-                    onChange={(e) => setAgentPresetId(e.target.value)}
-                  >
-                    <option value="">— keine Vorlage —</option>
-                    {agentPresets.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.id})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="new-chat-dialog-plan-hint">
-                    Mit Vorlage werden Modus, LLM, Reasoning, deaktivierte
-                    Toolkits und der Arbeitsplan aus den Projekteinstellungen
-                    übernommen.
-                  </p>
-                </>
-              )}
-              {!agentPresetId && (
-                <p className="new-chat-dialog-plan-hint">
-                  Ohne Vorlage gelten Modus, gewähltes LLM und Tool-Leiste wie
-                  in der Chat-Kopfzeile und werden beim Start übernommen.
-                </p>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="new-chat-dialog-footer">

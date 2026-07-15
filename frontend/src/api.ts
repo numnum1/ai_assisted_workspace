@@ -4,30 +4,15 @@ import type {
   Mode,
   ChatRequest,
   ChatMessage,
-  GitStatus,
-  GitCommit,
-  GitSyncStatus,
   ProjectConfig,
-  ChapterSummary,
-  ChapterNode,
-  ChapterComment,
-  ChapterFilePaths,
   CommentCategoryDef,
-  SceneNode,
-  ActionNode,
-  NodeMeta,
   WorkspaceModeSchema,
   WorkspaceModeInfo,
   LlmPublic,
   LlmsListResponse,
   Conversation,
-  ArcData,
-  ArcCoverage,
 } from "./types.ts";
-import type {
-  ChatStreamEvent,
-  FileContentResult as ElectronFileContentResult,
-} from "./electron/bridge.ts";
+import type { ChatStreamEvent } from "./electron/bridge.ts";
 import {
   buildConversationById,
   effectiveSavedToProject,
@@ -35,7 +20,6 @@ import {
 import { getAppBridge } from "./electron/bridge.ts";
 
 type FileContentResponse = { path: string; content: string; lines: number };
-type FileMutationResponse = { status: string; path: string };
 type ProjectCurrentResponse = {
   path: string;
   hasProject: boolean;
@@ -49,21 +33,6 @@ type ProjectOpenResponse = {
   initialized: boolean;
 };
 type ProjectConfigStatusResponse = { initialized: boolean };
-type SearchHitResponse = {
-  path: string;
-  line: number;
-  preview: string;
-};
-type SearchResponse = {
-  hits: SearchHitResponse[];
-};
-type TypedFileContentResponse = {
-  data: Record<string, unknown>;
-};
-type TypedFileFillResponse = {
-  data?: Record<string, unknown>;
-  error?: string;
-};
 type SnapshotResponse = {
   id: string;
   path: string;
@@ -81,34 +50,7 @@ function getElectronApi() {
   return getAppBridge();
 }
 
-export class AuthRequiredError extends Error {
-  constructor() {
-    super("auth_required");
-    this.name = "AuthRequiredError";
-  }
-}
-
-function rethrowGitAuthFromElectron(err: unknown): never {
-  if (err instanceof Error && err.message === "auth_required") {
-    throw new AuthRequiredError();
-  }
-  throw err instanceof Error ? err : new Error(String(err));
-}
-
-async function invokeGitBridge<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    rethrowGitAuthFromElectron(e);
-  }
-}
-
 export const filesApi = {
-  getTree: async (): Promise<FileNode> => {
-    const api = getElectronApi();
-    if (api?.files) return api.files.getTree();
-    throw new Error("Electron bridge not available");
-  },
   getContent: async (path: string): Promise<FileContentResponse> => {
     const api = getElectronApi();
     if (api?.files) return api.files.getContent(path);
@@ -120,48 +62,6 @@ export const filesApi = {
   ): Promise<{ status: string }> => {
     const api = getElectronApi();
     if (api?.files) return api.files.saveContent(path, content);
-    throw new Error("Electron bridge not available");
-  },
-  deleteContent: async (path: string): Promise<FileMutationResponse> => {
-    const api = getElectronApi();
-    if (api?.files) return api.files.deleteContent(path);
-    throw new Error("Electron bridge not available");
-  },
-  createFile: async (
-    parentPath: string,
-    name: string,
-  ): Promise<FileMutationResponse> => {
-    const api = getElectronApi();
-    if (api?.files) return api.files.createFile(parentPath, name);
-    throw new Error("Electron bridge not available");
-  },
-  createFolder: async (
-    parentPath: string,
-    name: string,
-  ): Promise<FileMutationResponse> => {
-    const api = getElectronApi();
-    if (api?.files) return api.files.createFolder(parentPath, name);
-    throw new Error("Electron bridge not available");
-  },
-  rename: async (
-    path: string,
-    newName: string,
-  ): Promise<FileMutationResponse> => {
-    const api = getElectronApi();
-    if (api?.files) return api.files.rename(path, newName);
-    throw new Error("Electron bridge not available");
-  },
-  copy: async (path: string): Promise<FileMutationResponse> => {
-    const api = getElectronApi();
-    if (api?.files) return api.files.copy(path);
-    throw new Error("Electron bridge not available");
-  },
-  move: async (
-    path: string,
-    targetParentPath: string,
-  ): Promise<FileMutationResponse> => {
-    const api = getElectronApi();
-    if (api?.files) return api.files.move(path, targetParentPath);
     throw new Error("Electron bridge not available");
   },
 };
@@ -386,373 +286,6 @@ export const llmApi = {
   },
 };
 
-export const gitApi = {
-  status: async (): Promise<GitStatus> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.status());
-    throw new Error("Electron bridge not available");
-  },
-  commit: async (
-    message: string,
-    files?: string[],
-  ): Promise<{ hash: string; message: string }> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.commit(message, files));
-    throw new Error("Electron bridge not available");
-  },
-  revertFile: async (
-    path: string,
-    untracked: boolean,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.git)
-      return invokeGitBridge(() => api.git!.revertFile(path, untracked));
-    throw new Error("Electron bridge not available");
-  },
-  revertDirectory: async (path: string): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.revertDirectory(path));
-    throw new Error("Electron bridge not available");
-  },
-  diff: async (): Promise<{ diff: string }> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.diff());
-    throw new Error("Electron bridge not available");
-  },
-  log: async (limit = 20): Promise<GitCommit[]> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.log(limit));
-    throw new Error("Electron bridge not available");
-  },
-  init: async (): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.init());
-    throw new Error("Electron bridge not available");
-  },
-  aheadBehind: async (): Promise<GitSyncStatus> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.aheadBehind());
-    throw new Error("Electron bridge not available");
-  },
-  sync: async (): Promise<{ action: string; details: string }> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.sync());
-    throw new Error("Electron bridge not available");
-  },
-  setCredentials: async (
-    username: string,
-    token: string,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.git)
-      return invokeGitBridge(() => api.git!.setCredentials(username, token));
-    throw new Error("Electron bridge not available");
-  },
-  fileHistory: async (path: string): Promise<GitCommit[]> => {
-    const api = getElectronApi();
-    if (api?.git) return invokeGitBridge(() => api.git!.fileHistory(path));
-    throw new Error("Electron bridge not available");
-  },
-  fileAtCommit: async (
-    path: string,
-    hash: string,
-  ): Promise<{
-    path: string;
-    hash: string;
-    content: string;
-    exists: boolean;
-  }> => {
-    const api = getElectronApi();
-    if (api?.git)
-      return invokeGitBridge(() => api.git!.fileAtCommit(path, hash));
-    throw new Error("Electron bridge not available");
-  },
-};
-
-export const chapterApi = {
-  list: async (structureRoot?: string | null): Promise<ChapterSummary[]> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.list(structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  getStructure: async (
-    id: string,
-    structureRoot?: string | null,
-  ): Promise<ChapterNode> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.getStructure(id, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  getFilePaths: async (
-    id: string,
-    structureRoot?: string | null,
-  ): Promise<ChapterFilePaths> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.getFilePaths(id, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  create: async (
-    title: string,
-    structureRoot?: string | null,
-  ): Promise<ChapterSummary> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.create(title, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  updateMeta: async (
-    chapterId: string,
-    meta: NodeMeta,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.updateMeta(chapterId, meta, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  getComments: async (
-    chapterId: string,
-    structureRoot?: string | null,
-  ): Promise<ChapterComment[]> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.getComments(chapterId, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  saveComments: async (
-    chapterId: string,
-    comments: ChapterComment[],
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.saveComments(chapterId, comments, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  generateComments: async (
-    chapterId: string,
-    chapterText: string,
-    categories: Pick<CommentCategoryDef, 'id' | 'promptFragment'>[],
-    freeText: string,
-    llmId?: string | null,
-    structureRoot?: string | null,
-  ): Promise<ChapterComment[]> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.generateComments(
-        chapterId,
-        chapterText,
-        categories,
-        freeText,
-        llmId,
-        structureRoot,
-      );
-    throw new Error("Electron bridge not available");
-  },
-  delete: async (
-    chapterId: string,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.delete(chapterId, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-
-  createScene: async (
-    chapterId: string,
-    title: string,
-    structureRoot?: string | null,
-  ): Promise<SceneNode> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.createScene(chapterId, title, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  updateSceneMeta: async (
-    chapterId: string,
-    sceneId: string,
-    meta: NodeMeta,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.updateSceneMeta(
-        chapterId,
-        sceneId,
-        meta,
-        structureRoot,
-      );
-    throw new Error("Electron bridge not available");
-  },
-  deleteScene: async (
-    chapterId: string,
-    sceneId: string,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.deleteScene(chapterId, sceneId, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-
-  createAction: async (
-    chapterId: string,
-    sceneId: string,
-    title: string,
-    structureRoot?: string | null,
-  ): Promise<ActionNode> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.createAction(chapterId, sceneId, title, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  updateActionMeta: async (
-    chapterId: string,
-    sceneId: string,
-    actionId: string,
-    meta: NodeMeta,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.updateActionMeta(
-        chapterId,
-        sceneId,
-        actionId,
-        meta,
-        structureRoot,
-      );
-    throw new Error("Electron bridge not available");
-  },
-  deleteAction: async (
-    chapterId: string,
-    sceneId: string,
-    actionId: string,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.deleteAction(
-        chapterId,
-        sceneId,
-        actionId,
-        structureRoot,
-      );
-    throw new Error("Electron bridge not available");
-  },
-
-  getActionContent: async (
-    chapterId: string,
-    sceneId: string,
-    actionId: string,
-    structureRoot?: string | null,
-  ): Promise<{ content: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.getActionContent(
-        chapterId,
-        sceneId,
-        actionId,
-        structureRoot,
-      );
-    throw new Error("Electron bridge not available");
-  },
-  saveActionContent: async (
-    chapterId: string,
-    sceneId: string,
-    actionId: string,
-    content: string,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.saveActionContent(
-        chapterId,
-        sceneId,
-        actionId,
-        content,
-        structureRoot,
-      );
-    throw new Error("Electron bridge not available");
-  },
-
-  reorderChapters: async (
-    ids: string[],
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.reorderChapters(ids, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  reorderScenes: async (
-    chapterId: string,
-    ids: string[],
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.reorderScenes(chapterId, ids, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  reorderActions: async (
-    chapterId: string,
-    sceneId: string,
-    ids: string[],
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.chapter)
-      return api.chapter.reorderActions(chapterId, sceneId, ids, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-
-  randomizeIds: async (
-    structureRoot?: string | null,
-  ): Promise<{ renamed: number }> => {
-    const api = getElectronApi();
-    if (api?.chapter) return api.chapter.randomizeIds(structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-};
-
-export const bookApi = {
-  getMeta: async (structureRoot?: string | null): Promise<NodeMeta> => {
-    const api = getElectronApi();
-    if (api?.book) return api.book.getMeta(structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-  updateMeta: async (
-    meta: NodeMeta,
-    structureRoot?: string | null,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.book) return api.book.updateMeta(meta, structureRoot);
-    throw new Error("Electron bridge not available");
-  },
-};
-
-export const subprojectApi = {
-  info: async (
-    path: string,
-  ): Promise<{ subproject: boolean; type?: string; name?: string }> => {
-    const api = getElectronApi();
-    if (api?.subproject) return api.subproject.info(path);
-    throw new Error("Electron bridge not available");
-  },
-  init: async (
-    path: string,
-    type: string,
-    name: string,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.subproject) return api.subproject.init(path, type, name);
-    throw new Error("Electron bridge not available");
-  },
-  remove: async (path: string): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.subproject) return api.subproject.remove(path);
-    throw new Error("Electron bridge not available");
-  },
-};
-
 export const wikiApi = {
   listFiles: async (): Promise<string[]> => {
     const api = getElectronApi();
@@ -776,55 +309,6 @@ export interface ContextBlock {
   estimatedTokens: number;
 }
 
-export const searchApi = {
-  query: async (query: string, limit = 200): Promise<SearchResponse> => {
-    const api = getElectronApi();
-    if (api?.search) return api.search.query(query, limit);
-    throw new Error("Electron bridge not available");
-  },
-};
-
-export type VectorIndexStatus = {
-  indexed: boolean;
-  indexedAt: string | null;
-  chunkCount: number;
-  embeddingModel: string | null;
-};
-
-export const vectorApi = {
-  status: async (): Promise<VectorIndexStatus> => {
-    const api = getElectronApi();
-    if (api?.vector) return api.vector.status();
-    throw new Error("Electron bridge not available");
-  },
-  index: async (): Promise<VectorIndexStatus> => {
-    const api = getElectronApi();
-    if (api?.vector) return api.vector.index();
-    throw new Error("Electron bridge not available");
-  },
-};
-
-export const typedFilesApi = {
-  getContent: async (path: string): Promise<TypedFileContentResponse> => {
-    const api = getElectronApi();
-    if (api?.typedFiles) return api.typedFiles.getContent(path);
-    throw new Error("Electron bridge not available");
-  },
-  saveContent: async (
-    path: string,
-    data: Record<string, unknown>,
-  ): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.typedFiles) return api.typedFiles.saveContent(path, data);
-    throw new Error("Electron bridge not available");
-  },
-  fill: async (path: string): Promise<TypedFileFillResponse> => {
-    const api = getElectronApi();
-    if (api?.typedFiles) return api.typedFiles.fill(path);
-    throw new Error("Electron bridge not available");
-  },
-};
-
 export const snapshotsApi = {
   get: async (id: string): Promise<SnapshotResponse> => {
     const api = getElectronApi();
@@ -842,30 +326,6 @@ export const snapshotsApi = {
     throw new Error("Electron bridge not available");
   },
 };
-
-export const arcApi = {
-  read: async (): Promise<ArcData> => {
-    const api = getElectronApi();
-    if (api?.arcs) return api.arcs.read();
-    throw new Error("Electron bridge not available");
-  },
-  write: async (data: ArcData): Promise<{ status: string }> => {
-    const api = getElectronApi();
-    if (api?.arcs) return api.arcs.write(data);
-    throw new Error("Electron bridge not available");
-  },
-  coverage: async (): Promise<ArcCoverage> => {
-    const api = getElectronApi();
-    if (api?.arcs) return api.arcs.coverage();
-    throw new Error("Electron bridge not available");
-  },
-};
-
-export async function getFileContentForChangeCard(
-  path: string,
-): Promise<ElectronFileContentResult> {
-  return filesApi.getContent(path);
-}
 
 function decodeElectronStreamData(data: string): string {
   return data.replace(/\\n/g, "\n");

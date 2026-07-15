@@ -41,8 +41,7 @@ export function buildNextMainChatRequest(params: {
     useReasoning: exec.useReasoning,
     llmId: exec.llmId,
     disabledToolkits: exec.disabledToolkits,
-    sessionKind: conv?.sessionKind ?? 'standard',
-    steeringPlan: conv?.sessionKind === 'guided' ? conv.steeringPlan ?? null : undefined,
+    sessionKind: conv?.sessionKind ?? 'navi',
     naviStateId: conv?.sessionKind === 'navi' ? conv.naviStateId ?? null : undefined,
     ...(rulesDisabled ? { rulesDisabled: true } : {}),
   };

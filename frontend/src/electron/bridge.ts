@@ -1,48 +1,18 @@
 import type {
-  ActionNode,
   AgentPreset,
   AppPreferences,
-  ChapterComment,
-  ChapterFilePaths,
   CommentCategoryDef,
-  ChapterNode,
-  ChapterSummary,
   ChatMessage,
   ChatRequest,
-  EnsembleProgressEvent,
-  EnsembleRunRequest,
   FileNode,
-  GitCommit,
-  GitStatus,
-  GitSyncStatus,
   LlmsListResponse,
   LlmPublic,
   Mode,
-  NodeMeta,
   Persona,
   ProjectConfig,
-  SceneNode,
   WorkspaceModeInfo,
   WorkspaceModeSchema,
 } from "../types.ts";
-
-export interface SearchHit {
-  path: string;
-  line: number;
-  preview: string;
-}
-
-export interface SearchResponse {
-  hits: SearchHit[];
-}
-
-export interface TypedFileContentResult {
-  data: Record<string, unknown>;
-}
-
-export interface TypedFileFillResult {
-  data: Record<string, unknown>;
-}
 
 export interface ContextBlock {
   type: string;
@@ -149,17 +119,6 @@ export interface FileContentResult {
   lines: number;
 }
 
-export interface FileMutationResult {
-  status: string;
-  path: string;
-}
-
-export interface SubprojectInfoResult {
-  subproject: boolean;
-  type?: string;
-  name?: string;
-}
-
 export interface AppBridge {
   platform: NodeJS.Platform;
   isElectron: boolean;
@@ -180,44 +139,12 @@ export interface AppBridge {
     }>;
   };
   files?: {
-    getTree: () => Promise<FileNode>;
     getContent: (path: string) => Promise<FileContentResult>;
     saveContent: (path: string, content: string) => Promise<{ status: string }>;
-    deleteContent: (path: string) => Promise<FileMutationResult>;
-    createFile: (
-      parentPath: string,
-      name: string,
-    ) => Promise<FileMutationResult>;
-    createFolder: (
-      parentPath: string,
-      name: string,
-    ) => Promise<FileMutationResult>;
-    rename: (path: string, newName: string) => Promise<FileMutationResult>;
-    copy: (path: string) => Promise<FileMutationResult>;
-    move: (
-      path: string,
-      targetParentPath: string,
-    ) => Promise<FileMutationResult>;
-  };
-  subproject?: {
-    info: (path: string) => Promise<SubprojectInfoResult>;
-    init: (
-      path: string,
-      type: string,
-      name: string,
-    ) => Promise<{ status: string }>;
-    remove: (path: string) => Promise<{ status: string }>;
   };
   wiki?: {
     listFiles: () => Promise<string[]>;
     search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
-  };
-  arcs?: {
-    read: () => Promise<import('../types.ts').ArcData>;
-    write: (
-      data: import('../types.ts').ArcData,
-    ) => Promise<{ status: string }>;
-    coverage: () => Promise<import('../types.ts').ArcCoverage>;
   };
   snapshots?: {
     get: (id: string) => Promise<SnapshotData>;
@@ -269,166 +196,6 @@ export interface AppBridge {
     update: (id: string, body: LlmUpdateRequest) => Promise<LlmPublic>;
     remove: (id: string) => Promise<{ status: string }>;
   };
-  search?: {
-    query: (q: string, limit?: number) => Promise<SearchResponse>;
-  };
-  vector?: {
-    status: () => Promise<{
-      indexed: boolean;
-      indexedAt: string | null;
-      chunkCount: number;
-      embeddingModel: string | null;
-    }>;
-    index: () => Promise<{
-      indexed: boolean;
-      indexedAt: string | null;
-      chunkCount: number;
-      embeddingModel: string | null;
-    }>;
-  };
-  git?: {
-    status: () => Promise<GitStatus>;
-    commit: (
-      message: string,
-      files?: string[],
-    ) => Promise<{ hash: string; message: string }>;
-    revertFile: (path: string, untracked: boolean) => Promise<{ status: string }>;
-    revertDirectory: (path: string) => Promise<{ status: string }>;
-    diff: () => Promise<{ diff: string }>;
-    log: (limit?: number) => Promise<GitCommit[]>;
-    init: () => Promise<{ status: string }>;
-    aheadBehind: () => Promise<GitSyncStatus>;
-    sync: () => Promise<{ action: string; details: string }>;
-    setCredentials: (username: string, token: string) => Promise<{ status: string }>;
-    fileHistory: (path: string) => Promise<GitCommit[]>;
-    fileAtCommit: (
-      path: string,
-      hash: string,
-    ) => Promise<{ path: string; hash: string; content: string; exists: boolean }>;
-  };
-  chapter?: {
-    list: (structureRoot?: string | null) => Promise<ChapterSummary[]>;
-    getStructure: (
-      chapterId: string,
-      structureRoot?: string | null,
-    ) => Promise<ChapterNode>;
-    getFilePaths: (
-      chapterId: string,
-      structureRoot?: string | null,
-    ) => Promise<ChapterFilePaths>;
-    create: (
-      title: string,
-      structureRoot?: string | null,
-    ) => Promise<ChapterSummary>;
-    updateMeta: (
-      chapterId: string,
-      meta: NodeMeta,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    getComments: (
-      chapterId: string,
-      structureRoot?: string | null,
-    ) => Promise<ChapterComment[]>;
-    saveComments: (
-      chapterId: string,
-      comments: ChapterComment[],
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    generateComments: (
-      chapterId: string,
-      chapterText: string,
-      categories: Pick<CommentCategoryDef, 'id' | 'promptFragment'>[],
-      freeText: string,
-      llmId?: string | null,
-      structureRoot?: string | null,
-    ) => Promise<ChapterComment[]>;
-    delete: (
-      chapterId: string,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    createScene: (
-      chapterId: string,
-      title: string,
-      structureRoot?: string | null,
-    ) => Promise<SceneNode>;
-    updateSceneMeta: (
-      chapterId: string,
-      sceneId: string,
-      meta: NodeMeta,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    deleteScene: (
-      chapterId: string,
-      sceneId: string,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    createAction: (
-      chapterId: string,
-      sceneId: string,
-      title: string,
-      structureRoot?: string | null,
-    ) => Promise<ActionNode>;
-    updateActionMeta: (
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      meta: NodeMeta,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    deleteAction: (
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    getActionContent: (
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      structureRoot?: string | null,
-    ) => Promise<{ content: string }>;
-    saveActionContent: (
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      content: string,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    reorderChapters: (
-      ids: string[],
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    reorderScenes: (
-      chapterId: string,
-      ids: string[],
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    reorderActions: (
-      chapterId: string,
-      sceneId: string,
-      ids: string[],
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-    randomizeIds: (
-      structureRoot?: string | null,
-    ) => Promise<{ renamed: number }>;
-  };
-  book?: {
-    getMeta: (structureRoot?: string | null) => Promise<NodeMeta>;
-    updateMeta: (
-      meta: NodeMeta,
-      structureRoot?: string | null,
-    ) => Promise<{ status: string }>;
-  };
-  typedFiles?: {
-    list: () => Promise<Array<{ relativePath: string; label: string }>>;
-    getContent: (path: string) => Promise<TypedFileContentResult>;
-    saveContent: (
-      path: string,
-      data: Record<string, unknown>,
-    ) => Promise<{ status: string }>;
-    fill: (path: string) => Promise<TypedFileFillResult>;
-  };
   simulation?: {
     listBooks: () => Promise<Array<{
       structureRoot: string | null;
@@ -450,13 +217,6 @@ export interface AppBridge {
       transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
       llmId?: string | null;
     }) => Promise<{ score: number; report: string }>;
-  };
-  ensemble?: {
-    run: (req: EnsembleRunRequest) => Promise<{ runId: string }>;
-    onEvent: (
-      runId: string,
-      listener: (ev: EnsembleProgressEvent) => void,
-    ) => { unsubscribe: () => void };
   };
   persona?: {
     list: () => Promise<Persona[]>;

@@ -1,9 +1,8 @@
 import "./installConsoleTimestamps.js";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem, screen } from "electron";
-import fs from "node:fs/promises";
 import path from "node:path";
+import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import type { ChapterComment, NodeMeta } from "../src/types.js";
 import {
   browseForProject,
   getCurrentProject,
@@ -11,17 +10,7 @@ import {
   openProject,
   revealProject,
 } from "./services/projectService.js";
-import {
-  copyPath,
-  createFile,
-  createFolder,
-  deleteContent,
-  getContent,
-  getTree,
-  movePath,
-  renamePath,
-  saveContent,
-} from "./services/filesService.js";
+import { getContent, saveContent } from "./services/filesService.js";
 import {
   deleteProjectAgent as removeAgentPreset,
   deleteProjectMode as removeProjectMode,
@@ -45,20 +34,10 @@ import {
   resetProjectCommentCategories,
 } from "./services/projectConfigService.js";
 import {
-  getSubprojectInfo,
-  initSubproject,
-  removeSubproject,
-} from "./services/subprojectService.js";
-import { listWikiFiles, searchWiki } from "./services/wikiService.js";
-import { readArcs, writeArcs, computeArcCoverage } from "./services/arcService.js";
-import type { ArcData } from "../src/types.js";
-import {
   previewChatContext,
   startChatStream,
   stopChatStream,
   generateThreadSummary,
-  generateChapterComments,
-  type ChapterCommentCategoryInput,
   generateSimulatedUserReply,
   type SimulatedUserReplyRequest,
   evaluateNaviSimulation,
@@ -71,54 +50,27 @@ import {
   updateProvider,
 } from "./services/aiProviderService.js";
 import {
-  applySnapshot,
-  getSnapshot,
-  revertSnapshot,
-} from "./services/snapshotService.js";
-import {
-  fillTypedFile,
-  getTypedFileContent,
-  saveTypedFileContent,
-  listTypedFiles,
-} from "./services/typedFilesService.js";
-import {
   writeSimulationResult,
   readSimulationResult,
   listSimulationResults,
   listSimulationBooks,
 } from "./services/simulationService.js";
 import {
-  runEnsembleScene,
-  type EnsembleRunRequest,
-} from "./services/ensembleService.js";
-import {
   listPersonas,
   readPersona,
   writePersona,
   deletePersona,
 } from "./services/personaService.js";
-import { searchProjectContent } from "./services/searchService.js";
-import { indexProject, getIndexStatus } from "./services/vectorService.js";
-import { listProviders, resolveEmbeddingCredentials } from "./services/aiProviderService.js";
-import {
-  gitAheadBehind,
-  gitCommit,
-  gitDiff,
-  gitFileAtCommit,
-  gitFileHistory,
-  gitInit,
-  gitLog,
-  gitRevertDirectory,
-  gitRevertFile,
-  gitStatus,
-  gitSync,
-  setGitCredentials,
-} from "./services/gitService.js";
-import * as chapterService from "./services/chapterService.js";
 import {
   getPreferences,
   patchPreferences,
 } from "./services/preferencesService.js";
+import { listWikiFiles, searchWiki } from "./services/wikiService.js";
+import {
+  getSnapshot,
+  applySnapshot,
+  revertSnapshot,
+} from "./services/snapshotService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,7 +83,6 @@ function registerIpcHandlers(): void {
     openProject(projectPath),
   );
 
-  ipcMain.handle("files:getTree", () => getTree(getCurrentProjectPath()));
   ipcMain.handle("files:getContent", (_event, filePath: string) =>
     getContent(getCurrentProjectPath(), filePath),
   );
@@ -140,59 +91,30 @@ function registerIpcHandlers(): void {
     (_event, filePath: string, content: string) =>
       saveContent(getCurrentProjectPath(), filePath, content),
   );
-  ipcMain.handle("files:deleteContent", (_event, filePath: string) =>
-    deleteContent(getCurrentProjectPath(), filePath),
-  );
-  ipcMain.handle(
-    "files:createFile",
-    (_event, parentPath: string, name: string) =>
-      createFile(getCurrentProjectPath(), parentPath, name),
-  );
-  ipcMain.handle(
-    "files:createFolder",
-    (_event, parentPath: string, name: string) =>
-      createFolder(getCurrentProjectPath(), parentPath, name),
-  );
-  ipcMain.handle("files:rename", (_event, filePath: string, newName: string) =>
-    renamePath(getCurrentProjectPath(), filePath, newName),
-  );
-  ipcMain.handle("files:copy", (_event, filePath: string) =>
-    copyPath(getCurrentProjectPath(), filePath),
-  );
-  ipcMain.handle(
-    "files:move",
-    (_event, filePath: string, targetParentPath: string) =>
-      movePath(getCurrentProjectPath(), filePath, targetParentPath),
-  );
 
-  ipcMain.handle("subproject:info", (_event, targetPath: string) =>
-    getSubprojectInfo(getCurrentProjectPath(), targetPath),
-  );
-  ipcMain.handle(
-    "subproject:init",
-    (_event, targetPath: string, type: string, name: string) =>
-      initSubproject(getCurrentProjectPath(), targetPath, type, name),
-  );
-  ipcMain.handle("subproject:remove", (_event, targetPath: string) =>
-    removeSubproject(getCurrentProjectPath(), targetPath),
+  ipcMain.handle("chat:previewContext", (_event, body) =>
+    previewChatContext(getCurrentProjectPath(), body),
   );
 
   ipcMain.handle("wiki:listFiles", () =>
     listWikiFiles(getCurrentProjectPath()),
   );
-  ipcMain.handle("wiki:search", (_event, query: string, limit?: number) =>
-    searchWiki(getCurrentProjectPath(), query, limit),
+  ipcMain.handle("wiki:search", (_event, q: string, limit?: number) =>
+    searchWiki(getCurrentProjectPath(), q, limit),
   );
 
-  ipcMain.handle("arcs:read", () => readArcs(getCurrentProjectPath()));
-  ipcMain.handle("arcs:write", (_event, data: ArcData) =>
-    writeArcs(getCurrentProjectPath(), data),
-  );
-  ipcMain.handle("arcs:coverage", () => computeArcCoverage(getCurrentProjectPath()));
-
-  ipcMain.handle("chat:previewContext", (_event, body) =>
-    previewChatContext(getCurrentProjectPath(), body),
-  );
+  ipcMain.handle("snapshots:get", (_event, id: string) => getSnapshot(id));
+  ipcMain.handle("snapshots:apply", (_event, id: string) => applySnapshot(id));
+  ipcMain.handle("snapshots:revert", async (_event, id: string) => {
+    const root = getCurrentProjectPath();
+    if (!root) {
+      return null;
+    }
+    return revertSnapshot(id, {
+      writeFile: (filePath, content) => fs.writeFile(filePath, content, "utf8"),
+      deleteFile: (filePath) => fs.unlink(filePath),
+    });
+  });
   ipcMain.handle("chat:startStream", (event, body) => {
     const { streamId } = startChatStream(
       getCurrentProjectPath(),
@@ -252,417 +174,6 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("llms:remove", (_event, id: string) => deleteProvider(id));
 
-  ipcMain.handle("snapshots:get", (_event, id: string) => getSnapshot(id));
-  ipcMain.handle("snapshots:apply", (_event, id: string) => applySnapshot(id));
-  ipcMain.handle("snapshots:revert", async (_event, id: string) => {
-    const root = getCurrentProjectPath();
-    if (!root) {
-      return null;
-    }
-    return revertSnapshot(id, {
-      writeFile: (filePath, content) => fs.writeFile(filePath, content, "utf8"),
-      deleteFile: (filePath) => fs.unlink(filePath),
-    });
-  });
-
-  ipcMain.handle("search:project", (_event, query: string, limit?: number) =>
-    searchProjectContent(getCurrentProjectPath(), query, limit),
-  );
-
-  ipcMain.handle("vector:status", async () => {
-    const projectPath = getCurrentProjectPath();
-    if (!projectPath) return { indexed: false, indexedAt: null, chunkCount: 0, embeddingModel: null };
-    return getIndexStatus(projectPath);
-  });
-
-  ipcMain.handle("vector:index", async () => {
-    const projectPath = getCurrentProjectPath();
-    if (!projectPath) throw new Error("No project is currently open.");
-    const providers = await listProviders();
-    const provider = providers[0];
-    if (!provider) {
-      throw new Error("No AI provider configured.");
-    }
-    const creds = resolveEmbeddingCredentials(provider, false);
-    if (!creds) {
-      throw new Error(
-        "No usable API URL and key for embeddings. Configure Fast or Reasoning on an AI provider.",
-      );
-    }
-    return indexProject(projectPath, {
-      apiUrl: creds.apiUrl,
-      apiKey: creds.apiKey,
-    });
-  });
-
-  ipcMain.handle("git:status", () => gitStatus(getCurrentProjectPath()));
-  ipcMain.handle("git:commit", (_event, message: string, files?: string[]) =>
-    gitCommit(getCurrentProjectPath(), message, files),
-  );
-  ipcMain.handle(
-    "git:revertFile",
-    (_event, filePath: string, untracked: boolean) =>
-      gitRevertFile(getCurrentProjectPath(), filePath, untracked),
-  );
-  ipcMain.handle("git:revertDirectory", (_event, dirPath: string) =>
-    gitRevertDirectory(getCurrentProjectPath(), dirPath),
-  );
-  ipcMain.handle("git:diff", () => gitDiff(getCurrentProjectPath()));
-  ipcMain.handle("git:log", (_event, limit?: number) =>
-    gitLog(getCurrentProjectPath(), limit ?? 20),
-  );
-  ipcMain.handle("git:init", () => gitInit(getCurrentProjectPath()));
-  ipcMain.handle("git:aheadBehind", () => gitAheadBehind(getCurrentProjectPath()));
-  ipcMain.handle("git:sync", () => gitSync(getCurrentProjectPath()));
-  ipcMain.handle("git:setCredentials", (_event, username: string, token: string) =>
-    setGitCredentials(username, token),
-  );
-  ipcMain.handle("git:fileHistory", (_event, filePath: string) =>
-    gitFileHistory(getCurrentProjectPath(), filePath),
-  );
-  ipcMain.handle("git:fileAtCommit", (_event, filePath: string, hash: string) =>
-    gitFileAtCommit(getCurrentProjectPath(), filePath, hash),
-  );
-
-  ipcMain.handle(
-    "chapter:list",
-    (_event, structureRoot?: string | null) =>
-      chapterService.listChapters(
-        getCurrentProjectPath(),
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "chapter:getStructure",
-    (_event, chapterId: string, structureRoot?: string | null) =>
-      chapterService.getChapterStructure(
-        getCurrentProjectPath(),
-        chapterId,
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "chapter:filePaths",
-    (_event, chapterId: string, structureRoot?: string | null) =>
-      chapterService.getChapterFilePaths(
-        getCurrentProjectPath(),
-        chapterId,
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "chapter:create",
-    (_event, title: string, structureRoot?: string | null) =>
-      chapterService.createChapter(
-        getCurrentProjectPath(),
-        title,
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "chapter:updateMeta",
-    async (
-      _event,
-      chapterId: string,
-      meta: unknown,
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.updateChapterMeta(
-        getCurrentProjectPath(),
-        chapterId,
-        meta as NodeMeta,
-        structureRoot ?? null,
-      );
-      return { status: "updated" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:getComments",
-    (_event, chapterId: string, structureRoot?: string | null) =>
-      chapterService.readChapterComments(
-        getCurrentProjectPath(),
-        chapterId,
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "chapter:saveComments",
-    async (
-      _event,
-      chapterId: string,
-      comments: unknown,
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.writeChapterComments(
-        getCurrentProjectPath(),
-        chapterId,
-        (comments as ChapterComment[]) ?? [],
-        structureRoot ?? null,
-      );
-      return { status: "saved" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:generateComments",
-    async (
-      _event,
-      chapterId: string,
-      chapterText: string,
-      categories: ChapterCommentCategoryInput[],
-      freeText: string,
-      llmId?: string | null,
-      structureRoot?: string | null,
-    ) => {
-      const comments = await generateChapterComments(
-        chapterText,
-        Array.isArray(categories) ? categories : [],
-        typeof freeText === "string" ? freeText : "",
-        llmId ?? null,
-      );
-      await chapterService.writeChapterComments(
-        getCurrentProjectPath(),
-        chapterId,
-        comments,
-        structureRoot ?? null,
-      );
-      return comments;
-    },
-  );
-  ipcMain.handle(
-    "chapter:delete",
-    async (_event, chapterId: string, structureRoot?: string | null) => {
-      await chapterService.deleteChapter(
-        getCurrentProjectPath(),
-        chapterId,
-        structureRoot ?? null,
-      );
-      return { status: "deleted" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:createScene",
-    (
-      _event,
-      chapterId: string,
-      title: string,
-      structureRoot?: string | null,
-    ) =>
-      chapterService.createScene(
-        getCurrentProjectPath(),
-        chapterId,
-        title,
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "chapter:updateSceneMeta",
-    async (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      meta: unknown,
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.updateSceneMeta(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        meta as NodeMeta,
-        structureRoot ?? null,
-      );
-      return { status: "updated" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:deleteScene",
-    async (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.deleteScene(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        structureRoot ?? null,
-      );
-      return { status: "deleted" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:createAction",
-    (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      title: string,
-      structureRoot?: string | null,
-    ) =>
-      chapterService.createAction(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        title,
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "chapter:updateActionMeta",
-    async (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      meta: unknown,
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.updateActionMeta(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        actionId,
-        meta as NodeMeta,
-        structureRoot ?? null,
-      );
-      return { status: "updated" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:deleteAction",
-    async (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.deleteAction(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        actionId,
-        structureRoot ?? null,
-      );
-      return { status: "deleted" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:getActionContent",
-    async (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      structureRoot?: string | null,
-    ) => {
-      const content = await chapterService.readActionContent(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        actionId,
-        structureRoot ?? null,
-      );
-      return { content };
-    },
-  );
-  ipcMain.handle(
-    "chapter:saveActionContent",
-    async (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      actionId: string,
-      content: string,
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.writeActionContent(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        actionId,
-        content,
-        structureRoot ?? null,
-      );
-      return { status: "saved" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:reorderChapters",
-    async (_event, ids: string[], structureRoot?: string | null) => {
-      await chapterService.reorderChapters(
-        getCurrentProjectPath(),
-        ids,
-        structureRoot ?? null,
-      );
-      return { status: "reordered" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:reorderScenes",
-    async (
-      _event,
-      chapterId: string,
-      ids: string[],
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.reorderScenes(
-        getCurrentProjectPath(),
-        chapterId,
-        ids,
-        structureRoot ?? null,
-      );
-      return { status: "reordered" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:reorderActions",
-    async (
-      _event,
-      chapterId: string,
-      sceneId: string,
-      ids: string[],
-      structureRoot?: string | null,
-    ) => {
-      await chapterService.reorderActions(
-        getCurrentProjectPath(),
-        chapterId,
-        sceneId,
-        ids,
-        structureRoot ?? null,
-      );
-      return { status: "reordered" };
-    },
-  );
-  ipcMain.handle(
-    "chapter:randomizeIds",
-    (_event, structureRoot?: string | null) =>
-      chapterService.randomizeIds(
-        getCurrentProjectPath(),
-        structureRoot ?? null,
-      ),
-  );
-
-  ipcMain.handle(
-    "book:getMeta",
-    (_event, structureRoot?: string | null) =>
-      chapterService.getBookMeta(
-        getCurrentProjectPath(),
-        structureRoot ?? null,
-      ),
-  );
-  ipcMain.handle(
-    "book:updateMeta",
-    async (_event, meta: unknown, structureRoot?: string | null) => {
-      await chapterService.updateBookMeta(
-        getCurrentProjectPath(),
-        meta as NodeMeta,
-        structureRoot ?? null,
-      );
-      return { status: "updated" };
-    },
-  );
-
   ipcMain.handle("simulation:listBooks", () =>
     listSimulationBooks(getCurrentProjectPath()),
   );
@@ -688,23 +199,6 @@ function registerIpcHandlers(): void {
       evaluateNaviSimulation(req),
   );
 
-  ipcMain.handle("ensemble:run", (event, req: EnsembleRunRequest) => {
-    const runId = `ens-${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}`;
-    const send = (payload: Record<string, unknown>) =>
-      event.sender.send("ensemble:event", { runId, ...payload });
-    void runEnsembleScene(getCurrentProjectPath(), req, (ev) => send(ev))
-      .then((result) => send({ phase: "done", result }))
-      .catch((err) =>
-        send({
-          phase: "error",
-          message: err instanceof Error ? err.message : String(err),
-        }),
-      );
-    return { runId };
-  });
-
   ipcMain.handle("persona:list", () => listPersonas());
   ipcMain.handle("persona:read", (_event, id: string) => readPersona(id));
   ipcMain.handle(
@@ -713,25 +207,6 @@ function registerIpcHandlers(): void {
       writePersona(name, description),
   );
   ipcMain.handle("persona:delete", (_event, id: string) => deletePersona(id));
-
-  ipcMain.handle("typedFiles:list", () =>
-    listTypedFiles(getCurrentProjectPath()),
-  );
-  ipcMain.handle("typedFiles:fill", (_event, filePath: string) =>
-    fillTypedFile(getCurrentProjectPath(), filePath),
-  );
-  ipcMain.handle("typedFiles:getContent", (_event, filePath: string) =>
-    getTypedFileContent(getCurrentProjectPath(), filePath),
-  );
-  ipcMain.handle(
-    "typedFiles:saveContent",
-    (_event, filePath: string, data: unknown) =>
-      saveTypedFileContent(
-        getCurrentProjectPath(),
-        filePath,
-        data as Record<string, unknown>,
-      ),
-  );
 
   ipcMain.handle("projectConfig:status", () =>
     getProjectConfigStatus(getCurrentProjectPath()),
