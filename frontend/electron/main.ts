@@ -145,6 +145,12 @@ function createWindow(): void {
   });
   // win.webContents.openDevTools();
 
+  win.webContents.on("before-input-event", (_event, input) => {
+    if (input.type === "keyDown" && input.key === "F12") {
+      win.webContents.toggleDevTools();
+    }
+  });
+
   win.webContents.on("context-menu", (_event, params) => {
     if (pendingSpellFixWindowId === win.id) {
       pendingSpellFixWindowId = null;
