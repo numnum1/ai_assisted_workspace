@@ -31,7 +31,6 @@ import type {
   NodeMeta,
   SelectionContext,
   AltVersionSession,
-  ChatRequest,
   LlmPublic,
   ReasoningEffort,
 } from "./types.ts";
@@ -42,7 +41,6 @@ import {
   llmApi,
   vectorApi,
   gitApi,
-  streamChat,
   filesApi,
 } from "./api.ts";
 import { collectBookProjects } from "./utils/bookProjects.ts";
@@ -60,7 +58,7 @@ import { ArcTimeline } from "./components/arcs/ArcTimeline.tsx";
 import { getAppBridge, isRunningInElectron } from "./electron/bridge.ts";
 import { getMediaProjectPlugin } from "./mediaProjectRegistry.ts";
 import { DefaultMediaProjectEditor } from "./media/DefaultMediaProjectEditor.tsx";
-import { AlternativeVersionPanel } from "./components/editor/AlternativeVersionPanel.tsx";
+import { InlineChatWindow } from "./components/editor/InlineChatWindow.tsx";
 import { resolveDefaultModeId } from "./components/chat/effectiveChatModeForRequest.ts";
 import {
   loadInitialDisabledToolkits,
@@ -97,8 +95,8 @@ function App() {
   const [llms, setLlms] = useState<LlmPublic[]>([]);
   const llmsRef = useRef(llms);
   llmsRef.current = llms;
-  const [disabledToolkits] = useState(loadInitialDisabledToolkits);
-  const [rulesEnabled] = useState(loadInitialRulesEnabled);
+  const [disabledToolkits, setDisabledToolkits] = useState(loadInitialDisabledToolkits);
+  const [rulesEnabled, setRulesEnabled] = useState(loadInitialRulesEnabled);
 
   // Apply user appearance preferences as CSS variables on the document root
   useEffect(() => {
@@ -233,37 +231,97 @@ function App() {
     setAltVersionSession(session);
   }, []);
 
-  // Inline AI: stream a one-shot completion for the AltVersion / inline panel.
-  // Self-contained prompt (no chat history, minimal context) so the model returns
-  // clean prose to drop straight into the editor. Uses the currently selected mode
-  // so the writing persona carries over.
-  const inlineGenerate = useCallback(
+  // Experimental: Alt+W opens the full standard chat (InlineChatWindow) instead
+  // of the lightweight one-shot generator, docked near the selection.
+  const [inlineChatFiles, setInlineChatFiles] = useState<string[]>([]);
+
+  const handleInlineChatAddFile = useCallback((path: string) => {
+    setInlineChatFiles((prev) => (prev.includes(path) ? prev : [...prev, path]));
+  }, []);
+
+  const handleInlineChatRemoveFile = useCallback((path: string) => {
+    setInlineChatFiles((prev) => prev.filter((p) => p !== path));
+  }, []);
+
+  const handleInlineChatSend = useCallback(
     (
-      prompt: string,
-      cbs: {
-        onToken: (t: string) => void;
-        onDone: (full: string) => void;
-        onError: (e: Error) => void;
+      text: string,
+      selection: SelectionContext | null,
+      clarificationData?: {
+        questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
+        selected: Record<number, string[]>;
       },
     ) => {
-      const request: ChatRequest = {
-        message: prompt,
-        activeFieldKey: null,
-        mode: selectedModeRef.current,
-        referencedFiles: [],
-        history: [],
-        useReasoning: false,
-        quickChat: true,
-      };
-      return streamChat(
-        request,
-        cbs.onToken,
-        () => {},
-        cbs.onDone,
-        cbs.onError,
+      const mode = modes.find((m) => m.id === selectedMode);
+      chat.sendMessage(
+        text,
+        selectedMode,
+        inlineChatFiles,
+        mode?.name,
+        mode?.color,
+        useReasoning,
+        modeLlmId,
+        selection ?? undefined,
+        null,
+        disabledToolkits.size > 0 ? [...disabledToolkits] : undefined,
+        {
+          ...(clarificationData ? { clarificationData } : {}),
+          ...(rulesEnabled ? {} : { rulesDisabled: true }),
+          reasoningEffort,
+        },
       );
     },
-    [],
+    [modes, selectedMode, inlineChatFiles, useReasoning, modeLlmId, disabledToolkits, rulesEnabled, reasoningEffort, chat],
+  );
+
+  const handleInlineChatToggleToolkit = useCallback((kitId: string) => {
+    setDisabledToolkits((prev) => {
+      const next = new Set(prev);
+      if (next.has(kitId)) next.delete(kitId);
+      else next.add(kitId);
+      return next;
+    });
+  }, []);
+
+  const handleInlineChatEditMessage = useCallback(
+    (index: number, newContent: string) => {
+      chat.editMessage(index, newContent, {
+        mode: selectedMode,
+        referencedFiles: inlineChatFiles,
+        useReasoning,
+        reasoningEffort,
+        llmId: modeLlmId,
+        disabledToolkits: disabledToolkits.size > 0 ? [...disabledToolkits] : undefined,
+        conversationId: history.activeId,
+        rulesDisabled: !rulesEnabled,
+      });
+    },
+    [chat, selectedMode, inlineChatFiles, useReasoning, reasoningEffort, modeLlmId, disabledToolkits, history.activeId, rulesEnabled],
+  );
+
+  const handleInlineChatForkToNew = useCallback(
+    (index: number) => {
+      const sliced = chat.messages.slice(0, index + 1);
+      history.createConversation(selectedMode, sliced, `Verzweigt: ${history.activeConversation.title}`);
+    },
+    [chat.messages, selectedMode, history],
+  );
+
+  const handleInlineChatStartThread = useCallback(
+    (messageIndex: number) => {
+      const sliced = chat.messages.slice(0, messageIndex + 1);
+      const parentId = history.activeId;
+      const newConv = history.createConversation(selectedMode, sliced, "Thread");
+      history.patchConversation(newConv.id, { isThread: true, parentConversationId: parentId });
+    },
+    [chat.messages, selectedMode, history],
+  );
+
+  const handleInlineChatSettleSnapshots = useCallback(
+    (patch: Record<string, "applied" | "reverted">) => {
+      history.settleWriteFileSnapshots(history.activeId, patch);
+    },
+    [history],
   );
 
   // Project root changes: reset structure and editor state, then default into the chapter view
@@ -998,10 +1056,57 @@ function App() {
       <ArcTimeline open={arcsOpen} onClose={() => setArcsOpen(false)} />
 
       {altVersionSession && (
-        <AlternativeVersionPanel
+        <InlineChatWindow
           session={altVersionSession}
           onClose={() => setAltVersionSession(null)}
-          onGenerate={inlineGenerate}
+          messages={chat.messages}
+          streaming={chat.streaming}
+          error={chat.error}
+          toolActivity={chat.toolActivity}
+          modes={modes}
+          selectedMode={selectedMode}
+          referencedFiles={inlineChatFiles}
+          conversations={history.conversations}
+          activeConversationId={history.activeId}
+          useReasoning={useReasoning}
+          onToggleReasoning={() => setUseReasoning((v) => !v)}
+          reasoningEffort={reasoningEffort}
+          onReasoningEffortChange={setReasoningEffort}
+          disabledToolkits={disabledToolkits}
+          onToggleToolkit={handleInlineChatToggleToolkit}
+          rulesEnabled={rulesEnabled}
+          onToggleRules={() => setRulesEnabled((v) => !v)}
+          onModeChange={(id) => handleModeChange(id)}
+          onSend={handleInlineChatSend}
+          onStop={chat.stopStreaming}
+          onAddFile={handleInlineChatAddFile}
+          onRemoveFile={handleInlineChatRemoveFile}
+          onForkFromMessage={chat.forkFromMessage}
+          onForkToNewConversation={handleInlineChatForkToNew}
+          onStartThreadFromMessage={handleInlineChatStartThread}
+          onEditMessage={handleInlineChatEditMessage}
+          onDeleteMessages={chat.deleteMessages}
+          onSetMessageFeedback={chat.setMessageFeedback}
+          onNewChat={(title) => history.createConversation(selectedMode, undefined, title)}
+          onDiscardCurrentChat={(title) => history.discardActiveAndCreateConversation(selectedMode, title)}
+          onSwitchChat={history.switchConversation}
+          onDeleteChat={history.deleteConversation}
+          onRenameChat={history.renameConversation}
+          onToggleSavedToProject={history.toggleSavedToProject}
+          onClearAllBrowserChats={history.clearAllBrowserChats}
+          clearAllBrowserChatsDisabled={false}
+          onOpenArcs={() => setArcsOpen(true)}
+          structureRoot={chapter.structureRoot}
+          onRetry={chat.retry}
+          writeFileSettled={history.activeConversation.writeFileSettled}
+          onSettleSnapshots={handleInlineChatSettleSnapshots}
+          llms={llms}
+          selectedLlmId={modeLlmId}
+          onLlmChange={setModeLlmId}
+          theme={preferences.appearance.theme === "light" ? "light" : "dark"}
+          contextInfo={chat.contextInfo}
+          activeFile={null}
+          isDirty={false}
         />
       )}
     </div>

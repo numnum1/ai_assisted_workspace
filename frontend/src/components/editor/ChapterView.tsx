@@ -905,6 +905,29 @@ export function ChapterView({
     return () => window.removeEventListener('keydown', handler);
   }, [onSaveAll]);
 
+  // Alt+W fallback: on Windows/Electron a bare Alt press sometimes steals DOM
+  // focus (menu-mnemonic handling) before "w" arrives, so the action editor's own
+  // 'Alt-w' CodeMirror keymap binding never fires. This window-level listener
+  // recovers the session from the last-focused action's editor handle instead of
+  // relying on live focus. Skipped when CodeMirror already handled it
+  // (e.defaultPrevented) or when focus is in an unrelated text field (e.g. chat).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.altKey || (e.key !== 'w' && e.key !== 'W')) return;
+      if (e.defaultPrevented) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) return;
+      const actionId = focusedActionIdRef.current;
+      if (!actionId) return;
+      const session = actionHandles.current.get(actionId)?.getAltVersionSession();
+      if (!session) return;
+      e.preventDefault();
+      handleAltVersionEnriched(session);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleAltVersionEnriched]);
+
   const adjustFontSize = useCallback((delta: number) => {
     setFontSize(prev => {
       const next = delta > 0 ? Math.min(prev + 1, 30) : Math.max(prev - 1, 10);

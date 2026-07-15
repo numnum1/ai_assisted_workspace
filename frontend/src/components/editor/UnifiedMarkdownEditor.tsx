@@ -60,6 +60,14 @@ export interface MarkdownEditorHandle {
    * appears more than once, so callers never overwrite an ambiguous match.
    */
   replaceExact: (search: string, replacement: string) => boolean;
+  /**
+   * Builds an AltVersionSession from the editor's current selection, or null if
+   * there is no selection. Used by a window-level Alt+W fallback (see ChapterView)
+   * that recovers the session even when the editor has lost DOM focus — e.g. when
+   * Windows/Electron routes a bare Alt keypress to menu-mnemonic handling before
+   * "w" arrives, so this component's own 'Alt-w' keymap binding never fires.
+   */
+  getAltVersionSession: () => AltVersionSession | null;
 }
 
 export interface UnifiedMarkdownEditorProps extends MarkdownEditorConfig {
@@ -257,6 +265,32 @@ export const UnifiedMarkdownEditor = forwardRef<
   const diffCompartment = useRef(new Compartment());
   const anchorCompartment = useRef(new Compartment());
 
+  const buildAltVersionSession = useCallback((): AltVersionSession | null => {
+    const view = viewRef.current;
+    if (!view) return null;
+    const sel = view.state.selection.main;
+    if (sel.empty) return null;
+    const text = view.state.doc.sliceString(sel.from, sel.to);
+    const anchorPos = sel.from;
+    return {
+      originalText: text,
+      from: anchorPos,
+      to: sel.to,
+      editorId,
+      // Full unit content, captured live so inline AI always sees the whole action.
+      fullText: view.state.doc.toString(),
+      getAnchorCoords: () => {
+        const coords = view.coordsAtPos(anchorPos);
+        if (!coords) return null;
+        // Use the right edge of the editor scroll container so the panel
+        // appears to the right of the text column, not mid-line.
+        const editorRight = view.scrollDOM.getBoundingClientRect().right;
+        return { ...coords, right: editorRight };
+      },
+      replaceFn: (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
+    };
+  }, [editorId]);
+
   useImperativeHandle(handleRef, () => ({
     replaceExact(search, replacement) {
       const view = viewRef.current;
@@ -272,17 +306,20 @@ export const UnifiedMarkdownEditor = forwardRef<
       });
       return true;
     },
-  }), []);
+    getAltVersionSession: buildAltVersionSession,
+  }), [buildAltVersionSession]);
 
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onCtrlLRef = useRef(onCtrlL);
   const onAltVersionRef = useRef(onAltVersion);
+  const buildAltVersionSessionRef = useRef(buildAltVersionSession);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onCtrlLRef.current = onCtrlL;
   onAltVersionRef.current = onAltVersion;
+  buildAltVersionSessionRef.current = buildAltVersionSession;
 
   const buildDynamicExtensions = useCallback((): Extension[] => {
     const exts: Extension[] = [];
@@ -371,29 +408,9 @@ export const UnifiedMarkdownEditor = forwardRef<
           },
           {
             key: 'Alt-w',
-            run: (view) => {
-              const sel = view.state.selection.main;
-              if (!sel.empty && onAltVersionRef.current) {
-                const text = view.state.doc.sliceString(sel.from, sel.to);
-                const anchorPos = sel.from;
-                onAltVersionRef.current({
-                  originalText: text,
-                  from: anchorPos,
-                  to: sel.to,
-                  editorId,
-                  // Full unit content, captured live so inline AI always sees the whole action.
-                  fullText: view.state.doc.toString(),
-                  getAnchorCoords: () => {
-                    const coords = view.coordsAtPos(anchorPos);
-                    if (!coords) return null;
-                    // Use the right edge of the editor scroll container so the panel
-                    // appears to the right of the text column, not mid-line.
-                    const editorRight = view.scrollDOM.getBoundingClientRect().right;
-                    return { ...coords, right: editorRight };
-                  },
-                  replaceFn: (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
-                });
-              }
+            run: () => {
+              const session = buildAltVersionSessionRef.current();
+              if (session) onAltVersionRef.current?.(session);
               return true;
             },
           },
