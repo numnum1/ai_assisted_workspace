@@ -23,11 +23,7 @@ import {
   getContrastingTextColor,
 } from "./modeColorTheme.ts";
 import { hasClarificationFence } from "./clarificationUtils.ts";
-import type { CardState } from "./ChangeCard.tsx";
 import { FileChip } from "../common/FileChip.tsx";
-
-export const EMPTY_SNAPSHOT_DISMISS = new Set<string>();
-export const EMPTY_COMPOSER_BATCH_FORCED: Record<string, CardState> = {};
 
 const CHOICE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -174,13 +170,6 @@ export interface ChatMessagesPaneProps {
   activeIsThread: boolean;
   editingIdx: number | null;
   setEditingIdx: (idx: number | null) => void;
-  bulkDismissIds: Set<string>;
-  composerBatchForced: Record<string, CardState>;
-  onFileChanged?: (path: string) => void;
-  onSnapshotSettled?: (
-    snapshotId: string,
-    state: "applied" | "reverted" | "dismissed",
-  ) => void;
   onForkFromMessage: (index: number) => void;
   onStartThreadFromMessage: (index: number) => void;
   onForkToNewConversation: (index: number) => void;
@@ -213,10 +202,6 @@ export function ChatMessagesPane({
   activeIsThread,
   editingIdx,
   setEditingIdx,
-  bulkDismissIds,
-  composerBatchForced,
-  onFileChanged,
-  onSnapshotSettled,
   onForkFromMessage,
   onStartThreadFromMessage,
   onForkToNewConversation,
@@ -244,13 +229,6 @@ export function ChatMessagesPane({
     () => buildChatRenderUnits(visibleEntries),
     [visibleEntries],
   );
-
-  const dismissIds = readOnly ? EMPTY_SNAPSHOT_DISMISS : bulkDismissIds;
-  const batchForced = readOnly
-    ? EMPTY_COMPOSER_BATCH_FORCED
-    : composerBatchForced;
-  const fileCb = readOnly ? undefined : onFileChanged;
-  const snapshotCb = readOnly ? undefined : onSnapshotSettled;
 
   return (
     <div
@@ -313,10 +291,6 @@ export function ChatMessagesPane({
               readOnly={readOnly}
               streaming={streaming}
               activeIsThread={activeIsThread}
-              bulkDismissIds={dismissIds}
-              composerBatchForced={batchForced}
-              onFileChanged={fileCb}
-              onSnapshotSettled={snapshotCb}
               onForkFromMessage={onForkFromMessage}
               onStartThreadFromMessage={onStartThreadFromMessage}
               onForkToNewConversation={onForkToNewConversation}

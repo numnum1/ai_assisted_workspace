@@ -4,7 +4,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   Send,
   Square,
-  BookOpen,
   Zap,
   X,
   Maximize2,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
 import { getAppBridge } from "../../electron/bridge.ts";
-import { wikiApi } from "../../api.ts";
 import type { ReasoningEffort, SelectionContext } from "../../types.ts";
 import { CHAT_TOOLKIT_IDS } from "../../types.ts";
 
@@ -159,42 +157,6 @@ function ToolkitMenuButton({
   );
 }
 
-type AutocompleteItem = {
-  type: "wiki";
-  title: string;
-  path: string;
-  breadcrumb: string;
-};
-
-function filterItems(
-  items: AutocompleteItem[],
-  query: string,
-): AutocompleteItem[] {
-  const limit = 20;
-  if (!query) return items.slice(0, limit);
-  const q = query.toLowerCase();
-  return items
-    .filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.path.toLowerCase().includes(q),
-    )
-    .slice(0, limit);
-}
-
-const WIKI_PREFIX = "wiki/";
-
-function wikiDisplayTitle(relativePath: string): string {
-  const parts = relativePath.split("/");
-  const filename = parts[parts.length - 1] ?? relativePath;
-  return filename.replace(/\.md$/i, "").replace(/[-_]/g, " ");
-}
-
-function wikiBreadcrumb(relativePath: string): string {
-  const parts = relativePath.split("/");
-  return parts.length > 1 ? parts[parts.length - 2]! : "wiki";
-}
-
 interface ChatInputProps {
   onSend: (message: string) => void;
   onStop: () => void;
@@ -207,8 +169,6 @@ interface ChatInputProps {
   /** When true, file chips are not shown (e.g. Prompt-Paket panel already lists them). */
   hideFileChips?: boolean;
   placeholder?: string;
-  /** Active subproject root path — clears @-mention cache when it changes */
-  structureRoot?: string | null;
   /** Whether the reasoning model should be used for this message */
   useReasoning?: boolean;
   onToggleReasoning?: () => void;
@@ -244,7 +204,6 @@ export function ChatInput({
   onRemoveFile,
   hideFileChips = false,
   placeholder: placeholderProp,
-  structureRoot = null,
   useReasoning = false,
   onToggleReasoning,
   reasoningEffort = "medium",
@@ -262,18 +221,9 @@ export function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const [expandOpen, setExpandOpen] = useState(false);
-  const [ac, setAc] = useState<{
-    query: string;
-    atIndex: number;
-    items: AutocompleteItem[];
-    selectedIdx: number;
-  } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const expandTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const itemsCacheRef = useRef<AutocompleteItem[] | null>(null);
-  const loadingRef = useRef(false);
 
   useEffect(() => {
     if (!onDraftChange) return;
@@ -305,33 +255,6 @@ export function ChatInput({
     };
   }, [focusTriggerRef]);
 
-  // Close on outside click
-  useEffect(() => {
-    if (!ac) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node) &&
-        textareaRef.current !== e.target
-      ) {
-        setAc(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [!!ac]);
-
-  // Scroll selected item into view
-  useEffect(() => {
-    if (!ac || !dropdownRef.current) return;
-    const els = dropdownRef.current.querySelectorAll<HTMLElement>(".ac-item");
-    const filtered = filterItems(ac.items, ac.query);
-    const idx = Math.min(ac.selectedIdx, filtered.length - 1);
-    if (idx >= 0 && els[idx]) {
-      els[idx].scrollIntoView({ block: "nearest" });
-    }
-  }, [ac?.selectedIdx]);
-
   // Focus expand textarea when modal opens
   useEffect(() => {
     if (expandOpen) {
@@ -349,33 +272,6 @@ export function ChatInput({
     return () => document.removeEventListener("keydown", handler);
   }, [expandOpen]);
 
-  // Invalidate cache when structure root changes (different subproject)
-  useEffect(() => {
-    itemsCacheRef.current = null;
-    loadingRef.current = false;
-  }, [structureRoot]);
-
-  const loadItems = useCallback(async (): Promise<AutocompleteItem[]> => {
-    if (itemsCacheRef.current) return itemsCacheRef.current;
-
-    let relativePaths: string[] = [];
-    try {
-      relativePaths = await wikiApi.listFiles();
-    } catch {
-      relativePaths = [];
-    }
-
-    const items: AutocompleteItem[] = relativePaths.map((rel) => ({
-      type: "wiki",
-      title: wikiDisplayTitle(rel),
-      path: `${WIKI_PREFIX}${rel}`,
-      breadcrumb: wikiBreadcrumb(rel),
-    }));
-
-    itemsCacheRef.current = items;
-    return items;
-  }, []);
-
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
@@ -385,72 +281,11 @@ export function ChatInput({
     }
     onSend(finalMessage);
     setText("");
-    setAc(null);
     setExpandOpen(false);
   }, [text, streaming, onSend, activeSelection]);
 
-  const selectItem = useCallback(
-    (item: AutocompleteItem) => {
-      if (!ac) return;
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const queryEnd = ac.atIndex + 1 + ac.query.length;
-      const newText = text.slice(0, ac.atIndex) + text.slice(queryEnd);
-      setText(newText);
-      setAc(null);
-      onAddFile(item.path);
-
-      const newCursor = ac.atIndex;
-      requestAnimationFrame(() => {
-        textarea.focus();
-        textarea.setSelectionRange(newCursor, newCursor);
-      });
-    },
-    [ac, text, onAddFile],
-  );
-
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value;
-    const cursor = e.target.selectionStart ?? newText.length;
-    setText(newText);
-
-    // Detect @ pattern — stop at whitespace; ignore already-inserted paths (contain / or start with .)
-    const textBefore = newText.slice(0, cursor);
-    const atMatch = textBefore.match(/@(\S*)$/);
-
-    if (atMatch) {
-      const query = atMatch[1];
-      if (query.includes("/") || query.startsWith(".")) {
-        setAc(null);
-        return;
-      }
-      const atIndex = cursor - atMatch[0].length;
-
-      const cached = itemsCacheRef.current;
-      if (cached) {
-        setAc({ query, atIndex, items: cached, selectedIdx: 0 });
-      } else {
-        setAc((prev) =>
-          prev
-            ? { ...prev, query, atIndex, selectedIdx: 0 }
-            : { query, atIndex, items: [], selectedIdx: 0 },
-        );
-        if (!loadingRef.current) {
-          loadingRef.current = true;
-          loadItems()
-            .then((items) => {
-              loadingRef.current = false;
-              setAc((prev) => (prev ? { ...prev, items } : null));
-            })
-            .catch(() => {
-              loadingRef.current = false;
-            });
-        }
-      }
-    } else {
-      setAc(null);
-    }
+    setText(e.target.value);
   };
 
   const handleExpandChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -460,44 +295,6 @@ export function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Allow regular character input (like "ß", "ä", "ö", "ü", etc.)
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) return;
-    if (ac) {
-      const filtered = filterItems(ac.items, ac.query);
-
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setAc((prev) =>
-          prev
-            ? {
-                ...prev,
-                selectedIdx: Math.min(
-                  prev.selectedIdx + 1,
-                  filtered.length - 1,
-                ),
-              }
-            : null,
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setAc((prev) =>
-          prev
-            ? { ...prev, selectedIdx: Math.max(prev.selectedIdx - 1, 0) }
-            : null,
-        );
-        return;
-      }
-      if ((e.key === "Enter" || e.key === "Tab") && filtered.length > 0) {
-        e.preventDefault();
-        selectItem(filtered[Math.min(ac.selectedIdx, filtered.length - 1)]);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setAc(null);
-        return;
-      }
-    }
 
     if (e.key === "Enter" && e.altKey) {
       e.preventDefault();
@@ -531,40 +328,12 @@ export function ChatInput({
     e.dataTransfer.dropEffect = "copy";
   };
 
-  const filteredItems = ac ? filterItems(ac.items, ac.query) : [];
-
   return (
     <div
       className="chat-input-container"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      {ac && filteredItems.length > 0 && (
-        <div ref={dropdownRef} className="ac-dropdown">
-          {filteredItems.map((item, idx) => (
-            <div
-              key={item.path}
-              className={`ac-item${idx === ac.selectedIdx ? " ac-item-active" : ""}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                selectItem(item);
-              }}
-              onMouseEnter={() =>
-                setAc((prev) => (prev ? { ...prev, selectedIdx: idx } : null))
-              }
-            >
-              <span className="ac-item-icon">
-                <BookOpen size={13} />
-              </span>
-              <span className="ac-item-title">{item.title}</span>
-              {item.breadcrumb && (
-                <span className="ac-item-breadcrumb">{item.breadcrumb}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
       {activeSelection && (
         <div className="chat-selection-chip">
           <span className="chat-selection-chip-text">

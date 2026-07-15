@@ -1,35 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { ChatSessionKind, Conversation, ChatMessage } from "../types.ts";
-import { fetchProjectChatHistory, persistProjectChatHistory } from "../api.ts";
-import {
-  buildConversationById,
-  effectiveSavedToProject,
-} from "../components/chat/chatHistoryUtils.ts";
 
-/** Pre–per-project keys: one list for all folders (migrated once into first opened project) */
-const LEGACY_STORAGE_KEY = "chat-history";
+const STORAGE_KEY = "chat-history";
+const LAST_ACTIVE_STORAGE_KEY = "chat-history:lastActive";
 
 const MAX_CONVERSATIONS = 50;
 const SAVE_DEBOUNCE_MS = 500;
-const PROJECT_SAVE_DEBOUNCE_MS = 500;
 
-/** Stable localStorage key per opened project root path */
-export function chatHistoryStorageKey(projectPath: string): string | null {
-  const p = projectPath?.trim();
-  if (!p) return null;
-  return `${LEGACY_STORAGE_KEY}:${p}`;
-}
-
-function lastActiveStorageKey(storageKey: string | null): string | null {
-  if (!storageKey) return null;
-  return `${storageKey}:lastActive`;
-}
-
-function loadLastActiveChatId(storageKey: string | null): string | null {
-  const sub = lastActiveStorageKey(storageKey);
-  if (!sub) return null;
+function loadLastActiveChatId(): string | null {
   try {
-    const raw = localStorage.getItem(sub);
+    const raw = localStorage.getItem(LAST_ACTIVE_STORAGE_KEY);
     if (!raw?.trim()) return null;
     return raw.trim();
   } catch {
@@ -37,30 +17,21 @@ function loadLastActiveChatId(storageKey: string | null): string | null {
   }
 }
 
-function saveLastActiveChatId(storageKey: string | null, id: string | null) {
-  const sub = lastActiveStorageKey(storageKey);
-  if (!sub) return;
+function saveLastActiveChatId(id: string | null) {
   try {
     if (!id?.trim()) {
-      localStorage.removeItem(sub);
+      localStorage.removeItem(LAST_ACTIVE_STORAGE_KEY);
     } else {
-      localStorage.setItem(sub, id.trim());
+      localStorage.setItem(LAST_ACTIVE_STORAGE_KEY, id.trim());
     }
   } catch {
     // localStorage full or unavailable — silently ignore
   }
 }
 
-function loadConversations(storageKey: string | null): Conversation[] {
-  if (!storageKey) return [];
+function loadConversations(): Conversation[] {
   try {
-    let raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (raw) {
-        localStorage.removeItem(LEGACY_STORAGE_KEY);
-      }
-    }
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -70,13 +41,9 @@ function loadConversations(storageKey: string | null): Conversation[] {
   }
 }
 
-function saveConversations(
-  conversations: Conversation[],
-  storageKey: string | null,
-) {
-  if (!storageKey) return;
+function saveConversations(conversations: Conversation[]) {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(conversations));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
   } catch {
     // localStorage full or unavailable — silently ignore
   }
@@ -121,107 +88,34 @@ function resolveActiveId(
   return conversations[0].id;
 }
 
-/** Merge project file (Git) with localStorage; project wins on id collision */
-function mergeWithProject(
-  projectChats: Conversation[] | null,
-  currentMode: string,
-  storageKey: string | null,
-  lastActiveId: string | null,
-): {
+function initialChatState(currentMode: string): {
   conversations: Conversation[];
   activeId: string;
 } {
-  const local = loadConversations(storageKey);
-  const projectList = projectChats ?? [];
-
-  const byId = new Map<string, Conversation>();
-  for (const c of projectList) {
-    byId.set(c.id, { ...c, savedToProject: true });
-  }
-  for (const c of local) {
-    if (!byId.has(c.id)) {
-      byId.set(c.id, { ...c, savedToProject: c.savedToProject === true });
-    }
-  }
-
-  let rest = Array.from(byId.values()).sort(
-    (a, b) => b.updatedAt - a.updatedAt,
-  );
-  rest = rest.slice(0, MAX_CONVERSATIONS);
-
-  if (rest.length === 0) {
+  const local = loadConversations().slice(0, MAX_CONVERSATIONS);
+  if (local.length === 0) {
     const empty = createEmptyConversation(currentMode);
     return { conversations: [empty], activeId: empty.id };
   }
-
   return {
-    conversations: rest,
-    activeId: resolveActiveId(rest, lastActiveId),
+    conversations: local,
+    activeId: resolveActiveId(local, loadLastActiveChatId()),
   };
 }
 
-function initialChatState(projectPath: string, currentMode: string) {
-  const key = chatHistoryStorageKey(projectPath);
-  return mergeWithProject(null, currentMode, key, loadLastActiveChatId(key));
-}
-
-export function useChatHistory(currentMode: string, projectPath: string) {
+export function useChatHistory(currentMode: string) {
   const [conversations, setConversations] = useState<Conversation[]>(
-    () => initialChatState(projectPath, currentMode).conversations,
+    () => initialChatState(currentMode).conversations,
   );
   const [activeId, setActiveId] = useState<string>(
-    () => initialChatState(projectPath, currentMode).activeId,
+    () => initialChatState(currentMode).activeId,
   );
-  const [hydrated, setHydrated] = useState(false);
-
-  const projectPathRef = useRef(projectPath);
-  projectPathRef.current = projectPath;
+  const hydrated = true;
 
   const currentModeRef = useRef(currentMode);
   currentModeRef.current = currentMode;
 
-  useEffect(() => {
-    const key = chatHistoryStorageKey(projectPath);
-    if (!key) {
-      const nc = createEmptyConversation(currentModeRef.current);
-      setConversations([nc]);
-      setActiveId(nc.id);
-      setHydrated(false);
-      return;
-    }
-
-    const lastActive = loadLastActiveChatId(key);
-    const localMerged = mergeWithProject(
-      null,
-      currentModeRef.current,
-      key,
-      lastActive,
-    );
-    setConversations(localMerged.conversations);
-    setActiveId(localMerged.activeId);
-    setHydrated(false);
-
-    let cancelled = false;
-    (async () => {
-      const project = await fetchProjectChatHistory();
-      if (cancelled) return;
-      const merged = mergeWithProject(
-        project,
-        currentModeRef.current,
-        key,
-        loadLastActiveChatId(key),
-      );
-      setConversations(merged.conversations);
-      setActiveId(merged.activeId);
-      setHydrated(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath]);
-
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const projectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
 
@@ -229,53 +123,28 @@ export function useChatHistory(currentMode: string, projectPath: string) {
   activeIdRef.current = activeId;
 
   useEffect(() => {
-    if (!hydrated) return;
-    const key = chatHistoryStorageKey(projectPathRef.current);
-    if (!key) return;
-    saveLastActiveChatId(key, activeId);
-  }, [hydrated, activeId, projectPath]);
+    saveLastActiveChatId(activeId);
+  }, [activeId]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    const key = chatHistoryStorageKey(projectPathRef.current);
-    if (!key) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveConversations(conversationsRef.current, key);
+      saveConversations(conversationsRef.current);
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [conversations, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (projectTimerRef.current) clearTimeout(projectTimerRef.current);
-    projectTimerRef.current = setTimeout(() => {
-      persistProjectChatHistory(conversationsRef.current).catch((err) => {
-        console.error("persistProjectChatHistory failed", err);
-      });
-    }, PROJECT_SAVE_DEBOUNCE_MS);
-
-    return () => {
-      if (projectTimerRef.current) clearTimeout(projectTimerRef.current);
-    };
-  }, [conversations, hydrated]);
+  }, [conversations]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (!hydrated) return;
-      const key = chatHistoryStorageKey(projectPathRef.current);
-      if (key) {
-        saveConversations(conversationsRef.current, key);
-        saveLastActiveChatId(key, activeIdRef.current);
-      }
-      void persistProjectChatHistory(conversationsRef.current);
+      saveConversations(conversationsRef.current);
+      saveLastActiveChatId(activeIdRef.current);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hydrated]);
+  }, []);
 
   const activeConversation =
     conversations.find((c) => c.id === activeId) ?? conversations[0];
@@ -512,54 +381,28 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     );
   }, []);
 
-  const toggleSavedToProject = useCallback((id: string) => {
-    setConversations((prev) => {
-      const target = prev.find((c) => c.id === id);
-      if (target?.isThread) return prev;
-      return prev.map((c) =>
-        c.id === id
-          ? { ...c, savedToProject: !c.savedToProject, updatedAt: Date.now() }
-          : c,
-      );
-    });
-  }, []);
-
-  /**
-   * Removes only chats that are not pinned to the project file (`savedToProject`).
-   * Pinned chats stay in state, localStorage, and `.assistant/chat-history.json`.
-   */
+  /** Removes every chat and starts over with a single empty conversation. */
   const clearAllBrowserChats = useCallback(() => {
-    if (!hydrated) return;
-    const key = chatHistoryStorageKey(projectPathRef.current);
-    if (!key) return;
-    if (projectTimerRef.current) {
-      clearTimeout(projectTimerRef.current);
-      projectTimerRef.current = null;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
     }
     const newConv = createEmptyConversation(currentModeRef.current);
-    const list = conversationsRef.current;
-    const byId = buildConversationById(list);
-    const pinned = list.filter((c) => effectiveSavedToProject(c, byId));
-    const sortedPinned = [...pinned].sort((a, b) => b.updatedAt - a.updatedAt);
-    const next = [newConv, ...sortedPinned].slice(0, MAX_CONVERSATIONS);
-    setConversations(next);
+    setConversations([newConv]);
     setActiveId(newConv.id);
-    conversationsRef.current = next;
-    saveConversations(next, key);
-  }, [hydrated]);
+    conversationsRef.current = [newConv];
+    saveConversations([newConv]);
+  }, []);
 
   /**
    * Merges an imported list of conversations into the current state.
    * Conversations whose IDs already exist are skipped to avoid duplicates.
-   * Imported conversations are not auto-pinned to the project file.
    */
   const importConversations = useCallback((imported: Conversation[]) => {
     if (!imported.length) return;
     setConversations((prev) => {
       const existingIds = new Set(prev.map((c) => c.id));
-      const incoming = imported
-        .filter((c) => !existingIds.has(c.id))
-        .map((c) => ({ ...c, savedToProject: false as const }));
+      const incoming = imported.filter((c) => !existingIds.has(c.id));
       if (!incoming.length) return prev;
       const merged = [...incoming, ...prev].slice(0, MAX_CONVERSATIONS);
       return merged;
@@ -582,7 +425,6 @@ export function useChatHistory(currentMode: string, projectPath: string) {
     deleteConversation,
     switchConversation,
     renameConversation,
-    toggleSavedToProject,
     clearAllBrowserChats,
     importConversations,
   };

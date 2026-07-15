@@ -1,13 +1,4 @@
 import type { ChatMessage } from "../../src/types.js";
-import type { ContextBlock } from "./conversation/contextBlocks.js";
-
-export interface ChatContextPreviewResult {
-  includedFiles: string[];
-  estimatedTokens: number;
-  contextBlocks: ContextBlock[];
-  systemPrompt: string;
-  maxToolRounds: number;
-}
 
 export type ChatStreamEvent =
   | {

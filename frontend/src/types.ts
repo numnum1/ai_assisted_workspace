@@ -76,7 +76,7 @@ export interface SimulationConfig {
   baseFileLabel?: string;
   /** Selected characters for this simulation. */
   characters: SimulationCharacter[];
-  /** Result file name slug (maps to `.assistant/simulations/<resultFile>.md`). */
+  /** Slug identifying this simulation run. */
   resultFile: string;
   /** Id of the selected persona library entry, if any. */
   personaId?: string;
@@ -90,15 +90,6 @@ export interface SimulationConfig {
 export type ChatSessionKind = 'standard' | 'guided' | 'navi';
 export type ChatToolkitId = (typeof CHAT_TOOLKIT_IDS)[number];
 
-export interface FileNode {
-  name: string;
-  path: string;
-  directory: boolean;
-  children: FileNode[] | null;
-  /** Workspace mode id from `.subproject.json` when this directory is a subproject */
-  subprojectType?: string | null;
-}
-
 export interface Mode {
   id: string;
   name: string;
@@ -111,22 +102,6 @@ export interface Mode {
   /** When true, only agent presets / guided chats use this mode — hidden from the main chat mode menu. */
   agentOnly?: boolean;
   llmId?: string;
-}
-
-/** Project-scoped guided chat agent template (`.assistant/agents.json`). */
-export interface AgentPreset {
-  id: string;
-  name: string;
-  modeId: string;
-  /** Legacy; LLM comes from {@link Mode} via modeId. */
-  llmId?: string | null;
-  /** Legacy fork/thread LLM override (prefer threadModeId). */
-  threadLlmId?: string | null;
-  /** Optional mode for fork/thread when the parent chat uses this preset (see conversation agentPresetId). */
-  threadModeId?: string | null;
-  useReasoning: boolean;
-  disabledToolkits: ChatToolkitId[];
-  initialSteeringPlan?: string | null;
 }
 
 export interface SelectionContext {
@@ -238,11 +213,6 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   mode: string;
-  /**
-   * When true on a root chat, it is written to `.assistant/chat-history.json` for Git sync.
-   * For {@link isThread} threads this flag is ignored; pinning follows the parent chain.
-   */
-  savedToProject?: boolean;
   /** Omitted or standard = normal chat; guided = AI-led session with optional steeringPlan */
   sessionKind?: ChatSessionKind;
   /** Project agent template id when this guided chat was started from a preset (fork/thread preset resolution). */
@@ -282,45 +252,6 @@ export interface Conversation {
   simulationConfig?: SimulationConfig;
 }
 
-/** Optional toggles under `.assistant/project.yaml` → `extraFeatures` */
-export interface ProjectExtraFeatures {
-  /** Show per-chat download in chat history (client-side Markdown export). */
-  chatDownload?: boolean;
-}
-
-/** A named AI rule injected into the system prompt (like a Cursor rule file). */
-export interface ProjectRule {
-  name: string;
-  body: string;
-}
-
-export interface ProjectConfig {
-  name: string;
-  description: string;
-  alwaysInclude: string[];
-  /** Mode id; empty means client uses review or first available mode */
-  defaultMode?: string;
-  /** Built-in workspace mode: book, music, default, … (classpath workspace-modes) */
-  workspaceMode?: string;
-  /** LLM id for Alt+E Quick Chat; empty = first configured LLM */
-  quickChatLlmId?: string;
-  /** LLM id for generating thread summaries; empty = first configured LLM */
-  threadSummaryLlmId?: string;
-  /** Max number of tool-call rounds before the loop exits (default: 6). */
-  maxToolRounds?: number;
-  /** Project-level AI rules injected into every system prompt (like Cursor rules). */
-  rules?: ProjectRule[];
-  /** Per-state instruction overrides for Navi sessions. Key = state id, value = instruction text. */
-  naviInstructions?: Record<string, string>;
-  /** Per-state workPlan overrides for Navi sessions. Key = state id, value = checklist items (also used as slot labels). */
-  naviWorkPlans?: Record<string, string[]>;
-  /** Mode id used for Navi sessions; empty = current toolbar/default mode. */
-  naviModeId?: string;
-  /** LLM id used for Navi sessions; empty = mode/global default. */
-  naviLlmId?: string;
-  extraFeatures?: ProjectExtraFeatures;
-}
-
 /** API: GET /api/llms — one entry per LLM configuration (fast + reasoning sub-configs). Keys are never exposed. */
 export interface LlmPublic {
   id: string;
@@ -338,65 +269,6 @@ export interface LlmsListResponse {
   providers: LlmPublic[];
   /** True when the server has a Tavily API key (chat can use web_search). */
   webSearchAvailable?: boolean;
-}
-
-export interface WorkspaceLevelConfig {
-  key: string;
-  label: string;
-  labelNew: string;
-  icon: string;
-}
-
-export interface WorkspaceMetaFieldDef {
-  key: string;
-  label: string;
-  type: string;
-  placeholder?: string;
-  defaultValue: string;
-  options?: string[];
-}
-
-export interface WorkspaceMetaTypeSchema {
-  filename: string;
-  fields: WorkspaceMetaFieldDef[];
-}
-
-/** API: GET /api/project-config/workspace-mode */
-export interface WorkspaceModeSchema {
-  id: string;
-  name: string;
-  /** Lucide icon name for subproject folder in the file tree */
-  icon?: string;
-  /** When true, the mode can be chosen when creating a media subproject */
-  mediaType?: boolean;
-  /** 'prose' | 'standard' | 'none' | future modes */
-  editorMode: string;
-  /** When `scene`, prose body is edited per scene; outliner hides the action level. */
-  proseLeafLevel?: 'scene' | 'action' | string;
-  rootMetaLabel: string;
-  rootMetaIcon?: string;
-  levels: WorkspaceLevelConfig[];
-  metaSchemas: Record<string, WorkspaceMetaTypeSchema>;
-}
-
-/** Entry from GET /project-config/workspace-modes (built-in + user AppData plugins). */
-export interface WorkspaceModeInfo {
-  id: string;
-  name: string;
-  source: 'builtin' | 'user';
-  icon: string;
-  mediaType: boolean;
-}
-
-/** A project-configurable comment category, toggled as a chip before commenting. */
-export interface CommentCategoryDef {
-  id: string;
-  /** User-facing label shown on the toggle chip and comment card. */
-  label: string;
-  /** Accent colour (hex) used for the chip and the card's left border. */
-  color: string;
-  /** Instruction fragment injected into the LLM prompt when this category is active. */
-  promptFragment: string;
 }
 
 /** Global appearance preferences (stored in ~/.writing-assistant/preferences.json). */

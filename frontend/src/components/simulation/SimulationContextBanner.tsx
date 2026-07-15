@@ -9,7 +9,7 @@ interface SimulationContextBannerProps {
 export function SimulationContextBanner({
   simulationConfig,
 }: SimulationContextBannerProps) {
-  const { goal, resultFile, personaName } = simulationConfig;
+  const { goal, personaName } = simulationConfig;
 
   return (
     <div className="sim-banner">
@@ -25,12 +25,6 @@ export function SimulationContextBanner({
           <span className="sim-banner-goal">{goal}</span>
         </div>
       )}
-
-      <div className="sim-banner-meta">
-        <span className="sim-banner-meta-item">
-          Ergebnis: <code>.assistant/simulations/{resultFile}.md</code>
-        </span>
-      </div>
     </div>
   );
 }

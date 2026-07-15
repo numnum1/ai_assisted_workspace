@@ -290,8 +290,7 @@ export function SimulationSetupModal({
           />
 
           <p className="sim-modal-result-hint">
-            Transkript + KI-Bewertung werden unter{" "}
-            <code>.assistant/simulations/</code> gespeichert.
+            Die KI-Bewertung wird am Ende als Nachricht in den Chat gestellt.
           </p>
         </div>
 
