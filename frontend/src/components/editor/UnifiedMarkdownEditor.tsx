@@ -61,6 +61,13 @@ export interface MarkdownEditorHandle {
    */
   replaceExact: (search: string, replacement: string) => boolean;
   /**
+   * Insert `text` at the current cursor position, replacing any active
+   * selection. Returns false only when the editor view isn't mounted. Used by
+   * the inline AI "Schreibhilfe" panel to drop a suggestion into the text the
+   * author is currently writing in.
+   */
+  insertAtCursor: (text: string) => boolean;
+  /**
    * Builds an AltVersionSession from the editor's current selection, or null if
    * there is no selection. Used by a window-level Alt+W fallback (see ChapterView)
    * that recovers the session even when the editor has lost DOM focus — e.g. when
@@ -306,6 +313,17 @@ export const UnifiedMarkdownEditor = forwardRef<
       });
       return true;
     },
+    insertAtCursor(text) {
+      const view = viewRef.current;
+      if (!view || !text) return false;
+      const sel = view.state.selection.main;
+      view.dispatch({
+        changes: { from: sel.from, to: sel.to, insert: text },
+        selection: { anchor: sel.from + text.length },
+      });
+      view.focus();
+      return true;
+    },
     getAltVersionSession: buildAltVersionSession,
   }), [buildAltVersionSession]);
 
@@ -403,14 +421,6 @@ export const UnifiedMarkdownEditor = forwardRef<
                   (from, to, insert) => view.dispatch({ changes: { from, to, insert } }),
                 );
               }
-              return true;
-            },
-          },
-          {
-            key: 'Alt-w',
-            run: () => {
-              const session = buildAltVersionSessionRef.current();
-              if (session) onAltVersionRef.current?.(session);
               return true;
             },
           },

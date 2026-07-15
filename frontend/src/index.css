@@ -1722,6 +1722,305 @@ body.file-tree-native-dragging {
     background: rgba(255, 255, 255, 0.05);
 }
 
+/* --- Right-hand AI dock (icon rail + one active function) --- */
+.chapter-view-body {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+}
+
+.chapter-ai-dock {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    height: 100%;
+}
+
+.chapter-ai-rail {
+    flex-shrink: 0;
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0;
+    border-left: 1px solid rgba(44, 42, 37, 0.18);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.chapter-ai-rail-btn {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.chapter-ai-rail-btn:hover {
+    opacity: 0.85;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.chapter-ai-rail-btn.active {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.chapter-ai-rail-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #c49a50;
+}
+
+.chapter-ai-dock-body {
+    flex-shrink: 0;
+    width: 340px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-left: 1px solid rgba(44, 42, 37, 0.18);
+    background: rgba(0, 0, 0, 0.015);
+}
+
+.chapter-ai-panel,
+.chapter-ai-chat {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    padding: 14px 14px 12px;
+    gap: 10px;
+}
+
+.chapter-ai-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.85;
+}
+
+.chapter-ai-clear-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.6;
+    cursor: pointer;
+    color: inherit;
+}
+.chapter-ai-clear-btn:hover:not(:disabled) { opacity: 0.9; }
+
+.chapter-ai-panel-hint {
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 0;
+}
+
+.chapter-ai-panel-note {
+    font-size: 11.5px;
+}
+
+.chapter-ai-cat-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.chapter-ai-cat-chip {
+    padding: 3px 9px;
+    font-size: 11.5px;
+    border-radius: 999px;
+    border: 1px solid rgba(44, 42, 37, 0.25);
+    background: transparent;
+    color: inherit;
+    opacity: 0.55;
+    cursor: pointer;
+}
+.chapter-ai-cat-chip.on { opacity: 1; }
+
+.chapter-ai-freetext,
+.chapter-ai-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: none;
+    border-radius: 7px;
+    border: 1px solid rgba(44, 42, 37, 0.2);
+    background: rgba(255, 255, 255, 0.4);
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 9px;
+}
+.chapter-ai-freetext:focus,
+.chapter-ai-textarea:focus {
+    outline: none;
+    border-color: #c49a50;
+}
+
+.chapter-ai-primary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 12px;
+    border-radius: 7px;
+    border: 1px solid #c49a50;
+    background: rgba(196, 154, 80, 0.15);
+    color: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.chapter-ai-primary-btn:hover:not(:disabled) { background: rgba(196, 154, 80, 0.25); }
+.chapter-ai-primary-btn:disabled { opacity: 0.5; cursor: default; }
+
+.chapter-ai-spin { animation: chapter-ai-spin 0.9s linear infinite; }
+@keyframes chapter-ai-spin { to { transform: rotate(360deg); } }
+
+.chapter-ai-error {
+    font-size: 12px;
+    color: #b4462f;
+    line-height: 1.4;
+}
+.chapter-ai-retry-btn {
+    display: block;
+    margin-top: 5px;
+    background: none;
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: inherit;
+    cursor: pointer;
+}
+
+.chapter-ai-chat-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 2px;
+}
+
+.chapter-ai-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.chapter-ai-bubble-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.5;
+}
+.chapter-ai-bubble-text {
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.chapter-ai-bubble-user .chapter-ai-bubble-text {
+    background: rgba(196, 154, 80, 0.12);
+    border-radius: 7px;
+    padding: 7px 9px;
+}
+
+.chapter-ai-insert-btn {
+    align-self: flex-start;
+    margin-top: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    font-size: 11.5px;
+    border-radius: 6px;
+    border: 1px solid rgba(44, 42, 37, 0.25);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.85;
+}
+.chapter-ai-insert-btn:hover { opacity: 1; border-color: #c49a50; }
+
+.chapter-ai-tool {
+    font-size: 11.5px;
+    font-style: italic;
+    opacity: 0.6;
+}
+
+.chapter-ai-input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+.chapter-ai-input-row .chapter-ai-textarea { flex: 1; }
+
+.chapter-ai-send {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    border: 1px solid #c49a50;
+    background: rgba(196, 154, 80, 0.15);
+    color: inherit;
+    cursor: pointer;
+}
+.chapter-ai-send:hover:not(:disabled) { background: rgba(196, 154, 80, 0.28); }
+.chapter-ai-send:disabled { opacity: 0.45; cursor: default; }
+.chapter-ai-send.stop { border-color: #b4462f; background: rgba(180, 70, 47, 0.15); }
+
+/* Night-mode variants: lighter borders/fills over the dark chapter palettes. */
+.chapter-view-night .chapter-ai-rail,
+.chapter-view-night-alt .chapter-ai-rail,
+.chapter-view-night .chapter-ai-dock-body,
+.chapter-view-night-alt .chapter-ai-dock-body {
+    border-left-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.02);
+}
+.chapter-view-night .chapter-ai-rail-btn:hover,
+.chapter-view-night-alt .chapter-ai-rail-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.chapter-view-night .chapter-ai-rail-btn.active,
+.chapter-view-night-alt .chapter-ai-rail-btn.active { background: rgba(255, 255, 255, 0.12); }
+.chapter-view-night .chapter-ai-freetext,
+.chapter-view-night-alt .chapter-ai-freetext,
+.chapter-view-night .chapter-ai-textarea,
+.chapter-view-night-alt .chapter-ai-textarea {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+.chapter-view-night .chapter-ai-cat-chip,
+.chapter-view-night-alt .chapter-ai-cat-chip { border-color: rgba(255, 255, 255, 0.22); }
+.chapter-view-night .chapter-ai-insert-btn,
+.chapter-view-night-alt .chapter-ai-insert-btn { border-color: rgba(255, 255, 255, 0.22); }
+
 /* --- Chapter outline panel (scene/action brackets, tracks the text 1:1) --- */
 .chapter-outline-panel {
     position: absolute;

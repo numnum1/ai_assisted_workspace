@@ -5,7 +5,7 @@ import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownE
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
 import { ChapterOutlinePanel, META_ZONE_WIDTH } from './ChapterOutlinePanel.tsx';
-import { ChapterAIPanel } from './ChapterAIPanel.tsx';
+import { ChapterAiDock, type AiFeature, type WritingContext } from './ChapterAiDock.tsx';
 import { AssetPanel } from '../meta/AssetPanel.tsx';
 import { ChapterViewToolbar } from './ChapterViewToolbar.tsx';
 import { useTopBarContent, useTopBarBackground } from '../app/TopBarContext.ts';
@@ -269,6 +269,9 @@ export function ChapterView({
   const [contentHeight, setContentHeight] = useState(0);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [commentPanelOpen, setCommentPanelOpen] = useState(false);
+  // Which of the three right-hand AI functions is currently shown (exactly one,
+  // or none). Comments additionally require sidebarVisible + matched cards.
+  const [activeFeature, setActiveFeature] = useState<AiFeature | null>(null);
   const [commentSidebarWidth, setCommentSidebarWidth] = useState<number>(() => {
     const stored = Number(localStorage.getItem(COMMENT_SIDEBAR_WIDTH_KEY));
     return stored >= COMMENT_SIDEBAR_MIN_WIDTH && stored <= COMMENT_SIDEBAR_MAX_WIDTH
@@ -483,6 +486,7 @@ export function ChapterView({
         if (cancelled) return;
         setComments(list);
         setSidebarVisible(list.length > 0);
+        if (list.length > 0) setActiveFeature('kommentare');
       })
       .catch(() => {
         /* no comments yet is fine */
@@ -504,6 +508,49 @@ export function ChapterView({
     }
     return parts.join('\n\n');
   }, [chapter, actionContents]);
+
+  // Rail click: switch the active AI function (click the active one to collapse).
+  const handleSelectFeature = useCallback((f: AiFeature | null) => {
+    setActiveFeature(f);
+    if (f === 'kommentare') setSidebarVisible(true);
+  }, []);
+
+  // Context for the Schreibhilfe chat: the text of the unit the author is
+  // currently writing in (falls back to empty when focus is elsewhere).
+  const getWritingContext = useCallback((): WritingContext => {
+    const actionId = focusedActionIdRef.current;
+    let unitText = '';
+    if (actionId) {
+      for (const scene of chapter.scenes) {
+        const action = scene.actions.find(a => a.id === actionId);
+        if (action) {
+          unitText = actionContents.get(actionKey(chapter.id, scene.id, action.id))?.content ?? '';
+          break;
+        }
+      }
+    }
+    return { unitLabel, unitText, chapterTitle: chapter.meta.title || '' };
+  }, [chapter, actionContents, unitLabel]);
+
+  // Context for the Ideenfinder chat: a compact outline of the chapter.
+  const getIdeaContext = useCallback((): string => {
+    const parts: string[] = [];
+    if (chapter.meta.title) parts.push(`Kapitel: ${chapter.meta.title}`);
+    if (chapter.meta.description) parts.push(chapter.meta.description);
+    for (const scene of chapter.scenes) {
+      const t = scene.meta.title || scene.id;
+      parts.push(`- Szene „${t}“${scene.meta.description ? ': ' + scene.meta.description : ''}`);
+    }
+    return parts.join('\n');
+  }, [chapter]);
+
+  // Insert a Schreibhilfe suggestion into the unit the author last wrote in,
+  // at its cursor. Marks the editor dirty (saved via Ctrl+S like any edit).
+  const handleInsertText = useCallback((text: string): boolean => {
+    const actionId = focusedActionIdRef.current;
+    if (!actionId) return false;
+    return actionHandles.current.get(actionId)?.insertAtCursor(text.trim()) ?? false;
+  }, []);
 
   const toggleCategory = useCallback((id: CommentCategory) => {
     setActiveCategories(prev => {
@@ -533,6 +580,7 @@ export function ChapterView({
       setComments(result);
       setSidebarVisible(true);
       setCommentPanelOpen(false);
+      setActiveFeature('kommentare');
     } catch (e) {
       setCommentsError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -905,29 +953,6 @@ export function ChapterView({
     return () => window.removeEventListener('keydown', handler);
   }, [onSaveAll]);
 
-  // Alt+W fallback: on Windows/Electron a bare Alt press sometimes steals DOM
-  // focus (menu-mnemonic handling) before "w" arrives, so the action editor's own
-  // 'Alt-w' CodeMirror keymap binding never fires. This window-level listener
-  // recovers the session from the last-focused action's editor handle instead of
-  // relying on live focus. Skipped when CodeMirror already handled it
-  // (e.defaultPrevented) or when focus is in an unrelated text field (e.g. chat).
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!e.altKey || (e.key !== 'w' && e.key !== 'W')) return;
-      if (e.defaultPrevented) return;
-      const active = document.activeElement;
-      if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) return;
-      const actionId = focusedActionIdRef.current;
-      if (!actionId) return;
-      const session = actionHandles.current.get(actionId)?.getAltVersionSession();
-      if (!session) return;
-      e.preventDefault();
-      handleAltVersionEnriched(session);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [handleAltVersionEnriched]);
-
   const adjustFontSize = useCallback((delta: number) => {
     setFontSize(prev => {
       const next = delta > 0 ? Math.min(prev + 1, 30) : Math.max(prev - 1, 10);
@@ -1069,8 +1094,6 @@ export function ChapterView({
         </div>
       )}
 
-      <ChapterAIPanel />
-
       {metaSelection && metaSchema && metaPanelVisible && (
         <div
           className="chapter-outline-meta-wrap"
@@ -1090,7 +1113,8 @@ export function ChapterView({
         </div>
       )}
 
-      {/* Scrollable content */}
+      {/* Scrollable content + right-hand AI dock */}
+      <div className="chapter-view-body">
       <div className="chapter-view-scroll" ref={scrollContainerRef}>
        <div className="chapter-view-layout" ref={layoutRef}>
         <ChapterOutlinePanel
@@ -1190,7 +1214,7 @@ export function ChapterView({
         })}
         <div className="chapter-view-scroll-end" aria-hidden="true" />
         </div>
-        {sidebarVisible && connectors.length > 0 && (
+        {sidebarVisible && activeFeature === 'kommentare' && connectors.length > 0 && (
           <svg
             className="comment-connector-layer"
             style={{ height: contentHeight || '100%' }}
@@ -1208,7 +1232,7 @@ export function ChapterView({
             ))}
           </svg>
         )}
-        {sidebarVisible && (
+        {sidebarVisible && activeFeature === 'kommentare' && (
           <>
             <div
               className={`comment-sidebar-resize-handle${resizingSidebar ? ' active' : ''}`}
@@ -1228,6 +1252,26 @@ export function ChapterView({
           </>
         )}
        </div>
+      </div>
+      <ChapterAiDock
+        activeFeature={activeFeature}
+        onSelectFeature={handleSelectFeature}
+        night={nightMode}
+        mutedText={mutedText}
+        textColor={colors.text}
+        categoryDefs={categoryDefs}
+        activeCategories={activeCategories}
+        onToggleCategory={toggleCategory}
+        commentFreeText={commentFreeText}
+        setCommentFreeText={setCommentFreeText}
+        onGenerateComments={handleGenerateComments}
+        commentsLoading={commentsLoading}
+        commentsError={commentsError}
+        commentsCount={comments.length}
+        getWritingContext={getWritingContext}
+        getIdeaContext={getIdeaContext}
+        onInsertText={handleInsertText}
+      />
       </div>
 
       {fontSizeIndicator !== null && (
