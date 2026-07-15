@@ -1,14 +1,13 @@
-import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type {
   ChatMessage,
   ChatRequest,
-  ContextInfo,
   MessageFeedback,
   ReasoningEffort,
   SelectionContext,
 } from '../types.ts';
-import { buildHistoryPayload } from './chatHistoryPayload.ts';
-import { attachAssistantStream, type StreamCallbacks } from './assistantStream.ts';
+import { buildChatHistoryPayload } from '../services/ai/chatHistory.ts';
+import { useAiStream } from './useAiStream.ts';
 
 /** Params for API context when editing the last user message and re-streaming */
 export interface EditMessageSendParams {
@@ -41,51 +40,59 @@ export interface SendMessageOptions {
   reasoningEffort?: ReasoningEffort;
 }
 
+/**
+ * Main project chat. Builds the full {@link ChatRequest} (mode, references,
+ * reasoning, toolkits, clarification) and layers message management — editing,
+ * forking, deletion, feedback, and history persistence — on top of the shared
+ * {@link useAiStream} streaming core.
+ */
 export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [streaming, setStreaming] = useState(false);
-  const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [toolActivity, setToolActivity] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const lastStreamCallRef = useRef<{
-    chatRequest: ChatRequest;
-    selectionContext?: SelectionContext;
-  } | null>(null);
+  const stream = useAiStream();
+  const {
+    messages,
+    setMessages,
+    streaming,
+    contextInfo,
+    error,
+    setError,
+    toolActivity,
+    setToolActivity,
+    setContextInfo,
+    currentBaseRef,
+    messagesRef,
+    startStream,
+    stopStreaming,
+    retry,
+  } = stream;
+
   const onMessagesChangeRef = useRef(onMessagesChange);
-  onMessagesChangeRef.current = onMessagesChange;
+  useEffect(() => {
+    onMessagesChangeRef.current = onMessagesChange;
+  }, [onMessagesChange]);
 
-  // Tracks the evolving base message list during an active stream so that
-  // callbacks (onToolHistory, onResolvedUserMessage) can mutate it without
-  // stale closure issues.
-  const currentBaseRef = useRef<ChatMessage[]>([]);
-
-  /** Latest messages for send/edit handlers — avoids re-creating those callbacks on every token (streaming). */
-  const messagesRef = useRef<ChatMessage[]>(messages);
-  useLayoutEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  // Skip syncing on initial mount and after loadMessages
+  // Skip syncing on initial mount and after loadMessages.
   const syncEnabledRef = useRef(false);
 
-  // Sync messages to history whenever they change
+  // Sync messages to history whenever they change.
   useEffect(() => {
     if (!syncEnabledRef.current) return;
     onMessagesChangeRef.current?.(messages);
   }, [messages]);
 
-  const loadMessages = useCallback((msgs: ChatMessage[]) => {
-    syncEnabledRef.current = false;
-    setMessages(msgs);
-    setContextInfo(null);
-    setError(null);
-    setToolActivity(null);
-    // Re-enable sync after React processes the state update
-    requestAnimationFrame(() => {
-      syncEnabledRef.current = true;
-    });
-  }, []);
+  const loadMessages = useCallback(
+    (msgs: ChatMessage[]) => {
+      syncEnabledRef.current = false;
+      setMessages(msgs);
+      setContextInfo(null);
+      setError(null);
+      setToolActivity(null);
+      // Re-enable sync after React processes the state update.
+      requestAnimationFrame(() => {
+        syncEnabledRef.current = true;
+      });
+    },
+    [setMessages, setContextInfo, setError, setToolActivity],
+  );
 
   const sendMessage = useCallback(
     (
@@ -102,8 +109,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       sendOpts?: SendMessageOptions,
     ) => {
       syncEnabledRef.current = true;
-      setError(null);
-      setToolActivity(null);
       const turnId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         role: 'user',
@@ -117,26 +122,13 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       };
       currentBaseRef.current = [...messagesRef.current, userMsg];
       setMessages(currentBaseRef.current);
-      setStreaming(true);
-
-      const streamCbsBase: StreamCallbacks = {
-        setMessages,
-        setStreaming,
-        setError,
-        setToolActivity,
-        setContextInfo,
-        currentBaseRef,
-        turnId,
-      };
-
-      const streamCbs: StreamCallbacks = streamCbsBase;
 
       const request: ChatRequest = {
         message: text,
         activeFieldKey: activeFieldKey ?? null,
         mode,
         referencedFiles,
-        history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
+        history: buildChatHistoryPayload(currentBaseRef.current.slice(0, -1)),
         useReasoning: useReasoning ?? false,
         ...(sendOpts?.reasoningEffort ? { reasoningEffort: sendOpts.reasoningEffort } : {}),
         llmId: llmId,
@@ -145,43 +137,21 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
           : {}),
         ...(sendOpts?.rulesDisabled ? { rulesDisabled: true } : {}),
       };
-      lastStreamCallRef.current = { chatRequest: request, selectionContext };
 
-      abortRef.current = attachAssistantStream(request, selectionContext, streamCbs);
+      startStream(request, { selectionContext, turnId });
     },
-    [],
+    [currentBaseRef, messagesRef, setMessages, startStream],
   );
 
-  const stopStreaming = useCallback(() => {
-    abortRef.current?.abort();
-    setStreaming(false);
-    setToolActivity(null);
-  }, []);
-
-  const retry = useCallback(() => {
-    const last = lastStreamCallRef.current;
-    if (!last) return;
-    setError(null);
-    setStreaming(true);
-    setToolActivity(null);
-    const { chatRequest, selectionContext } = last;
-    const streamCbs = {
-      setMessages,
-      setStreaming,
-      setError,
-      setToolActivity,
-      setContextInfo,
-      currentBaseRef,
-    };
-    abortRef.current = attachAssistantStream(chatRequest, selectionContext, streamCbs);
-  }, []);
-
-  const forkFromMessage = useCallback((upToIndex: number) => {
-    syncEnabledRef.current = true;
-    setMessages(prev => prev.slice(0, upToIndex + 1));
-    setContextInfo(null);
-    setError(null);
-  }, []);
+  const forkFromMessage = useCallback(
+    (upToIndex: number) => {
+      syncEnabledRef.current = true;
+      setMessages((prev) => prev.slice(0, upToIndex + 1));
+      setContextInfo(null);
+      setError(null);
+    },
+    [setMessages, setContextInfo, setError],
+  );
 
   const editMessage = useCallback(
     (index: number, newContent: string, sendParams: EditMessageSendParams) => {
@@ -206,8 +176,6 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       }
 
       syncEnabledRef.current = true;
-      setError(null);
-      setToolActivity(null);
       const turnId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         role: 'user',
@@ -218,24 +186,13 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
       };
       currentBaseRef.current = [...messagesRef.current.slice(0, index), userMsg];
       setMessages(currentBaseRef.current);
-      setStreaming(true);
-
-      const streamCbs: StreamCallbacks = {
-        setMessages,
-        setStreaming,
-        setError,
-        setToolActivity,
-        setContextInfo,
-        currentBaseRef,
-        turnId,
-      };
 
       const request: ChatRequest = {
         message: trimmed,
         activeFieldKey: sendParams.activeFieldKey ?? null,
         mode: sendParams.mode,
         referencedFiles: sendParams.referencedFiles,
-        history: buildHistoryPayload(currentBaseRef.current.slice(0, -1)),
+        history: buildChatHistoryPayload(currentBaseRef.current.slice(0, -1)),
         useReasoning: sendParams.useReasoning ?? false,
         ...(sendParams.reasoningEffort ? { reasoningEffort: sendParams.reasoningEffort } : {}),
         llmId: sendParams.llmId,
@@ -245,48 +202,49 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void) {
         ...(sendParams.rulesDisabled ? { rulesDisabled: true } : {}),
       };
 
-      lastStreamCallRef.current = {
-        chatRequest: request,
+      startStream(request, {
         selectionContext: sendParams.selectionContext,
-      };
-
-      abortRef.current = attachAssistantStream(
-        request,
-        sendParams.selectionContext,
-        streamCbs,
-      );
+        turnId,
+      });
     },
-    [],
+    [currentBaseRef, messagesRef, setMessages, startStream],
   );
 
-  const deleteMessages = useCallback((indices: number[]) => {
-    if (indices.length === 0) return;
-    const idxSet = new Set(indices);
-    syncEnabledRef.current = true;
-    setMessages((prev) => {
-      const next = prev.filter((_, i) => !idxSet.has(i));
-      currentBaseRef.current = next;
-      return next;
-    });
-  }, []);
+  const deleteMessages = useCallback(
+    (indices: number[]) => {
+      if (indices.length === 0) return;
+      const idxSet = new Set(indices);
+      syncEnabledRef.current = true;
+      setMessages((prev) => {
+        const next = prev.filter((_, i) => !idxSet.has(i));
+        currentBaseRef.current = next;
+        return next;
+      });
+    },
+    [currentBaseRef, setMessages],
+  );
 
-  const setMessageFeedback = useCallback((index: number, feedback: MessageFeedback | null) => {
-    syncEnabledRef.current = true;
-    setMessages((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      const next = prev.slice();
-      const target = next[index];
-      if (!target) return prev;
-      if (feedback === null) {
-        const { feedback: _drop, ...rest } = target;
-        next[index] = rest;
-      } else {
-        next[index] = { ...target, feedback };
-      }
-      currentBaseRef.current = next;
-      return next;
-    });
-  }, []);
+  const setMessageFeedback = useCallback(
+    (index: number, feedback: MessageFeedback | null) => {
+      syncEnabledRef.current = true;
+      setMessages((prev) => {
+        if (index < 0 || index >= prev.length) return prev;
+        const next = prev.slice();
+        const target = next[index];
+        if (!target) return prev;
+        if (feedback === null) {
+          const without = { ...target };
+          delete without.feedback;
+          next[index] = without;
+        } else {
+          next[index] = { ...target, feedback };
+        }
+        currentBaseRef.current = next;
+        return next;
+      });
+    },
+    [currentBaseRef, setMessages],
+  );
 
   return {
     messages,

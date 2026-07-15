@@ -1,15 +1,28 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import type { ChatMessage, ChatRequest, ContextInfo, SelectionContext } from '../types.ts';
-import { streamChat } from '../api.ts';
-import { CHAT_ASSISTANT_UI_MODE } from '../config/chatAssistantUi.ts';
-import { extractFilesReadByTools } from '../utils/toolContextUtils.ts';
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type {
+  ChatMessage,
+  ChatRequest,
+  ContextInfo,
+  SelectionContext,
+} from "../../types.ts";
+import { startChatStream } from "./aiStreamTransport.ts";
+import { CHAT_ASSISTANT_UI_MODE } from "../../config/chatAssistantUi.ts";
+import { extractFilesReadByTools } from "../../utils/toolContextUtils.ts";
 
-/** Whether a message from SSE `tool_history` should appear in the chat transcript. */
+/**
+ * Adapter between the low-level {@link startChatStream} transport and React
+ * state. It turns stream events into the transcript updates every chat surface
+ * needs (assistant bubble, tool rows, context info, errors), honouring
+ * {@link CHAT_ASSISTANT_UI_MODE}. This is the only place that knows how a stream
+ * maps onto the message list; hooks just own the state it writes into.
+ */
+
+/** Whether a message from a `tool_history` round should appear in the transcript. */
 function isVisibleToolHistoryMessage(msg: ChatMessage): boolean {
-  if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+  if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
     return true;
   }
-  if (msg.role === 'tool') {
+  if (msg.role === "tool") {
     return Boolean(msg.content);
   }
   return Boolean(msg.content?.trim());
@@ -30,15 +43,16 @@ function assistantMessage(
   selectionContext: SelectionContext | undefined,
   turnId: string | undefined,
 ): ChatMessage {
-  const msg: ChatMessage = { role: 'assistant', content };
+  const msg: ChatMessage = { role: "assistant", content };
   if (selectionContext !== undefined) msg.selectionContext = selectionContext;
   if (turnId !== undefined) msg.turnId = turnId;
   return msg;
 }
 
 /**
- * Subscribes to POST /chat SSE and maps token events into React state.
- * Respects {@link CHAT_ASSISTANT_UI_MODE}: either incremental updates or a single flush on completion.
+ * Subscribes to a chat stream and maps its events into React state.
+ * Respects {@link CHAT_ASSISTANT_UI_MODE}: either incremental updates or a single
+ * flush on completion.
  */
 export function attachAssistantStream(
   requestBase: ChatRequest,
@@ -46,7 +60,7 @@ export function attachAssistantStream(
   cbs: StreamCallbacks,
   onAssistantComplete?: (fullAssistantText: string) => void,
 ): AbortController {
-  let assistantContent = '';
+  let assistantContent = "";
   let shellVisible = false;
   const mode = CHAT_ASSISTANT_UI_MODE;
 
@@ -57,16 +71,15 @@ export function attachAssistantStream(
     shellVisible = true;
     cbs.setMessages([
       ...cbs.currentBaseRef.current,
-      assistantMessage('', selectionContext, turnId),
+      assistantMessage("", selectionContext, turnId),
     ]);
   };
 
-  return streamChat(
-    requestBase,
-    (token) => {
+  return startChatStream(requestBase, {
+    onToken: (token) => {
       assistantContent += token;
       cbs.setToolActivity(null);
-      if (mode === 'live') {
+      if (mode === "live") {
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
           assistantMessage(assistantContent, selectionContext, turnId),
@@ -75,11 +88,11 @@ export function attachAssistantStream(
       }
       pushAssistantShell();
     },
-    (info) => {
+    onContext: (info) => {
       cbs.setContextInfo(info);
     },
-    (fullAssistantText) => {
-      if (mode === 'on-done') {
+    onDone: (fullAssistantText) => {
+      if (mode === "on-done") {
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
           assistantMessage(fullAssistantText, selectionContext, turnId),
@@ -88,7 +101,9 @@ export function attachAssistantStream(
         // Live: the trailing assistant bubble was never in currentBaseRef; persist it so tool rows
         // stay in the same message list after streaming ends (avoids "tools vanished" glitches).
         const body =
-          fullAssistantText.trim().length > 0 ? fullAssistantText : assistantContent;
+          fullAssistantText.trim().length > 0
+            ? fullAssistantText
+            : assistantContent;
         if (body.trim().length > 0) {
           cbs.currentBaseRef.current = [
             ...cbs.currentBaseRef.current,
@@ -97,41 +112,41 @@ export function attachAssistantStream(
         }
         cbs.setMessages([...cbs.currentBaseRef.current]);
       }
-      assistantContent = '';
+      assistantContent = "";
       cbs.setStreaming(false);
       cbs.setToolActivity(null);
       onAssistantComplete?.(fullAssistantText);
     },
-    (err) => {
+    onError: (err) => {
       cbs.setError(err.message);
       cbs.setStreaming(false);
       cbs.setToolActivity(null);
-      if (mode === 'live' && assistantContent.trim().length > 0) {
+      if (mode === "live" && assistantContent.trim().length > 0) {
         cbs.currentBaseRef.current = [
           ...cbs.currentBaseRef.current,
           assistantMessage(assistantContent, selectionContext, turnId),
         ];
-        assistantContent = '';
+        assistantContent = "";
         cbs.setMessages([...cbs.currentBaseRef.current]);
-      } else if (mode === 'on-done' && assistantContent.length > 0) {
+      } else if (mode === "on-done" && assistantContent.length > 0) {
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
           assistantMessage(assistantContent, selectionContext, turnId),
         ]);
       }
     },
-    (description) => {
+    onToolCall: (description) => {
       cbs.setToolActivity(description);
     },
-    (updatedTokens) => {
+    onContextUpdate: (updatedTokens) => {
       cbs.setContextInfo((prev) =>
         prev ? { ...prev, estimatedTokens: updatedTokens } : prev,
       );
     },
-    (toolMessages) => {
+    onToolHistory: (toolMessages) => {
       // Streamed text for this round is already on the assistant row inside toolMessages (from server).
       // Drop the client buffer so the next round does not concatenate into the same string.
-      assistantContent = '';
+      assistantContent = "";
       cbs.currentBaseRef.current = [
         ...cbs.currentBaseRef.current,
         ...toolMessages.map((m) => ({
@@ -140,11 +155,11 @@ export function attachAssistantStream(
           ...(turnId !== undefined ? { turnId } : {}),
         })),
       ];
-      if (mode === 'on-done') {
+      if (mode === "on-done") {
         shellVisible = true;
         cbs.setMessages([
           ...cbs.currentBaseRef.current,
-          assistantMessage('', selectionContext, turnId),
+          assistantMessage("", selectionContext, turnId),
         ]);
       } else {
         cbs.setMessages([...cbs.currentBaseRef.current]);
@@ -156,16 +171,18 @@ export function attachAssistantStream(
           prev
             ? {
                 ...prev,
-                includedFiles: [...new Set([...prev.includedFiles, ...filesFromTools])],
+                includedFiles: [
+                  ...new Set([...prev.includedFiles, ...filesFromTools]),
+                ],
               }
             : prev,
         );
       }
     },
-    (resolved) => {
+    onResolvedUserMessage: (resolved) => {
       const base = [...cbs.currentBaseRef.current];
       for (let i = base.length - 1; i >= 0; i--) {
-        if (base[i].role === 'user' && !base[i].hidden) {
+        if (base[i].role === "user" && !base[i].hidden) {
           base[i] = { ...base[i], resolvedContent: resolved };
           break;
         }
@@ -173,5 +190,5 @@ export function attachAssistantStream(
       cbs.currentBaseRef.current = base;
       cbs.setMessages(base);
     },
-  );
+  });
 }
