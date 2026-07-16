@@ -35,31 +35,6 @@
 }
 
 :root {
-    --bg-primary: #1e1e2e;
-    --bg-secondary: #181825;
-    --bg-tertiary: #11111b;
-    --bg-hover: #313244;
-    --bg-active: #45475a;
-    --border: #313244;
-    --text-primary: #cdd6f4;
-    --text-secondary: #a6adc8;
-    --text-muted: #6c7086;
-    --accent: #89b4fa;
-    --accent-dim: #89b4fa33;
-    --green: #a6e3a1;
-    --red: #f38ba8;
-    --yellow: #f9e2af;
-    --surface: #1e1e2e;
-    --chat-user-bg: #313244;
-    --chat-ai-bg: #1e1e2e;
-    /* User preferences — overridden at runtime via document.documentElement.style */
-    --pref-font-family:
-        "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
-    --pref-chat-font-size: 14px;
-}
-
-/* Light theme overrides — activated by body.theme-light */
-body.theme-light {
     --bg-primary: #ffffff;
     --bg-secondary: #f5f5f7;
     --bg-tertiary: #e8e8ed;
@@ -77,6 +52,10 @@ body.theme-light {
     --surface: #ffffff;
     --chat-user-bg: #e8e8f0;
     --chat-ai-bg: #f5f5f7;
+    /* User preferences — overridden at runtime via document.documentElement.style */
+    --pref-font-family:
+        "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    --pref-chat-font-size: 14px;
 }
 
 * {
@@ -139,10 +118,26 @@ body {
 
 .navi-chat-header {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     padding: 10px 16px;
     font-size: 14px;
     font-weight: 600;
     border-bottom: 1px solid var(--border, #45475a);
+}
+
+.navi-chat-header-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.navi-chat-header .chat-header-actions {
+    position: static;
+    opacity: 1;
+    box-shadow: none;
 }
 
 /* Middle column: hosts editor + floating control to collapse side panels */

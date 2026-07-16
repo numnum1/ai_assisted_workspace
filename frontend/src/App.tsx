@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
+import { NewChatButton } from "./components/chat/NewChatButton.tsx";
 import { NaviStatePanel } from "./components/chat/NaviStatePanel.tsx";
 import {
   SimulationSetupModal,
@@ -385,14 +386,19 @@ function App() {
         </div>
 
         <div className="navi-chat-column">
-          <div className="navi-chat-header">KI-Navi Handel</div>
+          <div className="navi-chat-header">
+            <span className="navi-chat-header-title">KI-Navi Handel</span>
+            <div className="chat-header-actions">
+              <NewChatButton onClick={() => handleNewChat()} />
+            </div>
+          </div>
           <ChatPanel
             messages={conversation.messages}
             streaming={conversation.streaming}
             error={conversation.error}
             toolActivity={conversation.toolActivity}
             naviStep={chat.naviStepForCard}
-            theme={preferences.appearance.theme === "light" ? "light" : "dark"}
+            theme="light"
             modes={modesForChat}
             selectedMode={selectedMode}
             referencedFiles={refs.referencedFiles}
@@ -420,7 +426,6 @@ function App() {
             onEditMessage={conversation.editMessage}
             onDeleteMessages={conversation.deleteMessages}
             onSetMessageFeedback={conversation.setMessageFeedback}
-            onNewChat={handleNewChat}
             activeSessionKind={history.activeConversation?.sessionKind ?? "navi"}
             naviStateId={history.activeConversation?.naviStateId ?? null}
             simulationConfig={history.activeConversation?.simulationConfig}

@@ -109,7 +109,7 @@ export function ChatPane({
   simulationConfig,
   onReplaceSelection,
   onApplyFieldUpdate,
-  theme = "dark",
+  theme = "light",
   fieldLabels,
 }: ChatPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);

@@ -65,26 +65,6 @@ export function AppearanceModal({
         </div>
 
         <div className="appearance-modal-body">
-          {/* Theme */}
-          <section className="appearance-section">
-            <div className="appearance-section-label">Farbschema</div>
-            <div className="appearance-theme-row">
-              {(["dark", "light"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`appearance-theme-btn${draft.theme === t ? " active" : ""}`}
-                  onClick={() => handleChange({ theme: t })}
-                >
-                  <span
-                    className={`appearance-theme-swatch appearance-theme-swatch--${t}`}
-                  />
-                  {t === "dark" ? "Dunkel" : "Hell"}
-                </button>
-              ))}
-            </div>
-          </section>
-
           {/* Font family */}
           <section className="appearance-section">
             <label className="appearance-section-label" htmlFor="pref-font-family">

@@ -13,7 +13,6 @@ const DEFAULT_PREFERENCES: AppPreferences = {
   appearance: {
     fontFamily: "system-ui",
     chatFontSizePx: 14,
-    theme: "dark",
   },
 };
 

@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Waypoints } from "lucide-react";
 import type {
   ChatMessage,
   Mode,
@@ -11,7 +10,6 @@ import type {
   ReasoningEffort,
   SimulationConfig,
 } from "../../types.ts";
-import { NewChatButton } from "./NewChatButton.tsx";
 import { ChatPane } from "./ChatPane.tsx";
 
 function resolveGuidedExecutionSummary(
@@ -55,11 +53,7 @@ interface ChatPanelProps {
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
-  /** "Neuer Chat": replaces the current chat with a fresh empty Navi chat. */
-  onNewChat: () => void;
   activeSessionKind?: ChatSessionKind;
-  /** Opens the arc timeline workspace (story/character/relationship arcs). */
-  onOpenArcs?: () => void;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
@@ -105,8 +99,6 @@ export function ChatPanel({
   onEditMessage,
   onDeleteMessages,
   onSetMessageFeedback,
-  onNewChat,
-  onOpenArcs,
   activeSelection = null,
   onDismissSelection,
   onReplaceSelection,
@@ -120,7 +112,7 @@ export function ChatPanel({
   onRetry,
   onComposerDraftChange,
   activeSessionKind = "standard",
-  theme = "dark",
+  theme = "light",
   naviStateId,
   naviStep,
   simulationConfig,
@@ -152,20 +144,6 @@ export function ChatPanel({
 
   return (
     <div className="chat-panel">
-      <div className="chat-header-actions">
-        {onOpenArcs && (
-          <button
-            type="button"
-            className="chat-history-btn"
-            onClick={onOpenArcs}
-            title="Spannungsbögen öffnen (Strg+Shift+B) — Story-/Figuren-/Beziehungsbögen"
-          >
-            <Waypoints size={14} />
-          </button>
-        )}
-        <NewChatButton onClick={() => onNewChat()} />
-      </div>
-
       {guidedExecSummary && (
         <div className="chat-header">
           <div

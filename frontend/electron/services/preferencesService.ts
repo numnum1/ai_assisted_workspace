@@ -33,7 +33,6 @@ async function pathExists(targetPath: string): Promise<boolean> {
 const DEFAULT_APPEARANCE: Required<AppearancePreferences> = {
   fontFamily: "system-ui",
   chatFontSizePx: 14,
-  theme: "dark",
   showSceneHeadings: true,
 };
 
