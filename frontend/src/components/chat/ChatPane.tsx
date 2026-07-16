@@ -10,7 +10,6 @@ import type {
   ChatMessage,
   SelectionContext,
   ChatSessionKind,
-  ContextInfo,
   MessageFeedback,
   ReasoningEffort,
   SimulationConfig,
@@ -22,7 +21,6 @@ import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
 import { YesNoCard } from "./YesNoCard.tsx";
 import { parseClarificationQuestions, parseYesNoQuestion } from "./clarificationUtils.ts";
 import { ChatMessagesPane } from "./ChatMessagesPane.tsx";
-import { ContextBar, type ContextBlock } from "./ContextBar.tsx";
 import "./ChatPane.css";
 
 /** Chars above which auto-scroll stops following during streaming. */
@@ -78,12 +76,6 @@ export interface ChatPaneProps {
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
 
-  contextInfo: ContextInfo | null;
-  activeFile: string | null;
-  isDirty: boolean;
-  systemPromptPreview?: string | null;
-  onFetchContextBlocks?: () => Promise<ContextBlock[]>;
-
   theme?: "light" | "dark";
   fieldLabels?: Record<string, string>;
   /** When this is a thread: the last visible message from the parent conversation to show as context banner. */
@@ -130,11 +122,6 @@ export function ChatPane({
   simulationConfig,
   onReplaceSelection,
   onApplyFieldUpdate,
-  contextInfo,
-  activeFile,
-  isDirty,
-  systemPromptPreview,
-  onFetchContextBlocks,
   theme = "dark",
   fieldLabels,
   parentLastMessage = null,
@@ -394,15 +381,6 @@ export function ChatPane({
           />
         </div>
       </div>
-
-      <ContextBar
-        contextInfo={contextInfo}
-        activeFile={activeFile}
-        isDirty={isDirty}
-        systemPromptPreview={systemPromptPreview}
-        onFetchContextBlocks={onFetchContextBlocks}
-      />
-
     </div>
   );
 }

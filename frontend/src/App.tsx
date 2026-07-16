@@ -380,6 +380,17 @@ function App() {
   return (
     <div className="app">
       <div className="app-panels navi-app-panels">
+        <div className="navi-state-column">
+          {history.activeConversation?.naviStateId && (
+            <NaviStatePanel
+              naviStateId={history.activeConversation.naviStateId}
+              naviFacts={history.activeConversation.naviFacts}
+              naviCoveredTips={history.activeConversation.naviCoveredTips}
+              naviTrace={history.activeConversation.naviTrace}
+            />
+          )}
+        </div>
+
         <div className="navi-chat-column">
           <ChatPanel
             messages={conversation.messages}
@@ -433,21 +444,7 @@ function App() {
             onDismissSelection={handleDismissSelection}
             chatFocusTriggerRef={chatFocusTriggerRef}
             onComposerDraftChange={handleComposerDraftChange}
-            contextInfo={conversation.contextInfo}
-            activeFile={null}
-            isDirty={false}
           />
-        </div>
-
-        <div className="navi-state-column">
-          {history.activeConversation?.naviStateId && (
-            <NaviStatePanel
-              naviStateId={history.activeConversation.naviStateId}
-              naviFacts={history.activeConversation.naviFacts}
-              naviCoveredTips={history.activeConversation.naviCoveredTips}
-              naviTrace={history.activeConversation.naviTrace}
-            />
-          )}
         </div>
       </div>
 

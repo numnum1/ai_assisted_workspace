@@ -7,7 +7,6 @@ import type {
   SelectionContext,
   LlmPublic,
   ChatSessionKind,
-  ContextInfo,
   MessageFeedback,
   ReasoningEffort,
   SimulationConfig,
@@ -16,7 +15,6 @@ import { ChatHistory } from "./ChatHistory.tsx";
 import { NewChatButton } from "./NewChatButton.tsx";
 import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
 import { ChatPane } from "./ChatPane.tsx";
-import type { ContextBlock } from "./ContextBar.tsx";
 
 function resolveGuidedExecutionSummary(
   modes: Mode[],
@@ -96,12 +94,6 @@ interface ChatPanelProps {
   isSummarizing?: boolean;
   /** Last visible message from the parent conversation (when activeIsThread is true). */
   parentLastMessage?: ChatMessage | null;
-  /** ContextBar data — one per chat instance. */
-  contextInfo: ContextInfo | null;
-  activeFile: string | null;
-  isDirty: boolean;
-  systemPromptPreview?: string | null;
-  onFetchContextBlocks?: () => Promise<ContextBlock[]>;
   naviStateId?: string | null;
   naviStep?: string | null;
   simulationConfig?: SimulationConfig;
@@ -163,11 +155,6 @@ export function ChatPanel({
   theme = "dark",
   onSummarizeToParent,
   isSummarizing = false,
-  contextInfo,
-  activeFile,
-  isDirty,
-  systemPromptPreview,
-  onFetchContextBlocks,
   naviStateId,
   naviStep,
   simulationConfig,
@@ -322,11 +309,6 @@ export function ChatPanel({
           simulationConfig={simulationConfig}
           onReplaceSelection={onReplaceSelection}
           onApplyFieldUpdate={onApplyFieldUpdate}
-          contextInfo={contextInfo}
-          activeFile={activeFile}
-          isDirty={isDirty}
-          systemPromptPreview={systemPromptPreview}
-          onFetchContextBlocks={onFetchContextBlocks}
           theme={theme}
           fieldLabels={fieldLabels}
           parentLastMessage={parentLastMessage}

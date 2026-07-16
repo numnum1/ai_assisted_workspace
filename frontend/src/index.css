@@ -112,6 +112,31 @@ body {
     overflow: hidden;
 }
 
+/* Navi layout: state panel on the left, chat filling the rest */
+.navi-app-panels {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+}
+
+.navi-state-column {
+    width: 300px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--border, #45475a);
+    overflow: hidden;
+}
+
+.navi-chat-column {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
 /* Middle column: hosts editor + floating control to collapse side panels */
 .center-editor-pane {
     position: relative;
@@ -6658,270 +6683,6 @@ body.file-tree-native-dragging {
 
 .mode-selector select:focus {
     border-color: var(--accent);
-}
-
-/* ==================== Context Bar ==================== */
-
-.context-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px 12px;
-    background: var(--bg-tertiary);
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    color: var(--text-muted);
-    min-height: 28px;
-}
-
-.context-bar-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.context-bar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.context-bar-file {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.context-bar-system-prompt-hint {
-    color: var(--text-muted, #888);
-    font-size: 0.68rem;
-    white-space: nowrap;
-}
-
-.context-bar-tokens {
-    color: var(--yellow);
-}
-
-.context-bar-tokens--with-bar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-muted);
-}
-
-.context-bar-token-pct {
-    font-size: 10px;
-    font-variant-numeric: tabular-nums;
-    min-width: 30px;
-    text-align: right;
-    transition: color 0.3s ease;
-}
-
-.context-bar-token-bar {
-    display: inline-block;
-    width: 60px;
-    height: 5px;
-    border-radius: 3px;
-    background: var(--bg-secondary);
-    overflow: hidden;
-    vertical-align: middle;
-}
-
-.context-bar-token-bar-fill {
-    display: block;
-    height: 100%;
-    border-radius: 3px;
-    transition:
-        width 0.3s ease,
-        background 0.3s ease;
-}
-
-/* Context bar: Konversations-Inspector (Auge), Tokenzeile */
-
-.context-bar-wrapper {
-    display: flex;
-    flex-direction: column;
-}
-
-.context-inspector-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    color: var(--text-dim, #6c7086);
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-size: 11px;
-}
-
-.context-inspector-toggle:hover,
-.context-inspector-toggle--open {
-    color: var(--accent, #89b4fa);
-    background: rgba(137, 180, 250, 0.1);
-}
-
-.context-inspector {
-    background: var(--bg-primary, #181825);
-    border-top: 1px solid var(--border, #45475a);
-    max-height: 320px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    font-size: 0.78rem;
-}
-
-.context-inspector-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px 12px;
-    border-bottom: 1px solid var(--border, #45475a);
-    background: var(--surface1, #1e1e2e);
-    flex-shrink: 0;
-}
-
-.context-inspector-title {
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted, #888);
-}
-
-.context-inspector-refresh {
-    background: none;
-    border: none;
-    color: var(--text-muted, #888);
-    cursor: pointer;
-    font-size: 0.85rem;
-    padding: 0 4px;
-}
-
-.context-inspector-refresh:not(:disabled):hover {
-    color: var(--text-primary, #cdd6f4);
-}
-
-.context-inspector-loading {
-    padding: 8px 12px;
-    color: var(--text-muted, #888);
-    font-style: italic;
-}
-
-.context-inspector-body {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.context-inspector-scroll {
-    overflow-y: auto;
-    flex: 1;
-}
-
-.context-inspector-section-title {
-    padding: 6px 12px 4px;
-    font-size: 0.68rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted, #888);
-    border-top: 1px solid var(--border, #45475a);
-    background: var(--surface1, #1e1e2e);
-}
-
-.context-inspector-blocks {
-    overflow-y: auto;
-    flex: 1;
-}
-
-.context-block-content--system-prompt {
-    max-height: 280px;
-    overflow: auto;
-}
-
-.context-inspector-blocks-inner .context-block:last-child {
-    border-bottom: none;
-}
-
-.context-block {
-    border-bottom: 1px solid var(--border, #45475a);
-}
-
-.context-block-header {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    cursor: pointer;
-    color: var(--text-secondary, #bac2de);
-}
-
-.context-block-header:hover {
-    background: var(--surface2, #313244);
-}
-
-.context-block-expand {
-    flex-shrink: 0;
-    color: var(--text-dim, #6c7086);
-    display: flex;
-}
-
-.context-block-icon {
-    flex-shrink: 0;
-    font-size: 0.8em;
-}
-
-.context-block-label {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.8rem;
-}
-
-.context-block-tokens {
-    flex-shrink: 0;
-    color: var(--text-dim, #6c7086);
-    font-size: 0.72rem;
-}
-
-.context-block-copy-btn {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 2px;
-    padding: 2px 4px;
-    background: none;
-    border: none;
-    border-radius: 3px;
-    color: var(--text-muted, #888);
-    cursor: pointer;
-    line-height: 1;
-}
-
-.context-block-copy-btn:hover {
-    color: var(--text-primary, #cdd6f4);
-    background: var(--surface2, #313244);
-}
-
-.context-block-content {
-    padding: 6px 12px 6px 28px;
-    background: var(--bg-primary, #181825);
-    max-height: 200px;
-    overflow: auto;
-}
-
-.context-block-content pre {
-    margin: 0;
-    font-family: var(--font-mono, monospace);
-    font-size: 0.75rem;
-    color: var(--text-secondary, #bac2de);
-    white-space: pre-wrap;
-    word-break: break-word;
 }
 
 /* ==================== Command Palette ==================== */
