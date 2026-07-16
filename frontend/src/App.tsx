@@ -385,6 +385,7 @@ function App() {
         </div>
 
         <div className="navi-chat-column">
+          <div className="navi-chat-header">KI-Navi Handel</div>
           <ChatPanel
             messages={conversation.messages}
             streaming={conversation.streaming}
