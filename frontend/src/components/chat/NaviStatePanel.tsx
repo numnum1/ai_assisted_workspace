@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   CheckCircle2,
   Circle,
@@ -9,13 +10,11 @@ import {
   Inbox,
   BookOpen,
   History,
+  Pencil,
 } from "lucide-react";
-import {
-  NAVI_CLIENT_STATES,
-  getNaviClientState,
-} from "./naviStateMachineClient.ts";
-import { NAVI_STATES, getEffectiveSlots, getAllSlotLabels } from "../../naviStateMachine.ts";
-import { NAVI_TIPS } from "../../naviTips.ts";
+import { getEffectiveSlots, getAllSlotLabels, getNaviState } from "../../naviStateMachine.ts";
+import { useNaviStateConfig } from "../../hooks/useNaviStateConfig.ts";
+import { NaviStateEditor } from "./NaviStateEditor.tsx";
 import type { NaviFacts, NaviTraceEntry } from "../../types.ts";
 import "./NaviStatePanel.css";
 
@@ -27,20 +26,50 @@ interface Props {
 }
 
 export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTrace }: Props) {
-  const current = getNaviClientState(naviStateId);
-  const currentRaw = NAVI_STATES.find((s) => s.id === naviStateId);
-  const currentSlots = getEffectiveSlots(naviStateId, undefined);
-  const allSlotLabels = getAllSlotLabels(undefined);
+  const { states, tips, loading, error, saveStates, saveTips, resetStates, resetTips } = useNaviStateConfig();
+  const [editing, setEditing] = useState(false);
+
+  const currentRaw = getNaviState(states, naviStateId);
+  const currentSlots = getEffectiveSlots(states, naviStateId);
+  const allSlotLabels = getAllSlotLabels(states);
   const filledSlotEntries = Object.entries(naviFacts?.slots ?? {}).filter(([, v]) => v?.trim());
 
-  const currentIndex = NAVI_CLIENT_STATES.findIndex((s) => s.id === naviStateId);
+  const currentIndex = states.findIndex((s) => s.id === naviStateId);
   const isDone = (stateId: string) => {
-    const idx = NAVI_CLIENT_STATES.findIndex((s) => s.id === stateId);
+    const idx = states.findIndex((s) => s.id === stateId);
     return idx !== -1 && idx < currentIndex;
   };
 
+  if (loading) {
+    return <div className="navi-panel navi-panel--loading">Lade Navi-Konfiguration …</div>;
+  }
+
+  if (editing) {
+    return (
+      <div className="navi-panel">
+        <NaviStateEditor
+          initialStates={states}
+          initialTips={tips}
+          onSaveStates={saveStates}
+          onSaveTips={saveTips}
+          onResetStates={resetStates}
+          onResetTips={resetTips}
+          onClose={() => setEditing(false)}
+          error={error}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="navi-panel">
+      <div className="navi-section navi-section--toolbar">
+        <button type="button" className="navi-edit-toggle" onClick={() => setEditing(true)}>
+          <Pencil size={11} />
+          Bearbeiten
+        </button>
+      </div>
+
       {/* ── Section 1: Current State ────────────────────────── */}
       <div className="navi-section">
         <div className="navi-section-label">
@@ -52,7 +81,7 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
           <div className="navi-state-card-header">
             <span className="navi-state-id-chip">{naviStateId}</span>
             <span className="navi-state-card-title">
-              {current?.label ?? naviStateId}
+              {currentRaw?.label ?? naviStateId}
             </span>
             <span
               className={`navi-persona-chip navi-persona-chip--${currentRaw?.persona ?? "full"}`}
@@ -61,8 +90,8 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
             </span>
           </div>
 
-          {current?.description && (
-            <p className="navi-state-card-description">{current.description}</p>
+          {currentRaw?.description && (
+            <p className="navi-state-card-description">{currentRaw.description}</p>
           )}
 
           {currentRaw?.instruction && (
@@ -238,7 +267,7 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
           Hinweise
         </div>
         <ul className="navi-tips-list">
-          {NAVI_TIPS.map((tip) => {
+          {tips.map((tip) => {
             const covered = naviCoveredTips?.includes(tip.id) ?? false;
             return (
               <li key={tip.id} className={`navi-tip-item${covered ? " navi-tip-item--covered" : ""}`}>
@@ -259,7 +288,7 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
           </div>
           <div className="navi-transitions">
             {currentRaw.transitions.map((t, i) => {
-              const target = getNaviClientState(t.to);
+              const target = getNaviState(states, t.to);
               return (
                 <div key={i} className="navi-transition-row">
                   <div className="navi-transition-target">
@@ -282,14 +311,14 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
           Flow
         </div>
         <ol className="navi-stepper">
-          {NAVI_CLIENT_STATES.map((s) => {
+          {states.map((s) => {
             const done = isDone(s.id);
             const active = s.id === naviStateId;
             const status = done ? "done" : active ? "active" : "upcoming";
             return (
               <li key={s.id} className={`navi-step navi-step--${status}`}>
                 <span className="navi-step-dot" />
-                <span className="navi-step-label">{s.label}</span>
+                <span className="navi-step-label">{s.label ?? s.id}</span>
               </li>
             );
           })}

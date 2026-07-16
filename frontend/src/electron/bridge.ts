@@ -6,6 +6,8 @@ import type {
   LlmPublic,
   Persona,
 } from "../types.ts";
+import { DEFAULT_NAVI_STATES, type NaviState } from "../naviStateMachine.ts";
+import { DEFAULT_NAVI_TIPS, type NaviTip } from "../naviTips.ts";
 
 export interface ChatContextInfo {
   includedFiles: string[];
@@ -104,6 +106,14 @@ export interface AppBridge {
     get: () => Promise<AppPreferences>;
     set: (patch: Partial<AppPreferences>) => Promise<AppPreferences>;
   };
+  navi?: {
+    getStates: () => Promise<NaviState[]>;
+    setStates: (states: NaviState[]) => Promise<NaviState[]>;
+    resetStates: () => Promise<NaviState[]>;
+    getTips: () => Promise<NaviTip[]>;
+    setTips: (tips: NaviTip[]) => Promise<NaviTip[]>;
+    resetTips: () => Promise<NaviTip[]>;
+  };
   shell?: {
     openDevTools: () => Promise<void>;
   };
@@ -158,6 +168,77 @@ function savePrefsToLocalStorage(prefs: AppPreferences): AppPreferences {
   }
   return prefs;
 }
+
+const NAVI_STATES_STORAGE_KEY = "navi-states-override";
+const NAVI_TIPS_STORAGE_KEY = "navi-tips-override";
+
+function loadFromLocalStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as T;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveToLocalStorage<T>(key: string, value: T): T {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // localStorage full or unavailable
+  }
+  return value;
+}
+
+/**
+ * Dev-web fallback only (no Electron main process to persist to or to influence an actual LLM
+ * call). In Electron builds this always goes through `bridge.navi`, backed by
+ * `electron/services/naviStateConfigService.ts`.
+ */
+export const naviConfigApi = {
+  getStates: async (): Promise<NaviState[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.getStates();
+    return loadFromLocalStorage(NAVI_STATES_STORAGE_KEY, DEFAULT_NAVI_STATES);
+  },
+  setStates: async (states: NaviState[]): Promise<NaviState[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.setStates(states);
+    return saveToLocalStorage(NAVI_STATES_STORAGE_KEY, states);
+  },
+  resetStates: async (): Promise<NaviState[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.resetStates();
+    try {
+      localStorage.removeItem(NAVI_STATES_STORAGE_KEY);
+    } catch {
+      // localStorage unavailable
+    }
+    return DEFAULT_NAVI_STATES;
+  },
+  getTips: async (): Promise<NaviTip[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.getTips();
+    return loadFromLocalStorage(NAVI_TIPS_STORAGE_KEY, DEFAULT_NAVI_TIPS);
+  },
+  setTips: async (tips: NaviTip[]): Promise<NaviTip[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.setTips(tips);
+    return saveToLocalStorage(NAVI_TIPS_STORAGE_KEY, tips);
+  },
+  resetTips: async (): Promise<NaviTip[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.resetTips();
+    try {
+      localStorage.removeItem(NAVI_TIPS_STORAGE_KEY);
+    } catch {
+      // localStorage unavailable
+    }
+    return DEFAULT_NAVI_TIPS;
+  },
+};
 
 export const preferencesApi = {
   get: async (): Promise<AppPreferences> => {

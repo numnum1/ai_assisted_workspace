@@ -56,6 +56,14 @@ contextBridge.exposeInMainWorld("appBridge", {
     get: () => ipcRenderer.invoke("preferences:get"),
     set: (patch: unknown) => ipcRenderer.invoke("preferences:set", patch),
   },
+  navi: {
+    getStates: () => ipcRenderer.invoke("navi:getStates"),
+    setStates: (states: unknown) => ipcRenderer.invoke("navi:setStates", states),
+    resetStates: () => ipcRenderer.invoke("navi:resetStates"),
+    getTips: () => ipcRenderer.invoke("navi:getTips"),
+    setTips: (tips: unknown) => ipcRenderer.invoke("navi:setTips", tips),
+    resetTips: () => ipcRenderer.invoke("navi:resetTips"),
+  },
   shell: {
     openDevTools: () => ipcRenderer.invoke("shell:openDevTools"),
   },

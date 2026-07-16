@@ -3,6 +3,8 @@ import type { NaviFacts } from "./types.ts";
 export interface NaviTransition {
   condition: string;
   to: string;
+  /** Short display label for the UI (state panel, editor). Falls back to a truncated condition. */
+  label?: string;
 }
 
 export type NaviStatePersona = "narrow" | "full";
@@ -32,11 +34,18 @@ export interface NaviState {
   tools?: NaviStateToolName[];
   /** Output shape constraints enforced after generation. */
   validation?: NaviStateValidation;
+  /** Short display name for the UI (state panel, editor). Falls back to `id`. */
+  label?: string;
+  /** One-line description of what this phase does, shown in the UI. */
+  description?: string;
 }
 
-export const NAVI_STATES: NaviState[] = [
+/** Hardcoded seed / reset-to-default machine. Runtime callers should load the effective (possibly user-edited) machine instead — see `electron/services/naviStateConfigService.ts`. */
+export const DEFAULT_NAVI_STATES: NaviState[] = [
   {
     id: "greeting",
+    label: "Begrüßung",
+    description: "Navi stellt sich vor und fragt nach dem Laden.",
     persona: "full",
     instruction: `Stelle dich kurz vor und stelle genau eine Frage.
 Vorlage (sinngemäß verwenden):
@@ -47,12 +56,15 @@ Was ist dein Laden?"`,
       {
         condition: "Nutzer nennt seinen Laden (auch wenn noch kein Problem genannt wurde)",
         to: "ask_problem",
+        label: "Laden genannt",
       },
     ],
     validation: { requiresQuestion: true },
   },
   {
     id: "ask_problem",
+    label: "Problem erfragen",
+    description: "Navi fragt, wobei geholfen werden soll.",
     persona: "full",
     instruction: `Reagiere in genau einem Satz auf den Laden des Händlers (freundlich, persönlich, keine Wertung).
 Stelle danach genau diese Frage: "Wobei kann ich dir helfen?"
@@ -64,12 +76,15 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
       {
         condition: "Nutzer beschreibt ein konkretes Problem oder einen konkreten Wunsch – nicht nur ein vages Stichwort, sondern mit erkennbarem Kontext oder Auswirkung",
         to: "clarify_problem",
+        label: "Problem genannt",
       },
     ],
     validation: { requiresQuestion: true },
   },
   {
     id: "clarify_problem",
+    label: "Problem klären",
+    description: "Navi fragt nach der praktischen Lücke – was konkret fehlt oder nicht klappt.",
     persona: "narrow",
     instruction: `Dein Ziel: Das Problem konkret machen und den Problem-Typ/die Ursache bestimmen – so dass im nächsten Schritt klar ist, welche Stack-Bereiche relevant sind.
 
@@ -119,10 +134,12 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
       {
         condition: "BEIDE Arbeitsplan-Punkte bekannt – Problem konkret UND Problem-Typ/Ursache identifiziert",
         to: "explore_software_stack",
+        label: "Problem + Lücke bekannt",
       },
       {
         condition: "Nutzer beschreibt ein komplett anderes Problem als bisher – das ursprüngliche Thema war ein Missverständnis",
         to: "ask_problem",
+        label: "Missverständnis – neues Problem",
       },
     ],
     tools: ["ask_question", "ask_clarification"],
@@ -130,6 +147,8 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
   },
   {
     id: "explore_software_stack",
+    label: "Software-Stack",
+    description: "Navi erfragt den vollständigen Stack: Kasse, Online-Shop, Kommunikation, problemrelevanter Bereich.",
     persona: "narrow",
     instruction: `Dein Ziel: Den Software-Stack des Händlers so weit verstehen, dass eine sinnvolle Empfehlung möglich ist.
 
@@ -186,10 +205,12 @@ Ansonsten ask_question.`,
       {
         condition: "Alle relevanten Pflicht-Arbeitsplan-Punkte bekannt – Online-Präsenz und problemrelevante Tools/Abläufe",
         to: "explore_investment",
+        label: "Vollständiger Stack bekannt",
       },
       {
         condition: "Im Gespräch taucht ein wesentlicher neuer Problem-Aspekt auf, der das ursprünglich verstandene Problem grundlegend verändert",
         to: "clarify_problem",
+        label: "Neuer Problem-Aspekt aufgetaucht",
       },
     ],
     tools: ["ask_question", "ask_clarification"],
@@ -197,6 +218,8 @@ Ansonsten ask_question.`,
   },
   {
     id: "explore_investment",
+    label: "Aufwandbereitschaft",
+    description: "Navi fragt, wie viel Zeit und Geld der Händler in eine Lösung investieren würde.",
     persona: "narrow",
     instruction: `Du klärst jetzt ausschließlich die Investitionsbereitschaft – nichts anderes. Diese Phase hat genau ein Ziel: verstehen, ob der Händler grundsätzlich bereit ist, Zeit oder Geld zu investieren. Maximal 1–3 kurze Fragen, dann ist diese Phase erledigt.
 
@@ -229,6 +252,7 @@ Falsch: "Was wäre monatlich drin?"
       {
         condition: "Investitionsbereitschaft für alle relevanten Dimensionen bekannt – mindestens Zeitbereitschaft (falls laufender Aufwand erwartet) und Budgetbereitschaft (falls Kosten entstehen). Nicht relevante Dimensionen zählen als bekannt.",
         to: "confirm_understanding",
+        label: "Zeit + Budget bekannt",
       },
     ],
     tools: ["ask_question", "ask_clarification", "ask_yes_no"],
@@ -236,6 +260,8 @@ Falsch: "Was wäre monatlich drin?"
   },
   {
     id: "confirm_understanding",
+    label: "Verständnis bestätigen",
+    description: "Navi fasst Problem und Stack zusammen und fragt ob alles stimmt.",
     persona: "full",
     instruction: `Fasse in 3–5 knappen Stichpunkten zusammen, was du bisher verstanden hast:
 - Laden und Kontext des Händlers
@@ -251,19 +277,24 @@ Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einho
       {
         condition: "Händler bestätigt oder signalisiert, dass die Zusammenfassung stimmt (auch mit kurzer positiver Reaktion wie 'ja', 'genau', 'stimmt')",
         to: "assess_situation",
+        label: "Händler bestätigt",
       },
       {
         condition: "Händler korrigiert etwas am Problem oder nennt neuen Problem-Aspekt",
         to: "clarify_problem",
+        label: "Problem-Korrektur",
       },
       {
         condition: "Händler korrigiert etwas am Stack oder ergänzt fehlende Stack-Information",
         to: "explore_software_stack",
+        label: "Stack-Korrektur",
       },
     ],
   },
   {
     id: "assess_situation",
+    label: "Einschätzung & erster Vorschlag",
+    description: "Navi bewertet ehrlich ob KI helfen kann und macht direkt einen ersten konkreten Vorschlag.",
     persona: "full",
     instruction: `Du hast jetzt: Laden, Problem/Ausmaß, den vollständigen Software-Stack UND die Investitionsbereitschaft (Zeit, laufende Kosten, einmaliges Startbudget) des Händlers.
 
@@ -299,19 +330,24 @@ Falsch: "Möchtest du, dass ich dir dazu etwas vorschlage?"`,
       {
         condition: "Nutzer reagiert positiv, will mehr Details oder hat konkrete Rückfragen zum Vorschlag",
         to: "give_recommendation",
+        label: "Händler will mehr Details",
       },
       {
         condition: "Nutzer signalisiert klar kein Interesse oder möchte das Gespräch beenden",
         to: "closing",
+        label: "Kein Bedarf",
       },
       {
         condition: "Wesentliche Stack-Informationen fehlen oder sind zu unklar für eine fundierte Einschätzung",
         to: "explore_software_stack",
+        label: "Stack-Info unvollständig",
       },
     ],
   },
   {
     id: "give_recommendation",
+    label: "Empfehlung",
+    description: "Navi macht einen konkreten, realistischen Lösungsvorschlag.",
     persona: "full",
     instruction: `Mache einen konkreten, realistischen Vorschlag:
 - Wenn Stack vorhanden: Vorschlag fügt sich in den bestehenden Stack ein – kein Umbau, keine neuen Plattformen ohne Not.
@@ -330,15 +366,19 @@ Frage am Ende, ob das passt oder ob etwas unklar ist.`,
       {
         condition: "Nutzer signalisiert klar, dass er zufrieden ist oder das Gespräch beenden möchte",
         to: "offer_ai_exploration",
+        label: "Zufrieden",
       },
       {
         condition: "Nutzer hat Einwände, Fragen oder möchte eine Alternative – auch bei kurzem Zögern oder Nachfragen",
         to: "refine_recommendation",
+        label: "Einwände / Fragen",
       },
     ],
   },
   {
     id: "refine_recommendation",
+    label: "Anpassen",
+    description: "Navi passt den Vorschlag an oder bietet eine Alternative.",
     persona: "full",
     instruction: `Nimm das Feedback ernst. Passe den Vorschlag an oder biete eine Alternative an.
 Wenn nichts Passendes existiert, sag das klar – das ist hilfreicher als ein halbherziger Vorschlag.
@@ -348,19 +388,24 @@ Frag nach, wenn das Feedback unklar ist – ein kurzes "Passt das besser?" oder 
       {
         condition: "Nutzer signalisiert klar, dass er zufrieden ist oder das Gespräch beenden möchte",
         to: "offer_ai_exploration",
+        label: "Zufrieden",
       },
       {
         condition: "Nutzer hat weitere Fragen, Einwände oder möchte noch etwas klären",
         to: "refine_recommendation",
+        label: "Weitere Einwände",
       },
       {
         condition: "Der bisherige Vorschlag passt grundlegend nicht – ein komplett neuer Ansatz ist nötig, der eine neue Einschätzung erfordert",
         to: "give_recommendation",
+        label: "Komplett neuer Ansatz nötig",
       },
     ],
   },
   {
     id: "offer_ai_exploration",
+    label: "KI-Erkundung anbieten",
+    description: "Navi fragt einmalig und ohne Druck, ob der Händler gezielt KI-Tools ansehen möchte.",
     persona: "full",
     instruction: `Der Händler ist mit der bisherigen Empfehlung zufrieden. Bevor das Gespräch endet, bietest du EINMALIG an, gezielt KI-Tools für sein Problem anzuschauen – ganz ohne Druck.
 
@@ -377,16 +422,20 @@ Beispiel: "Da das hier das KI-Navi ist: Soll ich dir noch zeigen, wo speziell KI
       {
         condition: "Händler antwortet zustimmend (Ja) oder möchte KI-Lösungen ansehen",
         to: "explore_ai_solutions",
+        label: "Ja, KI ansehen",
       },
       {
         condition: "Händler antwortet ablehnend (Nein) oder hat kein Interesse an einer KI-Erkundung",
         to: "closing",
+        label: "Nein, danke",
       },
     ],
     tools: ["ask_yes_no"],
   },
   {
     id: "explore_ai_solutions",
+    label: "KI-Lösungen",
+    description: "Navi zeigt konkrete KI-Tools, die zu Problem und Stack des Händlers passen.",
     persona: "full",
     instruction: `Der Händler möchte gezielt KI-Lösungen für sein Problem erkunden. Zeig ihm konkret, welche KI-Tools zu seinem Problem UND seinem Stack passen.
 
@@ -403,15 +452,19 @@ Frag am Ende, ob das passt oder ob etwas unklar ist.`,
       {
         condition: "Nutzer signalisiert klar, dass er zufrieden ist oder das Gespräch beenden möchte",
         to: "closing",
+        label: "Zufrieden",
       },
       {
         condition: "Nutzer hat weitere Fragen oder Einwände zu den KI-Tools oder möchte eine Alternative",
         to: "explore_ai_solutions",
+        label: "Fragen / Einwände",
       },
     ],
   },
   {
     id: "closing",
+    label: "Abschluss",
+    description: "Navi fasst zusammen und wartet – der Händler entscheidet wann Schluss ist.",
     persona: "full",
     instruction: `Fasse in 1–2 Sätzen zusammen, was besprochen wurde.
 
@@ -426,15 +479,21 @@ WICHTIG: Beende das Gespräch niemals von dir aus und verabschiede dich nicht. W
       {
         condition: "Nutzer nennt ein weiteres Problem, einen Wunsch oder eine neue Frage",
         to: "clarify_problem",
+        label: "Weiteres Anliegen",
       },
     ],
   },
 ];
 
-const NAVI_STATE_MAP = new Map<string, NaviState>(NAVI_STATES.map((s) => [s.id, s]));
+/**
+ * Reserved state id — several call sites (renderer + main process) fall back to this id when no
+ * naviStateId is set yet on a fresh conversation. Editors must never allow renaming or deleting it.
+ */
+export const NAVI_INITIAL_STATE_ID = "greeting";
 
-export function getNaviState(id: string): NaviState | null {
-  return NAVI_STATE_MAP.get(id) ?? null;
+/** Looks up a state by id within an explicit states array (default machine or a user-edited one). */
+export function getNaviState(states: NaviState[], id: string): NaviState | null {
+  return states.find((s) => s.id === id) ?? null;
 }
 
 export interface NaviSlot {
@@ -445,8 +504,8 @@ export interface NaviSlot {
 /**
  * Derives a stable slot id from a workPlan label — e.g. "Problem konkret beschrieben (nicht nur
  * benannt)" -> "problem_konkret_beschrieben_nicht_nur_benannt". Deterministic and pure, so the
- * same label always yields the same id (needed for facts.slots keys to stay stable across turns,
- * across project overrides, and between the backend and this client-side display).
+ * same label always yields the same id (needed for facts.slots keys to stay stable across turns
+ * and between the backend and this client-side display).
  */
 export function slugifySlotLabel(label: string): string {
   const base = label
@@ -459,28 +518,15 @@ export function slugifySlotLabel(label: string): string {
   return base || "slot";
 }
 
-type NaviWorkPlanOverrides = Record<string, string[]> | undefined;
-
-/** Resolves the effective workPlan for a state — project override if present, else the default. */
-export function effectiveWorkPlan(
-  stateId: string,
-  baseWorkPlan: string[],
-  naviWorkPlans: NaviWorkPlanOverrides,
-): string[] {
-  const override = naviWorkPlans?.[stateId];
-  return Array.isArray(override) && override.length > 0 ? override : baseWorkPlan;
-}
-
 /**
  * The slot checklist for a state — each workPlan entry becomes one slot with a stable id.
  * Slots are the deterministic gate for forward phase progress in narrow (info-gathering) phases.
  */
-export function getEffectiveSlots(stateId: string, naviWorkPlans: NaviWorkPlanOverrides): NaviSlot[] {
-  const state = getNaviState(stateId);
+export function getEffectiveSlots(states: NaviState[], stateId: string): NaviSlot[] {
+  const state = getNaviState(states, stateId);
   if (!state) return [];
-  const labels = effectiveWorkPlan(stateId, state.workPlan, naviWorkPlans);
   const seen = new Map<string, number>();
-  return labels.map((label) => {
+  return state.workPlan.map((label) => {
     let id = slugifySlotLabel(label);
     const count = seen.get(id) ?? 0;
     seen.set(id, count + 1);
@@ -489,20 +535,20 @@ export function getEffectiveSlots(stateId: string, naviWorkPlans: NaviWorkPlanOv
   });
 }
 
-export function openSlots(stateId: string, naviWorkPlans: NaviWorkPlanOverrides, facts: NaviFacts): NaviSlot[] {
-  return getEffectiveSlots(stateId, naviWorkPlans).filter((s) => !facts.slots[s.id]?.trim());
+export function openSlots(states: NaviState[], stateId: string, facts: NaviFacts): NaviSlot[] {
+  return getEffectiveSlots(states, stateId).filter((s) => !facts.slots[s.id]?.trim());
 }
 
 /** Deterministic gate: true once every slot of this state has a non-empty value in facts. */
-export function allSlotsFilled(stateId: string, naviWorkPlans: NaviWorkPlanOverrides, facts: NaviFacts): boolean {
-  return openSlots(stateId, naviWorkPlans, facts).length === 0;
+export function allSlotsFilled(states: NaviState[], stateId: string, facts: NaviFacts): boolean {
+  return openSlots(states, stateId, facts).length === 0;
 }
 
 /** Slot id -> label lookup across every phase, for rendering facts filled in an earlier phase. */
-export function getAllSlotLabels(naviWorkPlans: NaviWorkPlanOverrides): Map<string, string> {
+export function getAllSlotLabels(states: NaviState[]): Map<string, string> {
   const map = new Map<string, string>();
-  for (const state of NAVI_STATES) {
-    for (const slot of getEffectiveSlots(state.id, naviWorkPlans)) {
+  for (const state of states) {
+    for (const slot of getEffectiveSlots(states, state.id)) {
       if (!map.has(slot.id)) map.set(slot.id, slot.label);
     }
   }

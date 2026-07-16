@@ -1,9 +1,9 @@
 export type { NaviTransition, NaviState, NaviSlot } from "../../src/naviStateMachine.js";
 export {
-  NAVI_STATES,
+  DEFAULT_NAVI_STATES,
+  NAVI_INITIAL_STATE_ID,
   getNaviState,
   slugifySlotLabel,
-  effectiveWorkPlan,
   getEffectiveSlots,
   openSlots,
   allSlotsFilled,

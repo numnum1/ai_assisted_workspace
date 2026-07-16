@@ -8,7 +8,8 @@ export interface NaviTip {
   coveredWhen: string;
 }
 
-export const NAVI_TIPS: NaviTip[] = [
+/** Hardcoded seed / reset-to-default tips list. Runtime callers should load the effective (possibly user-edited) list instead — see `electron/services/naviStateConfigService.ts`. */
+export const DEFAULT_NAVI_TIPS: NaviTip[] = [
   {
     id: "local_store_cooperation",
     label: "Kooperation mit anderen Läden",

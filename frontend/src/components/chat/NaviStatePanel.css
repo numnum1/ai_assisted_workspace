@@ -10,6 +10,35 @@
   min-height: 0;
 }
 
+.navi-panel--loading {
+  padding: 12px;
+  font-size: 11px;
+  color: var(--text-muted, #6c7086);
+}
+
+.navi-section--toolbar {
+  flex-direction: row;
+  justify-content: flex-end;
+  padding-bottom: 6px;
+}
+
+.navi-edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  padding: 4px 9px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent, #89b4fa) 30%, transparent);
+  background: color-mix(in srgb, var(--accent, #89b4fa) 10%, transparent);
+  color: var(--accent, #89b4fa);
+  cursor: pointer;
+}
+
+.navi-edit-toggle:hover {
+  background: color-mix(in srgb, var(--accent, #89b4fa) 18%, transparent);
+}
+
 /* ── Section ──────────────────────────────────────────────── */
 .navi-section {
   padding: 10px 12px;

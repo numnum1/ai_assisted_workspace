@@ -17,12 +17,14 @@ import {
   getEffectiveSlots,
   getAllSlotLabels,
   openSlots,
+  NAVI_INITIAL_STATE_ID,
   type NaviState,
   type NaviTransition,
 } from "../naviStateMachine.js";
+import { loadNaviStates, loadNaviTips } from "../naviStateConfigService.js";
 import { buildNaviKnowledgePrompt } from "../naviKnowledgeBase.js";
 import { NAVI_DEFAULT_ROLE, NAVI_FULL_PERSONA_RULES, NAVI_NARROW_PERSONA_RULES } from "./naviVoice.js";
-import { NAVI_TIPS } from "../../../src/naviTips.js";
+import type { NaviTip } from "../../../src/naviTips.js";
 import { TOOLKIT_TOOL_DEFINITIONS, type ToolDefinition } from "./systemPrompt.js";
 import type { ChatRequest, ChatMessage, ToolCall, NaviFacts } from "../../../src/types.js";
 import type { ChatStreamEvent } from "../chatTypes.js";
@@ -197,8 +199,8 @@ function buildToolSet(
   return { tools, toolChoice: forced ? "required" : undefined };
 }
 
-function renderFactsSection(facts: NaviFacts, naviWorkPlans: Record<string, string[]> | undefined): string {
-  const labels = getAllSlotLabels(naviWorkPlans);
+function renderFactsSection(facts: NaviFacts, states: NaviState[]): string {
+  const labels = getAllSlotLabels(states);
   const filledLines = Object.entries(facts.slots)
     .filter(([, v]) => v?.trim())
     .map(([id, v]) => `- ${labels.get(id) ?? id}: ${v}`);
@@ -218,10 +220,10 @@ function renderFactsSection(facts: NaviFacts, naviWorkPlans: Record<string, stri
 
 function renderSlotChecklist(
   stateId: string,
-  naviWorkPlans: Record<string, string[]> | undefined,
+  states: NaviState[],
   facts: NaviFacts,
 ): string {
-  const slots = getEffectiveSlots(stateId, naviWorkPlans);
+  const slots = getEffectiveSlots(states, stateId);
   if (slots.length === 0) return "";
   const lines = slots.map((s) => {
     const value = facts.slots[s.id]?.trim();
@@ -236,16 +238,12 @@ function renderSlotChecklist(
 function buildNaviSystemPrompt(
   state: NaviState,
   facts: NaviFacts,
-  naviWorkPlans: Record<string, string[]> | undefined,
-  naviInstructions: Record<string, string> | undefined,
+  states: NaviState[],
   roleIntro: string,
+  tips: NaviTip[],
   naviCoveredTips: string[] | undefined,
 ): string {
   let effectiveInstruction = state.instruction;
-  const instructionOverride = naviInstructions?.[state.id];
-  if (typeof instructionOverride === "string" && instructionOverride.trim()) {
-    effectiveInstruction = instructionOverride;
-  }
 
   const problemFocusBlock = facts.currentProblem
     ? [
@@ -263,13 +261,13 @@ function buildNaviSystemPrompt(
   }
 
   const knowledgePrompt = buildNaviKnowledgePrompt(state.id);
-  const factsSection = renderFactsSection(facts, naviWorkPlans);
-  const checklistSection = renderSlotChecklist(state.id, naviWorkPlans, facts);
+  const factsSection = renderFactsSection(facts, states);
+  const checklistSection = renderSlotChecklist(state.id, states, facts);
   const factsToolNote =
     "Trage Fakten IMMER zuerst per update_facts ein (auch beiläufig Erwähntes), bevor du antwortest oder die Phase wechselst.";
 
   const coveredTips = new Set(naviCoveredTips ?? []);
-  const pendingTips = NAVI_TIPS.filter((t) => !coveredTips.has(t.id));
+  const pendingTips = tips.filter((t) => !coveredTips.has(t.id));
   const tipsPromptSection =
     pendingTips.length > 0
       ? [
@@ -575,12 +573,13 @@ export async function runNaviChatStream(
       emit({ type: "resolved_user_message", data: userMessage });
     }
 
-    const currentStateId = normalizeText(request.naviStateId ?? "") || "greeting";
-    const currentState = getNaviState(currentStateId) ?? getNaviState("greeting")!;
+    const states = await loadNaviStates();
+    const tips = await loadNaviTips();
+
+    const currentStateId = normalizeText(request.naviStateId ?? "") || NAVI_INITIAL_STATE_ID;
+    const currentState = getNaviState(states, currentStateId) ?? getNaviState(states, NAVI_INITIAL_STATE_ID)!;
 
     const roleIntro = NAVI_DEFAULT_ROLE;
-    const naviWorkPlans: Record<string, string[]> | undefined = undefined;
-    const naviInstructions: Record<string, string> | undefined = undefined;
 
     const facts: NaviFacts = request.naviFacts
       ? {
@@ -598,9 +597,9 @@ export async function runNaviChatStream(
 
     const history = Array.isArray(request.history) ? request.history : [];
 
-    const tipsPromise = runTipsCheck(request, findPreviousAssistantText(history), endpoint, emit);
+    const tipsPromise = runTipsCheck(request, tips, findPreviousAssistantText(history), endpoint, emit);
     const finishTurn = async (fullAssistantText: string, replyStateId: string) => {
-      const labels = getAllSlotLabels(naviWorkPlans);
+      const labels = getAllSlotLabels(states);
       const factsChanged = Object.entries(facts.slots)
         .filter(([id, value]) => value?.trim() && slotsAtTurnStart[id] !== value)
         .map(([id, value]) => ({ label: labels.get(id) ?? id, value }));
@@ -609,7 +608,7 @@ export async function runNaviChatStream(
         data: {
           at: Date.now(),
           stateId: replyStateId,
-          openSlots: openSlots(replyStateId, naviWorkPlans, facts).map((s) => s.label),
+          openSlots: openSlots(states, replyStateId, facts).map((s) => s.label),
           factsChanged,
           currentProblem: facts.currentProblem,
           hypothesis: facts.hypothesis,
@@ -626,7 +625,7 @@ export async function runNaviChatStream(
     // ── Speculative fetch for the current phase, in parallel with the redirect classifier ──
     const speculativeAbort = new AbortController();
     const speculativeSystemPrompt = buildNaviSystemPrompt(
-      currentState, facts, naviWorkPlans, naviInstructions, roleIntro, request.naviCoveredTips,
+      currentState, facts, states, roleIntro, tips, request.naviCoveredTips,
     );
     const speculativeMessages = buildNaviMessages(speculativeSystemPrompt, history, userMessage);
     const { tools: specTools, toolChoice: specToolChoice } = buildToolSet(currentState, true);
@@ -654,9 +653,9 @@ export async function runNaviChatStream(
       redirectTo = redirectTarget;
       speculativeAbort.abort();
       activeStateId = redirectTarget;
-      activeState = getNaviState(redirectTarget) ?? currentState;
+      activeState = getNaviState(states, redirectTarget) ?? currentState;
       emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: currentStateId } });
-      const systemPrompt = buildNaviSystemPrompt(activeState, facts, naviWorkPlans, naviInstructions, roleIntro, request.naviCoveredTips);
+      const systemPrompt = buildNaviSystemPrompt(activeState, facts, states, roleIntro, tips, request.naviCoveredTips);
       messages = buildNaviMessages(systemPrompt, history, userMessage);
       const { tools, toolChoice } = buildToolSet(activeState, true);
       currentResponsePromise = startNaviResponseFetch(endpoint, messages, tools, toolChoice);
@@ -694,14 +693,14 @@ export async function runNaviChatStream(
           const applied = applyUpdateFacts(facts, call.function.arguments);
           if (applied) emit({ type: "navi_facts", data: cloneFacts(facts) });
         } else if (call.function.name === "advance_phase") {
-          const open = openSlots(activeStateId, naviWorkPlans, facts);
+          const open = openSlots(states, activeStateId, facts);
           const target = activeState.transitions[0]?.to ?? "";
           const accepted = open.length === 0;
           advancePhaseAttempts.push({ target, accepted, openSlots: open.map((s) => s.label) });
           if (accepted && target) {
             const completed = activeStateId;
             activeStateId = target;
-            activeState = getNaviState(target) ?? activeState;
+            activeState = getNaviState(states, target) ?? activeState;
             emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: completed } });
           }
         }
@@ -780,7 +779,7 @@ export async function runNaviChatStream(
       }
       messages[0] = {
         role: "system",
-        content: buildNaviSystemPrompt(activeState, facts, naviWorkPlans, naviInstructions, roleIntro, request.naviCoveredTips),
+        content: buildNaviSystemPrompt(activeState, facts, states, roleIntro, tips, request.naviCoveredTips),
       };
 
       round += 1;
@@ -809,12 +808,13 @@ export async function runNaviChatStream(
 /** Checks which Navi tips were covered in the response and emits navi_tips_covered. */
 async function runTipsCheck(
   request: ChatRequest,
+  tips: NaviTip[],
   fullAssistantText: string,
   endpoint: { apiUrl: string; apiKey: string; model: string },
   emit: (event: ChatStreamEvent) => void,
 ): Promise<void> {
   const coveredTipsSet = new Set(request.naviCoveredTips ?? []);
-  const stillPendingTips = NAVI_TIPS.filter((t) => !coveredTipsSet.has(t.id));
+  const stillPendingTips = tips.filter((t) => !coveredTipsSet.has(t.id));
   if (stillPendingTips.length === 0 || !fullAssistantText.trim()) return;
 
   try {

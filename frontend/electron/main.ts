@@ -26,6 +26,14 @@ import {
   getPreferences,
   patchPreferences,
 } from "./services/preferencesService.js";
+import {
+  loadNaviStates,
+  saveNaviStates,
+  resetNaviStates,
+  loadNaviTips,
+  saveNaviTips,
+  resetNaviTips,
+} from "./services/naviStateConfigService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +87,13 @@ function registerIpcHandlers(): void {
   ipcMain.handle("preferences:set", (_event, patch) =>
     patchPreferences(patch),
   );
+
+  ipcMain.handle("navi:getStates", () => loadNaviStates());
+  ipcMain.handle("navi:setStates", (_event, states) => saveNaviStates(states));
+  ipcMain.handle("navi:resetStates", () => resetNaviStates());
+  ipcMain.handle("navi:getTips", () => loadNaviTips());
+  ipcMain.handle("navi:setTips", (_event, tips) => saveNaviTips(tips));
+  ipcMain.handle("navi:resetTips", () => resetNaviTips());
 
   ipcMain.handle("spellcheck:fixAtCursor", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
