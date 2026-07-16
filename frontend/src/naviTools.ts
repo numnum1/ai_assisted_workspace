@@ -39,7 +39,8 @@ export function naviCategoryUrl(category: string): string {
   return `${NAVI_TOOL_BASE_URL}/category?search=${encodeURIComponent(category)}`;
 }
 
-export const NAVI_TOOLS: NaviTool[] = [
+/** Hardcoded seed / reset-to-default tool catalog. Runtime callers should load the effective (possibly user-edited) list instead — see `electron/services/naviKnowledgeBase.ts`. */
+export const DEFAULT_NAVI_TOOLS: NaviTool[] = [
   // seo
   { name: "RankHelfer", category: "seo", slug: "rank-helfer", beschreibung: "SEO-Vorschläge und Keyword-Optimierung für Produktseiten und Website-Inhalte." },
 

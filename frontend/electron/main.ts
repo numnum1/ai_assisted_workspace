@@ -33,7 +33,18 @@ import {
   loadNaviTips,
   saveNaviTips,
   resetNaviTips,
+  loadNaviPersona,
+  saveNaviPersona,
+  resetNaviPersona,
 } from "./services/naviStateConfigService.js";
+import {
+  loadUseCases,
+  saveUseCases,
+  resetUseCases,
+  loadTools,
+  saveTools,
+  resetTools,
+} from "./services/naviKnowledgeBase.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +105,15 @@ function registerIpcHandlers(): void {
   ipcMain.handle("navi:getTips", () => loadNaviTips());
   ipcMain.handle("navi:setTips", (_event, tips) => saveNaviTips(tips));
   ipcMain.handle("navi:resetTips", () => resetNaviTips());
+  ipcMain.handle("navi:getPersona", () => loadNaviPersona());
+  ipcMain.handle("navi:setPersona", (_event, persona) => saveNaviPersona(persona));
+  ipcMain.handle("navi:resetPersona", () => resetNaviPersona());
+  ipcMain.handle("navi:getUseCases", () => loadUseCases());
+  ipcMain.handle("navi:setUseCases", (_event, useCases) => saveUseCases(useCases));
+  ipcMain.handle("navi:resetUseCases", () => resetUseCases());
+  ipcMain.handle("navi:getTools", () => loadTools());
+  ipcMain.handle("navi:setTools", (_event, tools) => saveTools(tools));
+  ipcMain.handle("navi:resetTools", () => resetTools());
 
   ipcMain.handle("spellcheck:fixAtCursor", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);

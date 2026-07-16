@@ -1,10 +1,15 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { NAVI_USE_CASES, type NaviUseCase } from "../../src/naviUseCases.js";
-import { NAVI_TOOLS, naviToolUrl, naviCategoryUrl, type NaviTool } from "../../src/naviTools.js";
+import { DEFAULT_NAVI_USE_CASES, type NaviUseCase } from "../../src/naviUseCases.js";
+import { DEFAULT_NAVI_TOOLS, naviToolUrl, naviCategoryUrl, type NaviTool } from "../../src/naviTools.js";
+import type { NaviState } from "../../src/naviStateMachine.js";
 
 const NAVI_DATA_DIR = path.join(os.homedir(), ".writing-assistant", "navi");
+const USE_CASES_FILE_NAME = "use-cases.json";
+const TOOLS_FILE_NAME = "tools.json";
+
+export class NaviKnowledgeValidationError extends Error {}
 
 function readJsonFile<T>(filePath: string): T | null {
   try {
@@ -15,20 +20,95 @@ function readJsonFile<T>(filePath: string): T | null {
   }
 }
 
-function loadUseCases(): NaviUseCase[] {
+function writeJsonFile(filePath: string, data: unknown): void {
+  fs.mkdirSync(NAVI_DATA_DIR, { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+
+function validateUseCases(useCases: NaviUseCase[]): void {
+  if (!Array.isArray(useCases) || useCases.length === 0) {
+    throw new NaviKnowledgeValidationError("Es muss mindestens ein Use-Case vorhanden sein.");
+  }
+  const seenNames = new Set<string>();
+  for (const uc of useCases) {
+    const name = typeof uc?.name === "string" ? uc.name.trim() : "";
+    if (!name) throw new NaviKnowledgeValidationError("Jeder Use-Case braucht einen nicht-leeren Namen.");
+    if (seenNames.has(name)) throw new NaviKnowledgeValidationError(`Use-Case-Name "${name}" ist mehrfach vergeben.`);
+    seenNames.add(name);
+    if (!Array.isArray(uc.categories) || uc.categories.length === 0 || uc.categories.some((c) => typeof c !== "string" || !c.trim())) {
+      throw new NaviKnowledgeValidationError(`Use-Case "${name}" braucht mindestens eine Kategorie.`);
+    }
+  }
+}
+
+function validateTools(tools: NaviTool[]): void {
+  if (!Array.isArray(tools)) {
+    throw new NaviKnowledgeValidationError("Die Tool-Liste muss ein Array sein.");
+  }
+  for (const tool of tools) {
+    if (typeof tool?.name !== "string" || !tool.name.trim()) {
+      throw new NaviKnowledgeValidationError("Jedes Tool braucht einen nicht-leeren Namen.");
+    }
+    if (typeof tool.category !== "string" || !tool.category.trim()) {
+      throw new NaviKnowledgeValidationError(`Tool "${tool.name}" braucht eine Kategorie.`);
+    }
+    if (typeof tool.beschreibung !== "string" || !tool.beschreibung.trim()) {
+      throw new NaviKnowledgeValidationError(`Tool "${tool.name}" braucht eine Beschreibung.`);
+    }
+  }
+}
+
+/**
+ * Synchronous by design: called from within `buildNaviSystemPrompt`, which is itself
+ * synchronous (no await boundary in the prompt-assembly path in `naviChat.ts`). Also the
+ * public read API for the `navi:getUseCases`/`navi:getTools` IPC handlers.
+ */
+export function loadUseCases(): NaviUseCase[] {
   const override = readJsonFile<NaviUseCase[]>(
-    path.join(NAVI_DATA_DIR, "use-cases.json"),
+    path.join(NAVI_DATA_DIR, USE_CASES_FILE_NAME),
   );
   return Array.isArray(override) && override.length > 0
     ? override
-    : NAVI_USE_CASES;
+    : DEFAULT_NAVI_USE_CASES;
 }
 
-function loadTools(): NaviTool[] {
+export function loadTools(): NaviTool[] {
   const override = readJsonFile<NaviTool[]>(
-    path.join(NAVI_DATA_DIR, "tools.json"),
+    path.join(NAVI_DATA_DIR, TOOLS_FILE_NAME),
   );
-  return Array.isArray(override) && override.length > 0 ? override : NAVI_TOOLS;
+  return Array.isArray(override) && override.length > 0 ? override : DEFAULT_NAVI_TOOLS;
+}
+
+export function saveUseCases(useCases: NaviUseCase[]): NaviUseCase[] {
+  validateUseCases(useCases);
+  writeJsonFile(path.join(NAVI_DATA_DIR, USE_CASES_FILE_NAME), useCases);
+  return useCases;
+}
+
+export function resetUseCases(): NaviUseCase[] {
+  const filePath = path.join(NAVI_DATA_DIR, USE_CASES_FILE_NAME);
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // Already absent — nothing to reset.
+  }
+  return DEFAULT_NAVI_USE_CASES;
+}
+
+export function saveTools(tools: NaviTool[]): NaviTool[] {
+  validateTools(tools);
+  writeJsonFile(path.join(NAVI_DATA_DIR, TOOLS_FILE_NAME), tools);
+  return tools;
+}
+
+export function resetTools(): NaviTool[] {
+  const filePath = path.join(NAVI_DATA_DIR, TOOLS_FILE_NAME);
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // Already absent — nothing to reset.
+  }
+  return DEFAULT_NAVI_TOOLS;
 }
 
 function buildUseCaseSection(useCases: NaviUseCase[]): string {
@@ -72,26 +152,13 @@ function buildToolsSection(useCases: NaviUseCase[], tools: NaviTool[]): string {
   return lines.join("\n");
 }
 
-const STATES_WITH_USE_CASES = new Set([
-  "assess_situation",
-  "give_recommendation",
-  "refine_recommendation",
-  "explore_ai_solutions",
-]);
-
-const STATES_WITH_TOOLS = new Set([
-  "give_recommendation",
-  "refine_recommendation",
-  "explore_ai_solutions",
-]);
-
-export function buildNaviKnowledgePrompt(stateId: string): string {
-  if (!STATES_WITH_USE_CASES.has(stateId)) return "";
+export function buildNaviKnowledgePrompt(state: NaviState): string {
+  if (!state.showUseCases) return "";
 
   const useCases = loadUseCases();
   const parts: string[] = [buildUseCaseSection(useCases)];
 
-  if (STATES_WITH_TOOLS.has(stateId)) {
+  if (state.showTools) {
     const tools = loadTools();
     parts.push(buildToolsSection(useCases, tools));
   }

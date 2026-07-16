@@ -38,6 +38,12 @@ export interface NaviState {
   label?: string;
   /** One-line description of what this phase does, shown in the UI. */
   description?: string;
+  /** Inject the Navi use-case knowledge section into this phase's system prompt. */
+  showUseCases?: boolean;
+  /** Inject the KI-tool catalog section (only relevant together with `showUseCases`). */
+  showTools?: boolean;
+  /** Append a reminder about the merchant's still-open problem queue at the end of this phase's instruction. */
+  appendPendingProblemsAtEnd?: boolean;
 }
 
 /** Hardcoded seed / reset-to-default machine. Runtime callers should load the effective (possibly user-edited) machine instead — see `electron/services/naviStateConfigService.ts`. */
@@ -295,6 +301,7 @@ Keine Bewertung, keine Empfehlung – nur Zusammenfassung und Bestätigung einho
     id: "assess_situation",
     label: "Einschätzung & erster Vorschlag",
     description: "Navi bewertet ehrlich ob KI helfen kann und macht direkt einen ersten konkreten Vorschlag.",
+    showUseCases: true,
     persona: "full",
     instruction: `Du hast jetzt: Laden, Problem/Ausmaß, den vollständigen Software-Stack UND die Investitionsbereitschaft (Zeit, laufende Kosten, einmaliges Startbudget) des Händlers.
 
@@ -348,6 +355,8 @@ Falsch: "Möchtest du, dass ich dir dazu etwas vorschlage?"`,
     id: "give_recommendation",
     label: "Empfehlung",
     description: "Navi macht einen konkreten, realistischen Lösungsvorschlag.",
+    showUseCases: true,
+    showTools: true,
     persona: "full",
     instruction: `Mache einen konkreten, realistischen Vorschlag:
 - Wenn Stack vorhanden: Vorschlag fügt sich in den bestehenden Stack ein – kein Umbau, keine neuen Plattformen ohne Not.
@@ -379,6 +388,8 @@ Frage am Ende, ob das passt oder ob etwas unklar ist.`,
     id: "refine_recommendation",
     label: "Anpassen",
     description: "Navi passt den Vorschlag an oder bietet eine Alternative.",
+    showUseCases: true,
+    showTools: true,
     persona: "full",
     instruction: `Nimm das Feedback ernst. Passe den Vorschlag an oder biete eine Alternative an.
 Wenn nichts Passendes existiert, sag das klar – das ist hilfreicher als ein halbherziger Vorschlag.
@@ -436,6 +447,8 @@ Beispiel: "Da das hier das KI-Navi ist: Soll ich dir noch zeigen, wo speziell KI
     id: "explore_ai_solutions",
     label: "KI-Lösungen",
     description: "Navi zeigt konkrete KI-Tools, die zu Problem und Stack des Händlers passen.",
+    showUseCases: true,
+    showTools: true,
     persona: "full",
     instruction: `Der Händler möchte gezielt KI-Lösungen für sein Problem erkunden. Zeig ihm konkret, welche KI-Tools zu seinem Problem UND seinem Stack passen.
 
@@ -465,6 +478,7 @@ Frag am Ende, ob das passt oder ob etwas unklar ist.`,
     id: "closing",
     label: "Abschluss",
     description: "Navi fasst zusammen und wartet – der Händler entscheidet wann Schluss ist.",
+    appendPendingProblemsAtEnd: true,
     persona: "full",
     instruction: `Fasse in 1–2 Sätzen zusammen, was besprochen wurde.
 

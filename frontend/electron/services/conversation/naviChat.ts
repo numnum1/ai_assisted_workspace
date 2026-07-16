@@ -21,10 +21,10 @@ import {
   type NaviState,
   type NaviTransition,
 } from "../naviStateMachine.js";
-import { loadNaviStates, loadNaviTips } from "../naviStateConfigService.js";
+import { loadNaviStates, loadNaviTips, loadNaviPersona } from "../naviStateConfigService.js";
 import { buildNaviKnowledgePrompt } from "../naviKnowledgeBase.js";
-import { NAVI_DEFAULT_ROLE, NAVI_FULL_PERSONA_RULES, NAVI_NARROW_PERSONA_RULES } from "./naviVoice.js";
 import type { NaviTip } from "../../../src/naviTips.js";
+import type { NaviPersonaConfig } from "../../../src/naviPersona.js";
 import { TOOLKIT_TOOL_DEFINITIONS, type ToolDefinition } from "./systemPrompt.js";
 import type { ChatRequest, ChatMessage, ToolCall, NaviFacts } from "../../../src/types.js";
 import type { ChatStreamEvent } from "../chatTypes.js";
@@ -239,7 +239,7 @@ function buildNaviSystemPrompt(
   state: NaviState,
   facts: NaviFacts,
   states: NaviState[],
-  roleIntro: string,
+  persona: NaviPersonaConfig,
   tips: NaviTip[],
   naviCoveredTips: string[] | undefined,
 ): string {
@@ -254,13 +254,13 @@ function buildNaviSystemPrompt(
       ].join("\n")
     : null;
 
-  if (state.id === "closing" && facts.problemQueue.length > 0) {
+  if (state.appendPendingProblemsAtEnd && facts.problemQueue.length > 0) {
     effectiveInstruction = `${effectiveInstruction}\n\nNoch nicht besprochene Anliegen des Händlers: ${facts.problemQueue
       .map((p) => `"${p}"`)
       .join(", ")}. Frage am Ende freundlich, ob der Händler eines dieser Themen noch angehen möchte.`;
   }
 
-  const knowledgePrompt = buildNaviKnowledgePrompt(state.id);
+  const knowledgePrompt = buildNaviKnowledgePrompt(state);
   const factsSection = renderFactsSection(facts, states);
   const checklistSection = renderSlotChecklist(state.id, states, facts);
   const factsToolNote =
@@ -279,7 +279,7 @@ function buildNaviSystemPrompt(
   return (
     state.persona === "narrow"
       ? [
-          ...NAVI_NARROW_PERSONA_RULES,
+          ...persona.narrowPersonaRules,
           ...(problemFocusBlock ? [problemFocusBlock] : []),
           ...(factsSection ? [factsSection] : []),
           ...(checklistSection ? [checklistSection] : []),
@@ -287,8 +287,8 @@ function buildNaviSystemPrompt(
           `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
         ]
       : [
-          roleIntro,
-          ...NAVI_FULL_PERSONA_RULES,
+          persona.roleIntro,
+          ...persona.fullPersonaRules,
           ...(problemFocusBlock ? [problemFocusBlock] : []),
           ...(factsSection ? [factsSection] : []),
           ...(checklistSection ? [checklistSection] : []),
@@ -575,11 +575,10 @@ export async function runNaviChatStream(
 
     const states = await loadNaviStates();
     const tips = await loadNaviTips();
+    const persona = await loadNaviPersona();
 
     const currentStateId = normalizeText(request.naviStateId ?? "") || NAVI_INITIAL_STATE_ID;
     const currentState = getNaviState(states, currentStateId) ?? getNaviState(states, NAVI_INITIAL_STATE_ID)!;
-
-    const roleIntro = NAVI_DEFAULT_ROLE;
 
     const facts: NaviFacts = request.naviFacts
       ? {
@@ -625,7 +624,7 @@ export async function runNaviChatStream(
     // ── Speculative fetch for the current phase, in parallel with the redirect classifier ──
     const speculativeAbort = new AbortController();
     const speculativeSystemPrompt = buildNaviSystemPrompt(
-      currentState, facts, states, roleIntro, tips, request.naviCoveredTips,
+      currentState, facts, states, persona, tips, request.naviCoveredTips,
     );
     const speculativeMessages = buildNaviMessages(speculativeSystemPrompt, history, userMessage);
     const { tools: specTools, toolChoice: specToolChoice } = buildToolSet(currentState, true);
@@ -655,7 +654,7 @@ export async function runNaviChatStream(
       activeStateId = redirectTarget;
       activeState = getNaviState(states, redirectTarget) ?? currentState;
       emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: currentStateId } });
-      const systemPrompt = buildNaviSystemPrompt(activeState, facts, states, roleIntro, tips, request.naviCoveredTips);
+      const systemPrompt = buildNaviSystemPrompt(activeState, facts, states, persona, tips, request.naviCoveredTips);
       messages = buildNaviMessages(systemPrompt, history, userMessage);
       const { tools, toolChoice } = buildToolSet(activeState, true);
       currentResponsePromise = startNaviResponseFetch(endpoint, messages, tools, toolChoice);
@@ -779,7 +778,7 @@ export async function runNaviChatStream(
       }
       messages[0] = {
         role: "system",
-        content: buildNaviSystemPrompt(activeState, facts, states, roleIntro, tips, request.naviCoveredTips),
+        content: buildNaviSystemPrompt(activeState, facts, states, persona, tips, request.naviCoveredTips),
       };
 
       round += 1;

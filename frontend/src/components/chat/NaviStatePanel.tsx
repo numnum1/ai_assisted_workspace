@@ -15,6 +15,7 @@ import {
 import { getEffectiveSlots, getAllSlotLabels, getNaviState } from "../../naviStateMachine.ts";
 import { useNaviStateConfig } from "../../hooks/useNaviStateConfig.ts";
 import { NaviStateEditor } from "./NaviStateEditor.tsx";
+import { DEFAULT_NAVI_PERSONA } from "../../naviPersona.ts";
 import type { NaviFacts, NaviTraceEntry } from "../../types.ts";
 import "./NaviStatePanel.css";
 
@@ -26,7 +27,25 @@ interface Props {
 }
 
 export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTrace }: Props) {
-  const { states, tips, loading, error, saveStates, saveTips, resetStates, resetTips } = useNaviStateConfig();
+  const {
+    states,
+    tips,
+    persona,
+    useCases,
+    tools,
+    loading,
+    error,
+    saveStates,
+    saveTips,
+    savePersona,
+    saveUseCases,
+    saveTools,
+    resetStates,
+    resetTips,
+    resetPersona,
+    resetUseCases,
+    resetTools,
+  } = useNaviStateConfig();
   const [editing, setEditing] = useState(false);
 
   const currentRaw = getNaviState(states, naviStateId);
@@ -50,10 +69,19 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
         <NaviStateEditor
           initialStates={states}
           initialTips={tips}
+          initialPersona={persona ?? DEFAULT_NAVI_PERSONA}
+          initialUseCases={useCases}
+          initialTools={tools}
           onSaveStates={saveStates}
           onSaveTips={saveTips}
+          onSavePersona={savePersona}
+          onSaveUseCases={saveUseCases}
+          onSaveTools={saveTools}
           onResetStates={resetStates}
           onResetTips={resetTips}
+          onResetPersona={resetPersona}
+          onResetUseCases={resetUseCases}
+          onResetTools={resetTools}
           onClose={() => setEditing(false)}
           error={error}
         />

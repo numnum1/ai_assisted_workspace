@@ -5,7 +5,8 @@ export interface NaviUseCase {
   categories: string[];
 }
 
-export const NAVI_USE_CASES: NaviUseCase[] = [
+/** Hardcoded seed / reset-to-default use cases. Runtime callers should load the effective (possibly user-edited) list instead — see `electron/services/naviKnowledgeBase.ts`. */
+export const DEFAULT_NAVI_USE_CASES: NaviUseCase[] = [
   {
     name: "Increase Online Visibility",
     description: "Händler wird online kaum gefunden – bei Google, lokaler Suche oder Social Media.",

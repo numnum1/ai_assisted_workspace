@@ -7,10 +7,12 @@ import {
   type NaviState,
 } from "../../src/naviStateMachine.js";
 import { DEFAULT_NAVI_TIPS, type NaviTip } from "../../src/naviTips.js";
+import { DEFAULT_NAVI_PERSONA, type NaviPersonaConfig } from "../../src/naviPersona.js";
 
 const NAVI_DATA_DIR = path.join(os.homedir(), ".writing-assistant", "navi");
 const STATES_FILE_NAME = "states.json";
 const TIPS_FILE_NAME = "tips.json";
+const PERSONA_FILE_NAME = "persona.json";
 
 async function ensureNaviDataDir(): Promise<void> {
   await fs.mkdir(NAVI_DATA_DIR, { recursive: true });
@@ -100,6 +102,18 @@ function validateTips(tips: NaviTip[]): void {
   }
 }
 
+function validatePersona(persona: NaviPersonaConfig): void {
+  if (typeof persona?.roleIntro !== "string" || !persona.roleIntro.trim()) {
+    throw new NaviConfigValidationError("Die Rollenbeschreibung (roleIntro) darf nicht leer sein.");
+  }
+  if (!Array.isArray(persona.fullPersonaRules) || persona.fullPersonaRules.some((r) => typeof r !== "string" || !r.trim())) {
+    throw new NaviConfigValidationError("Alle Full-Persona-Regeln müssen nicht-leere Texte sein.");
+  }
+  if (!Array.isArray(persona.narrowPersonaRules) || persona.narrowPersonaRules.some((r) => typeof r !== "string" || !r.trim())) {
+    throw new NaviConfigValidationError("Alle Narrow-Persona-Regeln müssen nicht-leere Texte sein.");
+  }
+}
+
 export async function loadNaviStates(): Promise<NaviState[]> {
   const filePath = path.join(NAVI_DATA_DIR, STATES_FILE_NAME);
   const override = await readJsonFile<NaviState[]>(filePath);
@@ -142,4 +156,26 @@ export async function resetNaviTips(): Promise<NaviTip[]> {
     // Already absent — nothing to reset.
   }
   return DEFAULT_NAVI_TIPS;
+}
+
+export async function loadNaviPersona(): Promise<NaviPersonaConfig> {
+  const filePath = path.join(NAVI_DATA_DIR, PERSONA_FILE_NAME);
+  const override = await readJsonFile<NaviPersonaConfig>(filePath);
+  return override && typeof override.roleIntro === "string" ? override : DEFAULT_NAVI_PERSONA;
+}
+
+export async function saveNaviPersona(persona: NaviPersonaConfig): Promise<NaviPersonaConfig> {
+  validatePersona(persona);
+  await writeJsonFile(path.join(NAVI_DATA_DIR, PERSONA_FILE_NAME), persona);
+  return persona;
+}
+
+export async function resetNaviPersona(): Promise<NaviPersonaConfig> {
+  const filePath = path.join(NAVI_DATA_DIR, PERSONA_FILE_NAME);
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    // Already absent — nothing to reset.
+  }
+  return DEFAULT_NAVI_PERSONA;
 }

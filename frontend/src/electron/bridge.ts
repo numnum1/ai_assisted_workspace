@@ -8,6 +8,9 @@ import type {
 } from "../types.ts";
 import { DEFAULT_NAVI_STATES, type NaviState } from "../naviStateMachine.ts";
 import { DEFAULT_NAVI_TIPS, type NaviTip } from "../naviTips.ts";
+import { DEFAULT_NAVI_PERSONA, type NaviPersonaConfig } from "../naviPersona.ts";
+import { DEFAULT_NAVI_USE_CASES, type NaviUseCase } from "../naviUseCases.ts";
+import { DEFAULT_NAVI_TOOLS, type NaviTool } from "../naviTools.ts";
 
 export interface ChatContextInfo {
   includedFiles: string[];
@@ -113,6 +116,15 @@ export interface AppBridge {
     getTips: () => Promise<NaviTip[]>;
     setTips: (tips: NaviTip[]) => Promise<NaviTip[]>;
     resetTips: () => Promise<NaviTip[]>;
+    getPersona: () => Promise<NaviPersonaConfig>;
+    setPersona: (persona: NaviPersonaConfig) => Promise<NaviPersonaConfig>;
+    resetPersona: () => Promise<NaviPersonaConfig>;
+    getUseCases: () => Promise<NaviUseCase[]>;
+    setUseCases: (useCases: NaviUseCase[]) => Promise<NaviUseCase[]>;
+    resetUseCases: () => Promise<NaviUseCase[]>;
+    getTools: () => Promise<NaviTool[]>;
+    setTools: (tools: NaviTool[]) => Promise<NaviTool[]>;
+    resetTools: () => Promise<NaviTool[]>;
   };
   shell?: {
     openDevTools: () => Promise<void>;
@@ -171,6 +183,9 @@ function savePrefsToLocalStorage(prefs: AppPreferences): AppPreferences {
 
 const NAVI_STATES_STORAGE_KEY = "navi-states-override";
 const NAVI_TIPS_STORAGE_KEY = "navi-tips-override";
+const NAVI_PERSONA_STORAGE_KEY = "navi-persona-override";
+const NAVI_USE_CASES_STORAGE_KEY = "navi-use-cases-override";
+const NAVI_TOOLS_STORAGE_KEY = "navi-tools-override";
 
 function loadFromLocalStorage<T>(key: string, fallback: T): T {
   try {
@@ -190,6 +205,17 @@ function saveToLocalStorage<T>(key: string, value: T): T {
     // localStorage full or unavailable
   }
   return value;
+}
+
+function loadObjectFromLocalStorage<T extends object>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<T>;
+    return parsed && typeof parsed === "object" ? { ...fallback, ...parsed } : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 /**
@@ -237,6 +263,66 @@ export const naviConfigApi = {
       // localStorage unavailable
     }
     return DEFAULT_NAVI_TIPS;
+  },
+  getPersona: async (): Promise<NaviPersonaConfig> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.getPersona();
+    return loadObjectFromLocalStorage(NAVI_PERSONA_STORAGE_KEY, DEFAULT_NAVI_PERSONA);
+  },
+  setPersona: async (persona: NaviPersonaConfig): Promise<NaviPersonaConfig> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.setPersona(persona);
+    return saveToLocalStorage(NAVI_PERSONA_STORAGE_KEY, persona);
+  },
+  resetPersona: async (): Promise<NaviPersonaConfig> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.resetPersona();
+    try {
+      localStorage.removeItem(NAVI_PERSONA_STORAGE_KEY);
+    } catch {
+      // localStorage unavailable
+    }
+    return DEFAULT_NAVI_PERSONA;
+  },
+  getUseCases: async (): Promise<NaviUseCase[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.getUseCases();
+    return loadFromLocalStorage(NAVI_USE_CASES_STORAGE_KEY, DEFAULT_NAVI_USE_CASES);
+  },
+  setUseCases: async (useCases: NaviUseCase[]): Promise<NaviUseCase[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.setUseCases(useCases);
+    return saveToLocalStorage(NAVI_USE_CASES_STORAGE_KEY, useCases);
+  },
+  resetUseCases: async (): Promise<NaviUseCase[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.resetUseCases();
+    try {
+      localStorage.removeItem(NAVI_USE_CASES_STORAGE_KEY);
+    } catch {
+      // localStorage unavailable
+    }
+    return DEFAULT_NAVI_USE_CASES;
+  },
+  getTools: async (): Promise<NaviTool[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.getTools();
+    return loadFromLocalStorage(NAVI_TOOLS_STORAGE_KEY, DEFAULT_NAVI_TOOLS);
+  },
+  setTools: async (tools: NaviTool[]): Promise<NaviTool[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.setTools(tools);
+    return saveToLocalStorage(NAVI_TOOLS_STORAGE_KEY, tools);
+  },
+  resetTools: async (): Promise<NaviTool[]> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.resetTools();
+    try {
+      localStorage.removeItem(NAVI_TOOLS_STORAGE_KEY);
+    } catch {
+      // localStorage unavailable
+    }
+    return DEFAULT_NAVI_TOOLS;
   },
 };
 
