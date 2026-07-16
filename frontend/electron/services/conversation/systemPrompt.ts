@@ -356,6 +356,8 @@ export function buildSystemPrompt(
           chapterIndex +
           "\n\nDer Text nach '—' ist die hinterlegte Beschreibung/Absicht des Abschnitts — nutze sie, " +
           "um den Inhalt einzuordnen, ohne die Prosa lesen zu müssen. " +
+          "Eine '↳ Metafile'-Zeile verweist auf einen ausführlicheren, verlinkten Wiki-Eintrag zu diesem " +
+          "Abschnitt (Absicht, Notizen); lies ihn bei Bedarf mit read_file und pflege ihn mit edit_file/write_file. " +
           "Um den Prosa-Inhalt einer Szene zu lesen: read_file mit dem angegebenen Pfad aufrufen. " +
           "Leere Szenen ('(leer)') enthalten noch keinen Text.",
       );

@@ -124,22 +124,33 @@ export async function writeArcs(
 /** Matches @[Titel](arc:ID) / @[Titel](arcpoint:ID) mentions in meta values. */
 const ARC_MENTION_RE = /@\[[^\]]*\]\((arc|arcpoint):([^)]+)\)/g;
 
-/** Collect arc/point references from a node-meta object's `extras` values. */
+/**
+ * Collect arc/point references from any JSON value, recursing through objects and
+ * arrays and scanning every string. Works regardless of where the mention sits —
+ * top-level `extras` in a legacy sidecar, or nested per-node extras inside the
+ * consolidated `structure.json` manifest.
+ */
 function collectRefs(
   raw: unknown,
   acc: { arcs: Set<string>; points: Set<string> },
 ): void {
-  if (!raw || typeof raw !== "object") return;
-  const extras = (raw as { extras?: unknown }).extras;
-  if (!extras || typeof extras !== "object") return;
-  for (const value of Object.values(extras as Record<string, unknown>)) {
-    if (typeof value !== "string") continue;
+  if (typeof raw === "string") {
     ARC_MENTION_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = ARC_MENTION_RE.exec(value)) !== null) {
+    while ((m = ARC_MENTION_RE.exec(raw)) !== null) {
       const id = m[2].trim();
       if (!id) continue;
       (m[1] === "arc" ? acc.arcs : acc.points).add(id);
+    }
+    return;
+  }
+  if (Array.isArray(raw)) {
+    for (const value of raw) collectRefs(value, acc);
+    return;
+  }
+  if (raw && typeof raw === "object") {
+    for (const value of Object.values(raw as Record<string, unknown>)) {
+      collectRefs(value, acc);
     }
   }
 }

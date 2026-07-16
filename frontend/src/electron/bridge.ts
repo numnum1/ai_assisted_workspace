@@ -207,6 +207,13 @@ export interface AppBridge {
     createFolder: (parentPath: string, name: string) => Promise<{ path: string }>;
     createFile: (parentPath: string, name: string) => Promise<{ path: string }>;
     search: (q: string, limit?: number) => Promise<WikiSearchResult[]>;
+    getAttachedNote: (
+      ownerRef: string,
+    ) => Promise<{ path: string; name: string; summary: string } | null>;
+    createAttachedNote: (
+      ownerRef: string,
+      title: string,
+    ) => Promise<{ path: string }>;
   };
   arcs?: {
     read: () => Promise<import('../types.ts').ArcData>;

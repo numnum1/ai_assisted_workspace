@@ -52,6 +52,8 @@ import {
   createWikiFolder,
   createWikiFile,
   searchWiki,
+  getAttachedNote,
+  createAttachedNote,
 } from "./services/wikiService.js";
 import { readArcs, writeArcs, computeArcCoverage } from "./services/arcService.js";
 import type { ArcData } from "../src/types.js";
@@ -178,6 +180,12 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("wiki:search", (_event, query: string, limit?: number) =>
     searchWiki(getCurrentProjectPath(), query, limit),
+  );
+  ipcMain.handle("wiki:getAttachedNote", (_event, ownerRef: string) =>
+    getAttachedNote(getCurrentProjectPath(), ownerRef),
+  );
+  ipcMain.handle("wiki:createAttachedNote", (_event, ownerRef: string, title: string) =>
+    createAttachedNote(getCurrentProjectPath(), ownerRef, title),
   );
 
   ipcMain.handle("arcs:read", () => readArcs(getCurrentProjectPath()));

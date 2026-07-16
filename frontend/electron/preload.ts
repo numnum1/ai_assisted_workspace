@@ -328,6 +328,10 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("wiki:createFile", parentPath, name),
     search: (query: string, limit?: number) =>
       ipcRenderer.invoke("wiki:search", query, limit),
+    getAttachedNote: (ownerRef: string) =>
+      ipcRenderer.invoke("wiki:getAttachedNote", ownerRef),
+    createAttachedNote: (ownerRef: string, title: string) =>
+      ipcRenderer.invoke("wiki:createAttachedNote", ownerRef, title),
   },
   arcs: {
     read: () => ipcRenderer.invoke("arcs:read"),

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { FileText } from 'lucide-react';
 import type {
   MetaSelection,
   NodeMeta,
@@ -6,8 +8,92 @@ import type {
   EnsembleSceneContext,
 } from '../../types.ts';
 import type { MetaTypeSchema } from '../../meta/metaSchema.ts';
+import { wikiApi } from '../../api.ts';
 import { AssetPanel } from './AssetPanel.tsx';
 import { EnsembleRunButton } from '../ensemble/EnsembleRunButton.tsx';
+
+/** Stable owner reference a metafile (linked wiki entry) is attached to. */
+function ownerRefForSelection(selection: MetaSelection): string {
+  switch (selection.type) {
+    case 'book':
+      return 'book';
+    case 'chapter':
+      return `chapter:${selection.chapterId}`;
+    case 'scene':
+      return `scene:${selection.chapterId}:${selection.sceneId ?? ''}`;
+    case 'action':
+      return `action:${selection.chapterId}:${selection.sceneId ?? ''}:${selection.actionId ?? ''}`;
+  }
+}
+
+/**
+ * Open-or-create the metafile linked to the selected node. A metafile is just a
+ * wiki entry with `attachedTo` frontmatter, so it lives in the wiki, is indexed
+ * for the AI, and is read/written with the normal file tools — the same
+ * mechanism used for timeline notes.
+ */
+function MetafileControl({
+  selection,
+  onOpenFile,
+}: {
+  selection: MetaSelection;
+  onOpenFile?: (path: string) => void;
+}) {
+  const ownerRef = ownerRefForSelection(selection);
+  const [notePath, setNotePath] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setNotePath(null);
+    wikiApi.getAttachedNote(ownerRef).then(
+      (found) => {
+        if (!cancelled) setNotePath(found?.path ?? null);
+      },
+      () => {
+        /* bridge unavailable — leave as "create" */
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerRef]);
+
+  const handleClick = async () => {
+    if (notePath) {
+      onOpenFile?.(notePath);
+      return;
+    }
+    setBusy(true);
+    try {
+      const { path } = await wikiApi.createAttachedNote(
+        ownerRef,
+        selection.meta.title || 'Metafile',
+      );
+      setNotePath(path);
+      onOpenFile?.(path);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'Metafile konnte nicht angelegt werden.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className="meta-metafile-btn"
+      onClick={handleClick}
+      disabled={busy}
+      title="Verlinkter Wiki-Eintrag mit der Absicht/den Notizen zu diesem Abschnitt"
+    >
+      <FileText size={13} />
+      {notePath ? 'Metafile öffnen' : busy ? 'Lege an…' : 'Metafile anlegen'}
+    </button>
+  );
+}
 
 interface MetaPanelProps {
   selection: MetaSelection;
@@ -104,6 +190,9 @@ export function MetaPanel({ selection, metaSchemas, onSave, onClose, onExpand, e
         expanded={expanded}
         onFocusField={onFocusField}
       />
+      <div className="meta-metafile-row">
+        <MetafileControl selection={selection} onOpenFile={onOpenFile} />
+      </div>
       {isScene && (
         <EnsembleRunButton
           scene={sceneContextFromMeta(selection.meta)}

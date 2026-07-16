@@ -6,6 +6,7 @@ import {
   readManifestFile,
   type BookManifest,
 } from "../chapterManifest.js";
+import { buildWikiIndex } from "../wikiService.js";
 
 export interface ProjectConfigData {
   name: string;
@@ -247,15 +248,35 @@ interface IndexScene {
   title: string;
   description: string;
   contentPaths: string[];
+  metafilePath?: string;
 }
 interface IndexChapter {
   title: string;
   description: string;
   scenes: IndexScene[];
+  metafilePath?: string;
 }
 interface IndexBook {
   synopsis: string;
   chapters: IndexChapter[];
+}
+
+/**
+ * Map ownerRef → wiki path for every "metafile" (a wiki entry with `attachedTo`).
+ * Lets the structure index point the AI straight at a node's linked note.
+ */
+async function buildAttachedNoteMap(
+  projectPath: string,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  try {
+    for (const entry of await buildWikiIndex(projectPath)) {
+      if (entry.attachedTo) map.set(entry.attachedTo, entry.path);
+    }
+  } catch {
+    /* no wiki / unreadable — no metafiles to link */
+  }
+  return map;
 }
 
 /** Book synopsis lives in .project/book.json (extras.synopsis) — read it live so the index never goes stale. */
@@ -276,6 +297,7 @@ async function readBookSynopsis(bookRoot: string): Promise<string> {
 async function buildBookIndexModel(
   projectPath: string,
   bookRelPath: string | null,
+  attached: Map<string, string>,
 ): Promise<IndexBook> {
   const bookRoot = bookRelPath ? path.join(projectPath, bookRelPath) : projectPath;
   const manifest = await readManifestForPrompt(bookRoot);
@@ -305,24 +327,29 @@ async function buildBookIndexModel(
         title: scene.title || "(ohne Titel)",
         description: scene.description ?? "",
         contentPaths,
+        metafilePath: attached.get(`scene:${chapter.id}:${scene.id}`),
       });
     }
     chapters.push({
       title: chapter.title || "(ohne Titel)",
       description: chapter.description ?? "",
       scenes,
+      metafilePath: attached.get(`chapter:${chapter.id}`),
     });
   }
 
   return { synopsis: await readBookSynopsis(bookRoot), chapters };
 }
 
-/** Render one book's chapters/scenes, injecting descriptions so the AI grasps intent without reading prose. */
+/** Render one book's chapters/scenes, injecting descriptions + linked metafiles so the AI grasps intent without reading prose. */
 function renderChapterLines(chapters: IndexChapter[], indent: string): string[] {
   const lines: string[] = [];
   for (const chapter of chapters) {
     const desc = oneLineSummary(chapter.description);
     lines.push(`${indent}Kapitel "${chapter.title}"${desc ? ` — ${desc}` : ""}`);
+    if (chapter.metafilePath) {
+      lines.push(`${indent}  ↳ Metafile: ${chapter.metafilePath}`);
+    }
     for (const scene of chapter.scenes) {
       const sceneDesc = oneLineSummary(scene.description);
       const paths =
@@ -330,6 +357,9 @@ function renderChapterLines(chapters: IndexChapter[], indent: string): string[] 
       lines.push(
         `${indent}  Szene "${scene.title}"${sceneDesc ? ` — ${sceneDesc}` : ""} → ${paths}`,
       );
+      if (scene.metafilePath) {
+        lines.push(`${indent}    ↳ Metafile: ${scene.metafilePath}`);
+      }
     }
   }
   return lines;
@@ -339,9 +369,10 @@ export async function buildBookChapterIndex(projectPath: string): Promise<string
   if (!projectPath) return "";
 
   const lines: string[] = [];
+  const attached = await buildAttachedNoteMap(projectPath);
 
   // Root project book
-  const root = await buildBookIndexModel(projectPath, null);
+  const root = await buildBookIndexModel(projectPath, null, attached);
   const rootSynopsis = oneLineSummary(root.synopsis, 400);
   if (rootSynopsis) lines.push(`Buch-Synopsis: ${rootSynopsis}`);
   if (root.chapters.length > 0) {
@@ -358,7 +389,7 @@ export async function buildBookChapterIndex(projectPath: string): Promise<string
         const raw = await fs.readFile(subJsonPath, "utf8");
         const meta = JSON.parse(raw) as { type?: string; name?: string };
         if (meta.type !== "book") continue;
-        const book = await buildBookIndexModel(projectPath, entry.name);
+        const book = await buildBookIndexModel(projectPath, entry.name, attached);
         if (book.chapters.length === 0) continue;
         const bookName = meta.name ?? entry.name;
         lines.push(`Buch "${bookName}" (${entry.name}/)`);

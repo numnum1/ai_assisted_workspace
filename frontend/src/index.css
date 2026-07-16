@@ -1329,6 +1329,36 @@ body.file-tree-native-dragging {
     color: var(--bg-primary);
 }
 
+.meta-metafile-row {
+    display: flex;
+    margin-top: 6px;
+}
+
+.meta-metafile-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.meta-metafile-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.meta-metafile-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 .meta-panel .meta-field {
     width: 100%;
     max-width: 100%;

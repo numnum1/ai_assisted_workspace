@@ -3,13 +3,13 @@
 > Die durchgearbeitete Empfehlung steht am Ende unter **„Empfehlung (Konzept)"**;
 > die ursprüngliche Analyse darüber unverändert.
 >
-> **Teilweise umgesetzt:** Die Tier-2-Delivery (Kapitel-/Szenen-`description` und
-> Buch-`synopsis` fließen in den BUCHSTRUKTUR-Block des System-Prompts) ist
-> zusammen mit dem [Buchstruktur-Manifest](buch-struktur-manifest.md) live —
-> siehe `buildBookChapterIndex` in `projectContext.ts`. Damit ist das
-> ursprüngliche Feature („KI kennt einen Abschnitt ohne Volltext") reaktiviert.
-> Der weitergehende Schritt (Nodes als *verlinkbare* Wiki-Entitäten) ist bewusst
-> noch offen.
+> **Umgesetzt:** (1) Die Tier-2-Delivery (Kapitel-/Szenen-`description` und
+> Buch-`synopsis` im BUCHSTRUKTUR-Block) ist zusammen mit dem
+> [Buchstruktur-Manifest](buch-struktur-manifest.md) live. (2) **Metafiles als
+> verlinkte Wiki-Einträge** sind ebenfalls umgesetzt — siehe Abschnitt
+> **„Umgesetzt: Metafiles = verlinkte Wiki-Einträge"** am Ende. Damit sind
+> Metafiles jetzt technisch echte Wikifiles, nur an einen Node (oder eine
+> Zeitleiste/einen Bogen) gelinkt.
 
 ## Ursprüngliches Ziel
 
@@ -200,3 +200,73 @@ Empfohlene Reihenfolge: erst das Manifest, dann die Delivery gegen das Manifest.
   separaten Schritt bauen — es ist aber nicht nötig, um das Kern-Feature
   (KI versteht Abschnitt ohne Volltext) zu reparieren.
 - **Keine** Änderung an Tier 3 / Ensemble / Arc-Feldern.
+
+---
+
+## Umgesetzt: Metafiles = verlinkte Wiki-Einträge
+
+> Auf ausdrücklichen Wunsch wurde der oben als „separater Schritt" markierte Weg
+> umgesetzt: Metafiles **sind** technisch Wikifiles, nur an einen Node gelinkt —
+> und dasselbe System trägt auch Zeitleisten/Bögen.
+
+### Mechanismus: `attachedTo`-Frontmatter
+
+Ein Metafile ist ein ganz normaler Wiki-`.md`-Eintrag mit einem zusätzlichen
+Frontmatter-Feld:
+
+```markdown
+---
+title: Kapitel 1 – Die Ankunft
+summary: Anna kommt im Dorf an und trifft den Fremden
+attachedTo: chapter:<chapterId>
+---
+Freitext …
+```
+
+Der `attachedTo`-Wert nennt den **Besitzer** in einem einheitlichen Referenzformat:
+`book`, `chapter:<id>`, `scene:<cid>:<sid>`, `action:<cid>:<sid>:<aid>` und —
+für die Zeitleiste — `arc:<id>`, `arcpoint:<id>`. Der Eintrag *deklariert* also
+seinen Besitzer selbst; es gibt kein zweites Ref-Feld im Node, das veralten könnte.
+
+### Warum diese Richtung (Note→Owner statt Node→Ref)
+
+- **Vollständige Wiederverwendung der Wiki-Maschinerie**: Speicher (`wiki/**/*.md`),
+  Index (`WIKI-BESTAND`), Lese-/Schreib-Tools (`read_file`/`grep`/`semantic_search`/
+  `edit_file`/`write_file`) — alles gilt unverändert. Ein Metafile *ist* ein
+  Wiki-Eintrag.
+- **Ein Mechanismus für alles**: Node-Metafile und Zeitleisten-Notiz sind
+  derselbe Typ; nur der `attachedTo`-Präfix unterscheidet sie. Kein Owner-Typ
+  braucht ein eigenes Feld.
+- **Kein Divergenz-Risiko**: keine gespiegelte Zweitkopie; der Node-Titel/-Text
+  (Tier 1/2) bleibt im Manifest, die Tier-3-`extras` bleiben typisiert. Das
+  Metafile ergänzt sie als *Freitext-Dokument*, ersetzt nichts.
+
+### Umgesetzte Teile
+
+- `wikiService.ts`: `attachedTo` wird ins `WikiIndexEntry` geparst; `formatWikiIndex`
+  hängt `[↳ <owner>]` an, sodass die KI die Zuordnung direkt im WIKI-BESTAND sieht.
+  Neu: `getAttachedNote(ownerRef)` und `createAttachedNote(ownerRef, title)`
+  (idempotent — legt keine Dublette an).
+- Prompt-Delivery (`projectContext.ts`): im BUCHSTRUKTUR-Block erhält jeder Node
+  mit Metafile eine `↳ Metafile: <pfad>`-Zeile, die die KI mit `read_file` öffnen
+  kann.
+- IPC/API: `wiki:getAttachedNote` / `wiki:createAttachedNote` durch
+  `main.ts` → `preload.ts` → `bridge.ts` → `wikiApi`.
+- UI: `MetaPanel` bekommt einen „Metafile öffnen/anlegen"-Button für den
+  ausgewählten Node (baut den `ownerRef` aus der Selektion, öffnet die `.md` im
+  Editor).
+
+### Zeitleisten (Bögen)
+
+Das Backend unterstützt `arc:`/`arcpoint:`-Besitzer bereits vollständig — ein
+Bogen/Punkt kann per `createAttachedNote` ein Metafile bekommen, das im
+WIKI-BESTAND als `[↳ arc:<id>]` erscheint. **Offen** ist nur der UI-Einstieg im
+Arc-Workspace (analog zum MetaPanel-Button); die technische Basis ist identisch.
+
+### Nebenbei behobene Regression
+
+Der Manifest-Umbau hatte die Arc-Coverage gebrochen: `collectRefs` (arcService)
+suchte `arc:`/`arcpoint:`-Mentions nur in der Top-Level-`extras` einer JSON-Datei,
+die Szenen-`extras` liegen nach der Migration aber verschachtelt in
+`structure.json`. `collectRefs` rekursiert jetzt durch die gesamte JSON-Struktur
+und findet Mentions wieder — egal ob Alt-Sidecar oder Manifest.

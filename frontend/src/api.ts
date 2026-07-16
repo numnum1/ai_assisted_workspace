@@ -764,6 +764,23 @@ export const wikiApi = {
     if (api?.wiki) return api.wiki.search(q, limit);
     throw new Error("Electron bridge not available");
   },
+  /** The metafile (wiki entry) linked to a structure node or timeline element, or null. */
+  getAttachedNote: async (
+    ownerRef: string,
+  ): Promise<{ path: string; name: string; summary: string } | null> => {
+    const api = getElectronApi();
+    if (api?.wiki) return api.wiki.getAttachedNote(ownerRef);
+    throw new Error("Electron bridge not available");
+  },
+  /** Ensure a metafile exists for the given owner and return its path (idempotent). */
+  createAttachedNote: async (
+    ownerRef: string,
+    title: string,
+  ): Promise<{ path: string }> => {
+    const api = getElectronApi();
+    if (api?.wiki) return api.wiki.createAttachedNote(ownerRef, title);
+    throw new Error("Electron bridge not available");
+  },
 };
 
 export interface ContextBlock {

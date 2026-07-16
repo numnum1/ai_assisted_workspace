@@ -268,11 +268,19 @@ export interface WikiIndexEntry {
   name: string;
   summary: string;
   aliases: string[];
+  /**
+   * Owner this entry is linked to, from the `attachedTo` frontmatter key. A
+   * "metafile" is just a wiki entry attached to a structure node
+   * (`chapter:<id>`, `scene:<cid>:<sid>`, `action:<cid>:<sid>:<aid>`, `book`) or
+   * to the timeline workspace (`arc:<id>`, `arcpoint:<id>`). Undefined for
+   * free-standing lore entries.
+   */
+  attachedTo?: string;
 }
 
 /** Minimal YAML-frontmatter extraction — no external dependency. */
 function parseFrontmatter(content: string): Record<string, string> {
-  const match = /^﻿?\s*---\s*\r?\n([\s\S]*?)\r?\n---/.exec(content);
+  const match = /^\uFEFF?\s*---\s*\r?\n([\s\S]*?)\r?\n---/.exec(content);
   if (!match) return {};
   const block = match[1];
   const result: Record<string, string> = {};
@@ -334,6 +342,7 @@ export async function buildWikiIndex(
       name: inferTitle(relativePath, content),
       summary: fm.summary ?? '',
       aliases: parseAliases(fm.aliases),
+      ...(fm.attachedto ? { attachedTo: fm.attachedto } : {}),
     });
   }
 
@@ -368,7 +377,8 @@ export function formatWikiIndex(
       const summary = entry.summary ? ` — ${entry.summary}` : '';
       const aliases =
         entry.aliases.length > 0 ? ` [alias: ${entry.aliases.join(', ')}]` : '';
-      full.push(`  - ${entry.name} (${entry.path})${summary}${aliases}`);
+      const attached = entry.attachedTo ? ` [↳ ${entry.attachedTo}]` : '';
+      full.push(`  - ${entry.name} (${entry.path})${summary}${aliases}${attached}`);
     }
   }
   const fullText = full.join('\n');
@@ -414,4 +424,115 @@ export async function searchWiki(
   }
 
   return results;
+}
+
+// ── Attached notes (metafiles / timeline notes) ──────────────────────────────
+// A "metafile" is a normal wiki entry that declares an owner via `attachedTo`
+// frontmatter. It is stored, indexed, read and written exactly like any other
+// wiki file — the only difference is the link. The same mechanism serves the
+// book structure (chapter/scene/action/book) and the timeline (arc/arcpoint).
+
+/** Owner-type → wiki subfolder for newly created attached notes. */
+function categoryForOwner(ownerRef: string): string {
+  const type = ownerRef.split(':')[0];
+  switch (type) {
+    case 'book':
+      return 'buch';
+    case 'chapter':
+      return 'kapitel';
+    case 'scene':
+      return 'szene';
+    case 'action':
+      return 'handlung';
+    case 'arc':
+      return 'arc';
+    case 'arcpoint':
+      return 'arcpunkt';
+    default:
+      return 'notizen';
+  }
+}
+
+const UMLAUT_MAP: Record<string, string> = {
+  ä: 'ae',
+  ö: 'oe',
+  ü: 'ue',
+  ß: 'ss',
+};
+
+function slugify(text: string): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[äöüß]/g, (c) => UMLAUT_MAP[c] ?? c)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'notiz';
+}
+
+export interface AttachedNote {
+  path: string;
+  name: string;
+  summary: string;
+}
+
+/** The wiki entry linked to `ownerRef`, or null if the node/timeline has no metafile yet. */
+export async function getAttachedNote(
+  projectRoot: string | null,
+  ownerRef: string,
+): Promise<AttachedNote | null> {
+  const target = ownerRef.trim();
+  if (!target) return null;
+  const entries = await buildWikiIndex(projectRoot);
+  const hit = entries.find((entry) => entry.attachedTo === target);
+  if (!hit) return null;
+  return { path: hit.path, name: hit.name, summary: hit.summary };
+}
+
+/**
+ * Ensure a metafile exists for `ownerRef` and return its path. If one is already
+ * attached, that one is returned (never a duplicate); otherwise a fresh wiki
+ * markdown file with `attachedTo` frontmatter is created under a type-specific
+ * category folder.
+ */
+export async function createAttachedNote(
+  projectRoot: string | null,
+  ownerRef: string,
+  title: string,
+): Promise<{ path: string }> {
+  const target = ownerRef.trim();
+  if (!target) {
+    throw new Error('Kein Ziel für die Metafile angegeben.');
+  }
+
+  const existing = await getAttachedNote(projectRoot, target);
+  if (existing) return { path: existing.path };
+
+  const root = ensureProjectRoot(projectRoot);
+  const category = categoryForOwner(target);
+  const cleanTitle = title.trim() || target;
+  const baseSlug = slugify(cleanTitle);
+
+  const dir = path.join(root, 'wiki', category);
+  await fs.mkdir(dir, { recursive: true });
+
+  let filename = `${baseSlug}.md`;
+  let counter = 2;
+  while (await pathExists(path.join(dir, filename))) {
+    filename = `${baseSlug}-${counter}.md`;
+    counter += 1;
+  }
+
+  const body = [
+    '---',
+    `title: ${cleanTitle}`,
+    'summary: ',
+    `attachedTo: ${target}`,
+    '---',
+    '',
+    `# ${cleanTitle}`,
+    '',
+  ].join('\n');
+
+  await fs.writeFile(path.join(dir, filename), body, 'utf8');
+  return { path: `wiki/${category}/${filename}` };
 }
