@@ -1728,14 +1728,21 @@ body.file-tree-native-dragging {
     display: flex;
     flex-direction: row;
     min-height: 0;
+    position: relative;
 }
 
+/* Floats over the scroll area instead of taking flex width, so opening/
+   closing it never shifts the (always-centered) editor text underneath. */
 .chapter-ai-dock {
-    flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    z-index: 25;
     display: flex;
     flex-direction: row;
     align-items: stretch;
-    height: 100%;
+    pointer-events: none;
 }
 
 .chapter-ai-rail {
@@ -1747,7 +1754,8 @@ body.file-tree-native-dragging {
     gap: 6px;
     padding: 10px 0;
     border-left: 1px solid rgba(44, 42, 37, 0.18);
-    background: rgba(0, 0, 0, 0.02);
+    box-shadow: -6px 0 12px -8px rgba(0, 0, 0, 0.25);
+    pointer-events: auto;
 }
 
 .chapter-ai-rail-btn {
@@ -1794,7 +1802,8 @@ body.file-tree-native-dragging {
     flex-direction: column;
     overflow: hidden;
     border-left: 1px solid rgba(44, 42, 37, 0.18);
-    background: rgba(0, 0, 0, 0.015);
+    box-shadow: -8px 0 16px -10px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
 }
 
 .chapter-ai-panel,
@@ -2003,7 +2012,6 @@ body.file-tree-native-dragging {
 .chapter-view-night .chapter-ai-dock-body,
 .chapter-view-night-alt .chapter-ai-dock-body {
     border-left-color: rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.02);
 }
 .chapter-view-night .chapter-ai-rail-btn:hover,
 .chapter-view-night-alt .chapter-ai-rail-btn:hover { background: rgba(255, 255, 255, 0.08); }

@@ -30,6 +30,7 @@ interface ChapterAiDockProps {
   night: boolean;
   mutedText: string;
   textColor: string;
+  bgColor: string;
 
   // ── Kommentare ──────────────────────────────────────────────
   categoryDefs: CommentCategoryDef[];
@@ -69,6 +70,7 @@ export function ChapterAiDock({
   night,
   mutedText,
   textColor,
+  bgColor,
   categoryDefs,
   activeCategories,
   onToggleCategory,
@@ -99,7 +101,7 @@ export function ChapterAiDock({
   return (
     <div className={`chapter-ai-dock${bodyOpen ? ' chapter-ai-dock-open' : ''}${night ? ' chapter-ai-dock-night' : ''}`}>
       {bodyOpen && (
-        <div className="chapter-ai-dock-body" style={{ color: textColor }}>
+        <div className="chapter-ai-dock-body" style={{ color: textColor, backgroundColor: bgColor }}>
           {activeFeature === 'kommentare' && (
             <CommentControls
               categoryDefs={categoryDefs}
@@ -139,7 +141,7 @@ export function ChapterAiDock({
         </div>
       )}
 
-      <div className="chapter-ai-rail" role="tablist" aria-label="KI-Funktionen">
+      <div className="chapter-ai-rail" role="tablist" aria-label="KI-Funktionen" style={{ backgroundColor: bgColor }}>
         {RAIL_ITEMS.map(({ id, icon: Icon, label }) => {
           const active = activeFeature === id;
           return (

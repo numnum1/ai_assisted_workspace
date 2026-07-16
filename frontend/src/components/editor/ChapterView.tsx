@@ -1259,6 +1259,7 @@ export function ChapterView({
         night={nightMode}
         mutedText={mutedText}
         textColor={colors.text}
+        bgColor={colors.bg}
         categoryDefs={categoryDefs}
         activeCategories={activeCategories}
         onToggleCategory={toggleCategory}
