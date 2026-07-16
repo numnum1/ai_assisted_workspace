@@ -1,5 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  emptyManifest,
+  migrateSidecarsToManifest,
+  readManifestFile,
+  type BookManifest,
+} from "../chapterManifest.js";
 
 export interface ProjectConfigData {
   name: string;
@@ -219,86 +225,114 @@ export async function readReferencedProjectFile(
   }
 }
 
-async function buildChapterEntriesForBook(
+/**
+ * Read a structure root's manifest without persisting anything — the prompt path
+ * must stay side-effect-free. Migrates the legacy sidecar tree in memory only;
+ * the on-disk conversion happens when the user first edits structure (chapterService).
+ */
+async function readManifestForPrompt(structureBase: string): Promise<BookManifest> {
+  const existing = await readManifestFile(structureBase);
+  if (existing) return existing;
+  return (await migrateSidecarsToManifest(structureBase)) ?? emptyManifest();
+}
+
+/** Collapse a description to a single compact line, capped so the index stays lean. */
+function oneLineSummary(text: string, max = 200): string {
+  const compact = normalizeText(text).replace(/\s+/g, " ");
+  if (!compact) return "";
+  return compact.length > max ? `${compact.slice(0, max - 1)}…` : compact;
+}
+
+interface IndexScene {
+  title: string;
+  description: string;
+  contentPaths: string[];
+}
+interface IndexChapter {
+  title: string;
+  description: string;
+  scenes: IndexScene[];
+}
+interface IndexBook {
+  synopsis: string;
+  chapters: IndexChapter[];
+}
+
+/** Book synopsis lives in .project/book.json (extras.synopsis) — read it live so the index never goes stale. */
+async function readBookSynopsis(bookRoot: string): Promise<string> {
+  try {
+    const raw = await fs.readFile(
+      path.join(bookRoot, ".project", "book.json"),
+      "utf8",
+    );
+    const parsed = JSON.parse(raw) as { extras?: Record<string, unknown> };
+    const synopsis = parsed.extras?.synopsis;
+    return typeof synopsis === "string" ? synopsis : "";
+  } catch {
+    return "";
+  }
+}
+
+async function buildBookIndexModel(
   projectPath: string,
   bookRelPath: string | null,
-): Promise<Array<{ title: string; sortOrder: number; scenes: Array<{ title: string; sortOrder: number; contentPaths: string[] }> }>> {
+): Promise<IndexBook> {
   const bookRoot = bookRelPath ? path.join(projectPath, bookRelPath) : projectPath;
-  const chapterDir = path.join(bookRoot, ".project", "chapter");
+  const manifest = await readManifestForPrompt(bookRoot);
 
-  let chapterEntries: import("node:fs").Dirent[];
-  try {
-    chapterEntries = await fs.readdir(chapterDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-
-  const chapters: Array<{ title: string; sortOrder: number; scenes: Array<{ title: string; sortOrder: number; contentPaths: string[] }> }> = [];
-
-  for (const entry of chapterEntries) {
-    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-    const chapterId = entry.name.slice(0, -5);
-
-    let chapterTitle = "(ohne Titel)";
-    let chapterSortOrder = 0;
-    try {
-      const raw = await fs.readFile(path.join(chapterDir, entry.name), "utf8");
-      const meta = JSON.parse(raw) as { title?: string; sortOrder?: number };
-      if (meta.title) chapterTitle = meta.title;
-      chapterSortOrder = meta.sortOrder ?? 0;
-    } catch { /* keep defaults */ }
-
-    const sceneDir = path.join(chapterDir, chapterId);
-    const scenes: Array<{ title: string; sortOrder: number; contentPaths: string[] }> = [];
-
-    try {
-      const sceneEntries = await fs.readdir(sceneDir, { withFileTypes: true });
-      for (const sceneEntry of sceneEntries) {
-        if (!sceneEntry.isFile() || !sceneEntry.name.endsWith(".json")) continue;
-        const sceneId = sceneEntry.name.slice(0, -5);
-
-        let sceneTitle = "(ohne Titel)";
-        let sceneSortOrder = 0;
+  const chapters: IndexChapter[] = [];
+  for (const chapter of manifest.chapters) {
+    const scenes: IndexScene[] = [];
+    for (const scene of chapter.scenes) {
+      const contentPaths: string[] = [];
+      for (const action of scene.actions) {
+        const mdPath = path.join(
+          bookRoot,
+          ".project",
+          "chapter",
+          chapter.id,
+          scene.id,
+          `${action.id}.md`,
+        );
         try {
-          const raw = await fs.readFile(path.join(sceneDir, sceneEntry.name), "utf8");
-          const meta = JSON.parse(raw) as { title?: string; sortOrder?: number };
-          if (meta.title) sceneTitle = meta.title;
-          sceneSortOrder = meta.sortOrder ?? 0;
-        } catch { /* keep defaults */ }
-
-        const actionDir = path.join(sceneDir, sceneId);
-        const contentPaths: { sortOrder: number; relPath: string }[] = [];
-        try {
-          const actionEntries = await fs.readdir(actionDir, { withFileTypes: true });
-          for (const actionEntry of actionEntries) {
-            if (!actionEntry.isFile() || !actionEntry.name.endsWith(".json")) continue;
-            const actionId = actionEntry.name.slice(0, -5);
-            const mdPath = path.join(actionDir, `${actionId}.md`);
-            let actionSortOrder = 0;
-            try {
-              const raw = await fs.readFile(path.join(actionDir, actionEntry.name), "utf8");
-              const meta = JSON.parse(raw) as { sortOrder?: number };
-              actionSortOrder = meta.sortOrder ?? 0;
-            } catch { /* keep 0 */ }
-            try {
-              await fs.access(mdPath);
-              const relPath = path.relative(projectPath, mdPath).replace(/\\/g, "/");
-              contentPaths.push({ sortOrder: actionSortOrder, relPath });
-            } catch { /* md file missing */ }
-          }
-        } catch { /* no action dir */ }
-
-        contentPaths.sort((a, b) => a.sortOrder - b.sortOrder);
-        scenes.push({ title: sceneTitle, sortOrder: sceneSortOrder, contentPaths: contentPaths.map(c => c.relPath) });
+          await fs.access(mdPath);
+          contentPaths.push(path.relative(projectPath, mdPath).replace(/\\/g, "/"));
+        } catch {
+          /* md file missing */
+        }
       }
-    } catch { /* no scene dir */ }
-
-    scenes.sort((a, b) => a.sortOrder - b.sortOrder);
-    chapters.push({ title: chapterTitle, sortOrder: chapterSortOrder, scenes });
+      scenes.push({
+        title: scene.title || "(ohne Titel)",
+        description: scene.description ?? "",
+        contentPaths,
+      });
+    }
+    chapters.push({
+      title: chapter.title || "(ohne Titel)",
+      description: chapter.description ?? "",
+      scenes,
+    });
   }
 
-  chapters.sort((a, b) => a.sortOrder - b.sortOrder);
-  return chapters;
+  return { synopsis: await readBookSynopsis(bookRoot), chapters };
+}
+
+/** Render one book's chapters/scenes, injecting descriptions so the AI grasps intent without reading prose. */
+function renderChapterLines(chapters: IndexChapter[], indent: string): string[] {
+  const lines: string[] = [];
+  for (const chapter of chapters) {
+    const desc = oneLineSummary(chapter.description);
+    lines.push(`${indent}Kapitel "${chapter.title}"${desc ? ` — ${desc}` : ""}`);
+    for (const scene of chapter.scenes) {
+      const sceneDesc = oneLineSummary(scene.description);
+      const paths =
+        scene.contentPaths.length > 0 ? scene.contentPaths.join(", ") : "(leer)";
+      lines.push(
+        `${indent}  Szene "${scene.title}"${sceneDesc ? ` — ${sceneDesc}` : ""} → ${paths}`,
+      );
+    }
+  }
+  return lines;
 }
 
 export async function buildBookChapterIndex(projectPath: string): Promise<string> {
@@ -306,16 +340,12 @@ export async function buildBookChapterIndex(projectPath: string): Promise<string
 
   const lines: string[] = [];
 
-  // Root project chapters
-  const rootChapters = await buildChapterEntriesForBook(projectPath, null);
-  if (rootChapters.length > 0) {
-    for (const ch of rootChapters) {
-      lines.push(`Kapitel "${ch.title}"`);
-      for (const sc of ch.scenes) {
-        const paths = sc.contentPaths.length > 0 ? sc.contentPaths.join(", ") : "(leer)";
-        lines.push(`  Szene "${sc.title}" → ${paths}`);
-      }
-    }
+  // Root project book
+  const root = await buildBookIndexModel(projectPath, null);
+  const rootSynopsis = oneLineSummary(root.synopsis, 400);
+  if (rootSynopsis) lines.push(`Buch-Synopsis: ${rootSynopsis}`);
+  if (root.chapters.length > 0) {
+    lines.push(...renderChapterLines(root.chapters, ""));
   }
 
   // Book subprojects
@@ -328,17 +358,13 @@ export async function buildBookChapterIndex(projectPath: string): Promise<string
         const raw = await fs.readFile(subJsonPath, "utf8");
         const meta = JSON.parse(raw) as { type?: string; name?: string };
         if (meta.type !== "book") continue;
+        const book = await buildBookIndexModel(projectPath, entry.name);
+        if (book.chapters.length === 0) continue;
         const bookName = meta.name ?? entry.name;
-        const chapters = await buildChapterEntriesForBook(projectPath, entry.name);
-        if (chapters.length === 0) continue;
         lines.push(`Buch "${bookName}" (${entry.name}/)`);
-        for (const ch of chapters) {
-          lines.push(`  Kapitel "${ch.title}"`);
-          for (const sc of ch.scenes) {
-            const paths = sc.contentPaths.length > 0 ? sc.contentPaths.join(", ") : "(leer)";
-            lines.push(`    Szene "${sc.title}" → ${paths}`);
-          }
-        }
+        const bookSynopsis = oneLineSummary(book.synopsis, 400);
+        if (bookSynopsis) lines.push(`  Synopsis: ${bookSynopsis}`);
+        lines.push(...renderChapterLines(book.chapters, "  "));
       } catch { /* not a book subproject or unreadable */ }
     }
   } catch { /* can't read project dir */ }
@@ -351,44 +377,27 @@ async function readSceneReference(
   chapterId: string,
   sceneId: string,
 ): Promise<{ path: string; content: string; label: string } | null> {
-  const chapterDir = path.join(projectPath, ".project", "chapter", chapterId);
-  const sceneMetaPath = path.join(chapterDir, `${sceneId}.json`);
-  const sceneContentDir = path.join(chapterDir, sceneId);
+  const manifest = await readManifestForPrompt(projectPath);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  const scene = chapter?.scenes.find((s) => s.id === sceneId);
+  if (!scene) return null;
 
-  let sceneTitle = "Szene";
-  try {
-    const raw = await fs.readFile(sceneMetaPath, "utf8");
-    const meta = JSON.parse(raw) as { title?: string };
-    if (meta.title) sceneTitle = meta.title;
-  } catch { /* use fallback */ }
-
-  let entries: import("node:fs").Dirent[] = [];
-  try {
-    entries = await fs.readdir(sceneContentDir, { withFileTypes: true });
-  } catch {
-    return null;
+  const sceneContentDir = path.join(projectPath, ".project", "chapter", chapterId, sceneId);
+  const parts: string[] = [];
+  for (const action of scene.actions) {
+    try {
+      const raw = await fs.readFile(path.join(sceneContentDir, `${action.id}.md`), "utf8");
+      const trimmed = raw.trim();
+      if (trimmed) parts.push(trimmed);
+    } catch { /* empty or missing */ }
   }
 
-  const actions: { sortOrder: number; content: string }[] = [];
-  for (const ent of entries) {
-    if (!ent.isFile() || !ent.name.endsWith(".json")) continue;
-    const actionId = ent.name.slice(0, -5);
-    let sortOrder = 0;
-    try {
-      const raw = await fs.readFile(path.join(sceneContentDir, ent.name), "utf8");
-      const meta = JSON.parse(raw) as { sortOrder?: number };
-      sortOrder = meta.sortOrder ?? 0;
-    } catch { /* keep 0 */ }
-    let content = "";
-    try {
-      content = await fs.readFile(path.join(sceneContentDir, `${actionId}.md`), "utf8");
-    } catch { /* empty */ }
-    actions.push({ sortOrder, content });
-  }
-
-  actions.sort((a, b) => a.sortOrder - b.sortOrder);
-  const content = actions.map(a => a.content.trim()).filter(Boolean).join("\n\n");
+  const content = parts.join("\n\n");
   if (!content) return null;
 
-  return { path: `scene:${chapterId}:${sceneId}`, content, label: sceneTitle };
+  return {
+    path: `scene:${chapterId}:${sceneId}`,
+    content,
+    label: scene.title || "Szene",
+  };
 }

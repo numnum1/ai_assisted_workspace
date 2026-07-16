@@ -354,7 +354,9 @@ export function buildSystemPrompt(
       sections.push(
         "BUCHSTRUKTUR (Kapitel und Szenen mit Inhaltspfaden für read_file):\n" +
           chapterIndex +
-          "\n\nUm den Prosa-Inhalt einer Szene zu lesen: read_file mit dem angegebenen Pfad aufrufen. " +
+          "\n\nDer Text nach '—' ist die hinterlegte Beschreibung/Absicht des Abschnitts — nutze sie, " +
+          "um den Inhalt einzuordnen, ohne die Prosa lesen zu müssen. " +
+          "Um den Prosa-Inhalt einer Szene zu lesen: read_file mit dem angegebenen Pfad aufrufen. " +
           "Leere Szenen ('(leer)') enthalten noch keinen Text.",
       );
     }

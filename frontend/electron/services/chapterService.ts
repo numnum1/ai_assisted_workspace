@@ -11,6 +11,17 @@ import type {
   NodeMeta,
   SceneNode,
 } from "../../src/types.js";
+import {
+  applyNodeMeta,
+  generateId,
+  loadManifest,
+  reorderById,
+  toNodeMeta,
+  writeManifest,
+  type ManifestAction,
+  type ManifestChapter,
+  type ManifestScene,
+} from "./chapterManifest.js";
 
 const CHAPTERS_DIR = ".project/chapter";
 
@@ -34,10 +45,10 @@ function normalizeWorkspaceRoot(
   return workspaceRoot;
 }
 
-async function structureBase(
+function structureBase(
   projectPath: string,
   workspaceRoot: string | null,
-): Promise<string> {
+): string {
   const wr = normalizeWorkspaceRoot(workspaceRoot);
   if (wr == null) {
     return projectPath;
@@ -45,136 +56,54 @@ async function structureBase(
   return path.join(projectPath, wr);
 }
 
-async function chaptersRoot(
-  projectPath: string,
+/** The structure root that owns a manifest — project root or a book subproject. */
+function manifestBase(
+  projectPath: string | null,
   workspaceRoot: string | null,
-): Promise<string> {
-  return path.join(await structureBase(projectPath, workspaceRoot), CHAPTERS_DIR);
+): string {
+  return structureBase(ensureProjectRoot(projectPath), workspaceRoot);
 }
 
-async function chapterDir(
-  projectPath: string,
-  workspaceRoot: string | null,
-  chapterId: string,
-): Promise<string> {
-  return path.join(await chaptersRoot(projectPath, workspaceRoot), chapterId);
-}
-
-async function chapterMetaPath(
+function chapterDir(
   projectPath: string,
   workspaceRoot: string | null,
   chapterId: string,
-): Promise<string> {
-  return path.join(
-    await chaptersRoot(projectPath, workspaceRoot),
-    `${chapterId}.json`,
-  );
+): string {
+  return path.join(structureBase(projectPath, workspaceRoot), CHAPTERS_DIR, chapterId);
 }
 
-async function chapterCommentsPath(
-  projectPath: string,
-  workspaceRoot: string | null,
-  chapterId: string,
-): Promise<string> {
-  return path.join(
-    await chaptersRoot(projectPath, workspaceRoot),
-    `${chapterId}.comments.json`,
-  );
-}
-
-async function sceneDir(
+function sceneDir(
   projectPath: string,
   workspaceRoot: string | null,
   chapterId: string,
   sceneId: string,
-): Promise<string> {
-  return path.join(
-    await chapterDir(projectPath, workspaceRoot, chapterId),
-    sceneId,
-  );
+): string {
+  return path.join(chapterDir(projectPath, workspaceRoot, chapterId), sceneId);
 }
 
-async function sceneMetaPath(
-  projectPath: string,
-  workspaceRoot: string | null,
-  chapterId: string,
-  sceneId: string,
-): Promise<string> {
-  return path.join(
-    await chapterDir(projectPath, workspaceRoot, chapterId),
-    `${sceneId}.json`,
-  );
-}
-
-async function actionMetaPath(
+function actionContentPath(
   projectPath: string,
   workspaceRoot: string | null,
   chapterId: string,
   sceneId: string,
   actionId: string,
-): Promise<string> {
+): string {
   return path.join(
-    await sceneDir(projectPath, workspaceRoot, chapterId, sceneId),
-    `${actionId}.json`,
-  );
-}
-
-async function actionContentPath(
-  projectPath: string,
-  workspaceRoot: string | null,
-  chapterId: string,
-  sceneId: string,
-  actionId: string,
-): Promise<string> {
-  return path.join(
-    await sceneDir(projectPath, workspaceRoot, chapterId, sceneId),
+    sceneDir(projectPath, workspaceRoot, chapterId, sceneId),
     `${actionId}.md`,
   );
 }
 
-async function bookMetaPath(
+function chapterCommentsPath(
   projectPath: string,
   workspaceRoot: string | null,
-): Promise<string> {
+  chapterId: string,
+): string {
   return path.join(
-    await structureBase(projectPath, workspaceRoot),
-    ".project",
-    "book.json",
+    structureBase(projectPath, workspaceRoot),
+    CHAPTERS_DIR,
+    `${chapterId}.comments.json`,
   );
-}
-
-function stripExtension(filename: string): string {
-  const dot = filename.lastIndexOf(".");
-  return dot >= 0 ? filename.slice(0, dot) : filename;
-}
-
-function normalizeNodeMeta(raw: unknown): NodeMeta {
-  if (!raw || typeof raw !== "object") {
-    return { title: "", description: "", sortOrder: 0 };
-  }
-  const o = raw as Record<string, unknown>;
-  const extras =
-    typeof o.extras === "object" &&
-    o.extras !== null &&
-    !Array.isArray(o.extras)
-      ? (o.extras as Record<string, string>)
-      : undefined;
-  return {
-    title: typeof o.title === "string" ? o.title : "",
-    description: typeof o.description === "string" ? o.description : "",
-    sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : 0,
-    ...(extras ? { extras } : {}),
-  };
-}
-
-async function readMetaFile(metaPath: string): Promise<NodeMeta> {
-  const json = await fs.readFile(metaPath, "utf8");
-  return normalizeNodeMeta(JSON.parse(json) as unknown);
-}
-
-async function writeMetaFile(metaPath: string, meta: NodeMeta): Promise<void> {
-  await fs.mkdir(path.dirname(metaPath), { recursive: true });
-  await fs.writeFile(metaPath, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -184,82 +113,6 @@ async function pathExists(targetPath: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function endDigitRun(s: string, i: number): number {
-  let j = i;
-  while (j < s.length && /\d/.test(s[j]!)) {
-    j++;
-  }
-  return j;
-}
-
-function endNonDigitRun(s: string, i: number): number {
-  let j = i;
-  while (j < s.length && !/\d/.test(s[j]!)) {
-    j++;
-  }
-  return j;
-}
-
-const collator = new Intl.Collator("de", { sensitivity: "base" });
-
-function compareNaturalStrings(a: string, b: string): number {
-  let ia = 0;
-  let ib = 0;
-  const sa = a ?? "";
-  const sb = b ?? "";
-  while (ia < sa.length && ib < sb.length) {
-    const ca = sa[ia]!;
-    const cb = sb[ib]!;
-    const da = /\d/.test(ca);
-    const db = /\d/.test(cb);
-    if (da && db) {
-      const na = endDigitRun(sa, ia);
-      const nb = endDigitRun(sb, ib);
-      const va = Number.parseInt(sa.slice(ia, na), 10);
-      const vb = Number.parseInt(sb.slice(ib, nb), 10);
-      if (va !== vb) {
-        return va - vb;
-      }
-      ia = na;
-      ib = nb;
-    } else if (!da && !db) {
-      const na = endNonDigitRun(sa, ia);
-      const nb = endNonDigitRun(sb, ib);
-      const cmp = collator.compare(sa.slice(ia, na), sb.slice(ib, nb));
-      if (cmp !== 0) {
-        return cmp;
-      }
-      ia = na;
-      ib = nb;
-    } else {
-      return Number(db) - Number(da);
-    }
-  }
-  return sa.length - sb.length;
-}
-
-function chapterSortKey(c: ChapterSummary): string {
-  const t = c.meta?.title?.trim();
-  if (t) {
-    return t;
-  }
-  return c.id ?? "";
-}
-
-async function nextSortOrder(dir: string, extension: string): Promise<number> {
-  if (!(await pathExists(dir))) {
-    return 0;
-  }
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  return entries.filter(
-    (e) => e.isFile() && e.name.endsWith(extension),
-  ).length;
-}
-
-function generateId(): string {
-  return randomUUID();
 }
 
 async function deleteIfExists(targetPath: string): Promise<void> {
@@ -274,49 +127,30 @@ async function deleteRecursively(targetPath: string): Promise<void> {
   await fs.rm(targetPath, { recursive: true, force: true });
 }
 
+// --- Structure queries --------------------------------------------------------
+
+function sceneToNode(scene: ManifestScene, index: number): SceneNode {
+  return {
+    id: scene.id,
+    meta: toNodeMeta(scene, index),
+    actions: scene.actions.map(
+      (action, i): ActionNode => ({ id: action.id, meta: toNodeMeta(action, i) }),
+    ),
+  };
+}
+
 export async function listChapters(
   projectPath: string | null,
   workspaceRoot: string | null,
 ): Promise<ChapterSummary[]> {
   logTrace(`Received request listChapters root=${workspaceRoot ?? "(default)"}`);
-  const root = ensureProjectRoot(projectPath);
-  const cr = await chaptersRoot(root, workspaceRoot);
-  if (!(await pathExists(cr))) {
-    logTrace("Finished listChapters: 0 (no chapter dir)");
-    return [];
-  }
-  const entries = await fs.readdir(cr, { withFileTypes: true });
-  const chapters: ChapterSummary[] = [];
-  for (const ent of entries) {
-    if (!ent.isFile() || !ent.name.endsWith(".json")) {
-      continue;
-    }
-    const id = stripExtension(ent.name);
-    const metaPath = path.join(cr, ent.name);
-    try {
-      const meta = await readMetaFile(metaPath);
-      chapters.push({ id, meta });
-    } catch {
-      chapters.push({
-        id,
-        meta: { title: "", description: "", sortOrder: 0 },
-      });
-    }
-  }
-  chapters.sort((c1, c2) => {
-    const byOrder = (c1.meta?.sortOrder ?? 0) - (c2.meta?.sortOrder ?? 0);
-    if (byOrder !== 0) {
-      return byOrder;
-    }
-    const byKey = compareNaturalStrings(
-      chapterSortKey(c1),
-      chapterSortKey(c2),
-    );
-    if (byKey !== 0) {
-      return byKey;
-    }
-    return compareNaturalStrings(c1.id ?? "", c2.id ?? "");
-  });
+  const manifest = await loadManifest(manifestBase(projectPath, workspaceRoot));
+  const chapters = manifest.chapters.map(
+    (chapter, index): ChapterSummary => ({
+      id: chapter.id,
+      meta: toNodeMeta(chapter, index),
+    }),
+  );
   logTrace(`Finished listChapters: ${chapters.length}`);
   return chapters;
 }
@@ -327,67 +161,24 @@ export async function getChapterStructure(
   workspaceRoot: string | null,
 ): Promise<ChapterNode> {
   logTrace(`Received request getChapterStructure id=${chapterId}`);
-  const root = ensureProjectRoot(projectPath);
-  const metaPath = await chapterMetaPath(root, workspaceRoot, chapterId);
-  if (!(await pathExists(metaPath))) {
+  const manifest = await loadManifest(manifestBase(projectPath, workspaceRoot));
+  const index = manifest.chapters.findIndex((c) => c.id === chapterId);
+  if (index < 0) {
     throw new Error(`Chapter not found: ${chapterId}`);
   }
-  const chapterMeta = await readMetaFile(metaPath);
-  const chapter: ChapterNode = {
-    id: chapterId,
-    meta: chapterMeta,
-    scenes: [],
+  const chapter = manifest.chapters[index]!;
+  const node: ChapterNode = {
+    id: chapter.id,
+    meta: toNodeMeta(chapter, index),
+    scenes: chapter.scenes.map(sceneToNode),
   };
-  const cDir = await chapterDir(root, workspaceRoot, chapterId);
-  if (await pathExists(cDir)) {
-    const entries = await fs.readdir(cDir, { withFileTypes: true });
-    for (const ent of entries) {
-      if (!ent.isFile() || !ent.name.endsWith(".json")) {
-        continue;
-      }
-      const sceneId = stripExtension(ent.name);
-      const smPath = path.join(cDir, ent.name);
-      let sceneMeta: NodeMeta;
-      try {
-        sceneMeta = await readMetaFile(smPath);
-      } catch {
-        sceneMeta = { title: "", description: "", sortOrder: 0 };
-      }
-      const scene: SceneNode = { id: sceneId, meta: sceneMeta, actions: [] };
-      const sDir = path.join(cDir, sceneId);
-      if (await pathExists(sDir)) {
-        const aEntries = await fs.readdir(sDir, { withFileTypes: true });
-        for (const ap of aEntries) {
-          if (!ap.isFile() || !ap.name.endsWith(".json")) {
-            continue;
-          }
-          const actionId = stripExtension(ap.name);
-          const amPath = path.join(sDir, ap.name);
-          try {
-            const aMeta = await readMetaFile(amPath);
-            scene.actions.push({ id: actionId, meta: aMeta });
-          } catch {
-            scene.actions.push({
-              id: actionId,
-              meta: { title: "", description: "", sortOrder: 0 },
-            });
-          }
-        }
-      }
-      scene.actions.sort((a, b) => a.meta.sortOrder - b.meta.sortOrder);
-      chapter.scenes.push(scene);
-    }
-  }
-  chapter.scenes.sort((a, b) => a.meta.sortOrder - b.meta.sortOrder);
-  logTrace(`Finished getChapterStructure: scenes=${chapter.scenes.length}`);
-  return chapter;
+  logTrace(`Finished getChapterStructure: scenes=${node.scenes.length}`);
+  return node;
 }
 
 /**
  * Relative (git-worktree-friendly) paths for the chapter's own directory and every
- * action `.md` file within it, in scene/action order. Used by the git history view to
- * fetch a combined commit list (`git log -- <dir>`) and per-commit prose content
- * (`git show <hash>:<relPath>`) without leaking absolute filesystem paths to the renderer.
+ * action `.md` file within it, in scene/action order. Used by the git history view.
  */
 export async function getChapterFilePaths(
   projectPath: string | null,
@@ -396,14 +187,14 @@ export async function getChapterFilePaths(
 ): Promise<ChapterFilePaths> {
   const root = ensureProjectRoot(projectPath);
   const chapter = await getChapterStructure(root, chapterId, workspaceRoot);
-  const cDir = await chapterDir(root, workspaceRoot, chapterId);
+  const cDir = chapterDir(root, workspaceRoot, chapterId);
   const toRelPath = (absPath: string) =>
     path.relative(root, absPath).split(path.sep).join("/");
 
   const actions: ChapterFilePaths["actions"] = [];
   for (const scene of chapter.scenes) {
     for (const action of scene.actions) {
-      const absPath = await actionContentPath(
+      const absPath = actionContentPath(
         root,
         workspaceRoot,
         chapterId,
@@ -424,6 +215,8 @@ export async function getChapterFilePaths(
   };
 }
 
+// --- Chapter mutations --------------------------------------------------------
+
 export async function createChapter(
   projectPath: string | null,
   title: string,
@@ -431,15 +224,19 @@ export async function createChapter(
 ): Promise<ChapterSummary> {
   logTrace(`Received request createChapter title=${title.slice(0, 60)}`);
   const root = ensureProjectRoot(projectPath);
-  const cr = await chaptersRoot(root, workspaceRoot);
-  await fs.mkdir(cr, { recursive: true });
-  const nextOrder = await nextSortOrder(cr, ".json");
-  const id = generateId();
-  const meta: NodeMeta = { title, description: "", sortOrder: nextOrder };
-  await writeMetaFile(await chapterMetaPath(root, workspaceRoot, id), meta);
-  await fs.mkdir(await chapterDir(root, workspaceRoot, id), { recursive: true });
-  logTrace(`Finished createChapter: id=${id}`);
-  return { id, meta };
+  const base = manifestBase(root, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter: ManifestChapter = {
+    id: generateId(),
+    title,
+    description: "",
+    scenes: [],
+  };
+  manifest.chapters.push(chapter);
+  await writeManifest(base, manifest);
+  await fs.mkdir(chapterDir(root, workspaceRoot, chapter.id), { recursive: true });
+  logTrace(`Finished createChapter: id=${chapter.id}`);
+  return { id: chapter.id, meta: toNodeMeta(chapter, manifest.chapters.length - 1) };
 }
 
 export async function updateChapterMeta(
@@ -449,13 +246,343 @@ export async function updateChapterMeta(
   workspaceRoot: string | null,
 ): Promise<void> {
   logTrace(`Received request updateChapterMeta id=${chapterId}`);
-  const root = ensureProjectRoot(projectPath);
-  await writeMetaFile(
-    await chapterMetaPath(root, workspaceRoot, chapterId),
-    meta,
-  );
+  const base = manifestBase(projectPath, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  if (!chapter) {
+    throw new Error(`Chapter not found: ${chapterId}`);
+  }
+  applyNodeMeta(chapter, meta);
+  await writeManifest(base, manifest);
   logTrace("Finished updateChapterMeta");
 }
+
+export async function deleteChapter(
+  projectPath: string | null,
+  chapterId: string,
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(`Received request deleteChapter id=${chapterId}`);
+  const root = ensureProjectRoot(projectPath);
+  const base = manifestBase(root, workspaceRoot);
+  const manifest = await loadManifest(base);
+  manifest.chapters = manifest.chapters.filter((c) => c.id !== chapterId);
+  await writeManifest(base, manifest);
+  const cdir = chapterDir(root, workspaceRoot, chapterId);
+  if (await pathExists(cdir)) {
+    await deleteRecursively(cdir);
+  }
+  await deleteIfExists(chapterCommentsPath(root, workspaceRoot, chapterId));
+  logTrace("Finished deleteChapter");
+}
+
+// --- Scene mutations ----------------------------------------------------------
+
+export async function createScene(
+  projectPath: string | null,
+  chapterId: string,
+  title: string,
+  workspaceRoot: string | null,
+): Promise<SceneNode> {
+  logTrace(`Received request createScene chapter=${chapterId}`);
+  const root = ensureProjectRoot(projectPath);
+  const base = manifestBase(root, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  if (!chapter) {
+    throw new Error(`Chapter not found: ${chapterId}`);
+  }
+  const defaultAction: ManifestAction = {
+    id: generateId(),
+    title: "Inhalt",
+    description: "",
+  };
+  const scene: ManifestScene = {
+    id: generateId(),
+    title,
+    description: "",
+    actions: [defaultAction],
+  };
+  chapter.scenes.push(scene);
+  await writeManifest(base, manifest);
+
+  // Materialize the scene's content dir and the default action's (empty) prose file.
+  await fs.mkdir(sceneDir(root, workspaceRoot, chapterId, scene.id), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    actionContentPath(root, workspaceRoot, chapterId, scene.id, defaultAction.id),
+    "",
+    "utf8",
+  );
+  logTrace(`Finished createScene: id=${scene.id}`);
+  return sceneToNode(scene, chapter.scenes.length - 1);
+}
+
+export async function updateSceneMeta(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  meta: NodeMeta,
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(`Received request updateSceneMeta chapter=${chapterId} scene=${sceneId}`);
+  const base = manifestBase(projectPath, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  const scene = chapter?.scenes.find((s) => s.id === sceneId);
+  if (!scene) {
+    throw new Error(`Scene not found: ${sceneId}`);
+  }
+  applyNodeMeta(scene, meta);
+  await writeManifest(base, manifest);
+  logTrace("Finished updateSceneMeta");
+}
+
+export async function deleteScene(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(`Received request deleteScene chapter=${chapterId} scene=${sceneId}`);
+  const root = ensureProjectRoot(projectPath);
+  const base = manifestBase(root, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  if (chapter) {
+    chapter.scenes = chapter.scenes.filter((s) => s.id !== sceneId);
+    await writeManifest(base, manifest);
+  }
+  await deleteRecursively(sceneDir(root, workspaceRoot, chapterId, sceneId));
+  logTrace("Finished deleteScene");
+}
+
+// --- Action mutations ---------------------------------------------------------
+
+export async function createAction(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  title: string,
+  workspaceRoot: string | null,
+): Promise<ActionNode> {
+  logTrace(`Received request createAction chapter=${chapterId} scene=${sceneId}`);
+  const root = ensureProjectRoot(projectPath);
+  const base = manifestBase(root, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  const scene = chapter?.scenes.find((s) => s.id === sceneId);
+  if (!scene) {
+    throw new Error(`Scene not found: ${sceneId}`);
+  }
+  const action: ManifestAction = { id: generateId(), title, description: "" };
+  scene.actions.push(action);
+  await writeManifest(base, manifest);
+
+  await fs.mkdir(sceneDir(root, workspaceRoot, chapterId, sceneId), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    actionContentPath(root, workspaceRoot, chapterId, sceneId, action.id),
+    "",
+    "utf8",
+  );
+  logTrace(`Finished createAction: id=${action.id}`);
+  return { id: action.id, meta: toNodeMeta(action, scene.actions.length - 1) };
+}
+
+export async function updateActionMeta(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  actionId: string,
+  meta: NodeMeta,
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(
+    `Received request updateActionMeta chapter=${chapterId} scene=${sceneId} action=${actionId}`,
+  );
+  const base = manifestBase(projectPath, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  const scene = chapter?.scenes.find((s) => s.id === sceneId);
+  const action = scene?.actions.find((a) => a.id === actionId);
+  if (!action) {
+    throw new Error(`Action not found: ${actionId}`);
+  }
+  applyNodeMeta(action, meta);
+  await writeManifest(base, manifest);
+  logTrace("Finished updateActionMeta");
+}
+
+export async function deleteAction(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  actionId: string,
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(
+    `Received request deleteAction chapter=${chapterId} scene=${sceneId} action=${actionId}`,
+  );
+  const root = ensureProjectRoot(projectPath);
+  const base = manifestBase(root, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  const scene = chapter?.scenes.find((s) => s.id === sceneId);
+  if (scene) {
+    scene.actions = scene.actions.filter((a) => a.id !== actionId);
+    await writeManifest(base, manifest);
+  }
+  await deleteIfExists(
+    actionContentPath(root, workspaceRoot, chapterId, sceneId, actionId),
+  );
+  logTrace("Finished deleteAction");
+}
+
+// --- Prose content (unchanged: lives in .md on disk) --------------------------
+
+export async function readActionContent(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  actionId: string,
+  workspaceRoot: string | null,
+): Promise<string> {
+  const root = ensureProjectRoot(projectPath);
+  const p = actionContentPath(root, workspaceRoot, chapterId, sceneId, actionId);
+  if (!(await pathExists(p))) {
+    return "";
+  }
+  return fs.readFile(p, "utf8");
+}
+
+export async function writeActionContent(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  actionId: string,
+  content: string,
+  workspaceRoot: string | null,
+): Promise<void> {
+  const root = ensureProjectRoot(projectPath);
+  const p = actionContentPath(root, workspaceRoot, chapterId, sceneId, actionId);
+  await fs.mkdir(path.dirname(p), { recursive: true });
+  await fs.writeFile(p, content, "utf8");
+}
+
+// --- Ordering (array position is the single source of truth) ------------------
+
+export async function reorderChapters(
+  projectPath: string | null,
+  orderedIds: string[],
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(`Received request reorderChapters n=${orderedIds.length}`);
+  const base = manifestBase(projectPath, workspaceRoot);
+  const manifest = await loadManifest(base);
+  manifest.chapters = reorderById(manifest.chapters, orderedIds);
+  await writeManifest(base, manifest);
+  logTrace("Finished reorderChapters");
+}
+
+export async function reorderScenes(
+  projectPath: string | null,
+  chapterId: string,
+  orderedIds: string[],
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(`Received request reorderScenes chapter=${chapterId} n=${orderedIds.length}`);
+  const base = manifestBase(projectPath, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  if (chapter) {
+    chapter.scenes = reorderById(chapter.scenes, orderedIds);
+    await writeManifest(base, manifest);
+  }
+  logTrace("Finished reorderScenes");
+}
+
+export async function reorderActions(
+  projectPath: string | null,
+  chapterId: string,
+  sceneId: string,
+  orderedIds: string[],
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace(
+    `Received request reorderActions chapter=${chapterId} scene=${sceneId} n=${orderedIds.length}`,
+  );
+  const base = manifestBase(projectPath, workspaceRoot);
+  const manifest = await loadManifest(base);
+  const chapter = manifest.chapters.find((c) => c.id === chapterId);
+  const scene = chapter?.scenes.find((s) => s.id === sceneId);
+  if (scene) {
+    scene.actions = reorderById(scene.actions, orderedIds);
+    await writeManifest(base, manifest);
+  }
+  logTrace("Finished reorderActions");
+}
+
+// --- Book-level meta (own file: .project/book.json, unchanged by the manifest) ---
+
+function bookMetaPath(
+  projectPath: string,
+  workspaceRoot: string | null,
+): string {
+  return path.join(structureBase(projectPath, workspaceRoot), ".project", "book.json");
+}
+
+function normalizeBookMeta(raw: unknown): NodeMeta {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const extrasRaw =
+    o.extras && typeof o.extras === "object" && !Array.isArray(o.extras)
+      ? (o.extras as Record<string, unknown>)
+      : {};
+  const extras: Record<string, string> = {};
+  for (const [k, v] of Object.entries(extrasRaw)) {
+    if (typeof v === "string") extras[k] = v;
+  }
+  return {
+    title: typeof o.title === "string" ? o.title : "",
+    description: typeof o.description === "string" ? o.description : "",
+    sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : 0,
+    ...(Object.keys(extras).length > 0 ? { extras } : {}),
+  };
+}
+
+export async function getBookMeta(
+  projectPath: string | null,
+  workspaceRoot: string | null,
+): Promise<NodeMeta> {
+  logTrace("Received request getBookMeta");
+  const root = ensureProjectRoot(projectPath);
+  const p = bookMetaPath(root, workspaceRoot);
+  if (!(await pathExists(p))) {
+    return { title: "", description: "", sortOrder: 0 };
+  }
+  try {
+    return normalizeBookMeta(JSON.parse(await fs.readFile(p, "utf8")) as unknown);
+  } catch {
+    return { title: "", description: "", sortOrder: 0 };
+  }
+}
+
+export async function updateBookMeta(
+  projectPath: string | null,
+  meta: NodeMeta,
+  workspaceRoot: string | null,
+): Promise<void> {
+  logTrace("Received request updateBookMeta");
+  const root = ensureProjectRoot(projectPath);
+  const p = bookMetaPath(root, workspaceRoot);
+  await fs.mkdir(path.dirname(p), { recursive: true });
+  await fs.writeFile(p, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
+  logTrace("Finished updateBookMeta");
+}
+
+// --- Comments (separate .comments.json sidecar, unchanged) --------------------
 
 function normalizeComment(raw: unknown): ChapterComment | null {
   if (!raw || typeof raw !== "object") return null;
@@ -504,7 +631,7 @@ export async function readChapterComments(
 ): Promise<ChapterComment[]> {
   logTrace(`Received request readChapterComments id=${chapterId}`);
   const root = ensureProjectRoot(projectPath);
-  const commentsPath = await chapterCommentsPath(root, workspaceRoot, chapterId);
+  const commentsPath = chapterCommentsPath(root, workspaceRoot, chapterId);
   if (!(await pathExists(commentsPath))) {
     return [];
   }
@@ -527,7 +654,7 @@ export async function writeChapterComments(
     `Received request writeChapterComments id=${chapterId} count=${comments.length}`,
   );
   const root = ensureProjectRoot(projectPath);
-  const commentsPath = await chapterCommentsPath(root, workspaceRoot, chapterId);
+  const commentsPath = chapterCommentsPath(root, workspaceRoot, chapterId);
   const normalized = normalizeComments(comments);
   const payload = { version: 1, comments: normalized };
   await fs.mkdir(path.dirname(commentsPath), { recursive: true });
@@ -535,381 +662,82 @@ export async function writeChapterComments(
   logTrace("Finished writeChapterComments");
 }
 
-export async function deleteChapter(
-  projectPath: string | null,
-  chapterId: string,
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(`Received request deleteChapter id=${chapterId}`);
-  const root = ensureProjectRoot(projectPath);
-  await deleteIfExists(await chapterMetaPath(root, workspaceRoot, chapterId));
-  const cdir = await chapterDir(root, workspaceRoot, chapterId);
-  if (await pathExists(cdir)) {
-    await deleteRecursively(cdir);
-  }
-  logTrace("Finished deleteChapter");
-}
+// --- Maintenance --------------------------------------------------------------
 
-export async function createScene(
-  projectPath: string | null,
-  chapterId: string,
-  title: string,
-  workspaceRoot: string | null,
-): Promise<SceneNode> {
-  logTrace(`Received request createScene chapter=${chapterId}`);
-  const root = ensureProjectRoot(projectPath);
-  const cDir = await chapterDir(root, workspaceRoot, chapterId);
-  await fs.mkdir(cDir, { recursive: true });
-  const nextOrder = await nextSortOrder(cDir, ".json");
-  const id = generateId();
-  const meta: NodeMeta = { title, description: "", sortOrder: nextOrder };
-  await writeMetaFile(
-    await sceneMetaPath(root, workspaceRoot, chapterId, id),
-    meta,
-  );
-  await fs.mkdir(await sceneDir(root, workspaceRoot, chapterId, id), {
-    recursive: true,
-  });
-  const scene: SceneNode = { id, meta, actions: [] };
-  const defaultAction = await createAction(
-    projectPath,
-    chapterId,
-    id,
-    "Inhalt",
-    workspaceRoot,
-  );
-  scene.actions.push(defaultAction);
-  logTrace(`Finished createScene: id=${id}`);
-  return scene;
-}
-
-export async function updateSceneMeta(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  meta: NodeMeta,
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(`Received request updateSceneMeta chapter=${chapterId} scene=${sceneId}`);
-  const root = ensureProjectRoot(projectPath);
-  await writeMetaFile(
-    await sceneMetaPath(root, workspaceRoot, chapterId, sceneId),
-    meta,
-  );
-  logTrace("Finished updateSceneMeta");
-}
-
-export async function deleteScene(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(`Received request deleteScene chapter=${chapterId} scene=${sceneId}`);
-  const root = ensureProjectRoot(projectPath);
-  await deleteIfExists(
-    await sceneMetaPath(root, workspaceRoot, chapterId, sceneId),
-  );
-  await deleteRecursively(
-    await sceneDir(root, workspaceRoot, chapterId, sceneId),
-  );
-  logTrace("Finished deleteScene");
-}
-
-export async function createAction(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  title: string,
-  workspaceRoot: string | null,
-): Promise<ActionNode> {
-  logTrace(
-    `Received request createAction chapter=${chapterId} scene=${sceneId}`,
-  );
-  const root = ensureProjectRoot(projectPath);
-  const sDir = await sceneDir(root, workspaceRoot, chapterId, sceneId);
-  await fs.mkdir(sDir, { recursive: true });
-  const nextOrder = await nextSortOrder(sDir, ".json");
-  const id = generateId();
-  const meta: NodeMeta = { title, description: "", sortOrder: nextOrder };
-  await writeMetaFile(
-    await actionMetaPath(root, workspaceRoot, chapterId, sceneId, id),
-    meta,
-  );
-  const mdPath = await actionContentPath(
-    root,
-    workspaceRoot,
-    chapterId,
-    sceneId,
-    id,
-  );
-  await fs.writeFile(mdPath, "", "utf8");
-  logTrace(`Finished createAction: id=${id}`);
-  return { id, meta };
-}
-
-export async function updateActionMeta(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  actionId: string,
-  meta: NodeMeta,
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(
-    `Received request updateActionMeta chapter=${chapterId} scene=${sceneId} action=${actionId}`,
-  );
-  const root = ensureProjectRoot(projectPath);
-  await writeMetaFile(
-    await actionMetaPath(root, workspaceRoot, chapterId, sceneId, actionId),
-    meta,
-  );
-  logTrace("Finished updateActionMeta");
-}
-
-export async function deleteAction(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  actionId: string,
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(
-    `Received request deleteAction chapter=${chapterId} scene=${sceneId} action=${actionId}`,
-  );
-  const root = ensureProjectRoot(projectPath);
-  await deleteIfExists(
-    await actionMetaPath(root, workspaceRoot, chapterId, sceneId, actionId),
-  );
-  await deleteIfExists(
-    await actionContentPath(root, workspaceRoot, chapterId, sceneId, actionId),
-  );
-  logTrace("Finished deleteAction");
-}
-
-export async function readActionContent(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  actionId: string,
-  workspaceRoot: string | null,
-): Promise<string> {
-  logTrace(
-    `Received request readActionContent chapter=${chapterId} scene=${sceneId} action=${actionId}`,
-  );
-  const root = ensureProjectRoot(projectPath);
-  const p = await actionContentPath(
-    root,
-    workspaceRoot,
-    chapterId,
-    sceneId,
-    actionId,
-  );
-  if (!(await pathExists(p))) {
-    logTrace("Finished readActionContent: empty");
-    return "";
-  }
-  const content = await fs.readFile(p, "utf8");
-  logTrace(`Finished readActionContent: ${content.length} chars`);
-  return content;
-}
-
-export async function writeActionContent(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  actionId: string,
-  content: string,
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(
-    `Received request writeActionContent chapter=${chapterId} scene=${sceneId} action=${actionId}`,
-  );
-  const root = ensureProjectRoot(projectPath);
-  const p = await actionContentPath(
-    root,
-    workspaceRoot,
-    chapterId,
-    sceneId,
-    actionId,
-  );
-  await fs.mkdir(path.dirname(p), { recursive: true });
-  await fs.writeFile(p, content, "utf8");
-  logTrace("Finished writeActionContent");
-}
-
-export async function reorderChapters(
-  projectPath: string | null,
-  orderedIds: string[],
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(`Received request reorderChapters n=${orderedIds.length}`);
-  const root = ensureProjectRoot(projectPath);
-  for (let i = 0; i < orderedIds.length; i++) {
-    const chapterId = orderedIds[i]!;
-    const metaPath = await chapterMetaPath(root, workspaceRoot, chapterId);
-    if (await pathExists(metaPath)) {
-      const meta = await readMetaFile(metaPath);
-      meta.sortOrder = i;
-      await writeMetaFile(metaPath, meta);
-    }
-  }
-  logTrace("Finished reorderChapters");
-}
-
-export async function reorderScenes(
-  projectPath: string | null,
-  chapterId: string,
-  orderedIds: string[],
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(`Received request reorderScenes chapter=${chapterId} n=${orderedIds.length}`);
-  const root = ensureProjectRoot(projectPath);
-  for (let i = 0; i < orderedIds.length; i++) {
-    const sceneId = orderedIds[i]!;
-    const metaPath = await sceneMetaPath(
-      root,
-      workspaceRoot,
-      chapterId,
-      sceneId,
-    );
-    if (await pathExists(metaPath)) {
-      const meta = await readMetaFile(metaPath);
-      meta.sortOrder = i;
-      await writeMetaFile(metaPath, meta);
-    }
-  }
-  logTrace("Finished reorderScenes");
-}
-
-export async function reorderActions(
-  projectPath: string | null,
-  chapterId: string,
-  sceneId: string,
-  orderedIds: string[],
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace(
-    `Received request reorderActions chapter=${chapterId} scene=${sceneId} n=${orderedIds.length}`,
-  );
-  const root = ensureProjectRoot(projectPath);
-  for (let i = 0; i < orderedIds.length; i++) {
-    const actionId = orderedIds[i]!;
-    const metaPath = await actionMetaPath(
-      root,
-      workspaceRoot,
-      chapterId,
-      sceneId,
-      actionId,
-    );
-    if (await pathExists(metaPath)) {
-      const meta = await readMetaFile(metaPath);
-      meta.sortOrder = i;
-      await writeMetaFile(metaPath, meta);
-    }
-  }
-  logTrace("Finished reorderActions");
-}
-
-export async function getBookMeta(
-  projectPath: string | null,
-  workspaceRoot: string | null,
-): Promise<NodeMeta> {
-  logTrace("Received request getBookMeta");
-  const root = ensureProjectRoot(projectPath);
-  const p = await bookMetaPath(root, workspaceRoot);
-  if (!(await pathExists(p))) {
-    logTrace("Finished getBookMeta: default empty meta");
-    return { title: "", description: "", sortOrder: 0 };
-  }
-  const meta = await readMetaFile(p);
-  logTrace("Finished getBookMeta");
-  return meta;
-}
-
-export async function updateBookMeta(
-  projectPath: string | null,
-  meta: NodeMeta,
-  workspaceRoot: string | null,
-): Promise<void> {
-  logTrace("Received request updateBookMeta");
-  const root = ensureProjectRoot(projectPath);
-  await writeMetaFile(await bookMetaPath(root, workspaceRoot), meta);
-  logTrace("Finished updateBookMeta");
-}
-
+/**
+ * Regenerate every chapter/scene/action id as a fresh UUID and move the prose
+ * `.md` files to their new id-based paths. Scrubs predictable legacy ids
+ * (`chapter_1`, …). The manifest is the source of truth; content is preserved.
+ */
 export async function randomizeIds(
   projectPath: string | null,
   workspaceRoot: string | null,
 ): Promise<{ renamed: number }> {
   logTrace("Received request randomizeIds");
   const root = ensureProjectRoot(projectPath);
-  const cr = await chaptersRoot(root, workspaceRoot);
-  if (!(await pathExists(cr))) {
+  const base = manifestBase(root, workspaceRoot);
+  const manifest = await loadManifest(base);
+  if (manifest.chapters.length === 0) {
     logTrace("Finished randomizeIds: 0");
     return { renamed: 0 };
   }
-  let count = 0;
-  const entries = await fs.readdir(cr, { withFileTypes: true });
-  const chapterJsons = entries
-    .filter(
-      (e) =>
-        e.isFile() &&
-        e.name.endsWith(".json") &&
-        /^chapter_\d+\.json$/.test(e.name),
-    )
-    .map((e) => path.join(cr, e.name));
 
-  for (const cJson of chapterJsons) {
-    const oldCid = stripExtension(path.basename(cJson));
-    const newCid = generateId();
-    const oldCdir = path.join(cr, oldCid);
-    const newCdir = path.join(cr, newCid);
-    if (path.isAbsolute(oldCdir) && (await pathExists(oldCdir))) {
-      const sEntries = await fs.readdir(oldCdir, { withFileTypes: true });
-      const sceneJsons = sEntries
-        .filter(
-          (e) =>
-            e.isFile() &&
-            e.name.endsWith(".json") &&
-            /^scene_\d+\.json$/.test(e.name),
-        )
-        .map((e) => path.join(oldCdir, e.name));
-      for (const sJson of sceneJsons) {
-        const oldSid = stripExtension(path.basename(sJson));
-        const newSid = generateId();
-        const oldSdir = path.join(oldCdir, oldSid);
-        const newSdir = path.join(oldCdir, newSid);
-        if (await pathExists(oldSdir)) {
-          const aEntries = await fs.readdir(oldSdir, { withFileTypes: true });
-          const actionJsons = aEntries
-            .filter(
-              (e) =>
-                e.isFile() &&
-                e.name.endsWith(".json") &&
-                /^action_\d+\.json$/.test(e.name),
-            )
-            .map((e) => path.join(oldSdir, e.name));
-          for (const aJson of actionJsons) {
-            const oldAid = stripExtension(path.basename(aJson));
-            const newAid = generateId();
-            await fs.rename(aJson, path.join(oldSdir, `${newAid}.json`));
-            const aMd = path.join(oldSdir, `${oldAid}.md`);
-            if (await pathExists(aMd)) {
-              await fs.rename(aMd, path.join(oldSdir, `${newAid}.md`));
-            }
-            count++;
-          }
-          await fs.rename(oldSdir, newSdir);
+  let count = 0;
+  const oldChapterDirs: string[] = [];
+
+  for (const chapter of manifest.chapters) {
+    const oldChapterId = chapter.id;
+    const newChapterId = generateId();
+    oldChapterDirs.push(chapterDir(root, workspaceRoot, oldChapterId));
+
+    for (const scene of chapter.scenes) {
+      const oldSceneId = scene.id;
+      const newSceneId = generateId();
+
+      for (const action of scene.actions) {
+        const oldActionId = action.id;
+        const newActionId = generateId();
+
+        const oldMd = actionContentPath(
+          root,
+          workspaceRoot,
+          oldChapterId,
+          oldSceneId,
+          oldActionId,
+        );
+        let content = "";
+        try {
+          content = await fs.readFile(oldMd, "utf8");
+        } catch {
+          /* no prose yet */
         }
-        await fs.rename(sJson, path.join(oldCdir, `${newSid}.json`));
+        const newMd = actionContentPath(
+          root,
+          workspaceRoot,
+          newChapterId,
+          newSceneId,
+          newActionId,
+        );
+        await fs.mkdir(path.dirname(newMd), { recursive: true });
+        await fs.writeFile(newMd, content, "utf8");
+
+        action.id = newActionId;
         count++;
       }
-      await fs.rename(oldCdir, newCdir);
+
+      scene.id = newSceneId;
+      count++;
     }
-    await fs.rename(cJson, path.join(cr, `${newCid}.json`));
+
+    chapter.id = newChapterId;
     count++;
   }
+
+  await writeManifest(base, manifest);
+  for (const dir of oldChapterDirs) {
+    await deleteRecursively(dir);
+  }
+
   logTrace(`Finished randomizeIds: renamed=${count}`);
   return { renamed: count };
 }
