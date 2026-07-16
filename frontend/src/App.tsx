@@ -224,6 +224,17 @@ function App() {
     saveRulesEnabled(rulesEnabled);
   }, [rulesEnabled]);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.altKey && event.key.toLowerCase() === "t") {
+        event.preventDefault();
+        setAppearanceOpen(true);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const mainChatComposerDraftRef = useRef("");
 
   useEffect(() => {
@@ -368,12 +379,6 @@ function App() {
 
   return (
     <div className="app">
-      <div className="navi-app-header">
-        <span className="navi-app-project-path">KI Navi</span>
-        <button type="button" onClick={() => setAppearanceOpen(true)} title="Darstellung">
-          Darstellung
-        </button>
-      </div>
       <div className="app-panels navi-app-panels">
         <div className="navi-chat-column">
           <ChatPanel
