@@ -2648,7 +2648,6 @@ body.file-tree-native-dragging {
 .chat-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
 }
@@ -2656,7 +2655,6 @@ body.file-tree-native-dragging {
 .chat-guided-execution-summary {
     min-width: 0;
     flex: 1;
-    margin-right: 8px;
 }
 
 .chat-guided-execution-summary-text {
@@ -2675,9 +2673,25 @@ body.file-tree-native-dragging {
 }
 
 .chat-header-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 5;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
+    padding: 3px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    opacity: 0.55;
+    transition: opacity 0.15s;
+}
+
+.chat-header-actions:hover,
+.chat-header-actions:focus-within {
+    opacity: 1;
 }
 
 .chat-llm-select {
@@ -2752,59 +2766,6 @@ body.file-tree-native-dragging {
 
 .chat-btn-spin {
     animation: spin 1s linear infinite;
-}
-
-.chat-header-title-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0 12px 6px;
-}
-
-.chat-header-title {
-    flex: 1;
-    min-width: 0;
-    font-size: 12px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.chat-header-rename-btn {
-    display: flex;
-    align-items: center;
-    padding: 2px;
-    background: none;
-    border: none;
-    border-radius: 3px;
-    color: var(--text-muted);
-    cursor: pointer;
-    opacity: 0;
-    transition: all 0.15s;
-    flex-shrink: 0;
-}
-
-.chat-header-title-row:hover .chat-header-rename-btn {
-    opacity: 1;
-}
-
-.chat-header-rename-btn:hover {
-    background: var(--bg-hover);
-    color: var(--accent);
-}
-
-.chat-header-rename-input {
-    flex: 1;
-    min-width: 0;
-    padding: 1px 6px;
-    background: var(--bg-primary);
-    border: 1px solid var(--accent);
-    border-radius: 3px;
-    color: var(--text-primary);
-    font-size: 12px;
-    font-family: inherit;
-    outline: none;
 }
 
 .chat-messages {

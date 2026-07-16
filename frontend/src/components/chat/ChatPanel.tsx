@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { History, Pencil, Maximize2, Minimize2, FlaskConical, GitMerge, Loader2, Waypoints } from "lucide-react";
+import { useState, useMemo } from "react";
+import { GitMerge, Loader2, Waypoints } from "lucide-react";
 import type {
   ChatMessage,
   Mode,
@@ -12,7 +12,6 @@ import type {
   ReasoningEffort,
   SimulationConfig,
 } from "../../types.ts";
-import { ModeSelector } from "./ModeSelector.tsx";
 import { ChatHistory } from "./ChatHistory.tsx";
 import { NewChatButton } from "./NewChatButton.tsx";
 import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
@@ -127,7 +126,6 @@ export function ChatPanel({
   onToggleToolkit,
   rulesEnabled = true,
   onToggleRules,
-  onModeChange,
   onSend,
   onStop,
   onAddFile,
@@ -155,7 +153,6 @@ export function ChatPanel({
   chatFocusTriggerRef,
   llms = [],
   selectedLlmId,
-  onLlmChange,
   reasoningAvailable = true,
   fastAvailable = true,
   onRetry,
@@ -174,43 +171,9 @@ export function ChatPanel({
   naviStateId,
   naviStep,
   simulationConfig,
-  onOpenSimulationSetup,
 }: ChatPanelProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
-  const [renamingTitle, setRenamingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
-
-  useEffect(() => {
-    setRenamingTitle(false);
-  }, [activeConversationId]);
-
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (document.querySelector(".chat-expand-overlay")) return;
-      if (document.querySelector(".new-chat-dialog-overlay")) return;
-      if (document.querySelector(".glossary-save-overlay")) return;
-      setIsFullscreen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isFullscreen]);
-
-  const toggleChatFullscreen = useCallback(() => {
-    setIsFullscreen((v) => !v);
-  }, []);
 
   const activeTitle =
     conversations.find((c) => c.id === activeConversationId)?.title ?? "";
@@ -258,9 +221,34 @@ export function ChatPanel({
   ]);
 
   return (
-    <div className={`chat-panel${isFullscreen ? " chat-panel--expanded" : ""}`}>
-      <div className="chat-header">
-        {guidedExecSummary ? (
+    <div className="chat-panel">
+      <div className="chat-header-actions">
+        {onOpenArcs && (
+          <button
+            type="button"
+            className="chat-history-btn"
+            onClick={onOpenArcs}
+            title="Spannungsbögen öffnen (Strg+Shift+B) — Story-/Figuren-/Beziehungsbögen"
+          >
+            <Waypoints size={14} />
+          </button>
+        )}
+        {activeIsThread && onSummarizeToParent && (
+          <button
+            type="button"
+            className="chat-history-btn"
+            onClick={() => void onSummarizeToParent()}
+            disabled={isSummarizing}
+            title="Zusammenfassen & zum Haupt-Chat"
+          >
+            {isSummarizing ? <Loader2 size={14} className="chat-btn-spin" /> : <GitMerge size={14} />}
+          </button>
+        )}
+        <NewChatButton onClick={handleNewChatClick} />
+      </div>
+
+      {guidedExecSummary && (
+        <div className="chat-header">
           <div
             className="chat-guided-execution-summary"
             role="status"
@@ -276,120 +264,8 @@ export function ChatPanel({
               {guidedExecSummary.llmLabel}
             </span>
           </div>
-        ) : (
-          <ModeSelector
-            modes={modes}
-            selectedMode={selectedMode}
-            onModeChange={onModeChange}
-            theme={theme}
-          />
-        )}
-        <div className="chat-header-actions">
-          {!guidedExecSummary && llms.length > 0 && onLlmChange && (
-            <select
-              className="chat-llm-select"
-              value={selectedLlmId ?? ""}
-              onChange={(e) => onLlmChange(e.target.value || undefined)}
-              title="LLM auswählen"
-            >
-              <option value="">— Standard —</option>
-              {llms.map((llm) => (
-                <option key={llm.id} value={llm.id}>
-                  {llm.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {onOpenArcs && (
-            <button
-              type="button"
-              className="chat-history-btn"
-              onClick={onOpenArcs}
-              title="Spannungsbögen öffnen (Strg+Shift+B) — Story-/Figuren-/Beziehungsbögen"
-            >
-              <Waypoints size={14} />
-            </button>
-          )}
-          {activeIsThread && onSummarizeToParent && (
-            <button
-              type="button"
-              className="chat-history-btn"
-              onClick={() => void onSummarizeToParent()}
-              disabled={isSummarizing}
-              title="Zusammenfassen & zum Haupt-Chat"
-            >
-              {isSummarizing ? <Loader2 size={14} className="chat-btn-spin" /> : <GitMerge size={14} />}
-            </button>
-          )}
-          <button
-            type="button"
-            data-testid="expandButton"
-            className={`chat-history-btn ${isFullscreen ? "active" : ""}`}
-            onClick={toggleChatFullscreen}
-            title={
-              isFullscreen
-                ? "Vergrößerte Ansicht schließen (Esc)"
-                : "Chat vergrößern"
-            }
-            aria-pressed={isFullscreen}
-          >
-            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
-          <button
-            className={`chat-history-btn ${historyOpen ? "active" : ""}`}
-            onClick={() => setHistoryOpen((prev) => !prev)}
-            title="Chat-Historie"
-          >
-            <History size={14} />
-          </button>
-          {onOpenSimulationSetup && (
-            <button
-              type="button"
-              className="chat-history-btn"
-              onClick={onOpenSimulationSetup}
-              title="Neue Simulation"
-            >
-              <FlaskConical size={14} />
-            </button>
-          )}
-          <NewChatButton onClick={handleNewChatClick} />
         </div>
-        <div className="chat-header-title-row">
-          {renamingTitle ? (
-            <input
-              className="chat-header-rename-input"
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              onBlur={() => {
-                onRenameChat(activeConversationId, titleDraft);
-                setRenamingTitle(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  onRenameChat(activeConversationId, titleDraft);
-                  setRenamingTitle(false);
-                }
-                if (e.key === "Escape") setRenamingTitle(false);
-              }}
-              autoFocus
-            />
-          ) : (
-            <span className="chat-header-title" title={activeTitle}>
-              {activeTitle}
-            </span>
-          )}
-          <button
-            className="chat-header-rename-btn"
-            onClick={() => {
-              setTitleDraft(activeTitle);
-              setRenamingTitle(true);
-            }}
-            title="Chat umbenennen"
-          >
-            <Pencil size={11} />
-          </button>
-        </div>
-      </div>
+      )}
 
       {historyOpen && (
         <ChatHistory
