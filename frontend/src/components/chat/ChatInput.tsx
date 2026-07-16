@@ -6,7 +6,6 @@ import {
   Square,
   Zap,
   X,
-  Maximize2,
   Wrench,
   Globe,
   FolderOpen,
@@ -381,62 +380,6 @@ export function ChatInput({
                   : (placeholderProp ?? "Nachricht...")
             }
             rows={1}
-          />
-          <button
-            type="button"
-            className="chat-expand-btn"
-            onClick={() => setExpandOpen(true)}
-            title="Prompt-Fenster öffnen (großes Eingabefeld)"
-            disabled={streaming}
-          >
-            <Maximize2 size={14} />
-          </button>
-          {onToggleReasoning && reasoningAvailable && fastAvailable && (
-            <button
-              type="button"
-              className={`chat-reasoning-btn${useReasoning ? " active" : ""}`}
-              onClick={onToggleReasoning}
-              title={
-                useReasoning
-                  ? "Reasoning-Modell aktiv — klicken zum Deaktivieren"
-                  : "Reasoning-Modell aktivieren"
-              }
-              disabled={streaming}
-            >
-              <Zap size={15} />
-            </button>
-          )}
-          {onToggleReasoning &&
-            reasoningAvailable &&
-            fastAvailable &&
-            useReasoning &&
-            onReasoningEffortChange && (
-              <ReasoningEffortSelector
-                value={reasoningEffort}
-                onChange={onReasoningEffortChange}
-                disabled={streaming}
-              />
-            )}
-          {onToggleRules && (
-            <button
-              type="button"
-              className={`chat-rules-btn${rulesEnabled ? " active" : ""}`}
-              onClick={onToggleRules}
-              title={
-                rulesEnabled
-                  ? "KI-Regeln aktiv — klicken zum Deaktivieren"
-                  : "KI-Regeln deaktiviert — klicken zum Aktivieren"
-              }
-              disabled={streaming}
-            >
-              <ListChecks size={15} />
-              <span className="chat-rules-btn-label">KI-Regeln</span>
-            </button>
-          )}
-          <ToolkitMenuButton
-            disabledToolkits={disabledToolkits}
-            onToggleToolkit={onToggleToolkit}
-            streaming={streaming}
           />
           {streaming ? (
             <button
