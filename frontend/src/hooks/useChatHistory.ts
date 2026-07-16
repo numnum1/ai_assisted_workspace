@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { ChatSessionKind, Conversation, ChatMessage } from "../types.ts";
+import { scheduleNaviGreetingKickoff } from "../components/chat/naviGreetingKickoff.ts";
 
 const STORAGE_KEY = "chat-history";
 const LAST_ACTIVE_STORAGE_KEY = "chat-history:lastActive";
@@ -78,37 +79,43 @@ function hasVisibleMessages(c: Conversation): boolean {
   return false;
 }
 
-function resolveActiveId(
-  conversations: Conversation[],
-  lastActiveId: string | null,
-): string {
-  if (lastActiveId && conversations.some((c) => c.id === lastActiveId)) {
-    return lastActiveId;
+/**
+ * The app keeps exactly one Navi chat. On load we restore the last-opened
+ * conversation (collapsing any legacy multi-chat storage to a single Navi
+ * chat), or start a fresh empty Navi chat.
+ */
+function buildInitialConversation(currentMode: string): Conversation {
+  const local = loadConversations();
+  if (local.length > 0) {
+    const lastActive = loadLastActiveChatId();
+    const chosen = local.find((c) => c.id === lastActive) ?? local[0];
+    return {
+      ...chosen,
+      sessionKind: "navi",
+      naviStateId: chosen.naviStateId ?? "greeting",
+    };
   }
-  return conversations[0].id;
-}
-
-function initialChatState(currentMode: string): {
-  conversations: Conversation[];
-  activeId: string;
-} {
-  const local = loadConversations().slice(0, MAX_CONVERSATIONS);
-  if (local.length === 0) {
-    const empty = createEmptyConversation(currentMode);
-    return { conversations: [empty], activeId: empty.id };
-  }
-  return {
-    conversations: local,
-    activeId: resolveActiveId(local, loadLastActiveChatId()),
-  };
+  return { ...createEmptyConversation(currentMode), naviStateId: "greeting" };
 }
 
 export function useChatHistory(currentMode: string) {
-  const [conversations, setConversations] = useState<Conversation[]>(
-    () => initialChatState(currentMode).conversations,
-  );
+  // Compute the initial conversation exactly once, and schedule the Navi
+  // greeting for it when it starts empty (satisfies "always an open Navi chat,
+  // empty or last-opened").
+  const initialConvRef = useRef<Conversation | null>(null);
+  if (initialConvRef.current === null) {
+    const initial = buildInitialConversation(currentMode);
+    if (initial.messages.length === 0) {
+      scheduleNaviGreetingKickoff(initial.id);
+    }
+    initialConvRef.current = initial;
+  }
+
+  const [conversations, setConversations] = useState<Conversation[]>(() => [
+    initialConvRef.current!,
+  ]);
   const [activeId, setActiveId] = useState<string>(
-    () => initialChatState(currentMode).activeId,
+    () => initialConvRef.current!.id,
   );
   const hydrated = true;
 
@@ -126,25 +133,32 @@ export function useChatHistory(currentMode: string) {
     saveLastActiveChatId(activeId);
   }, [activeId]);
 
+  /** Persist only the active conversation — there is no multi-chat history. */
+  const persistActive = useCallback(() => {
+    const list = conversationsRef.current;
+    const active = list.find((c) => c.id === activeIdRef.current) ?? list[0];
+    saveConversations(active ? [active] : []);
+  }, []);
+
   useEffect(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveConversations(conversationsRef.current);
+      persistActive();
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [conversations]);
+  }, [conversations, persistActive]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      saveConversations(conversationsRef.current);
+      persistActive();
       saveLastActiveChatId(activeIdRef.current);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, []);
+  }, [persistActive]);
 
   const activeConversation =
     conversations.find((c) => c.id === activeId) ?? conversations[0];

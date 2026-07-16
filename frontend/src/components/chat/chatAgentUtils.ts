@@ -1,9 +1,4 @@
 import type { ChatToolkitId, Conversation, LlmPublic, Mode } from '../../types.ts';
-import type { NewChatConfirmPayload } from './NewChatDialog.tsx';
-
-export function isNewChatConfirmPayload(x: unknown): x is NewChatConfirmPayload {
-  return typeof x === 'object' && x !== null && 'sessionKind' in x && 'title' in x;
-}
 
 /** LLM/reasoning resolution aligned with the main chat mode switcher for a given mode id. */
 export function executionPatchForMode(

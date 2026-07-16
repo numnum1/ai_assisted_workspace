@@ -2,14 +2,11 @@ import React, { useState, useMemo, memo } from "react";
 import type { RefObject } from "react";
 import {
   Search,
-  Scissors,
-  GitFork,
   Check,
   Pencil,
   X,
   Trash2,
   RotateCcw,
-  MessageSquare,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -167,16 +164,11 @@ export interface ChatMessagesPaneProps {
   toolActivity: string | null;
   naviStep?: string | null;
   naviStateId?: string | null;
-  activeIsThread: boolean;
   editingIdx: number | null;
   setEditingIdx: (idx: number | null) => void;
-  onForkFromMessage: (index: number) => void;
-  onStartThreadFromMessage: (index: number) => void;
-  onForkToNewConversation: (index: number) => void;
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
-  onUseMessageAsThreadSummary?: (index: number) => void;
   commitEdit: (index: number, text: string) => void;
   cancelEdit: () => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
@@ -185,8 +177,6 @@ export interface ChatMessagesPaneProps {
   onRetry?: () => void;
   onOpenPromptPack?: () => void;
   theme: "light" | "dark";
-  /** When this is a thread: the last visible message from the parent conversation to show as context banner. */
-  parentLastMessage?: ChatMessage | null;
 }
 
 export function ChatMessagesPane({
@@ -199,16 +189,11 @@ export function ChatMessagesPane({
   toolActivity,
   naviStep,
   naviStateId,
-  activeIsThread,
   editingIdx,
   setEditingIdx,
-  onForkFromMessage,
-  onStartThreadFromMessage,
-  onForkToNewConversation,
   onEditMessage,
   onDeleteMessages,
   onSetMessageFeedback,
-  onUseMessageAsThreadSummary,
   commitEdit,
   cancelEdit,
   onReplaceSelection,
@@ -216,7 +201,6 @@ export function ChatMessagesPane({
   fieldLabels,
   onRetry,
   theme,
-  parentLastMessage = null,
 }: ChatMessagesPaneProps) {
   const visibleEntries = useMemo(
     () =>
@@ -237,23 +221,6 @@ export function ChatMessagesPane({
       ref={scrollRef}
       onMouseUp={readOnly ? undefined : onMouseUp}
     >
-      {parentLastMessage && (
-        <div className="thread-parent-context-banner">
-          <div className="thread-parent-context-content">
-            {parentLastMessage.role === "user" ? (
-              <span className="thread-parent-context-role">Du</span>
-            ) : parentLastMessage.role === "assistant" ? (
-              <span className="thread-parent-context-role">Assistent</span>
-            ) : null}
-            <p className="thread-parent-context-text">
-              {parentLastMessage.content.length > 300
-                ? parentLastMessage.content.slice(0, 300) + "…"
-                : parentLastMessage.content}
-            </p>
-          </div>
-          <div className="thread-parent-context-divider" />
-        </div>
-      )}
       {messages.filter((m) => !m.hidden).length === 0 && (
         <div className="chat-empty">
           <p>Start a conversation with your AI assistant.</p>
@@ -261,16 +228,6 @@ export function ChatMessagesPane({
             Drag files from the project tree into the input area to reference
             them, or use @filename syntax in the input area.
           </p>
-        </div>
-      )}
-      {activeIsThread && visibleEntries.length > 0 && (
-        <div className="thread-start-indicator">
-          <GitFork
-            className="thread-start-indicator-icon"
-            size={14}
-            aria-hidden
-          />
-          <span className="thread-start-indicator-text">Thread-Startpunkt</span>
         </div>
       )}
       {renderUnits.map((unit, unitIdx) => {
@@ -283,20 +240,14 @@ export function ChatMessagesPane({
               key={`turn-${unit.originalIndices.join("-")}`}
               originalIndices={unit.originalIndices}
               lastOriginalIdx={unit.lastOriginalIdx}
-              firstVisIdx={unit.firstVisIdx}
               subUnits={unit.subUnits}
               messages={messages}
               visibleEntries={visibleEntries}
               renderUnits={renderUnits}
               readOnly={readOnly}
               streaming={streaming}
-              activeIsThread={activeIsThread}
-              onForkFromMessage={onForkFromMessage}
-              onStartThreadFromMessage={onStartThreadFromMessage}
-              onForkToNewConversation={onForkToNewConversation}
               onDeleteMessages={onDeleteMessages}
               onSetMessageFeedback={onSetMessageFeedback}
-              onUseMessageAsThreadSummary={onUseMessageAsThreadSummary}
               onReplaceSelection={onReplaceSelection}
               onApplyFieldUpdate={onApplyFieldUpdate}
               fieldLabels={fieldLabels}
@@ -320,14 +271,6 @@ export function ChatMessagesPane({
 
           const userActions = (
             <>
-              <button
-                type="button"
-                className="chat-fork-btn"
-                onClick={() => onStartThreadFromMessage(lastOriginalIdx)}
-                title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-              >
-                <MessageSquare size={12} />
-              </button>
               {isLastTurn && (
                 <button
                   type="button"
@@ -346,26 +289,6 @@ export function ChatMessagesPane({
                   title="Nachricht bearbeiten"
                 >
                   <Pencil size={12} />
-                </button>
-              )}
-              {firstVisIdx > 0 && (
-                <button
-                  type="button"
-                  className="chat-fork-btn"
-                  onClick={() => onForkFromMessage(lastOriginalIdx)}
-                  title="Hier abschneiden (in-place)"
-                >
-                  <Scissors size={12} />
-                </button>
-              )}
-              {firstVisIdx > 0 && (
-                <button
-                  type="button"
-                  className="chat-fork-btn"
-                  onClick={() => onForkToNewConversation(lastOriginalIdx)}
-                  title="Als neuen Chat forken"
-                >
-                  <GitFork size={12} />
                 </button>
               )}
               <button
@@ -454,7 +377,7 @@ export function ChatMessagesPane({
         }
 
         // Fallback for system messages and legacy message units.
-        const { visIdx, msg, originalIdx } = unit;
+        const { msg, originalIdx } = unit;
 
         return (
           <div key={originalIdx}>
@@ -463,7 +386,7 @@ export function ChatMessagesPane({
             >
               {msg.role === "system" && (
                 <div className="chat-message-role">
-                  <span>Thread · Kontext</span>
+                  <span>Kontext</span>
                 </div>
               )}
               <div
@@ -506,34 +429,6 @@ export function ChatMessagesPane({
               </div>
               {!readOnly && !streaming && editingIdx !== originalIdx && (
                 <div className="chat-fork-actions">
-                  <button
-                    type="button"
-                    className="chat-fork-btn"
-                    onClick={() => onStartThreadFromMessage(originalIdx)}
-                    title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-                  >
-                    <MessageSquare size={12} />
-                  </button>
-                  {visIdx > 0 && (
-                    <button
-                      type="button"
-                      className="chat-fork-btn"
-                      onClick={() => onForkFromMessage(originalIdx)}
-                      title="Hier abschneiden (in-place)"
-                    >
-                      <Scissors size={12} />
-                    </button>
-                  )}
-                  {visIdx > 0 && (
-                    <button
-                      type="button"
-                      className="chat-fork-btn"
-                      onClick={() => onForkToNewConversation(originalIdx)}
-                      title="Als neuen Chat forken"
-                    >
-                      <GitFork size={12} />
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="chat-fork-btn chat-fork-btn--danger"

@@ -334,12 +334,7 @@ function App() {
 
   const modesForChat = useMemo(() => standardChatModes(modes), [modes]);
 
-  const {
-    handleNewChat,
-    handleDiscardCurrentChat,
-    handleForkToNewConversation,
-    handleStartThreadFromMessage,
-  } = useConversationActions({
+  const { handleNewChat } = useConversationActions({
     history,
     chatMessages: chat.messages,
     selectedMode,
@@ -351,21 +346,19 @@ function App() {
     async (result: SimulationSetupResult) => {
       setSimulationSetupOpen(false);
       const { title, simulationConfig } = result;
-      const newConv = history.createConversation(selectedMode, undefined, title, "navi");
+      // Single-chat model: a simulation replaces the current Navi chat.
+      const newConv = history.discardActiveAndCreateConversation(
+        selectedMode,
+        "navi",
+      );
       history.patchConversation(newConv.id, {
+        title,
         simulationConfig,
         ...buildNaviConversationPatch({}, modes, llms),
       });
       scheduleNaviGreetingKickoff(newConv.id);
     },
     [history, selectedMode, modes, llms],
-  );
-
-  const handleSwitchChat = useCallback(
-    (id: string) => {
-      history.switchConversation(id);
-    },
-    [history],
   );
 
   function conversationHasVisibleMessages(conv: Conversation): boolean {
@@ -423,23 +416,14 @@ function App() {
             onRetry={conversation.retry}
             onAddFile={refs.addFile}
             onRemoveFile={refs.removeFile}
-            onForkFromMessage={conversation.forkFromMessage}
-            onForkToNewConversation={handleForkToNewConversation}
-            onStartThreadFromMessage={handleStartThreadFromMessage}
             onEditMessage={conversation.editMessage}
             onDeleteMessages={conversation.deleteMessages}
             onSetMessageFeedback={conversation.setMessageFeedback}
             onNewChat={handleNewChat}
-            onDiscardCurrentChat={handleDiscardCurrentChat}
             activeSessionKind={history.activeConversation?.sessionKind ?? "navi"}
             naviStateId={history.activeConversation?.naviStateId ?? null}
             simulationConfig={history.activeConversation?.simulationConfig}
             onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
-            onSwitchChat={handleSwitchChat}
-            onDeleteChat={history.deleteConversation}
-            onRenameChat={history.renameConversation}
-            onClearAllBrowserChats={history.clearAllBrowserChats}
-            clearAllBrowserChatsDisabled={!history.hydrated}
             activeSelection={activeSelection}
             onDismissSelection={handleDismissSelection}
             chatFocusTriggerRef={chatFocusTriggerRef}

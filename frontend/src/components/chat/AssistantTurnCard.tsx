@@ -1,9 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
-  Scissors,
-  GitFork,
-  MessageSquare,
   MessageSquareText,
   Trash2,
   GitMerge,
@@ -34,21 +31,15 @@ function subUnitReactKey(su: SubRenderUnit): string {
 export interface AssistantTurnCardProps {
   originalIndices: number[];
   lastOriginalIdx: number;
-  firstVisIdx: number;
   subUnits: SubRenderUnit[];
   messages: ChatMessage[];
   visibleEntries: { msg: ChatMessage; originalIdx: number }[];
   renderUnits: ChatRenderUnit[];
   readOnly: boolean;
   streaming: boolean;
-  activeIsThread: boolean;
 
-  onForkFromMessage: (index: number) => void;
-  onStartThreadFromMessage: (index: number) => void;
-  onForkToNewConversation: (index: number) => void;
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
-  onUseMessageAsThreadSummary?: (index: number) => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
@@ -59,20 +50,14 @@ export interface AssistantTurnCardProps {
 export function AssistantTurnCard({
   originalIndices,
   lastOriginalIdx,
-  firstVisIdx,
   subUnits,
   messages,
   visibleEntries,
   renderUnits,
   readOnly,
   streaming,
-  activeIsThread,
-  onForkFromMessage,
-  onStartThreadFromMessage,
-  onForkToNewConversation,
   onDeleteMessages,
   onSetMessageFeedback,
-  onUseMessageAsThreadSummary,
   onReplaceSelection,
   onApplyFieldUpdate,
   fieldLabels,
@@ -293,46 +278,6 @@ export function AssistantTurnCard({
             rows={2}
           />
         </div>
-      )}
-      {showNormalActions && firstVisIdx > 0 && (
-        <button
-          type="button"
-          className="chat-fork-btn"
-          onClick={() => onStartThreadFromMessage(lastOriginalIdx)}
-          title="Thread starten (neuer Chat mit bisherigem Verlauf)"
-        >
-          <MessageSquare size={12} />
-        </button>
-      )}
-      {showNormalActions && firstVisIdx > 0 && (
-        <button
-          type="button"
-          className="chat-fork-btn"
-          onClick={() => onForkFromMessage(lastOriginalIdx)}
-          title="Hier abschneiden (in-place)"
-        >
-          <Scissors size={12} />
-        </button>
-      )}
-      {showNormalActions && firstVisIdx > 0 && (
-        <button
-          type="button"
-          className="chat-fork-btn"
-          onClick={() => onForkToNewConversation(lastOriginalIdx)}
-          title="Als neuen Chat forken"
-        >
-          <GitFork size={12} />
-        </button>
-      )}
-      {showNormalActions && activeIsThread && onUseMessageAsThreadSummary && (
-        <button
-          type="button"
-          className="chat-fork-btn chat-fork-btn--merge"
-          onClick={() => onUseMessageAsThreadSummary(lastOriginalIdx)}
-          title="Verwende diese Nachricht als Zusammenfassung"
-        >
-          <GitMerge size={12} />
-        </button>
       )}
       {showNormalActions && (
         <button

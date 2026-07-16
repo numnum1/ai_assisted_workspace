@@ -29,8 +29,6 @@ const AUTOSCROLL_CHAR_LIMIT = 1500;
 export interface ChatPaneProps {
   /** Conversation identity — drives state reset on switch. */
   conversationId: string;
-  /** True when this conversation is a thread. Data fact only, not a UI gate. */
-  isThread: boolean;
 
   messages: ChatMessage[];
   streaming: boolean;
@@ -44,10 +42,6 @@ export interface ChatPaneProps {
   onEditMessage: (index: number, content: string) => void;
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
-  onForkFromMessage: (index: number) => void;
-  onForkToNewConversation: (index: number) => void;
-  onStartThreadFromMessage: (messageIndex: number) => void;
-  onUseMessageAsThreadSummary?: (index: number) => void;
   onRetry?: () => void;
 
   referencedFiles: string[];
@@ -78,13 +72,10 @@ export interface ChatPaneProps {
 
   theme?: "light" | "dark";
   fieldLabels?: Record<string, string>;
-  /** When this is a thread: the last visible message from the parent conversation to show as context banner. */
-  parentLastMessage?: ChatMessage | null;
 }
 
 export function ChatPane({
   conversationId,
-  isThread,
   messages,
   streaming,
   error,
@@ -96,10 +87,6 @@ export function ChatPane({
   onEditMessage,
   onDeleteMessages,
   onSetMessageFeedback,
-  onForkFromMessage,
-  onForkToNewConversation,
-  onStartThreadFromMessage,
-  onUseMessageAsThreadSummary,
   onRetry,
   referencedFiles,
   onAddFile,
@@ -124,7 +111,6 @@ export function ChatPane({
   onApplyFieldUpdate,
   theme = "dark",
   fieldLabels,
-  parentLastMessage = null,
 }: ChatPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -311,16 +297,11 @@ export function ChatPane({
           toolActivity={toolActivity}
           naviStep={naviStep}
           naviStateId={naviStateId}
-          activeIsThread={isThread}
           editingIdx={editingIdx}
           setEditingIdx={setEditingIdx}
-          onForkFromMessage={onForkFromMessage}
-          onStartThreadFromMessage={onStartThreadFromMessage}
-          onForkToNewConversation={onForkToNewConversation}
           onEditMessage={onEditMessage}
           onDeleteMessages={onDeleteMessages}
           onSetMessageFeedback={onSetMessageFeedback}
-          onUseMessageAsThreadSummary={onUseMessageAsThreadSummary}
           commitEdit={commitEdit}
           cancelEdit={cancelEdit}
           onReplaceSelection={onReplaceSelection}
@@ -328,7 +309,6 @@ export function ChatPane({
           fieldLabels={fieldLabels}
           onRetry={onRetry}
           theme={theme}
-          parentLastMessage={parentLastMessage}
         />
 
         {simulationConfig && (

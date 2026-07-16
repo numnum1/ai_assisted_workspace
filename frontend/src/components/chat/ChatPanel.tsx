@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { GitMerge, Loader2, Waypoints } from "lucide-react";
+import { useMemo } from "react";
+import { Waypoints } from "lucide-react";
 import type {
   ChatMessage,
   Mode,
@@ -11,9 +11,7 @@ import type {
   ReasoningEffort,
   SimulationConfig,
 } from "../../types.ts";
-import { ChatHistory } from "./ChatHistory.tsx";
 import { NewChatButton } from "./NewChatButton.tsx";
-import { NewChatDialog, type NewChatConfirmPayload } from "./NewChatDialog.tsx";
 import { ChatPane } from "./ChatPane.tsx";
 
 function resolveGuidedExecutionSummary(
@@ -54,25 +52,12 @@ interface ChatPanelProps {
   onStop: () => void;
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
-  onForkFromMessage: (index: number) => void;
-  onForkToNewConversation: (index: number) => void;
-  onStartThreadFromMessage: (messageIndex: number) => void;
   onEditMessage: (index: number, newContent: string) => void;
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
-  onNewChat: (kindOrPayload?: ChatSessionKind | NewChatConfirmPayload) => void;
-  onDiscardCurrentChat: (
-    kindOrPayload?: ChatSessionKind | NewChatConfirmPayload,
-  ) => void;
+  /** "Neuer Chat": replaces the current chat with a fresh empty Navi chat. */
+  onNewChat: () => void;
   activeSessionKind?: ChatSessionKind;
-  /** When true, the expand/fullscreen button opens the Thread-Workspace instead. */
-  activeIsThread?: boolean;
-  onSwitchChat: (id: string) => void;
-  onDeleteChat: (id: string) => void;
-  onRenameChat: (id: string, title: string) => void;
-  onClearAllBrowserChats?: () => void;
-  clearAllBrowserChatsDisabled?: boolean;
-  chatDownloadEnabled?: boolean;
   /** Opens the arc timeline workspace (story/character/relationship arcs). */
   onOpenArcs?: () => void;
   activeSelection?: SelectionContext | null;
@@ -89,11 +74,6 @@ interface ChatPanelProps {
   onRetry?: () => void;
   onComposerDraftChange?: (text: string) => void;
   theme?: "light" | "dark";
-  /** Summarize thread and merge result into parent conversation (only when activeIsThread is true). */
-  onSummarizeToParent?: (focusInstructions?: string) => Promise<void> | void;
-  isSummarizing?: boolean;
-  /** Last visible message from the parent conversation (when activeIsThread is true). */
-  parentLastMessage?: ChatMessage | null;
   naviStateId?: string | null;
   naviStep?: string | null;
   simulationConfig?: SimulationConfig;
@@ -122,20 +102,10 @@ export function ChatPanel({
   onStop,
   onAddFile,
   onRemoveFile,
-  onForkFromMessage,
-  onForkToNewConversation,
-  onStartThreadFromMessage,
   onEditMessage,
   onDeleteMessages,
   onSetMessageFeedback,
   onNewChat,
-  onDiscardCurrentChat,
-  onSwitchChat,
-  onDeleteChat,
-  onRenameChat,
-  onClearAllBrowserChats,
-  clearAllBrowserChatsDisabled = true,
-  chatDownloadEnabled = false,
   onOpenArcs,
   activeSelection = null,
   onDismissSelection,
@@ -150,38 +120,11 @@ export function ChatPanel({
   onRetry,
   onComposerDraftChange,
   activeSessionKind = "standard",
-  activeIsThread = false,
-  parentLastMessage = null,
   theme = "dark",
-  onSummarizeToParent,
-  isSummarizing = false,
   naviStateId,
   naviStep,
   simulationConfig,
 }: ChatPanelProps) {
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
-
-  const activeTitle =
-    conversations.find((c) => c.id === activeConversationId)?.title ?? "";
-
-  const handleNewChatClick = () => {
-    setNewChatDialogOpen(true);
-  };
-
-  const handleNewChatConfirm = (payload: NewChatConfirmPayload) => {
-    setNewChatDialogOpen(false);
-    if (payload.title.trim() && payload.title.trim() !== activeTitle) {
-      onRenameChat(activeConversationId, payload.title.trim());
-    }
-    onNewChat(payload);
-  };
-
-  const handleNewChatDiscard = (payload: NewChatConfirmPayload) => {
-    setNewChatDialogOpen(false);
-    onDiscardCurrentChat(payload);
-  };
-
   /** Guided header must match persisted conversation (agent preset), not global toolbar state. */
   const guidedExecSummary = useMemo(() => {
     if (activeSessionKind !== "guided") return null;
@@ -220,18 +163,7 @@ export function ChatPanel({
             <Waypoints size={14} />
           </button>
         )}
-        {activeIsThread && onSummarizeToParent && (
-          <button
-            type="button"
-            className="chat-history-btn"
-            onClick={() => void onSummarizeToParent()}
-            disabled={isSummarizing}
-            title="Zusammenfassen & zum Haupt-Chat"
-          >
-            {isSummarizing ? <Loader2 size={14} className="chat-btn-spin" /> : <GitMerge size={14} />}
-          </button>
-        )}
-        <NewChatButton onClick={handleNewChatClick} />
+        <NewChatButton onClick={() => onNewChat()} />
       </div>
 
       {guidedExecSummary && (
@@ -254,25 +186,9 @@ export function ChatPanel({
         </div>
       )}
 
-      {historyOpen && (
-        <ChatHistory
-          conversations={conversations}
-          activeId={activeConversationId}
-          onSelect={onSwitchChat}
-          onCreate={(sk) => onNewChat(sk ?? "standard")}
-          onDelete={onDeleteChat}
-          onRename={onRenameChat}
-          onClearAllBrowserChats={onClearAllBrowserChats}
-          clearAllBrowserDisabled={clearAllBrowserChatsDisabled}
-          chatDownloadEnabled={chatDownloadEnabled}
-          onClose={() => setHistoryOpen(false)}
-        />
-      )}
-
       <div className="chat-panel-body">
         <ChatPane
           conversationId={activeConversationId}
-          isThread={activeIsThread}
           messages={messages}
           streaming={streaming}
           error={error}
@@ -284,9 +200,6 @@ export function ChatPanel({
           onEditMessage={onEditMessage}
           onDeleteMessages={onDeleteMessages}
           onSetMessageFeedback={onSetMessageFeedback}
-          onForkFromMessage={onForkFromMessage}
-          onForkToNewConversation={onForkToNewConversation}
-          onStartThreadFromMessage={onStartThreadFromMessage}
           onRetry={onRetry}
           referencedFiles={referencedFiles}
           onAddFile={onAddFile}
@@ -311,18 +224,8 @@ export function ChatPanel({
           onApplyFieldUpdate={onApplyFieldUpdate}
           theme={theme}
           fieldLabels={fieldLabels}
-          parentLastMessage={parentLastMessage}
         />
       </div>
-
-      {newChatDialogOpen && (
-        <NewChatDialog
-          currentTitle={activeTitle}
-          onConfirm={handleNewChatConfirm}
-          onDiscard={handleNewChatDiscard}
-          onCancel={() => setNewChatDialogOpen(false)}
-        />
-      )}
     </div>
   );
 }
