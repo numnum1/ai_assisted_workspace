@@ -68,6 +68,8 @@ Workspace modes (`Standard`, `Buch`, `Musik`) determine the structure UI on top 
 
 Wiki entries are plain Markdown under `wiki/**/*.md` at the project root — no JSON "entry" types, no dedicated wiki-only AI tools. `read_file`/`grep`/`semantic_search` operate over wiki files the same as any other project file (`semantic_search` additionally accepts `scope: "wiki"`).
 
+**"KI-Panels"** refers specifically to the three right-hand dock panels in `components/editor/ChapterAiDock.tsx` — Kommentare, Schreibhilfe, Ideenfinder — selected via the always-visible icon rail (`AiFeature` type). They render as an absolutely-positioned overlay (`.chapter-ai-dock`, CSS in `src/index.css`) over the chapter editor rather than as a flex sibling, so opening/closing a panel never resizes the scroll area and the editor text stays centered.
+
 ### Naming conventions
 
 - Components: PascalCase under `src/components/<domain>/`.
