@@ -72,6 +72,11 @@ contextBridge.exposeInMainWorld("appBridge", {
     getTools: () => ipcRenderer.invoke("navi:getTools"),
     setTools: (tools: unknown) => ipcRenderer.invoke("navi:setTools", tools),
     resetTools: () => ipcRenderer.invoke("navi:resetTools"),
+    proposeImprovement: (conversationMarkdown: string, llmId?: string) =>
+      ipcRenderer.invoke("navi:proposeImprovement", conversationMarkdown, llmId),
+    getImprovementLlm: () => ipcRenderer.invoke("navi:getImprovementLlm"),
+    setImprovementLlm: (input: unknown) => ipcRenderer.invoke("navi:setImprovementLlm", input),
+    resetImprovementLlm: () => ipcRenderer.invoke("navi:resetImprovementLlm"),
   },
   shell: {
     openDevTools: () => ipcRenderer.invoke("shell:openDevTools"),

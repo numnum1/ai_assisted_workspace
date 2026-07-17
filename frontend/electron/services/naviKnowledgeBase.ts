@@ -20,12 +20,23 @@ function readJsonFile<T>(filePath: string): T | null {
   }
 }
 
+/** Snapshots the current file into NAVI_DATA_DIR/backups before it gets overwritten, so a bad save (human or LLM-proposed) can be recovered by hand. */
+function backupIfExists(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+  const backupsDir = path.join(NAVI_DATA_DIR, "backups");
+  fs.mkdirSync(backupsDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = path.join(backupsDir, `${path.basename(filePath)}.${stamp}.bak`);
+  fs.copyFileSync(filePath, backupPath);
+}
+
 function writeJsonFile(filePath: string, data: unknown): void {
   fs.mkdirSync(NAVI_DATA_DIR, { recursive: true });
+  backupIfExists(filePath);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
-function validateUseCases(useCases: NaviUseCase[]): void {
+export function validateUseCases(useCases: NaviUseCase[]): void {
   if (!Array.isArray(useCases) || useCases.length === 0) {
     throw new NaviKnowledgeValidationError("Es muss mindestens ein Use-Case vorhanden sein.");
   }
@@ -41,7 +52,7 @@ function validateUseCases(useCases: NaviUseCase[]): void {
   }
 }
 
-function validateTools(tools: NaviTool[]): void {
+export function validateTools(tools: NaviTool[]): void {
   if (!Array.isArray(tools)) {
     throw new NaviKnowledgeValidationError("Die Tool-Liste muss ein Array sein.");
   }

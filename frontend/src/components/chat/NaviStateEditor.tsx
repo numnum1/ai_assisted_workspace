@@ -15,15 +15,17 @@ import type { NaviTip } from "../../naviTips.ts";
 import type { NaviPersonaConfig } from "../../naviPersona.ts";
 import type { NaviUseCase } from "../../naviUseCases.ts";
 import type { NaviTool } from "../../naviTools.ts";
+import type { NaviImprovementLlmPublic, NaviImprovementLlmInput } from "../../naviImprovement.ts";
 import "./NaviStateEditor.css";
 
 const TOOL_OPTIONS: NaviStateToolName[] = ["ask_question", "ask_clarification", "ask_yes_no"];
-type EditorTab = "states" | "persona" | "tips" | "knowledge";
+type EditorTab = "states" | "persona" | "tips" | "knowledge" | "improvement";
 const TABS: { id: EditorTab; label: string }[] = [
   { id: "states", label: "Phasen" },
   { id: "persona", label: "Persona" },
   { id: "tips", label: "Hinweise" },
   { id: "knowledge", label: "Wissensbasis" },
+  { id: "improvement", label: "Verbesserungs-LLM" },
 ];
 
 function generateUniqueId(label: string, existingIds: Set<string>): string {
@@ -44,18 +46,23 @@ interface Props {
   initialPersona: NaviPersonaConfig;
   initialUseCases: NaviUseCase[];
   initialTools: NaviTool[];
+  initialImprovementLlm: NaviImprovementLlmPublic;
   onSaveStates: (states: NaviState[]) => Promise<boolean>;
   onSaveTips: (tips: NaviTip[]) => Promise<boolean>;
   onSavePersona: (persona: NaviPersonaConfig) => Promise<boolean>;
   onSaveUseCases: (useCases: NaviUseCase[]) => Promise<boolean>;
   onSaveTools: (tools: NaviTool[]) => Promise<boolean>;
+  onSaveImprovementLlm: (input: NaviImprovementLlmInput) => Promise<boolean>;
   onResetStates: () => Promise<NaviState[]>;
   onResetTips: () => Promise<NaviTip[]>;
   onResetPersona: () => Promise<NaviPersonaConfig>;
   onResetUseCases: () => Promise<NaviUseCase[]>;
   onResetTools: () => Promise<NaviTool[]>;
+  onResetImprovementLlm: () => Promise<NaviImprovementLlmPublic>;
   onClose: () => void;
   error: string | null;
+  /** Set when the editor was opened with an LLM-generated change proposal, prefilled into the fields below. */
+  improvementNotice?: { rationale: string; warnings: string[] } | null;
 }
 
 export function NaviStateEditor({
@@ -64,18 +71,22 @@ export function NaviStateEditor({
   initialPersona,
   initialUseCases,
   initialTools,
+  initialImprovementLlm,
   onSaveStates,
   onSaveTips,
   onSavePersona,
   onSaveUseCases,
   onSaveTools,
+  onSaveImprovementLlm,
   onResetStates,
   onResetTips,
   onResetPersona,
   onResetUseCases,
   onResetTools,
+  onResetImprovementLlm,
   onClose,
   error,
+  improvementNotice,
 }: Props) {
   const [tab, setTab] = useState<EditorTab>("states");
   const [states, setStates] = useState<NaviState[]>(initialStates);
@@ -89,6 +100,11 @@ export function NaviStateEditor({
   const [savingPersona, setSavingPersona] = useState(false);
   const [savingUseCases, setSavingUseCases] = useState(false);
   const [savingTools, setSavingTools] = useState(false);
+  const [improvementApiUrl, setImprovementApiUrl] = useState(initialImprovementLlm.apiUrl);
+  const [improvementModel, setImprovementModel] = useState(initialImprovementLlm.model);
+  const [improvementApiKeySet, setImprovementApiKeySet] = useState(initialImprovementLlm.apiKeySet);
+  const [improvementApiKeyDraft, setImprovementApiKeyDraft] = useState("");
+  const [savingImprovementLlm, setSavingImprovementLlm] = useState(false);
 
   const ids = states.map((s) => s.id);
 
@@ -291,6 +307,36 @@ export function NaviStateEditor({
     setTools(reset);
   }
 
+  async function handleSaveImprovementLlm() {
+    setSavingImprovementLlm(true);
+    const ok = await onSaveImprovementLlm({
+      apiUrl: improvementApiUrl,
+      model: improvementModel,
+      apiKey: improvementApiKeyDraft.trim() ? improvementApiKeyDraft : undefined,
+    });
+    if (ok) {
+      if (improvementApiKeyDraft.trim()) setImprovementApiKeySet(true);
+      setImprovementApiKeyDraft("");
+    }
+    setSavingImprovementLlm(false);
+  }
+
+  async function handleClearImprovementApiKey() {
+    setSavingImprovementLlm(true);
+    await onSaveImprovementLlm({ apiUrl: improvementApiUrl, model: improvementModel, apiKey: "" });
+    setImprovementApiKeySet(false);
+    setImprovementApiKeyDraft("");
+    setSavingImprovementLlm(false);
+  }
+
+  async function handleResetImprovementLlm() {
+    const reset = await onResetImprovementLlm();
+    setImprovementApiUrl(reset.apiUrl);
+    setImprovementModel(reset.model);
+    setImprovementApiKeySet(reset.apiKeySet);
+    setImprovementApiKeyDraft("");
+  }
+
   return (
     <div className="navi-editor">
       <div className="navi-editor-toolbar">
@@ -304,6 +350,25 @@ export function NaviStateEditor({
         <div className="navi-editor-error">
           <AlertTriangle size={12} />
           {error}
+        </div>
+      )}
+
+      {improvementNotice && (
+        <div className="navi-editor-improvement-notice">
+          <div className="navi-editor-improvement-notice-title">
+            KI-Änderungsvorschlag aus dem letzten Feedback — noch nicht gespeichert
+          </div>
+          <p className="navi-editor-improvement-notice-rationale">{improvementNotice.rationale}</p>
+          {improvementNotice.warnings.length > 0 && (
+            <ul className="navi-editor-improvement-notice-warnings">
+              {improvementNotice.warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          )}
+          <p className="navi-editor-improvement-notice-hint">
+            Prüfe die Tabs auf Änderungen und speichere jede Domäne einzeln, um sie zu übernehmen.
+          </p>
         </div>
       )}
 
@@ -725,6 +790,75 @@ export function NaviStateEditor({
             </button>
           </div>
         </>
+      )}
+
+      {tab === "improvement" && (
+        <div className="navi-editor-section">
+          <div className="navi-editor-section-header">
+            <span>Verbesserungs-LLM</span>
+            <div className="navi-editor-section-actions">
+              <button type="button" className="navi-editor-btn navi-editor-btn--ghost" onClick={handleResetImprovementLlm}>
+                <RotateCcw size={11} /> Standard
+              </button>
+            </div>
+          </div>
+
+          <p className="navi-editor-hint">
+            Wird ausschließlich für „Aus Feedback verbessern" verwendet — unabhängig davon, welches
+            Modell der Händler-Chat gerade nutzt. Leer lassen, um stattdessen das aktuell im Chat
+            ausgewählte Modell zu verwenden.
+          </p>
+
+          <label className="navi-editor-field">
+            <span>API-URL</span>
+            <input
+              type="text"
+              placeholder="z.B. https://api.openai.com/v1"
+              value={improvementApiUrl}
+              onChange={(e) => setImprovementApiUrl(e.target.value)}
+            />
+          </label>
+
+          <label className="navi-editor-field">
+            <span>Modell</span>
+            <input
+              type="text"
+              placeholder="z.B. gpt-5"
+              value={improvementModel}
+              onChange={(e) => setImprovementModel(e.target.value)}
+            />
+          </label>
+
+          <label className="navi-editor-field">
+            <span>API-Key {improvementApiKeySet ? "(gesetzt — zum Ändern neu eingeben)" : ""}</span>
+            <input
+              type="password"
+              placeholder={improvementApiKeySet ? "•••••••• (unverändert lassen, um beizubehalten)" : "API-Key"}
+              value={improvementApiKeyDraft}
+              onChange={(e) => setImprovementApiKeyDraft(e.target.value)}
+            />
+          </label>
+
+          {improvementApiKeySet && (
+            <button
+              type="button"
+              className="navi-editor-btn navi-editor-btn--ghost"
+              disabled={savingImprovementLlm}
+              onClick={handleClearImprovementApiKey}
+            >
+              <Trash2 size={11} /> API-Key entfernen
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="navi-editor-btn navi-editor-btn--primary"
+            disabled={savingImprovementLlm}
+            onClick={handleSaveImprovementLlm}
+          >
+            <Save size={12} /> Verbesserungs-LLM speichern
+          </button>
+        </div>
       )}
     </div>
   );

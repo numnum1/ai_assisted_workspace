@@ -11,12 +11,15 @@ import {
   BookOpen,
   History,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import { getEffectiveSlots, getAllSlotLabels, getNaviState } from "../../naviStateMachine.ts";
 import { useNaviStateConfig } from "../../hooks/useNaviStateConfig.ts";
 import { NaviStateEditor } from "./NaviStateEditor.tsx";
 import { DEFAULT_NAVI_PERSONA } from "../../naviPersona.ts";
-import type { NaviFacts, NaviTraceEntry } from "../../types.ts";
+import { conversationToMarkdown } from "./chatMarkdownExport.ts";
+import type { NaviImprovementProposal } from "../../naviImprovement.ts";
+import type { Conversation, NaviFacts, NaviTraceEntry } from "../../types.ts";
 import "./NaviStatePanel.css";
 
 interface Props {
@@ -24,15 +27,25 @@ interface Props {
   naviFacts?: NaviFacts;
   naviCoveredTips?: string[];
   naviTrace?: NaviTraceEntry[];
+  conversation?: Conversation;
+  llmId?: string | null;
 }
 
-export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTrace }: Props) {
+export function NaviStatePanel({
+  naviStateId,
+  naviFacts,
+  naviCoveredTips,
+  naviTrace,
+  conversation,
+  llmId,
+}: Props) {
   const {
     states,
     tips,
     persona,
     useCases,
     tools,
+    improvementLlm,
     loading,
     error,
     saveStates,
@@ -40,13 +53,31 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
     savePersona,
     saveUseCases,
     saveTools,
+    saveImprovementLlm,
     resetStates,
     resetTips,
     resetPersona,
     resetUseCases,
     resetTools,
+    resetImprovementLlm,
+    proposeImprovement,
+    improving,
+    improvementError,
   } = useNaviStateConfig();
   const [editing, setEditing] = useState(false);
+  const [proposal, setProposal] = useState<NaviImprovementProposal | null>(null);
+
+  const hasRatedFeedback = conversation?.messages.some((m) => m.feedback) ?? false;
+
+  const handleImprove = async () => {
+    if (!conversation) return;
+    const markdown = conversationToMarkdown(conversation);
+    const result = await proposeImprovement(markdown, llmId ?? undefined);
+    if (result) {
+      setProposal(result);
+      setEditing(true);
+    }
+  };
 
   const currentRaw = getNaviState(states, naviStateId);
   const currentSlots = getEffectiveSlots(states, naviStateId);
@@ -67,22 +98,29 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
     return (
       <div className="navi-panel">
         <NaviStateEditor
-          initialStates={states}
-          initialTips={tips}
-          initialPersona={persona ?? DEFAULT_NAVI_PERSONA}
-          initialUseCases={useCases}
-          initialTools={tools}
+          initialStates={proposal?.states ?? states}
+          initialTips={proposal?.tips ?? tips}
+          initialPersona={proposal?.persona ?? persona ?? DEFAULT_NAVI_PERSONA}
+          initialUseCases={proposal?.useCases ?? useCases}
+          initialTools={proposal?.tools ?? tools}
+          initialImprovementLlm={improvementLlm ?? { apiUrl: "", model: "", apiKeySet: false }}
           onSaveStates={saveStates}
           onSaveTips={saveTips}
           onSavePersona={savePersona}
           onSaveUseCases={saveUseCases}
           onSaveTools={saveTools}
+          onSaveImprovementLlm={saveImprovementLlm}
           onResetStates={resetStates}
           onResetTips={resetTips}
           onResetPersona={resetPersona}
           onResetUseCases={resetUseCases}
           onResetTools={resetTools}
-          onClose={() => setEditing(false)}
+          onResetImprovementLlm={resetImprovementLlm}
+          onClose={() => {
+            setEditing(false);
+            setProposal(null);
+          }}
+          improvementNotice={proposal}
           error={error}
         />
       </div>
@@ -96,7 +134,24 @@ export function NaviStatePanel({ naviStateId, naviFacts, naviCoveredTips, naviTr
           <Pencil size={11} />
           Bearbeiten
         </button>
+        <button
+          type="button"
+          className="navi-edit-toggle"
+          disabled={!hasRatedFeedback || improving}
+          title={
+            hasRatedFeedback
+              ? "Aus den bewerteten Antworten dieses Gesprächs einen Änderungsvorschlag erzeugen"
+              : "Bewerte mindestens eine Antwort in diesem Gespräch, um einen Vorschlag zu erzeugen"
+          }
+          onClick={handleImprove}
+        >
+          <Sparkles size={11} />
+          {improving ? "Erzeuge Vorschlag …" : "Aus Feedback verbessern"}
+        </button>
       </div>
+      {improvementError && (
+        <div className="navi-section navi-improvement-error">{improvementError}</div>
+      )}
 
       {/* ── Section 1: Current State ────────────────────────── */}
       <div className="navi-section">

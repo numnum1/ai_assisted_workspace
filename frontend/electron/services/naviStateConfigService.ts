@@ -8,11 +8,16 @@ import {
 } from "../../src/naviStateMachine.js";
 import { DEFAULT_NAVI_TIPS, type NaviTip } from "../../src/naviTips.js";
 import { DEFAULT_NAVI_PERSONA, type NaviPersonaConfig } from "../../src/naviPersona.js";
+import type {
+  NaviImprovementLlmPublic,
+  NaviImprovementLlmInput,
+} from "../../src/naviImprovement.js";
 
 const NAVI_DATA_DIR = path.join(os.homedir(), ".writing-assistant", "navi");
 const STATES_FILE_NAME = "states.json";
 const TIPS_FILE_NAME = "tips.json";
 const PERSONA_FILE_NAME = "persona.json";
+const IMPROVEMENT_LLM_FILE_NAME = "improvement-llm.json";
 
 async function ensureNaviDataDir(): Promise<void> {
   await fs.mkdir(NAVI_DATA_DIR, { recursive: true });
@@ -37,14 +42,25 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
   }
 }
 
+/** Snapshots the current file into NAVI_DATA_DIR/backups before it gets overwritten, so a bad save (human or LLM-proposed) can be recovered by hand. */
+async function backupIfExists(filePath: string): Promise<void> {
+  if (!(await pathExists(filePath))) return;
+  const backupsDir = path.join(NAVI_DATA_DIR, "backups");
+  await fs.mkdir(backupsDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = path.join(backupsDir, `${path.basename(filePath)}.${stamp}.bak`);
+  await fs.copyFile(filePath, backupPath);
+}
+
 async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
   await ensureNaviDataDir();
+  await backupIfExists(filePath);
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
 export class NaviConfigValidationError extends Error {}
 
-function validateStates(states: NaviState[]): void {
+export function validateStates(states: NaviState[]): void {
   if (!Array.isArray(states) || states.length === 0) {
     throw new NaviConfigValidationError("Die State Machine braucht mindestens einen Zustand.");
   }
@@ -85,7 +101,7 @@ function validateStates(states: NaviState[]): void {
   }
 }
 
-function validateTips(tips: NaviTip[]): void {
+export function validateTips(tips: NaviTip[]): void {
   if (!Array.isArray(tips)) {
     throw new NaviConfigValidationError("Die Hinweisliste muss ein Array sein.");
   }
@@ -102,7 +118,7 @@ function validateTips(tips: NaviTip[]): void {
   }
 }
 
-function validatePersona(persona: NaviPersonaConfig): void {
+export function validatePersona(persona: NaviPersonaConfig): void {
   if (typeof persona?.roleIntro !== "string" || !persona.roleIntro.trim()) {
     throw new NaviConfigValidationError("Die Rollenbeschreibung (roleIntro) darf nicht leer sein.");
   }
@@ -178,4 +194,58 @@ export async function resetNaviPersona(): Promise<NaviPersonaConfig> {
     // Already absent — nothing to reset.
   }
   return DEFAULT_NAVI_PERSONA;
+}
+
+interface NaviImprovementLlmRaw {
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+const EMPTY_IMPROVEMENT_LLM: NaviImprovementLlmRaw = { apiUrl: "", apiKey: "", model: "" };
+
+function toPublicImprovementLlm(raw: NaviImprovementLlmRaw): NaviImprovementLlmPublic {
+  return { apiUrl: raw.apiUrl, model: raw.model, apiKeySet: raw.apiKey.trim().length > 0 };
+}
+
+/** Main-process-only: includes the raw API key. Used by naviImprovementService to make the actual LLM call. */
+export async function loadNaviImprovementLlmRaw(): Promise<NaviImprovementLlmRaw> {
+  const filePath = path.join(NAVI_DATA_DIR, IMPROVEMENT_LLM_FILE_NAME);
+  const override = await readJsonFile<NaviImprovementLlmRaw>(filePath);
+  return override ?? EMPTY_IMPROVEMENT_LLM;
+}
+
+export async function loadNaviImprovementLlm(): Promise<NaviImprovementLlmPublic> {
+  return toPublicImprovementLlm(await loadNaviImprovementLlmRaw());
+}
+
+export async function saveNaviImprovementLlm(
+  input: NaviImprovementLlmInput,
+): Promise<NaviImprovementLlmPublic> {
+  const apiUrl = (input.apiUrl ?? "").trim();
+  const model = (input.model ?? "").trim();
+  const existing = await loadNaviImprovementLlmRaw();
+  const apiKey = input.apiKey !== undefined ? input.apiKey.trim() : existing.apiKey;
+
+  const anySet = !!(apiUrl || model || apiKey);
+  const allSet = !!(apiUrl && model && apiKey);
+  if (anySet && !allSet) {
+    throw new NaviConfigValidationError(
+      "Für das Verbesserungs-LLM müssen API-URL, Modell und API-Key entweder alle gesetzt sein oder alle leer bleiben (dann wird das normale Chat-Modell verwendet).",
+    );
+  }
+
+  const next: NaviImprovementLlmRaw = { apiUrl, apiKey, model };
+  await writeJsonFile(path.join(NAVI_DATA_DIR, IMPROVEMENT_LLM_FILE_NAME), next);
+  return toPublicImprovementLlm(next);
+}
+
+export async function resetNaviImprovementLlm(): Promise<NaviImprovementLlmPublic> {
+  const filePath = path.join(NAVI_DATA_DIR, IMPROVEMENT_LLM_FILE_NAME);
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    // Already absent — nothing to reset.
+  }
+  return toPublicImprovementLlm(EMPTY_IMPROVEMENT_LLM);
 }

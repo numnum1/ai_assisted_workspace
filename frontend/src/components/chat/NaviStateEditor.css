@@ -32,6 +32,39 @@
   padding: 6px 8px;
 }
 
+.navi-editor-improvement-notice {
+  font-size: 11px;
+  color: var(--text-primary, #cdd6f4);
+  background: color-mix(in srgb, var(--accent, #89b4fa) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #89b4fa) 30%, transparent);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navi-editor-improvement-notice-title {
+  font-weight: 700;
+}
+
+.navi-editor-improvement-notice-rationale {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.navi-editor-improvement-notice-warnings {
+  margin: 0;
+  padding-left: 16px;
+  color: #f9a825;
+}
+
+.navi-editor-improvement-notice-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .navi-editor-tabs {
   display: flex;
   gap: 4px;

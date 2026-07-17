@@ -36,6 +36,9 @@ import {
   loadNaviPersona,
   saveNaviPersona,
   resetNaviPersona,
+  loadNaviImprovementLlm,
+  saveNaviImprovementLlm,
+  resetNaviImprovementLlm,
 } from "./services/naviStateConfigService.js";
 import {
   loadUseCases,
@@ -45,6 +48,7 @@ import {
   saveTools,
   resetTools,
 } from "./services/naviKnowledgeBase.js";
+import { proposeNaviImprovement } from "./services/naviImprovementService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -114,6 +118,12 @@ function registerIpcHandlers(): void {
   ipcMain.handle("navi:getTools", () => loadTools());
   ipcMain.handle("navi:setTools", (_event, tools) => saveTools(tools));
   ipcMain.handle("navi:resetTools", () => resetTools());
+  ipcMain.handle("navi:proposeImprovement", (_event, conversationMarkdown, llmId) =>
+    proposeNaviImprovement(conversationMarkdown, llmId),
+  );
+  ipcMain.handle("navi:getImprovementLlm", () => loadNaviImprovementLlm());
+  ipcMain.handle("navi:setImprovementLlm", (_event, input) => saveNaviImprovementLlm(input));
+  ipcMain.handle("navi:resetImprovementLlm", () => resetNaviImprovementLlm());
 
   ipcMain.handle("spellcheck:fixAtCursor", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);

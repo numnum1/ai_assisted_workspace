@@ -19,6 +19,7 @@
 .navi-section--toolbar {
   flex-direction: row;
   justify-content: flex-end;
+  gap: 6px;
   padding-bottom: 6px;
 }
 
@@ -37,6 +38,16 @@
 
 .navi-edit-toggle:hover {
   background: color-mix(in srgb, var(--accent, #89b4fa) 18%, transparent);
+}
+
+.navi-edit-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.navi-improvement-error {
+  font-size: 10.5px;
+  color: #f38ba8;
 }
 
 /* ── Section ──────────────────────────────────────────────── */

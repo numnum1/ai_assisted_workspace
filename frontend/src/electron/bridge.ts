@@ -11,6 +11,11 @@ import { DEFAULT_NAVI_TIPS, type NaviTip } from "../naviTips.ts";
 import { DEFAULT_NAVI_PERSONA, type NaviPersonaConfig } from "../naviPersona.ts";
 import { DEFAULT_NAVI_USE_CASES, type NaviUseCase } from "../naviUseCases.ts";
 import { DEFAULT_NAVI_TOOLS, type NaviTool } from "../naviTools.ts";
+import type {
+  NaviImprovementProposal,
+  NaviImprovementLlmPublic,
+  NaviImprovementLlmInput,
+} from "../naviImprovement.ts";
 
 export interface ChatContextInfo {
   includedFiles: string[];
@@ -125,6 +130,13 @@ export interface AppBridge {
     getTools: () => Promise<NaviTool[]>;
     setTools: (tools: NaviTool[]) => Promise<NaviTool[]>;
     resetTools: () => Promise<NaviTool[]>;
+    proposeImprovement: (
+      conversationMarkdown: string,
+      llmId?: string,
+    ) => Promise<NaviImprovementProposal>;
+    getImprovementLlm: () => Promise<NaviImprovementLlmPublic>;
+    setImprovementLlm: (input: NaviImprovementLlmInput) => Promise<NaviImprovementLlmPublic>;
+    resetImprovementLlm: () => Promise<NaviImprovementLlmPublic>;
   };
   shell?: {
     openDevTools: () => Promise<void>;
@@ -186,6 +198,7 @@ const NAVI_TIPS_STORAGE_KEY = "navi-tips-override";
 const NAVI_PERSONA_STORAGE_KEY = "navi-persona-override";
 const NAVI_USE_CASES_STORAGE_KEY = "navi-use-cases-override";
 const NAVI_TOOLS_STORAGE_KEY = "navi-tools-override";
+const NAVI_IMPROVEMENT_LLM_STORAGE_KEY = "navi-improvement-llm-override";
 
 function loadFromLocalStorage<T>(key: string, fallback: T): T {
   try {
@@ -323,6 +336,50 @@ export const naviConfigApi = {
       // localStorage unavailable
     }
     return DEFAULT_NAVI_TOOLS;
+  },
+  proposeImprovement: async (
+    conversationMarkdown: string,
+    llmId?: string,
+  ): Promise<NaviImprovementProposal> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.proposeImprovement(conversationMarkdown, llmId);
+    throw new Error("Die Auto-Verbesserung ist nur in der Desktop-App verfügbar.");
+  },
+  getImprovementLlm: async (): Promise<NaviImprovementLlmPublic> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.getImprovementLlm();
+    const raw = loadObjectFromLocalStorage<NaviImprovementLlmInput & { apiKey: string }>(
+      NAVI_IMPROVEMENT_LLM_STORAGE_KEY,
+      { apiUrl: "", model: "", apiKey: "" },
+    );
+    return { apiUrl: raw.apiUrl, model: raw.model, apiKeySet: raw.apiKey.trim().length > 0 };
+  },
+  setImprovementLlm: async (
+    input: NaviImprovementLlmInput,
+  ): Promise<NaviImprovementLlmPublic> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.setImprovementLlm(input);
+    const existing = loadObjectFromLocalStorage<NaviImprovementLlmInput & { apiKey: string }>(
+      NAVI_IMPROVEMENT_LLM_STORAGE_KEY,
+      { apiUrl: "", model: "", apiKey: "" },
+    );
+    const next = {
+      apiUrl: input.apiUrl.trim(),
+      model: input.model.trim(),
+      apiKey: input.apiKey !== undefined ? input.apiKey.trim() : existing.apiKey,
+    };
+    saveToLocalStorage(NAVI_IMPROVEMENT_LLM_STORAGE_KEY, next);
+    return { apiUrl: next.apiUrl, model: next.model, apiKeySet: next.apiKey.length > 0 };
+  },
+  resetImprovementLlm: async (): Promise<NaviImprovementLlmPublic> => {
+    const bridge = getAppBridge();
+    if (bridge?.navi) return bridge.navi.resetImprovementLlm();
+    try {
+      localStorage.removeItem(NAVI_IMPROVEMENT_LLM_STORAGE_KEY);
+    } catch {
+      // localStorage unavailable
+    }
+    return { apiUrl: "", model: "", apiKeySet: false };
   },
 };
 

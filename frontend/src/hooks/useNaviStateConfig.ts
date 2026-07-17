@@ -5,6 +5,11 @@ import type { NaviTip } from "../naviTips.ts";
 import type { NaviPersonaConfig } from "../naviPersona.ts";
 import type { NaviUseCase } from "../naviUseCases.ts";
 import type { NaviTool } from "../naviTools.ts";
+import type {
+  NaviImprovementProposal,
+  NaviImprovementLlmPublic,
+  NaviImprovementLlmInput,
+} from "../naviImprovement.ts";
 
 export interface UseNaviStateConfigResult {
   states: NaviState[];
@@ -12,6 +17,7 @@ export interface UseNaviStateConfigResult {
   persona: NaviPersonaConfig | null;
   useCases: NaviUseCase[];
   tools: NaviTool[];
+  improvementLlm: NaviImprovementLlmPublic | null;
   loading: boolean;
   error: string | null;
   saveStates: (next: NaviState[]) => Promise<boolean>;
@@ -19,11 +25,16 @@ export interface UseNaviStateConfigResult {
   savePersona: (next: NaviPersonaConfig) => Promise<boolean>;
   saveUseCases: (next: NaviUseCase[]) => Promise<boolean>;
   saveTools: (next: NaviTool[]) => Promise<boolean>;
+  saveImprovementLlm: (next: NaviImprovementLlmInput) => Promise<boolean>;
   resetStates: () => Promise<NaviState[]>;
   resetTips: () => Promise<NaviTip[]>;
   resetPersona: () => Promise<NaviPersonaConfig>;
   resetUseCases: () => Promise<NaviUseCase[]>;
   resetTools: () => Promise<NaviTool[]>;
+  resetImprovementLlm: () => Promise<NaviImprovementLlmPublic>;
+  proposeImprovement: (conversationMarkdown: string, llmId?: string) => Promise<NaviImprovementProposal | null>;
+  improving: boolean;
+  improvementError: string | null;
 }
 
 function errorMessage(err: unknown): string {
@@ -40,26 +51,32 @@ export function useNaviStateConfig(): UseNaviStateConfigResult {
   const [persona, setPersona] = useState<NaviPersonaConfig | null>(null);
   const [useCases, setUseCases] = useState<NaviUseCase[]>([]);
   const [tools, setTools] = useState<NaviTool[]>([]);
+  const [improvementLlm, setImprovementLlm] = useState<NaviImprovementLlmPublic | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [improving, setImproving] = useState(false);
+  const [improvementError, setImprovementError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [loadedStates, loadedTips, loadedPersona, loadedUseCases, loadedTools] = await Promise.all([
-          naviConfigApi.getStates(),
-          naviConfigApi.getTips(),
-          naviConfigApi.getPersona(),
-          naviConfigApi.getUseCases(),
-          naviConfigApi.getTools(),
-        ]);
+        const [loadedStates, loadedTips, loadedPersona, loadedUseCases, loadedTools, loadedImprovementLlm] =
+          await Promise.all([
+            naviConfigApi.getStates(),
+            naviConfigApi.getTips(),
+            naviConfigApi.getPersona(),
+            naviConfigApi.getUseCases(),
+            naviConfigApi.getTools(),
+            naviConfigApi.getImprovementLlm(),
+          ]);
         if (cancelled) return;
         setStates(loadedStates);
         setTips(loadedTips);
         setPersona(loadedPersona);
         setUseCases(loadedUseCases);
         setTools(loadedTools);
+        setImprovementLlm(loadedImprovementLlm);
       } catch (err) {
         if (!cancelled) setError(errorMessage(err));
       } finally {
@@ -166,12 +183,49 @@ export function useNaviStateConfig(): UseNaviStateConfigResult {
     return reset;
   }, []);
 
+  const saveImprovementLlm = useCallback(async (next: NaviImprovementLlmInput): Promise<boolean> => {
+    try {
+      const saved = await naviConfigApi.setImprovementLlm(next);
+      setImprovementLlm(saved);
+      setError(null);
+      return true;
+    } catch (err) {
+      setError(errorMessage(err));
+      return false;
+    }
+  }, []);
+
+  const resetImprovementLlm = useCallback(async (): Promise<NaviImprovementLlmPublic> => {
+    const reset = await naviConfigApi.resetImprovementLlm();
+    setImprovementLlm(reset);
+    setError(null);
+    return reset;
+  }, []);
+
+  const proposeImprovement = useCallback(
+    async (conversationMarkdown: string, llmId?: string): Promise<NaviImprovementProposal | null> => {
+      setImproving(true);
+      setImprovementError(null);
+      try {
+        const proposal = await naviConfigApi.proposeImprovement(conversationMarkdown, llmId);
+        return proposal;
+      } catch (err) {
+        setImprovementError(errorMessage(err));
+        return null;
+      } finally {
+        setImproving(false);
+      }
+    },
+    [],
+  );
+
   return {
     states,
     tips,
     persona,
     useCases,
     tools,
+    improvementLlm,
     loading,
     error,
     saveStates,
@@ -179,10 +233,15 @@ export function useNaviStateConfig(): UseNaviStateConfigResult {
     savePersona,
     saveUseCases,
     saveTools,
+    saveImprovementLlm,
     resetStates,
     resetTips,
     resetPersona,
     resetUseCases,
     resetTools,
+    resetImprovementLlm,
+    proposeImprovement,
+    improving,
+    improvementError,
   };
 }

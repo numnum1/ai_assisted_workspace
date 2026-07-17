@@ -381,6 +381,8 @@ function App() {
               naviFacts={history.activeConversation.naviFacts}
               naviCoveredTips={history.activeConversation.naviCoveredTips}
               naviTrace={history.activeConversation.naviTrace}
+              conversation={history.activeConversation}
+              llmId={modeLlmId}
             />
           )}
         </div>
