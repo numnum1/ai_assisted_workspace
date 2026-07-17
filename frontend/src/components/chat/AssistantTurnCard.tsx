@@ -72,26 +72,43 @@ export function AssistantTurnCard({
   const currentFeedback = messages[lastOriginalIdx]?.feedback;
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState(currentFeedback?.comment ?? "");
+  /** A rating the user just clicked but hasn't confirmed with a comment yet — not persisted until saved. */
+  const [pendingRating, setPendingRating] = useState<"up" | "down" | null>(null);
+
+  const displayedRating = pendingRating ?? currentFeedback?.rating;
 
   const handleRating = (rating: "up" | "down") => {
-    if (currentFeedback?.rating === rating) {
+    if (currentFeedback?.rating === rating && !pendingRating) {
       onSetMessageFeedback(lastOriginalIdx, null);
       setCommentOpen(false);
       setCommentDraft("");
+      setPendingRating(null);
       return;
     }
-    onSetMessageFeedback(lastOriginalIdx, {
-      rating,
-      comment: commentDraft.trim() || undefined,
-      timestamp: Date.now(),
-    });
+    if (pendingRating === rating) {
+      // Clicking the same not-yet-saved rating again cancels the selection.
+      setPendingRating(null);
+      setCommentOpen(false);
+      setCommentDraft(currentFeedback?.comment ?? "");
+      return;
+    }
+    setPendingRating(rating);
+    setCommentDraft(currentFeedback?.comment ?? "");
     setCommentOpen(true);
   };
 
   const handleCommentSave = () => {
-    if (!currentFeedback) return;
+    const rating = pendingRating ?? currentFeedback?.rating;
     const trimmed = commentDraft.trim();
-    onSetMessageFeedback(lastOriginalIdx, { ...currentFeedback, comment: trimmed || undefined });
+    if (!rating || !trimmed) return;
+    onSetMessageFeedback(lastOriginalIdx, { rating, comment: trimmed, timestamp: Date.now() });
+    setPendingRating(null);
+  };
+
+  const handleCommentCancel = () => {
+    setPendingRating(null);
+    setCommentOpen(currentFeedback !== undefined);
+    setCommentDraft(currentFeedback?.comment ?? "");
   };
 
   const { preUnits, toolUnits, postUnits, hasToolCalls } = useMemo(() => {
@@ -237,7 +254,7 @@ export function AssistantTurnCard({
         <button
           type="button"
           className={`chat-feedback-btn chat-feedback-btn--up${
-            currentFeedback?.rating === "up" ? " chat-feedback-btn--active" : ""
+            displayedRating === "up" ? " chat-feedback-btn--active" : ""
           }`}
           onClick={() => handleRating("up")}
           title="Gute Antwort"
@@ -249,7 +266,7 @@ export function AssistantTurnCard({
         <button
           type="button"
           className={`chat-feedback-btn chat-feedback-btn--down${
-            currentFeedback?.rating === "down" ? " chat-feedback-btn--active" : ""
+            displayedRating === "down" ? " chat-feedback-btn--active" : ""
           }`}
           onClick={() => handleRating("down")}
           title="Schlechte Antwort"
@@ -257,7 +274,7 @@ export function AssistantTurnCard({
           <ThumbsDown size={12} />
         </button>
       )}
-      {showFeedback && currentFeedback && (
+      {showFeedback && currentFeedback && !pendingRating && (
         <button
           type="button"
           className={`chat-feedback-btn${commentOpen ? " chat-feedback-btn--active" : ""}`}
@@ -267,16 +284,29 @@ export function AssistantTurnCard({
           <MessageSquareText size={12} />
         </button>
       )}
-      {showFeedback && commentOpen && currentFeedback && (
+      {showFeedback && commentOpen && (pendingRating || currentFeedback) && (
         <div className="chat-feedback-comment-row">
           <textarea
             className="chat-feedback-comment-input"
             value={commentDraft}
             onChange={(e) => setCommentDraft(e.target.value)}
-            onBlur={handleCommentSave}
-            placeholder="Optionaler Kommentar zu dieser Antwort…"
+            placeholder="Kommentar zu dieser Antwort (erforderlich)…"
             rows={2}
+            autoFocus={!!pendingRating}
           />
+          <div className="chat-feedback-comment-actions">
+            <button
+              type="button"
+              className="chat-feedback-comment-save"
+              onClick={handleCommentSave}
+              disabled={!commentDraft.trim()}
+            >
+              Speichern
+            </button>
+            <button type="button" className="chat-feedback-comment-cancel" onClick={handleCommentCancel}>
+              Abbrechen
+            </button>
+          </div>
         </div>
       )}
       {showNormalActions && (

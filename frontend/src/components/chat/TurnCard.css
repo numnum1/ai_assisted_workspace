@@ -85,3 +85,36 @@
     border: 1px solid var(--border);
     border-radius: 4px;
 }
+
+.chat-feedback-comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+}
+
+.chat-feedback-comment-save,
+.chat-feedback-comment-cancel {
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.chat-feedback-comment-save {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border: 1px solid var(--accent);
+}
+
+.chat-feedback-comment-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.chat-feedback-comment-cancel {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
