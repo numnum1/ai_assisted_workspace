@@ -351,7 +351,7 @@ function startNaviResponseFetch(
       messages,
       ...(tools.length > 0 ? { tools } : {}),
       ...(toolChoice ? { tool_choice: toolChoice } : {}),
-      reasoning_effort: "high",
+      reasoning_effort: "medium",
     }),
     ...(signal ? { signal } : {}),
   });
@@ -621,7 +621,12 @@ export async function runNaviChatStream(
       emit({ type: "done", data: { fullAssistantText } });
     };
 
-    // ── Speculative fetch for the current phase, in parallel with the redirect classifier ──
+    // ── Speculative round-0 read, overlapped with the redirect classifier ──
+    // The current-phase response starts generating and streaming into a buffer immediately, so the
+    // model is already working while the "Prüfe Themenwechsel" classifier runs in parallel — the
+    // classifier is no longer on the critical path before the first token. If the classifier then
+    // picks a different phase, the buffered (now-wrong) output is discarded and a fresh fetch for the
+    // redirect target is read instead; otherwise the buffer is flushed live and its result reused.
     const speculativeAbort = new AbortController();
     const speculativeSystemPrompt = buildNaviSystemPrompt(
       currentState, facts, states, persona, tips, request.naviCoveredTips,
@@ -631,6 +636,24 @@ export async function runNaviChatStream(
     const speculativeFetch = startNaviResponseFetch(
       endpoint, speculativeMessages, specTools, specToolChoice, speculativeAbort.signal,
     );
+
+    let fullAssistantText = "";
+    let tokenCount = 0;
+    const maxRounds = 4;
+    let round = 0;
+
+    // Round-0 output is buffered until the classifier's verdict is known (see above).
+    let flushRound0 = false;
+    const round0Buffer: ChatStreamEvent[] = [];
+    const round0Emit = (event: ChatStreamEvent) => {
+      if (flushRound0) emit(event);
+      else round0Buffer.push(event);
+    };
+    const specHasAskQuestion = specTools.some((t) => t.function.name === "ask_question");
+    const speculativeRoundPromise = speculativeFetch
+      .then((res) => readStreamRound(streamId, res, specHasAskQuestion, round0Emit))
+      .then((result) => ({ ok: true as const, result }))
+      .catch((error: unknown) => ({ ok: false as const, error }));
 
     const exceptionTransitions = getExceptionTransitions(currentState);
     let redirectPromise: Promise<string | null> = Promise.resolve(null);
@@ -645,12 +668,16 @@ export async function runNaviChatStream(
 
     let activeStateId = currentStateId;
     let activeState = currentState;
-    let currentResponsePromise: Promise<Response>;
+    let currentResponsePromise: Promise<Response> | null = null;
     let messages: OpenAiMessage[];
+    let pendingRoundResult: StreamRoundResult | null = null;
 
     if (redirectTarget && redirectTarget !== currentStateId) {
+      // Redirect: abort and discard the speculative round-0 output, read the redirect target instead.
       redirectTo = redirectTarget;
       speculativeAbort.abort();
+      await speculativeRoundPromise;
+      round0Buffer.length = 0;
       activeStateId = redirectTarget;
       activeState = getNaviState(states, redirectTarget) ?? currentState;
       emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: currentStateId } });
@@ -659,14 +686,15 @@ export async function runNaviChatStream(
       const { tools, toolChoice } = buildToolSet(activeState, true);
       currentResponsePromise = startNaviResponseFetch(endpoint, messages, tools, toolChoice);
     } else {
+      // No redirect: flush the buffered round-0 output live and reuse the speculative read's result.
+      flushRound0 = true;
+      for (const event of round0Buffer) emit(event);
+      round0Buffer.length = 0;
       messages = speculativeMessages;
-      currentResponsePromise = speculativeFetch;
+      const settled = await speculativeRoundPromise;
+      if (!settled.ok) throw settled.error;
+      pendingRoundResult = settled.result;
     }
-
-    let fullAssistantText = "";
-    let tokenCount = 0;
-    const maxRounds = 4;
-    let round = 0;
 
     while (round < maxRounds) {
       if (!isStreamActive(streamId)) return;
@@ -676,7 +704,11 @@ export async function runNaviChatStream(
       const { tools: roundTools } = buildToolSet(stateForThisRound, !isLastRound);
       const hasAskQuestionTool = roundTools.some((t) => t.function.name === "ask_question");
 
-      const roundResult = await readStreamRound(streamId, await currentResponsePromise, hasAskQuestionTool, emit);
+      // Round 0 was already read (buffered) alongside the classifier; later rounds read fresh.
+      const roundResult =
+        pendingRoundResult ??
+        (await readStreamRound(streamId, await currentResponsePromise!, hasAskQuestionTool, emit));
+      pendingRoundResult = null;
       tokenCount += roundResult.tokenCount;
 
       const silentCalls = roundResult.toolCalls.filter(

@@ -38,6 +38,10 @@ export function buildRedirectClassifierPrompt(
     if (!validStates.includes(t.to)) validStates.push(t.to);
   }
 
+  // Only the last few turns are needed to detect a topic change; keeping the whole conversation
+  // here made the classifier prompt (and therefore the "Prüfe Themenwechsel" step) grow slower and
+  // slower as the chat got longer.
+  const REDIRECT_HISTORY_LIMIT = 6;
   const historyLines = conversationHistory
     .filter(
       (m) =>
@@ -45,6 +49,7 @@ export function buildRedirectClassifierPrompt(
         (m.role === "assistant" || m.role === "user") &&
         normalizeContent(m.content),
     )
+    .slice(-REDIRECT_HISTORY_LIMIT)
     .map((m) => `${m.role === "assistant" ? "Navi" : "Händler"}: ${normalizeContent(m.content)}`);
   const historySection =
     historyLines.length > 0 ? ["Bisheriges Gespräch:", ...historyLines].join("\n") : "";
