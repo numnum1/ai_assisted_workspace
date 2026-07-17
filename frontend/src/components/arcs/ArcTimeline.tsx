@@ -7,8 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { Waypoints, RefreshCw, X, Plus, Link2, Trash2, ChevronUp, ChevronDown, Check } from "lucide-react";
-import { arcApi } from "../../api.ts";
+import { Waypoints, RefreshCw, X, Plus, Link2, Trash2, ChevronUp, ChevronDown, Check, FileText } from "lucide-react";
+import { arcApi, wikiApi } from "../../api.ts";
 import type {
   Arc,
   ArcData,
@@ -21,6 +21,67 @@ import type {
 interface ArcTimelineProps {
   open: boolean;
   onClose: () => void;
+  /** Open a project file (e.g. a linked metafile) in the main editor. */
+  onOpenFile?: (path: string) => void;
+}
+
+/**
+ * Open-or-create the metafile (linked wiki entry) for an arc or arc point — the
+ * same `attachedTo` mechanism the book structure uses, so a bow/point can carry
+ * a full wiki note that the AI sees in the index and edits with the file tools.
+ */
+function ArcMetafileButton({
+  ownerRef,
+  title,
+  onOpenFile,
+}: {
+  ownerRef: string;
+  title: string;
+  onOpenFile?: (path: string) => void;
+}) {
+  const [notePath, setNotePath] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setNotePath(null);
+    wikiApi.getAttachedNote(ownerRef).then(
+      (found) => {
+        if (!cancelled) setNotePath(found?.path ?? null);
+      },
+      () => {
+        /* bridge unavailable — leave as "create" */
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerRef]);
+
+  const handleClick = async () => {
+    if (notePath) {
+      onOpenFile?.(notePath);
+      return;
+    }
+    setBusy(true);
+    try {
+      const { path } = await wikiApi.createAttachedNote(ownerRef, title || "Metafile");
+      setNotePath(path);
+      onOpenFile?.(path);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "Metafile konnte nicht angelegt werden.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button type="button" className="arc-btn" onClick={handleClick} disabled={busy}>
+      <FileText size={14} /> {notePath ? "Metafile öffnen" : busy ? "Lege an…" : "Metafile anlegen"}
+    </button>
+  );
 }
 
 /** Default lane color when an arc carries no explicit color. */
@@ -119,7 +180,7 @@ type Selection =
  * shared story-time axis, with typed cause→effect edges between points.
  * Editing writes through to .assistant/arcs/ (debounced autosave).
  */
-export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
+export function ArcTimeline({ open, onClose, onOpenFile }: ArcTimelineProps) {
   const [data, setData] = useState<ArcData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -844,6 +905,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
                   deleteArcPoint(selectedArcPoint.id);
                   setSelection(null);
                 }}
+                onOpenFile={onOpenFile}
               />
             )}
             {selectedArc && (
@@ -856,6 +918,7 @@ export function ArcTimeline({ open, onClose }: ArcTimelineProps) {
                   deleteArc(selectedArc.id);
                   setSelection(null);
                 }}
+                onOpenFile={onOpenFile}
               />
             )}
             {selectedLink && (
@@ -935,8 +998,9 @@ const ArcPointEditor = forwardRef<
     unit: string;
     onChange: (patch: Partial<ArcPoint>) => void;
     onDelete: () => void;
+    onOpenFile?: (path: string) => void;
   }
->(function ArcPointEditor({ point, arcs, unit, onChange, onDelete }, ref) {
+>(function ArcPointEditor({ point, arcs, unit, onChange, onDelete, onOpenFile }, ref) {
   const nameRef = useRef<HTMLInputElement | null>(null);
   useImperativeHandle(ref, () => ({
     focusName: () => {
@@ -983,6 +1047,11 @@ const ArcPointEditor = forwardRef<
           onChange={(e) => onChange({ note: e.target.value || undefined })}
         />
       </Field>
+      <ArcMetafileButton
+        ownerRef={`arcpoint:${point.id}`}
+        title={point.title}
+        onOpenFile={onOpenFile}
+      />
       <button type="button" className="arc-btn arc-btn--danger" onClick={onDelete}>
         <Trash2 size={14} /> Punkt löschen
       </button>
@@ -995,11 +1064,13 @@ function ArcEditor({
   onChange,
   onMove,
   onDelete,
+  onOpenFile,
 }: {
   arc: Arc;
   onChange: (patch: Partial<Arc>) => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
+  onOpenFile?: (path: string) => void;
 }) {
   return (
     <div className="arc-editor">
@@ -1048,6 +1119,11 @@ function ArcEditor({
           <ChevronDown size={14} /> Runter
         </button>
       </div>
+      <ArcMetafileButton
+        ownerRef={`arc:${arc.id}`}
+        title={arc.title}
+        onOpenFile={onOpenFile}
+      />
       <button type="button" className="arc-btn arc-btn--danger" onClick={onDelete}>
         <Trash2 size={14} /> Bogen löschen
       </button>

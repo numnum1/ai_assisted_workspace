@@ -1053,7 +1053,14 @@ function App() {
         </Main>
       </TopBarProvider>
 
-      <ArcTimeline open={arcsOpen} onClose={() => setArcsOpen(false)} />
+      <ArcTimeline
+        open={arcsOpen}
+        onClose={() => setArcsOpen(false)}
+        onOpenFile={(path) => {
+          setArcsOpen(false);
+          handleContentBrowserSelectFile(path);
+        }}
+      />
 
       {altVersionSession && (
         <InlineChatWindow

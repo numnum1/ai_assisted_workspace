@@ -258,10 +258,12 @@ seinen Besitzer selbst; es gibt kein zweites Ref-Feld im Node, das veralten kön
 
 ### Zeitleisten (Bögen)
 
-Das Backend unterstützt `arc:`/`arcpoint:`-Besitzer bereits vollständig — ein
-Bogen/Punkt kann per `createAttachedNote` ein Metafile bekommen, das im
-WIKI-BESTAND als `[↳ arc:<id>]` erscheint. **Offen** ist nur der UI-Einstieg im
-Arc-Workspace (analog zum MetaPanel-Button); die technische Basis ist identisch.
+Umgesetzt — dasselbe System trägt die Zeitleiste: `ArcTimeline.tsx` zeigt im
+Bogen- und im Punkt-Editor einen „Metafile öffnen/anlegen"-Button
+(`ArcMetafileButton`), der `arc:<id>` bzw. `arcpoint:<id>` als Besitzer verwendet.
+Das Metafile erscheint im WIKI-BESTAND als `[↳ arc:<id>]`, und die Coverage-Refs
+(`arc:`/`arcpoint:`) teilen sich dieselbe Konvention. Beim Öffnen schließt sich
+das Arc-Overlay und die verlinkte `.md` erscheint im Haupteditor.
 
 ### Nebenbei behobene Regression
 

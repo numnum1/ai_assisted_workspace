@@ -70,9 +70,32 @@ Wiki entries are plain Markdown under `wiki/**/*.md` at the project root — no 
 
 **"KI-Panels"** refers specifically to the three right-hand dock panels in `components/editor/ChapterAiDock.tsx` — Kommentare, Schreibhilfe, Ideenfinder — selected via the always-visible icon rail (`AiFeature` type). They render as an absolutely-positioned overlay (`.chapter-ai-dock`, CSS in `src/index.css`) over the chapter editor rather than as a flex sibling, so opening/closing a panel never resizes the scroll area and the editor text stays centered.
 
+### App shell (`src/App.tsx` + `src/components/app/`)
+
+`App.tsx` is the root component: project/chapter/chat state wiring, global keyboard shortcuts, and mode/LLM/toolkit sync all live here, composed from `src/hooks/*`. It renders the shell pieces under `src/components/app/`:
+
+- `TopBarProvider.tsx` / `TopBarContext.ts` — context so the active editor can register toolbar content (`useTopBarContent`) and a background color (`useTopBarBackground`) into the fixed `TopBar.tsx`, without `Main`/`App` knowing which editor is active.
+- `Main.tsx` — `TopBar` + children (the active editor).
+- `Editor.tsx` — the single active editor view: tabs/search plus exactly one of FieldEditorPanel / MetaPanel / MarkdownFileEditor / the workspace-mode `MediaProjectEditor`.
+- `AppOverlays.tsx` — global modals/overlays not tied to an open file (command palette, content browser, git/settings dialogs, appearance, chat import), purely presentational, state owned by `App`.
+- `WriterOverlays.tsx` — overlays scoped to an open chapter (currently just `QuickChatWindow`), mounted only while `chapter.activeChapter` is set.
+
+`components/arcs/ArcTimeline.tsx` (the "Spannungsbögen" workspace, see below) and `components/editor/InlineChatWindow.tsx` (experimental Alt+W floating chat) are also direct children of `App` but are self-contained domain components, not part of the shell decomposition above.
+
 ### Naming conventions
 
 - Components: PascalCase under `src/components/<domain>/`.
 - Hooks: `useXxx.ts` under `src/hooks/`.
 - Shared types: `src/types.ts`.
 - Functional components only; explicit prop interfaces; dependency arrays always explicit (ESLint's `react-hooks` rules are enforced — `npm run lint` will catch `rules-of-hooks` and stale-ref violations).
+
+### Component style (`App.tsx` and its children)
+
+These files are read/edited by humans, not just generated — keep them editable:
+
+- No comments. Self-documenting names over prose; only exception is `eslint-disable` directives.
+- No TypeScript types/interfaces used only once inline where the shape is small — but do extract a named type once a shape (e.g. a props sub-object) is duplicated across files.
+- Pure/static helper functions (no hooks, no closures over component state) live at module scope, not inside the component body.
+- State/logic that belongs to one concern gets its own hook (`useXxx` under `src/hooks/`) rather than living flat in a large component; don't force a hook where a component is already small and single-purpose.
+- Only put in a component what belongs to it — shared logic or cross-cutting state goes in a hook or util, not copy-pasted.
+- Order within a component: parameters/props destructuring, then state/refs/callbacks, then derived `useMemo` values, then the JSX `return`.
