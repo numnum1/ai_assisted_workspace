@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react";
+import { memo, useState, type ComponentType } from "react";
 import { EditorTabs } from "../editor/EditorTabs.tsx";
 import { SearchPanel } from "../editor/SearchPanel.tsx";
 import { FieldEditorPanel } from "../editor/FieldEditorPanel.tsx";
@@ -18,22 +18,13 @@ import type {
   AltVersionSession,
   LlmPublic,
   UserChapterSelection,
+  FocusedField,
+  FileDiffView,
 } from "../../types.ts";
 
 type FileEditorApi = ReturnType<typeof useFileTabs>;
 type ChapterApi = ReturnType<typeof useChapter>;
 
-interface FileDiffView {
-  path: string;
-  content: string;
-  label: string;
-}
-
-/**
- * The single active editor view: file tabs + search over one of
- * FieldEditorPanel / MetaPanel / MarkdownFileEditor (normal files) /
- * MediaProjectEditor (book/media chapters). Exactly one is shown at a time.
- */
 export interface EditorProps {
   fileEditor: FileEditorApi;
   chapter: ChapterApi;
@@ -48,7 +39,7 @@ export interface EditorProps {
   onCloseSearch: () => void;
 
   selectedMeta: MetaSelection | null;
-  focusedField: { fieldKey: string; fieldLabel: string; value: string } | null;
+  focusedField: FocusedField | null;
   showMetaChrome: boolean;
   workspaceMetaSchemas: Record<MetaNodeType, MetaTypeSchema>;
   onSaveMeta: (
@@ -73,7 +64,6 @@ export interface EditorProps {
   ) => void;
   onAltVersion?: (session: AltVersionSession) => void;
 
-  // Writer-scoped overlays (only mounted while a chapter is open)
   quickChatOpen: boolean;
   onCloseQuickChat: () => void;
   llms: LlmPublic[];
@@ -81,7 +71,7 @@ export interface EditorProps {
   disabledToolkits: ReadonlySet<string>;
 }
 
-export function Editor({
+export const Editor = memo(function Editor({
   fileEditor,
   chapter,
   MediaProjectEditor,
@@ -112,11 +102,6 @@ export function Editor({
   webSearchAvailable,
   disabledToolkits,
 }: EditorProps) {
-  // The scene/action the user currently has selected in the chapter editor
-  // (outline click or text focus). Not persisted; scoped to the open chapter.
-  // `chapter.activeChapter` is already the "selected chapter" (which chapter is
-  // open in the editor) — reset the selection during render when it changes,
-  // rather than in an effect, to avoid an extra cascading render.
   const [userChapterSelection, setUserChapterSelection] = useState<UserChapterSelection>(null);
   const [selectionChapterId, setSelectionChapterId] = useState<string | null>(null);
   const activeChapterId = chapter.activeChapter?.id ?? null;
@@ -125,26 +110,9 @@ export function Editor({
     setUserChapterSelection(null);
   }
 
-  return (
-    <div className="center-editor-pane">
-      <EditorTabs
-        tabs={fileEditor.tabs}
-        activeTabPath={fileEditor.activeTabPath}
-        onSelectTab={(path) => void fileEditor.openFile(path)}
-        onCloseTab={fileEditor.closeTab}
-        onCloseOtherTabs={fileEditor.closeOtherTabs}
-        onCloseAllTabs={fileEditor.closeAllTabs}
-      />
-      {searchOpen && (
-        <SearchPanel
-          onOpenFile={(path, line) => {
-            void fileEditor.openFile(path, line);
-            onCloseSearch();
-          }}
-          onClose={onCloseSearch}
-        />
-      )}
-      {focusedField && showMetaChrome ? (
+  function renderBody() {
+    if (focusedField && showMetaChrome) {
+      return (
         <div className="field-editor-center">
           <FieldEditorPanel
             fieldLabel={focusedField.fieldLabel}
@@ -154,7 +122,10 @@ export function Editor({
             onClose={onCloseFieldEditor}
           />
         </div>
-      ) : selectedMeta && showMetaChrome ? (
+      );
+    }
+    if (selectedMeta && showMetaChrome) {
+      return (
         <div className="meta-panel-center">
           <MetaPanel
             selection={selectedMeta}
@@ -166,7 +137,10 @@ export function Editor({
             onOpenFile={(path) => void fileEditor.openFile(path)}
           />
         </div>
-      ) : !chapter.activeChapter ? (
+      );
+    }
+    if (!chapter.activeChapter) {
+      return (
         <MarkdownFileEditor
           path={fileEditor.selectedPath}
           content={fileEditor.content}
@@ -196,40 +170,63 @@ export function Editor({
           diffLabel={fileDiffView?.label}
           onExitDiff={() => setFileDiffView(null)}
         />
-      ) : (
-        <MediaProjectEditor
-          editorMode={proseEditorMode}
-          proseLeafAtScene={proseLeafAtScene}
-          chapter={chapter.activeChapter}
-          structureRoot={chapter.structureRoot}
-          bookProjects={bookProjects}
-          currentBookProjectPath={chapter.structureRoot ?? "."}
-          onSelectBookProject={onSelectBookProject}
-          chapterTabs={chapter.chapters}
-          onSelectChapterTab={onSelectChapterTab}
-          actionContents={chapter.actionContents}
-          scrollTarget={chapter.scrollTarget}
-          hasDirtyActions={chapter.hasDirtyActions}
-          onActionChange={chapter.updateActionContent}
-          onActionSave={chapter.saveAction}
-          onSaveAll={() => {
-            chapter.saveAllDirty();
-            fetchGitState();
+      );
+    }
+    return (
+      <MediaProjectEditor
+        editorMode={proseEditorMode}
+        proseLeafAtScene={proseLeafAtScene}
+        chapter={chapter.activeChapter}
+        structureRoot={chapter.structureRoot}
+        bookProjects={bookProjects}
+        currentBookProjectPath={chapter.structureRoot ?? "."}
+        onSelectBookProject={onSelectBookProject}
+        chapterTabs={chapter.chapters}
+        onSelectChapterTab={onSelectChapterTab}
+        actionContents={chapter.actionContents}
+        scrollTarget={chapter.scrollTarget}
+        hasDirtyActions={chapter.hasDirtyActions}
+        onActionChange={chapter.updateActionContent}
+        onActionSave={chapter.saveAction}
+        onSaveAll={() => {
+          chapter.saveAllDirty();
+          fetchGitState();
+        }}
+        onClose={chapter.closeChapter}
+        onScrollTargetConsumed={chapter.clearScrollTarget}
+        onEditorFocus={chapter.updateEditorPosition}
+        onCtrlL={onCtrlL}
+        onAltVersion={onAltVersion}
+        selection={userChapterSelection}
+        onSelectionChange={setUserChapterSelection}
+        onSaveChapterMeta={chapter.updateChapterMeta}
+        onSaveSceneMeta={chapter.updateSceneMeta}
+        onSaveActionMeta={chapter.updateActionMeta}
+        workspaceMetaSchemas={workspaceMetaSchemas}
+      />
+    );
+  }
+
+  return (
+    <div className="center-editor-pane">
+      <EditorTabs
+        tabs={fileEditor.tabs}
+        activeTabPath={fileEditor.activeTabPath}
+        onSelectTab={(path) => void fileEditor.openFile(path)}
+        onCloseTab={fileEditor.closeTab}
+        onCloseOtherTabs={fileEditor.closeOtherTabs}
+        onCloseAllTabs={fileEditor.closeAllTabs}
+      />
+      {searchOpen && (
+        <SearchPanel
+          onOpenFile={(path, line) => {
+            void fileEditor.openFile(path, line);
+            onCloseSearch();
           }}
-          onClose={chapter.closeChapter}
-          onScrollTargetConsumed={chapter.clearScrollTarget}
-          onEditorFocus={chapter.updateEditorPosition}
-          onCtrlL={onCtrlL}
-          onAltVersion={onAltVersion}
-          selection={userChapterSelection}
-          onSelectionChange={setUserChapterSelection}
-          onSaveChapterMeta={chapter.updateChapterMeta}
-          onSaveSceneMeta={chapter.updateSceneMeta}
-          onSaveActionMeta={chapter.updateActionMeta}
-          workspaceMetaSchemas={workspaceMetaSchemas}
+          onClose={onCloseSearch}
         />
       )}
-
+      {renderBody()}
       {chapter.activeChapter && (
         <WriterOverlays
           quickChatOpen={quickChatOpen}
@@ -241,4 +238,4 @@ export function Editor({
       )}
     </div>
   );
-}
+});

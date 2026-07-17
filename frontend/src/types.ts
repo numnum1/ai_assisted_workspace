@@ -167,6 +167,11 @@ export interface SelectionContext {
   editorId: 'file' | 'chapter';
 }
 
+export interface ClarificationData {
+  questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>;
+  selected: Record<number, string[]>;
+}
+
 /**
  * Steering context for inline AI generation, derived from the action unit
  * ("Handlungseinheit") the cursor was in when the panel opened. The full text is
@@ -301,6 +306,12 @@ export interface GitCommit {
 export interface GitSyncStatus {
   ahead: number;
   behind: number;
+}
+
+export interface FileDiffView {
+  path: string;
+  content: string;
+  label: string;
 }
 
 export interface Conversation {
@@ -550,6 +561,12 @@ export interface MetaSelection {
   sceneId?: string;
   actionId?: string;
   meta: NodeMeta;
+}
+
+export interface FocusedField {
+  fieldKey: string;
+  fieldLabel: string;
+  value: string;
 }
 
 /** Global appearance preferences (stored in ~/.writing-assistant/preferences.json). */

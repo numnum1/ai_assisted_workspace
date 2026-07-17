@@ -9,6 +9,7 @@ import type {
   ContextInfo,
   MessageFeedback,
   ReasoningEffort,
+  ClarificationData,
 } from "../../types.ts";
 import { ModeSelector } from "./ModeSelector.tsx";
 import { ChatHistory } from "./ChatHistory.tsx";
@@ -36,7 +37,7 @@ interface ChatPanelProps {
   rulesEnabled?: boolean;
   onToggleRules?: () => void;
   onModeChange: (mode: string) => void;
-  onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
+  onSend: (message: string, clarificationData?: ClarificationData) => void;
   onStop: () => void;
   onAddFile: (path: string) => void;
   onRemoveFile: (path: string) => void;

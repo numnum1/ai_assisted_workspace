@@ -6,7 +6,6 @@ import {
   SetTopBarBgContext,
 } from "./TopBarContext.ts";
 
-/** Holds the current TopBar slot node and background color, exposed via context. */
 export function TopBarProvider({ children }: { children: ReactNode }) {
   const [node, setNode] = useState<ReactNode>(null);
   const [bg, setBg] = useState<string | null>(null);

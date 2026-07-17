@@ -1,12 +1,6 @@
 import { getAppBridge } from "../../electron/bridge.ts";
 import { useTopBarSlot, useTopBarBg } from "./TopBarContext.ts";
 
-/**
- * Fixed shell at the top of {@link Main}. Renders whatever tools the active
- * editor has registered via {@link useTopBarContent}; empty (zero height) when
- * no editor supplies content. Also hosts the window controls (minimize/close)
- * since the window runs fullscreen without a native title bar.
- */
 export function TopBar() {
   const slot = useTopBarSlot();
   const bg = useTopBarBg();
