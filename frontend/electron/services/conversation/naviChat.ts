@@ -351,7 +351,9 @@ function startNaviResponseFetch(
       messages,
       ...(tools.length > 0 ? { tools } : {}),
       ...(toolChoice ? { tool_choice: toolChoice } : {}),
-      reasoning_effort: "medium",
+      // xAI/Grok only accepts "low" or "high" for reasoning_effort — any other value is silently
+      // ignored (falls back to the model's default, effectively full reasoning).
+      reasoning_effort: "low",
     }),
     ...(signal ? { signal } : {}),
   });
@@ -529,7 +531,9 @@ async function runRedirectClassifier(
         model: endpoint.model,
         stream: false,
         max_tokens: 512,
-        reasoning_effort: "minimal",
+        // "minimal" is not a valid xAI/Grok value (only "low"/"high") and was likely being ignored,
+        // silently falling back to full reasoning for what's meant to be a cheap classification call.
+        reasoning_effort: "low",
         messages: [
           {
             role: "system",
@@ -868,7 +872,7 @@ async function runTipsCheck(
         stream: false,
         max_tokens: 256,
         temperature: 0,
-        reasoning_effort: "minimal",
+        reasoning_effort: "low",
         messages: [{ role: "user", content: tipsCheckPrompt }],
       }),
     });
