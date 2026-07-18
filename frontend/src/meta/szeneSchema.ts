@@ -1,10 +1,12 @@
 import type { MetaTypeSchema } from './metaSchema.ts';
+import { statusOptions, statusLabels } from './nodeStatus.ts';
 
 export const szeneSchema: MetaTypeSchema = {
   filename: 'szene.json',
   fields: [
     { key: 'title', label: 'Titel', type: 'input', placeholder: 'Titel...', defaultValue: '' },
     { key: 'description', label: 'Beschreibung', type: 'textarea', placeholder: 'Beschreibung...', defaultValue: '' },
+    { key: 'status', label: 'Status', type: 'selector', defaultValue: 'included', options: statusOptions, config: { labels: statusLabels } },
     { key: 'location', label: 'Lokation', type: 'input', placeholder: 'Lokation...', defaultValue: '' },
     { key: 'time', label: 'Zeit', type: 'input', placeholder: 'Zeit...', defaultValue: '' },
     { key: 'characters', label: 'Charaktere', type: 'textarea', placeholder: 'Charakter hinzufügen...', defaultValue: '' },

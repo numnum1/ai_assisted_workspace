@@ -6,6 +6,7 @@ export function selectorRenderer({ field, value, onChange, onCommit }: FieldRend
   const options = value && !baseOptions.includes(value)
     ? [...baseOptions, value]
     : baseOptions;
+  const labels = (field.config?.labels as Record<string, string> | undefined) ?? {};
   return (
     <select
       className="meta-field-select"
@@ -13,7 +14,7 @@ export function selectorRenderer({ field, value, onChange, onCommit }: FieldRend
       onChange={e => { onChange(e.target.value); onCommit?.(); }}
     >
       {options.map(opt => (
-        <option key={opt} value={opt}>{opt}</option>
+        <option key={opt} value={opt}>{labels[opt] ?? opt}</option>
       ))}
     </select>
   );
