@@ -13,6 +13,6 @@
     "outDir": "dist-electron",
     "rootDir": "."
   },
-  "include": ["electron/**/*.ts", "src/types.ts"],
+  "include": ["electron/**/*.ts", "src/shared/types.ts"],
   "exclude": ["electron/preload.ts"]
 }
