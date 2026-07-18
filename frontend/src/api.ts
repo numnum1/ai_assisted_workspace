@@ -22,6 +22,7 @@ import type {
   Conversation,
   ArcData,
   ArcCoverage,
+  StoryboardData,
 } from "./types.ts";
 import type { FileContentResult as ElectronFileContentResult } from "./electron/bridge.ts";
 import {
@@ -871,6 +872,24 @@ export const arcApi = {
   coverage: async (): Promise<ArcCoverage> => {
     const api = getElectronApi();
     if (api?.arcs) return api.arcs.coverage();
+    throw new Error("Electron bridge not available");
+  },
+};
+
+export const storyboardApi = {
+  read: async (): Promise<StoryboardData> => {
+    const api = getElectronApi();
+    if (api?.storyboard) return api.storyboard.read();
+    throw new Error("Electron bridge not available");
+  },
+  write: async (data: StoryboardData): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.storyboard) return api.storyboard.write(data);
+    throw new Error("Electron bridge not available");
+  },
+  openWindow: async (): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.storyboard) return api.storyboard.openWindow();
     throw new Error("Electron bridge not available");
   },
 };

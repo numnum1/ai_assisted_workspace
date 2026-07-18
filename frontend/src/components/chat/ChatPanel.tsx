@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { History, Pencil, GitMerge, Loader2, Waypoints } from "lucide-react";
+import { History, Pencil, GitMerge, Loader2, Waypoints, StickyNote } from "lucide-react";
 import type {
   ChatMessage,
   Mode,
@@ -60,6 +60,7 @@ interface ChatPanelProps {
   chatDownloadEnabled?: boolean;
   /** Opens the arc timeline workspace (story/character/relationship arcs). */
   onOpenArcs?: () => void;
+  onOpenStoryboard?: () => void;
   structureRoot?: string | null;
   activeSelection?: SelectionContext | null;
   onDismissSelection?: () => void;
@@ -130,6 +131,7 @@ export function ChatPanel({
   clearAllBrowserChatsDisabled = true,
   chatDownloadEnabled = false,
   onOpenArcs,
+  onOpenStoryboard,
   structureRoot = null,
   activeSelection = null,
   onDismissSelection,
@@ -220,6 +222,16 @@ export function ChatPanel({
               title="Spannungsbögen öffnen (Strg+Shift+B) — Story-/Figuren-/Beziehungsbögen"
             >
               <Waypoints size={14} />
+            </button>
+          )}
+          {onOpenStoryboard && (
+            <button
+              type="button"
+              className="chat-history-btn"
+              onClick={onOpenStoryboard}
+              title="Pinnwand öffnen (Strg+Shift+P) — freie Story-Ideen, serienweit"
+            >
+              <StickyNote size={14} />
             </button>
           )}
           {activeIsThread && onSummarizeToParent && (

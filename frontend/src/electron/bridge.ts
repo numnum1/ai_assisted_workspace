@@ -222,6 +222,13 @@ export interface AppBridge {
     ) => Promise<{ status: string }>;
     coverage: () => Promise<import('../types.ts').ArcCoverage>;
   };
+  storyboard?: {
+    read: () => Promise<import('../types.ts').StoryboardData>;
+    write: (
+      data: import('../types.ts').StoryboardData,
+    ) => Promise<{ status: string }>;
+    openWindow: () => Promise<{ status: string }>;
+  };
   snapshots?: {
     get: (id: string) => Promise<SnapshotData>;
     apply: (id: string) => Promise<SnapshotApplyResult>;

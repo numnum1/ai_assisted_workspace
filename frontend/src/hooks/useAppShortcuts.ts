@@ -10,6 +10,7 @@ interface UseAppShortcutsParams {
   onTogglePalette: () => void;
   onToggleSearch: () => void;
   onToggleArcs: () => void;
+  onToggleStoryboard: () => void;
   onToggleContentBrowser: () => void;
 }
 
@@ -20,6 +21,7 @@ export function useAppShortcuts({
   onTogglePalette,
   onToggleSearch,
   onToggleArcs,
+  onToggleStoryboard,
   onToggleContentBrowser,
 }: UseAppShortcutsParams) {
   const [quickChatOpen, setQuickChatOpen] = useState(false);
@@ -51,6 +53,10 @@ export function useAppShortcuts({
         e.preventDefault();
         onToggleArcs();
       }
+      if (e.ctrlKey && e.shiftKey && (e.key === "P" || e.key === "p")) {
+        e.preventDefault();
+        onToggleStoryboard();
+      }
       if (e.ctrlKey && e.shiftKey && e.code === "Space") {
         e.preventDefault();
         onToggleContentBrowser();
@@ -62,7 +68,7 @@ export function useAppShortcuts({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onTogglePalette, onToggleSearch, onToggleArcs, onToggleContentBrowser]);
+  }, [onTogglePalette, onToggleSearch, onToggleArcs, onToggleStoryboard, onToggleContentBrowser]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

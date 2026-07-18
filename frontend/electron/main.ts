@@ -56,7 +56,11 @@ import {
   createAttachedNote,
 } from "./services/wikiService.js";
 import { readArcs, writeArcs, computeArcCoverage } from "./services/arcService.js";
-import type { ArcData } from "../src/types.js";
+import {
+  readStoryboard,
+  writeStoryboard,
+} from "./services/storyboardService.js";
+import type { ArcData, StoryboardData } from "../src/types.js";
 import {
   previewChatContext,
   startChatStream,
@@ -193,6 +197,17 @@ function registerIpcHandlers(): void {
     writeArcs(getCurrentProjectPath(), data),
   );
   ipcMain.handle("arcs:coverage", () => computeArcCoverage(getCurrentProjectPath()));
+
+  ipcMain.handle("storyboard:read", () =>
+    readStoryboard(getCurrentProjectPath()),
+  );
+  ipcMain.handle("storyboard:write", (_event, data: StoryboardData) =>
+    writeStoryboard(getCurrentProjectPath(), data),
+  );
+  ipcMain.handle("storyboard:openWindow", () => {
+    createStoryboardWindow();
+    return { status: "ok" };
+  });
 
   ipcMain.handle("chat:previewContext", (_event, body) =>
     previewChatContext(getCurrentProjectPath(), body),
@@ -925,6 +940,52 @@ function createWindow(): void {
   } else {
     /** `main` liegt unter `dist-electron/electron/`; Vite-Build ist `dist/` neben `dist-electron/`. */
     void win.loadFile(path.join(__dirname, "../../dist/index.html"));
+  }
+}
+
+/**
+ * Secondary OS window that hosts only the Pinnwand (storyboard). It loads the
+ * same renderer bundle with `?window=storyboard`, so `main.tsx` mounts the
+ * standalone board instead of the full app. Because it uses the same preload,
+ * `window.appBridge` is available; the IPC handlers are global and read the
+ * shared `getCurrentProjectPath()` singleton, so it shares the open project
+ * with the main window without any extra wiring. Only one instance at a time.
+ */
+let storyboardWindow: BrowserWindow | null = null;
+
+function createStoryboardWindow(): void {
+  if (storyboardWindow && !storyboardWindow.isDestroyed()) {
+    if (storyboardWindow.isMinimized()) storyboardWindow.restore();
+    storyboardWindow.focus();
+    return;
+  }
+  const win = new BrowserWindow({
+    width: 1200,
+    height: 820,
+    title: "Pinnwand",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  storyboardWindow = win;
+  win.on("closed", () => {
+    if (storyboardWindow === win) storyboardWindow = null;
+  });
+  win.webContents.on("before-input-event", (_event, input) => {
+    if (input.key === "F12" && input.type === "keyDown") {
+      win.webContents.toggleDevTools();
+    }
+  });
+
+  if (!app.isPackaged) {
+    void win.loadURL("http://localhost:5173/?window=storyboard");
+  } else {
+    void win.loadFile(path.join(__dirname, "../../dist/index.html"), {
+      query: { window: "storyboard" },
+    });
   }
 }
 

@@ -338,6 +338,11 @@ contextBridge.exposeInMainWorld("appBridge", {
     write: (data: unknown) => ipcRenderer.invoke("arcs:write", data),
     coverage: () => ipcRenderer.invoke("arcs:coverage"),
   },
+  storyboard: {
+    read: () => ipcRenderer.invoke("storyboard:read"),
+    write: (data: unknown) => ipcRenderer.invoke("storyboard:write", data),
+    openWindow: () => ipcRenderer.invoke("storyboard:openWindow"),
+  },
   subproject: {
     info: (path: string) => ipcRenderer.invoke("subproject:info", path),
     init: (path: string, type: string, name: string) =>

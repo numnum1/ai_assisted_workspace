@@ -27,7 +27,7 @@ import type {
   Conversation,
   FileDiffView,
 } from "./types.ts";
-import { vectorApi, gitApi, filesApi } from "./api.ts";
+import { vectorApi, gitApi, filesApi, storyboardApi } from "./api.ts";
 import { collectBookProjects } from "./utils/bookProjects.ts";
 
 import { usePreferences } from "./hooks/usePreferences.ts";
@@ -363,6 +363,9 @@ function App() {
   const handleTogglePalette = useCallback(() => setPaletteOpen((prev) => !prev), [setPaletteOpen]);
   const handleToggleSearch = useCallback(() => setSearchOpen((prev) => !prev), [setSearchOpen]);
   const handleToggleArcs = useCallback(() => setArcsOpen((prev) => !prev), [setArcsOpen]);
+  const handleOpenStoryboard = useCallback(() => {
+    void storyboardApi.openWindow();
+  }, []);
   const handleToggleContentBrowser = useCallback(() => setContentBrowserOpen((prev) => !prev), [setContentBrowserOpen]);
 
   const { quickChatOpen, onCloseQuickChat } = useAppShortcuts({
@@ -372,6 +375,7 @@ function App() {
     onTogglePalette: handleTogglePalette,
     onToggleSearch: handleToggleSearch,
     onToggleArcs: handleToggleArcs,
+    onToggleStoryboard: handleOpenStoryboard,
     onToggleContentBrowser: handleToggleContentBrowser,
   });
 
@@ -662,6 +666,7 @@ function App() {
           onClearAllBrowserChats={history.clearAllBrowserChats}
           clearAllBrowserChatsDisabled={false}
           onOpenArcs={handleOpenArcsPanel}
+          onOpenStoryboard={handleOpenStoryboard}
           structureRoot={chapter.structureRoot}
           onRetry={chat.retry}
           writeFileSettled={history.activeConversation.writeFileSettled}
