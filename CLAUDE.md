@@ -8,6 +8,8 @@ A local, AI-powered Markdown workspace for creative writing (Electron desktop ap
 
 There is **no separate backend server** — despite what `.cursor/rules/` (gitignored, stale, describes an old Spring-backend/REST-API architecture) says. All backend logic lives in the Electron main process under `frontend/electron/`, called from the renderer via `window.appBridge` (contextBridge/IPC), never HTTP.
 
+The app is a **tray-only background app** (JetBrains-Toolbox style), not a single-window app — see "Tray / multi-window shell" below.
+
 All app code lives under `frontend/`.
 
 ## Commands
@@ -69,6 +71,17 @@ Workspace modes (`Standard`, `Buch`, `Musik`) determine the structure UI on top 
 Wiki entries are plain Markdown under `wiki/**/*.md` at the project root — no JSON "entry" types, no dedicated wiki-only AI tools. `read_file`/`grep`/`semantic_search` operate over wiki files the same as any other project file (`semantic_search` additionally accepts `scope: "wiki"`).
 
 **"KI-Panels"** refers specifically to the three right-hand dock panels in `components/editor/ChapterAiDock.tsx` — Kommentare, Schreibhilfe, Ideenfinder — selected via the always-visible icon rail (`AiFeature` type). They render as an absolutely-positioned overlay (`.chapter-ai-dock`, CSS in `src/index.css`) over the chapter editor rather than as a flex sibling, so opening/closing a panel never resizes the scroll area and the editor text stays centered.
+
+### Tray / multi-window shell (`electron/main.ts`)
+
+No window opens on app start; the app lives in the OS tray until quit. `app.on("window-all-closed", () => {})` is deliberately a no-op — closing every window must NOT quit the app.
+
+- `createTray()` builds a `Tray` (icon from `appIconPath`, currently a placeholder) whose right-click menu (`buildTrayMenu()`) opens the three feature windows plus "Beim Login starten" (`app.setLoginItemSettings`) and "Beenden" (`app.quit()`). Double-clicking the tray icon opens the `book` window.
+- `openWindow(kind: WindowKind)` is the single entry point for showing any window (`"book" | "storyboard" | "chat"`, sized/titled per `WINDOW_CONFIG`). It's idempotent per kind: if a window for that `kind` already exists (`windows: Map<WindowKind, BrowserWindow>`), it's focused/restored instead of duplicated. All windows share the same `preload.cjs` and the main process's `getCurrentProjectPath()` singleton, so opening a second window doesn't require re-selecting the project.
+- Renderer routing: the non-`book` windows are loaded with `?window=<kind>` (dev: `loadURL` query string; packaged: `loadFile` with `query`); the renderer reads that to decide which top-level view to mount (book window has no query — it's the default/main surface).
+- `broadcast(channel, payload)` fans a main→renderer event out to every open `BrowserWindow`, the mechanism for keeping multiple open windows in sync (e.g. project switches).
+- Single-instance lock (`requestSingleInstanceLock`) — a second app launch focuses the existing `book` window via the `second-instance` event rather than starting a second process.
+- `storyboard:openWindow` and a generic open-window IPC handler (`electron/main.ts` ~L209-215) let the renderer itself request a new window (e.g. a button that opens the Pinnwand from inside the book window), on top of the tray menu entry points.
 
 ### App shell (`src/App.tsx` + `src/components/app/`)
 
