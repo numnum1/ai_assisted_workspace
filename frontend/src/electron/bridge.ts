@@ -456,6 +456,10 @@ export interface AppBridge {
   window?: {
     minimize: () => Promise<void>;
     close: () => Promise<void>;
+    open: (kind: "book" | "storyboard" | "chat") => Promise<{ status: string }>;
+    onWorkspaceChanged: (
+      listener: (payload: unknown) => void,
+    ) => { unsubscribe: () => void };
   };
 }
 

@@ -894,6 +894,24 @@ export const storyboardApi = {
   },
 };
 
+export const windowApi = {
+  open: async (
+    kind: "book" | "storyboard" | "chat",
+  ): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.window) return api.window.open(kind);
+    throw new Error("Electron bridge not available");
+  },
+  onWorkspaceChanged: (
+    listener: (payload: unknown) => void,
+  ): (() => void) => {
+    const api = getElectronApi();
+    if (!api?.window) return () => {};
+    const sub = api.window.onWorkspaceChanged(listener);
+    return () => sub.unsubscribe();
+  },
+};
+
 export async function getFileContentForChangeCard(
   path: string,
 ): Promise<ElectronFileContentResult> {

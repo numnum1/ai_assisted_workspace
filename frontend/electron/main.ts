@@ -1,5 +1,5 @@
 import "./installConsoleTimestamps.js";
-import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem, screen } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem, screen, Tray } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -120,9 +120,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle("project:current", () => getCurrentProject());
   ipcMain.handle("project:reveal", () => revealProject());
   ipcMain.handle("project:browse", () => browseForProject());
-  ipcMain.handle("project:open", (_event, projectPath: string) =>
-    openProject(projectPath),
-  );
+  ipcMain.handle("project:open", async (_event, projectPath: string) => {
+    const result = await openProject(projectPath);
+    broadcast("workspace:changed", { reason: "project" });
+    return result;
+  });
 
   ipcMain.handle("files:getTree", () => getTree(getCurrentProjectPath()));
   ipcMain.handle("files:getContent", (_event, filePath: string) =>
@@ -205,7 +207,12 @@ function registerIpcHandlers(): void {
     writeStoryboard(getCurrentProjectPath(), data),
   );
   ipcMain.handle("storyboard:openWindow", () => {
-    createStoryboardWindow();
+    openWindow("storyboard");
+    return { status: "ok" };
+  });
+
+  ipcMain.handle("window:open", (_event, kind: WindowKind) => {
+    openWindow(kind);
     return { status: "ok" };
   });
 
@@ -844,11 +851,44 @@ function registerIpcHandlers(): void {
  * first suggestion instead of popping up the menu. */
 let pendingSpellFixWindowId: number | null = null;
 
-function createWindow(): void {
+type WindowKind = "book" | "storyboard" | "chat";
+
+const WINDOW_CONFIG: Record<
+  WindowKind,
+  { width: number; height: number; title: string }
+> = {
+  book: { width: 1400, height: 900, title: "Buch-Schreibtool" },
+  storyboard: { width: 1200, height: 820, title: "Pinnwand" },
+  chat: { width: 900, height: 800, title: "KI-Chat" },
+};
+
+const appIconPath = app.isPackaged
+  ? path.join(process.resourcesPath, "icon.png")
+  : path.join(__dirname, "../../build/icon.png");
+
+/** One live OS window per kind; reused/focused instead of duplicated. */
+const windows = new Map<WindowKind, BrowserWindow>();
+
+/** Fan-out a main→renderer event to every open window (multi-window sync). */
+function broadcast(channel: string, payload?: unknown): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send(channel, payload);
+  }
+}
+
+function openWindow(kind: WindowKind): void {
+  const existing = windows.get(kind);
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore();
+    existing.focus();
+    return;
+  }
+  const cfg = WINDOW_CONFIG[kind];
   const win = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    fullscreen: true,
+    width: cfg.width,
+    height: cfg.height,
+    title: cfg.title,
+    icon: appIconPath,
     webPreferences: {
       /** CJS-Bundle (`preload.cjs` via esbuild): `tsc`-ESM-Preload + `"type":"module"` führt oft dazu, dass der Preload nicht läuft → kein `window.appBridge`. */
       preload: path.join(__dirname, "preload.cjs"),
@@ -856,6 +896,10 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false,
     },
+  });
+  windows.set(kind, win);
+  win.on("closed", () => {
+    if (windows.get(kind) === win) windows.delete(kind);
   });
   win.webContents.on("preload-error", (_event, preloadPath, error) => {
     console.error(
@@ -935,74 +979,80 @@ function createWindow(): void {
     }
   });
 
+  const query = kind === "book" ? undefined : { window: kind };
   if (!app.isPackaged) {
-    void win.loadURL("http://localhost:5173");
+    const suffix = query ? `/?window=${kind}` : "";
+    void win.loadURL(`http://localhost:5173${suffix}`);
   } else {
     /** `main` liegt unter `dist-electron/electron/`; Vite-Build ist `dist/` neben `dist-electron/`. */
-    void win.loadFile(path.join(__dirname, "../../dist/index.html"));
+    void win.loadFile(
+      path.join(__dirname, "../../dist/index.html"),
+      query ? { query } : undefined,
+    );
   }
 }
 
 /**
- * Secondary OS window that hosts only the Pinnwand (storyboard). It loads the
- * same renderer bundle with `?window=storyboard`, so `main.tsx` mounts the
- * standalone board instead of the full app. Because it uses the same preload,
- * `window.appBridge` is available; the IPC handlers are global and read the
- * shared `getCurrentProjectPath()` singleton, so it shares the open project
- * with the main window without any extra wiring. Only one instance at a time.
+ * Tray-only background app (JetBrains-Toolbox style): no window opens on start.
+ * The tray's right-click menu opens the individual feature windows via
+ * `openWindow(kind)`; all windows share the same preload and the main-process
+ * `getCurrentProjectPath()` singleton, so they share the open project without
+ * extra wiring.
  */
-let storyboardWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
-function createStoryboardWindow(): void {
-  if (storyboardWindow && !storyboardWindow.isDestroyed()) {
-    if (storyboardWindow.isMinimized()) storyboardWindow.restore();
-    storyboardWindow.focus();
-    return;
-  }
-  const win = new BrowserWindow({
-    width: 1200,
-    height: 820,
-    title: "Pinnwand",
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
+function buildTrayMenu(): Menu {
+  return Menu.buildFromTemplate([
+    { label: "Buch-Schreibtool", click: () => openWindow("book") },
+    { label: "Pinnwand", click: () => openWindow("storyboard") },
+    { label: "KI-Chat", click: () => openWindow("chat") },
+    { type: "separator" },
+    {
+      label: "Beim Login starten",
+      type: "checkbox",
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({
+          openAtLogin: item.checked,
+          openAsHidden: true,
+        });
+      },
     },
-  });
-  storyboardWindow = win;
-  win.on("closed", () => {
-    if (storyboardWindow === win) storyboardWindow = null;
-  });
-  win.webContents.on("before-input-event", (_event, input) => {
-    if (input.key === "F12" && input.type === "keyDown") {
-      win.webContents.toggleDevTools();
-    }
-  });
-
-  if (!app.isPackaged) {
-    void win.loadURL("http://localhost:5173/?window=storyboard");
-  } else {
-    void win.loadFile(path.join(__dirname, "../../dist/index.html"), {
-      query: { window: "storyboard" },
-    });
-  }
+    { type: "separator" },
+    {
+      label: "Beenden",
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
 }
 
-app.whenReady().then(() => {
-  Menu.setApplicationMenu(null);
-  registerIpcHandlers();
-  createWindow();
+function createTray(): void {
+  tray = new Tray(appIconPath);
+  tray.setToolTip("Markdown Workspace");
+  tray.setContextMenu(buildTrayMenu());
+  tray.on("double-click", () => openWindow("book"));
+}
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => openWindow("book"));
+
+  app.whenReady().then(() => {
+    Menu.setApplicationMenu(null);
+    registerIpcHandlers();
+    createTray();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        openWindow("book");
+      }
+    });
   });
-});
+}
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+/** Background app: closing all windows must NOT quit — the app lives in the
+ * tray until the tray's "Beenden" entry calls `app.quit()`. */
+app.on("window-all-closed", () => {});

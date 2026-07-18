@@ -4,10 +4,14 @@ import './index.css'
 import './builtinMediaProjects.ts'
 import App from './App.tsx'
 import { StoryboardWindow } from './StoryboardWindow.tsx'
+import { ChatWindow } from './ChatWindow.tsx'
 
-const isStoryboardWindow =
-  new URLSearchParams(window.location.search).get('window') === 'storyboard'
+const kind = new URLSearchParams(window.location.search).get('window')
+const Root =
+  kind === 'storyboard' ? StoryboardWindow : kind === 'chat' ? ChatWindow : App
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>{isStoryboardWindow ? <StoryboardWindow /> : <App />}</StrictMode>,
+  <StrictMode>
+    <Root />
+  </StrictMode>,
 )

@@ -392,5 +392,15 @@ contextBridge.exposeInMainWorld("appBridge", {
   window: {
     minimize: () => ipcRenderer.invoke("window:minimize"),
     close: () => ipcRenderer.invoke("window:close"),
+    open: (kind: string) => ipcRenderer.invoke("window:open", kind),
+    onWorkspaceChanged: (listener: (payload: unknown) => void) => {
+      const wrapped = (_event: unknown, payload: unknown) => listener(payload);
+      ipcRenderer.on("workspace:changed", wrapped);
+      return {
+        unsubscribe: () => {
+          ipcRenderer.removeListener("workspace:changed", wrapped);
+        },
+      };
+    },
   },
 });
