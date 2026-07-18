@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { normalizeText, readJsonFile } from "./conversation/projectContext.js";
 import type { AiProvider } from "./aiProviderService.js";
-import type { ToolCall } from "../../src/types.js";
+import type { ToolCall } from "../../src/shared/types.js";
 
 export interface OpenAiMessage {
   role: "system" | "user" | "assistant" | "tool";

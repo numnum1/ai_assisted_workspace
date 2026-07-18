@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatMessage } from "../../../src/types.js";
+import type { ChatRequest, ChatMessage } from "../../../src/shared/types.js";
 import {
   normalizeText,
   estimateTokens,

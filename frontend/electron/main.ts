@@ -3,7 +3,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem, screen, Tray } fro
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ChapterComment, NodeMeta } from "../src/types.js";
+import type { ChapterComment, NodeMeta } from "../src/shared/types.js";
 import {
   browseForProject,
   getCurrentProject,
@@ -60,8 +60,8 @@ import {
   readStoryboard,
   writeStoryboard,
 } from "./services/storyboardService.js";
-import type { ArcData } from "../src/types.js";
-import type { StoryboardData } from "../src/features/storyboard/types.js";
+import type { ArcData } from "../src/shared/types.js";
+import type { StoryboardData } from "../src/shared/types.js";
 import {
   previewChatContext,
   startChatStream,

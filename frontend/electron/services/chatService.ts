@@ -4,7 +4,7 @@ import type {
   ChatMessage,
   ChapterComment,
   ToolCall,
-} from "../../src/types.js";
+} from "../../src/shared/types.js";
 import {
   normalizeText,
   estimateTokens,

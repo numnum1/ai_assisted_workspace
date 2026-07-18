@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { NodeMeta } from "../../src/types.js";
+import type { NodeMeta } from "../../src/shared/types.js";
 
 /**
  * Single source of truth for a book's structure. Replaces the old scattered

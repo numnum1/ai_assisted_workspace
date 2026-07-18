@@ -10,7 +10,7 @@ import type {
   CommentCategory,
   NodeMeta,
   SceneNode,
-} from "../../src/types.js";
+} from "../../src/shared/types.js";
 import {
   applyNodeMeta,
   generateId,

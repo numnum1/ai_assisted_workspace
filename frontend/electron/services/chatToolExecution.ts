@@ -13,7 +13,7 @@ import {
 } from "./grepService.js";
 import { createSnapshot } from "./snapshotService.js";
 import { safeJsonParse } from "./openAiClient.js";
-import type { ToolCall } from "../../src/types.js";
+import type { ToolCall } from "../../src/shared/types.js";
 
 export interface ToolExecutionResult {
   toolCallId: string;

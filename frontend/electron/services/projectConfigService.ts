@@ -7,7 +7,7 @@ import type {
   ProjectConfig,
   WorkspaceModeInfo,
   WorkspaceModeSchema,
-} from "../../src/types.js";
+} from "../../src/shared/types.js";
 import {
   createProvider,
   listProviders,

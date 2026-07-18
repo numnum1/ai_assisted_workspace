@@ -39,11 +39,21 @@ There is no dedicated browser preview: this is an Electron-only app and `window.
 
 ## Architecture
 
+### Renderer source layout (`apps/` + `shared/`)
+
+The renderer under `frontend/src/` is organized by **the program each OS window runs**, not by technical layer:
+
+- **`src/apps/<window>/`** — code exclusive to one window: `apps/book/` (the main editing app — App.tsx, and the whole editor/outliner/meta/arcs/ensemble/git/wiki/modals/settings machinery plus book-only hooks and the media-project registry), `apps/chat/` (the standalone KI-Chat window root), `apps/storyboard/` (the Pinnwand window: component, window root, colocated CSS). The book window is by far the largest — it is essentially "the rest of the app."
+- **`src/shared/`** — everything used by more than one window: `shared/api.ts`, `shared/types.ts`, `shared/electron/bridge.ts`, `shared/services/ai/`, `shared/config/`, `shared/utils/`, `shared/hooks/` (the chat stack + cross-cutting hooks like `usePreferences`/`useAppearanceCss`/`useBookProjects`), and `shared/components/{chat,common,shared}/`.
+- **`src/main.tsx`** (entry, routes `?window=` to the right app root) and **`src/index.css`** (global styles) stay at the `src/` root.
+
+The dependency rule is one-directional: `apps/*` may import from `shared/`, never the reverse (`shared/` must not import from `apps/`). Note: some path references further down in this doc predate this layout — mentally map `src/components/*` → `apps/book/components/*` (or `shared/components/*` for chat/common/shared), `src/hooks/*` → `apps/book/hooks/*` or `shared/hooks/*`, `src/api.ts`/`src/types.ts` → `shared/`, `src/App.tsx` → `apps/book/App.tsx`.
+
 ### Two processes, one bridge
 
 - **`frontend/electron/main.ts`** — Electron main process. Registers all IPC handlers as `ipcMain.handle("<namespace>:<action>", ...)`, one namespace per concern (`project:*`, `files:*`, `wiki:*`, `git:*`, `chat:*`, `chapter:*`, `book:*`, `subproject:*`, `typedFiles:*`, `vector:*`, `search:*`, `arcs:*`, `snapshots:*`, `llms:*`, `projectConfig:*`, `preferences:*`, `ensemble:*`). The actual logic for each namespace lives in a matching file under **`frontend/electron/services/`** (e.g. `filesService.ts`, `gitService.ts`, `chapterService.ts`, `vectorService.ts`, `chatService.ts` + `chatToolExecution.ts` + `openAiClient.ts` + `conversation/` for the chat/tool-calling pipeline).
-- **`frontend/electron/preload.ts`** — the only place allowed to call `ipcRenderer`. It builds the `window.appBridge` object (typed as `AppBridge` in `frontend/src/electron/bridge.ts`) that the renderer sees; namespaces mirror the main-process ones (`bridge.files.getContent(...)`, `bridge.chat.startStream(...)`, etc.).
-- **`frontend/src/api.ts`** — the renderer-side facade over `window.appBridge`. Every domain export (`filesApi`, `gitApi`, `chapterApi`, `wikiApi`, `vectorApi`, `projectApi`, `projectConfigApi`, `llmApi`, `bookApi`, `subprojectApi`, `typedFilesApi`, `snapshotsApi`, `arcApi`, `chatApi`, `searchApi`) is a thin `getAppBridge()?.xxx.yyy(...)` call that throws if the bridge is missing. UI code should go through `api.ts`, not `window.appBridge` directly.
+- **`frontend/electron/preload.ts`** — the only place allowed to call `ipcRenderer`. It builds the `window.appBridge` object (typed as `AppBridge` in `frontend/src/shared/electron/bridge.ts`) that the renderer sees; namespaces mirror the main-process ones (`bridge.files.getContent(...)`, `bridge.chat.startStream(...)`, etc.).
+- **`frontend/src/shared/api.ts`** — the renderer-side facade over `window.appBridge`. Every domain export (`filesApi`, `gitApi`, `chapterApi`, `wikiApi`, `vectorApi`, `projectApi`, `projectConfigApi`, `llmApi`, `bookApi`, `subprojectApi`, `typedFilesApi`, `snapshotsApi`, `arcApi`, `chatApi`, `searchApi`) is a thin `getAppBridge()?.xxx.yyy(...)` call that throws if the bridge is missing. UI code should go through `api.ts`, not `window.appBridge` directly.
 
 ### AI / chat layer (`frontend/src/services/ai/`)
 
@@ -101,7 +111,7 @@ No window opens on app start; the app lives in the OS tray until quit. `app.on("
 - Hooks: `useXxx.ts` under `src/hooks/`.
 - Shared types: `src/types.ts`.
 - Functional components only; explicit prop interfaces; dependency arrays always explicit (ESLint's `react-hooks` rules are enforced — `npm run lint` will catch `rules-of-hooks` and stale-ref violations).
-- **Feature folders** (`src/features/<name>/`): code that belongs exclusively to one self-contained feature (its component(s), colocated CSS, feature-only types) lives together there instead of being scattered across `components/`, `types.ts`, `index.css`. Code used by more than one feature (the bridge, `api.ts`, cross-cutting hooks like `usePreferences`/`useAppearanceCss`/`useBookProjects`) stays where it already is — `components/`, `hooks/`, `services/`, `api.ts` — rather than moving into a feature folder. `src/features/storyboard/` (the Pinnwand window) is the first and, so far, only feature migrated to this layout; it's the reference example before extending the pattern to other areas (e.g. `components/chat/`).
+- **App vs. shared** (see "Renderer source layout" above): window-exclusive code lives under `src/apps/<window>/`; anything imported by more than one window lives under `src/shared/`. When adding a file, ask "does more than one window use this?" — if yes, `shared/`; if no, the owning `apps/<window>/`. Never import from `apps/*` inside `shared/*`.
 
 ### Component style (`App.tsx` and its children)
 

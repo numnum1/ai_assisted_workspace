@@ -7,7 +7,7 @@ import type {
   ArcLink,
   Timeline,
   ArcCoverage,
-} from "../../src/types.js";
+} from "../../src/shared/types.js";
 
 function ensureProjectRoot(projectRoot: string | null): string {
   if (!projectRoot) {

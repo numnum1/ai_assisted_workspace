@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { AppBridge } from './electron/bridge';
+import type { AppBridge } from './shared/electron/bridge';
 
 declare global {
   interface Window {

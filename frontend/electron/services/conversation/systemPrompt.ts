@@ -1,4 +1,4 @@
-import type { ChatRequest } from "../../../src/types.js";
+import type { ChatRequest } from "../../../src/shared/types.js";
 import { getProjectModes } from "../projectConfigService.js";
 import { normalizeText, type PreviewBuildContext } from "./projectContext.js";
 

@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../../src/types.js";
+import type { ChatMessage } from "../../src/shared/types.js";
 import type { ContextBlock } from "./conversation/contextBlocks.js";
 
 export interface ChatContextPreviewResult {

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AppPreferences, AppearancePreferences } from "../../src/types.js";
+import type { AppPreferences, AppearancePreferences } from "../../src/shared/types.js";
 
 const APP_DIR_NAME = ".writing-assistant";
 const PREFERENCES_FILE_NAME = "preferences.json";

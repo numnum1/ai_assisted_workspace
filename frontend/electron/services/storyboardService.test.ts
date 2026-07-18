@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { readStoryboard, writeStoryboard } from "./storyboardService.js";
-import type { StoryboardData } from "../../src/features/storyboard/types.js";
+import type { StoryboardData } from "../../src/shared/types.js";
 
 let root: string;
 
