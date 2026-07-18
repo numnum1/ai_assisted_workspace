@@ -223,9 +223,9 @@ export interface AppBridge {
     coverage: () => Promise<import('../types.ts').ArcCoverage>;
   };
   storyboard?: {
-    read: () => Promise<import('../types.ts').StoryboardData>;
+    read: () => Promise<import('../features/storyboard/types.ts').StoryboardData>;
     write: (
-      data: import('../types.ts').StoryboardData,
+      data: import('../features/storyboard/types.ts').StoryboardData,
     ) => Promise<{ status: string }>;
     openWindow: () => Promise<{ status: string }>;
   };

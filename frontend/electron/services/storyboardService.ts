@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { StoryboardData } from "../../src/types.js";
+import type { StoryboardData } from "../../src/features/storyboard/types.js";
 
 function ensureProjectRoot(projectRoot: string | null): string {
   if (!projectRoot) {

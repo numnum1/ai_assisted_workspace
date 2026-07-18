@@ -60,7 +60,8 @@ import {
   readStoryboard,
   writeStoryboard,
 } from "./services/storyboardService.js";
-import type { ArcData, StoryboardData } from "../src/types.js";
+import type { ArcData } from "../src/types.js";
+import type { StoryboardData } from "../src/features/storyboard/types.js";
 import {
   previewChatContext,
   startChatStream,

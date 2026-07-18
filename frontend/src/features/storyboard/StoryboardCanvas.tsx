@@ -16,7 +16,8 @@ import type {
   StoryboardCardStatus,
   StoryboardData,
   StoryboardFrame,
-} from "../../types.ts";
+} from "./types.ts";
+import "./StoryboardCanvas.css";
 
 interface StoryboardCanvasProps {
   open: boolean;

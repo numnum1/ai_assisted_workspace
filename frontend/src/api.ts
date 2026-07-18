@@ -22,8 +22,8 @@ import type {
   Conversation,
   ArcData,
   ArcCoverage,
-  StoryboardData,
 } from "./types.ts";
+import type { StoryboardData } from "./features/storyboard/types.ts";
 import type { FileContentResult as ElectronFileContentResult } from "./electron/bridge.ts";
 import {
   buildConversationById,

@@ -101,6 +101,7 @@ No window opens on app start; the app lives in the OS tray until quit. `app.on("
 - Hooks: `useXxx.ts` under `src/hooks/`.
 - Shared types: `src/types.ts`.
 - Functional components only; explicit prop interfaces; dependency arrays always explicit (ESLint's `react-hooks` rules are enforced — `npm run lint` will catch `rules-of-hooks` and stale-ref violations).
+- **Feature folders** (`src/features/<name>/`): code that belongs exclusively to one self-contained feature (its component(s), colocated CSS, feature-only types) lives together there instead of being scattered across `components/`, `types.ts`, `index.css`. Code used by more than one feature (the bridge, `api.ts`, cross-cutting hooks like `usePreferences`/`useAppearanceCss`/`useBookProjects`) stays where it already is — `components/`, `hooks/`, `services/`, `api.ts` — rather than moving into a feature folder. `src/features/storyboard/` (the Pinnwand window) is the first and, so far, only feature migrated to this layout; it's the reference example before extending the pattern to other areas (e.g. `components/chat/`).
 
 ### Component style (`App.tsx` and its children)
 

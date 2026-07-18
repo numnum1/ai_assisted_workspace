@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { projectApi } from "./api.ts";
-import { usePreferences } from "./hooks/usePreferences.ts";
-import { useAppearanceCss } from "./hooks/useAppearanceCss.ts";
-import { StoryboardCanvas } from "./components/storyboard/StoryboardCanvas.tsx";
+import { projectApi } from "../../api.ts";
+import { usePreferences } from "../../hooks/usePreferences.ts";
+import { useAppearanceCss } from "../../hooks/useAppearanceCss.ts";
+import { StoryboardCanvas } from "./StoryboardCanvas.tsx";
 
 /**
  * Root of the standalone Pinnwand window (loaded with `?window=storyboard`).

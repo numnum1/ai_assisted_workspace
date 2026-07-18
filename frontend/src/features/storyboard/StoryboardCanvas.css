@@ -1,0 +1,496 @@
+.storyboard-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 32px;
+}
+
+.storyboard-dialog {
+    width: 96vw;
+    height: 94vh;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+
+/* Dedicated OS window: fill the whole window, no dialog framing. */
+.storyboard-window {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-primary);
+}
+
+.storyboard-dialog--full {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.storyboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.storyboard-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.storyboard-header-icon {
+    color: var(--accent);
+}
+
+.storyboard-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.storyboard-save-state {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 4px;
+}
+
+.storyboard-save-state--err {
+    color: var(--red);
+}
+
+.storyboard-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.storyboard-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.storyboard-icon-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.storyboard-icon-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.storyboard-spin {
+    animation: spin 0.8s linear infinite;
+}
+
+.storyboard-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.storyboard-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+.storyboard-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    background: var(--bg-primary);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.storyboard-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
+
+.storyboard-btn--active {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.storyboard-btn--danger {
+    color: var(--red);
+    border-color: var(--red);
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+}
+
+.storyboard-btn--danger-outline {
+    color: var(--red);
+    border-color: var(--red);
+}
+
+.storyboard-btn--danger-outline:hover:not(:disabled) {
+    background: var(--red);
+    color: #fff;
+}
+
+.storyboard-btn--danger-solid {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+}
+
+.storyboard-btn--danger-solid:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.storyboard-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    padding: 24px;
+}
+
+.storyboard-confirm-dialog {
+    width: 360px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.storyboard-confirm-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.storyboard-confirm-text {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.storyboard-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.storyboard-filterbar {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding-left: 4px;
+    border-left: 1px solid var(--border);
+    margin-left: 4px;
+}
+
+.storyboard-chip {
+    padding: 3px 9px;
+    font-size: 11px;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.storyboard-chip:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.storyboard-chip--active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.storyboard-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.storyboard-canvas {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    background:
+        radial-gradient(circle, var(--border) 1px, transparent 1px) 0 0 / 28px 28px;
+    background-color: var(--bg-primary);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.storyboard-canvas:active {
+    cursor: grabbing;
+}
+
+.storyboard-world {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+}
+
+.storyboard-status {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.storyboard-status--err {
+    color: var(--red);
+}
+
+.storyboard-empty {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    pointer-events: none;
+}
+
+.storyboard-frame {
+    position: absolute;
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    background: rgba(127, 127, 127, 0.05);
+    cursor: move;
+}
+
+.storyboard-frame--sel {
+    border-style: solid;
+    border-color: var(--accent);
+}
+
+.storyboard-frame-title {
+    position: absolute;
+    top: -10px;
+    left: 10px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--bg-primary);
+}
+
+.storyboard-frame-resize {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--accent);
+    opacity: 0.55;
+    cursor: nwse-resize;
+}
+
+.storyboard-frame-resize:hover {
+    opacity: 1;
+}
+
+.storyboard-card {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 9px 11px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    cursor: grab;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.storyboard-card:active {
+    cursor: grabbing;
+}
+
+.storyboard-card--sel {
+    box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.storyboard-card--graduated {
+    opacity: 0.7;
+}
+
+.storyboard-card--discarded {
+    opacity: 0.5;
+    filter: grayscale(0.6);
+}
+
+.storyboard-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+}
+
+.storyboard-card-placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-style: italic;
+}
+
+.storyboard-card-note {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+}
+
+.storyboard-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: auto;
+}
+
+.storyboard-tag {
+    padding: 1px 6px;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+}
+
+.storyboard-tag--book {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.storyboard-sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    overflow: auto;
+    padding: 14px;
+    background: var(--bg-secondary);
+}
+
+.storyboard-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.storyboard-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.storyboard-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.storyboard-input {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+    background: var(--bg-primary);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+.storyboard-textarea {
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.4;
+}
+
+.storyboard-swatches {
+    display: flex;
+    gap: 6px;
+}
+
+.storyboard-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+}
+
+.storyboard-swatch--active {
+    border-color: var(--text);
+}
+
+.storyboard-book-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.storyboard-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+}
