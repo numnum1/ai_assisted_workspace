@@ -217,21 +217,50 @@ function BlueprintCanvasInner() {
     [nodes, updateNodeData, setEdges],
   );
 
+  /** Spreads event/reroute nodes onto non-overlapping vertical lanes purely
+   * from their time ranges — this is the "collapse to a lane if you fit,
+   * else make a new one" packer, re-run automatically whenever any node's
+   * time range could have changed so overlapping nodes never stay stacked. */
+  const autoArrange = useCallback(() => {
+    setNodes((nds) => {
+      const dataList = nds
+        .map((n) => n.data as unknown as BlueprintNode)
+        .filter((n) => n.kind === "event" || n.kind === "reroute");
+      const lanes = assignLanes(dataList);
+      return nds.map((n) => {
+        const lane = lanes.get(n.id);
+        if (lane === undefined) return n;
+        return { ...n, position: { ...n.position, y: BASE_Y + lane * NODE_LANE_HEIGHT } };
+      });
+    });
+  }, [setNodes]);
+
+  /** Apply a from/to change and immediately re-settle every node's lane —
+   * the automatic counterpart to the manual "Automatisch anordnen" action. */
+  const updateNodeTime = useCallback(
+    (nodeId: string, patch: Partial<Pick<BlueprintNode, "from" | "to">>) => {
+      updateNodeData(nodeId, patch);
+      autoArrange();
+    },
+    [updateNodeData, autoArrange],
+  );
+
   const onNodeDragStop = useCallback(
     (_event: unknown, node: Node) => {
       const current = node.data as unknown as BlueprintNode;
       if (current.kind !== "event" && current.kind !== "reroute") return;
       const from = Math.round((node.position.x / TIME_UNIT_PX) * 100) / 100;
+      if (from === current.from) return; // pure vertical drag — leave lanes as the user set them
       const duration =
         current.from !== undefined && current.to !== undefined
           ? current.to - current.from
           : undefined;
-      updateNodeData(node.id, {
+      updateNodeTime(node.id, {
         from,
         to: duration !== undefined ? from + duration : current.to,
       });
     },
-    [updateNodeData],
+    [updateNodeTime],
   );
 
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
@@ -274,8 +303,9 @@ function BlueprintCanvasInner() {
           data: node as unknown as Record<string, unknown>,
         },
       ]);
+      autoArrange();
     },
-    [setNodes],
+    [setNodes, autoArrange],
   );
 
   const addColumn = useCallback((flowPosition: XYPosition) => {
@@ -293,20 +323,6 @@ function BlueprintCanvasInner() {
   const removeColumn = useCallback((id: string) => {
     setColumns((cols) => cols.filter((c) => c.id !== id));
   }, []);
-
-  const autoArrange = useCallback(() => {
-    setNodes((nds) => {
-      const dataList = nds
-        .map((n) => n.data as unknown as BlueprintNode)
-        .filter((n) => n.kind === "event" || n.kind === "reroute");
-      const lanes = assignLanes(dataList);
-      return nds.map((n) => {
-        const lane = lanes.get(n.id);
-        if (lane === undefined) return n;
-        return { ...n, position: { ...n.position, y: BASE_Y + lane * NODE_LANE_HEIGHT } };
-      });
-    });
-  }, [setNodes]);
 
   /** Loads a graph level into the live React Flow state. Does not itself
    * touch `dataRef` — the autosave effect keeps the *previous* level's data
@@ -419,6 +435,7 @@ function BlueprintCanvasInner() {
     }
     loadGraphIntoRf(breadcrumbs[index].graphId);
     setBreadcrumbs(breadcrumbs.slice(0, index + 1));
+    autoArrange(); // a container's time may have just changed and now overlaps a sibling
   };
 
   const removePin = useCallback(
@@ -536,6 +553,8 @@ function BlueprintCanvasInner() {
           onChange={(patch) => {
             if (patch.outputs) {
               setNodeOutputs(selectedNode.id, patch.outputs);
+            } else if ("from" in patch || "to" in patch) {
+              updateNodeTime(selectedNode.id, patch);
             } else {
               updateNodeData(selectedNode.id, patch);
             }
