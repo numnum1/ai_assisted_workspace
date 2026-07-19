@@ -150,11 +150,17 @@ function BlueprintCanvasInner() {
     }, 400);
   }, [nodes, edges, columns]);
 
+  /** An input pin accepts at most one wire — connecting a new one replaces
+   * whatever was already plugged into that node's implicit "in" pin. */
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) =>
-        addEdge({ ...connection, id: newId("edge"), targetHandle: "in" }, eds),
-      );
+      setEdges((eds) => {
+        const withoutExistingTarget = eds.filter((e) => e.target !== connection.target);
+        return addEdge(
+          { ...connection, id: newId("edge"), targetHandle: "in" },
+          withoutExistingTarget,
+        );
+      });
     },
     [setEdges],
   );

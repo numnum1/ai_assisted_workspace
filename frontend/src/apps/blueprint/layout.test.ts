@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assignLanes, deriveSpan, syncTunnelExits } from "./layout.ts";
-import type { BlueprintGraph, BlueprintNode } from "../shared/types.ts";
+import type { BlueprintGraph, BlueprintNode } from "../../shared/types.ts";
 
 function event(id: string, from: number, to?: number): BlueprintNode {
   return {
