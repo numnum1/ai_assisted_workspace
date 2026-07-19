@@ -683,3 +683,80 @@ export interface EventRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * Blueprint — the world-chronology graph (the *Fabula*: what happens in the
+ * story world), an UE-Blueprint-style node graph orthogonal to the Buch
+ * narration and the Wiki. Nodes are self-contained world events connected by
+ * *named execution pins* (narrative flow, not code execution). Time runs along
+ * the X-axis as a unitless `from`/`to` range; a node can hold its own inner
+ * graph (`subGraphId`) like a collapsed UE function. Blueprint is intended to
+ * eventually supersede the standalone Event system; nodes carry the same
+ * `idee`/`kanon` status as `EventRecord` so that migration stays trivial.
+ */
+export type BlueprintNodeStatus = "idee" | "kanon";
+
+/** `event` = content node; `reroute` = wire pass-through; `entry`/`exit` = the
+ * tunnel nodes mirroring a container's pins inside its sub-graph. */
+export type BlueprintNodeKind = "event" | "reroute" | "entry" | "exit";
+
+/** A named execution output pin. Its label carries story content. */
+export interface BlueprintPin {
+  id: string;
+  label: string;
+}
+
+export interface BlueprintNode {
+  id: string;
+  kind: BlueprintNodeKind;
+  title: string;
+  description: string;
+  status: BlueprintNodeStatus;
+  /** Position within this node's own graph. */
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  color?: string;
+  /** Von–Bis on the unitless time axis (X). */
+  from?: number;
+  to?: number;
+  /** Named output pins; every node has a single implicit input pin `"in"`. */
+  outputs: BlueprintPin[];
+  /** When set, this node is a container: it owns the referenced sub-graph. */
+  subGraphId?: string;
+  /** Phase 2: arc tags as `@[..](arc:ID)` / `@[..](arcpoint:ID)` mentions. */
+  arcRefs?: string;
+}
+
+/** A directed execution wire from a node's named output pin to another node's
+ * implicit input. Several edges may target the same node (convergence). */
+export interface BlueprintEdge {
+  id: string;
+  source: string;
+  sourcePin: string;
+  target: string;
+}
+
+/** A named, ordered time zone rendered as a full-height background band. */
+export interface BlueprintColumn {
+  id: string;
+  label: string;
+  order: number;
+  from: number;
+  to: number;
+}
+
+export interface BlueprintGraph {
+  id: string;
+  nodes: BlueprintNode[];
+  edges: BlueprintEdge[];
+  columns?: BlueprintColumn[];
+}
+
+/** The full Blueprint document: a normalized store holding every graph level
+ * flat (no deep JSON nesting), so arbitrary sub-graph depth stays cheap. */
+export interface BlueprintData {
+  rootGraphId: string;
+  graphs: Record<string, BlueprintGraph>;
+}

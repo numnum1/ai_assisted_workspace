@@ -25,6 +25,7 @@ import type {
 } from "./types.ts";
 import type { StoryboardData } from "./types.ts";
 import type { EventRecord, EventStatus } from "./types.ts";
+import type { BlueprintData } from "./types.ts";
 import type { FileContentResult as ElectronFileContentResult } from "./electron/bridge.ts";
 import {
   buildConversationById,
@@ -901,6 +902,24 @@ export const storyboardApi = {
   },
 };
 
+export const blueprintApi = {
+  read: async (): Promise<BlueprintData> => {
+    const api = getElectronApi();
+    if (api?.blueprint) return api.blueprint.read();
+    throw new Error("Electron bridge not available");
+  },
+  write: async (data: BlueprintData): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.blueprint) return api.blueprint.write(data);
+    throw new Error("Electron bridge not available");
+  },
+  openWindow: async (): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.blueprint) return api.blueprint.openWindow();
+    throw new Error("Electron bridge not available");
+  },
+};
+
 export const eventsApi = {
   list: async (): Promise<EventRecord[]> => {
     const api = getElectronApi();
@@ -934,7 +953,13 @@ export const eventsApi = {
 
 export const windowApi = {
   open: async (
-    kind: "book" | "storyboard" | "chat" | "events" | "settings",
+    kind:
+      | "book"
+      | "storyboard"
+      | "chat"
+      | "events"
+      | "settings"
+      | "blueprint",
   ): Promise<{ status: string }> => {
     const api = getElectronApi();
     if (api?.window) return api.window.open(kind);

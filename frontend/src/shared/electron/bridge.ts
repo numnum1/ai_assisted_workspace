@@ -229,6 +229,13 @@ export interface AppBridge {
     ) => Promise<{ status: string }>;
     openWindow: () => Promise<{ status: string }>;
   };
+  blueprint?: {
+    read: () => Promise<import('../types.ts').BlueprintData>;
+    write: (
+      data: import('../types.ts').BlueprintData,
+    ) => Promise<{ status: string }>;
+    openWindow: () => Promise<{ status: string }>;
+  };
   events?: {
     list: () => Promise<import('../types.ts').EventRecord[]>;
     create: (
@@ -475,7 +482,7 @@ export interface AppBridge {
     minimize: () => Promise<void>;
     close: () => Promise<void>;
     open: (
-      kind: "book" | "storyboard" | "chat" | "events" | "settings",
+      kind: "book" | "storyboard" | "chat" | "events" | "settings" | "blueprint",
     ) => Promise<{ status: string }>;
     onWorkspaceChanged: (
       listener: (payload: unknown) => void,

@@ -1,0 +1,130 @@
+.bp-root {
+  width: 100%;
+  height: 100vh;
+  background: #1b1b1d;
+  color: #e8e8e8;
+}
+
+.bp-root .react-flow__attribution {
+  background: transparent;
+  color: #666;
+}
+
+.bp-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: rgba(28, 28, 30, 0.9);
+  border: 1px solid #3a3a3d;
+  border-radius: 8px;
+}
+
+.bp-toolbar button {
+  background: #2d2d31;
+  color: #e8e8e8;
+  border: 1px solid #4a4a4f;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bp-toolbar button:hover {
+  background: #3a3a40;
+}
+
+.bp-error {
+  padding: 24px;
+  font-size: 14px;
+  color: #d88;
+}
+
+/* ---- Node ---- */
+.bp-node {
+  position: relative;
+  min-width: 180px;
+  background: linear-gradient(#2a2a2e, #232327);
+  border: 1px solid #4a4a50;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+
+.bp-node.is-selected {
+  border-color: #f0a020;
+  box-shadow: 0 0 0 1px #f0a020, 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.bp-node__header {
+  padding: 6px 12px;
+  font-weight: 600;
+  color: #f2f2f2;
+  border-bottom: 1px solid #3a3a40;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(#3a3a42, #303036);
+}
+
+.bp-node--kanon .bp-node__header {
+  background: linear-gradient(#2f4a34, #26402c);
+}
+
+.bp-node--idee .bp-node__header {
+  background: linear-gradient(#3a3a42, #303036);
+}
+
+.bp-node__outputs {
+  padding: 6px 0;
+}
+
+.bp-node__output {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 3px 14px 3px 12px;
+  color: #cfcfd4;
+}
+
+.bp-node__output--empty {
+  justify-content: center;
+  color: #666;
+}
+
+.bp-node__output-label {
+  white-space: nowrap;
+}
+
+/* ---- Pins (execution handles) ---- */
+.bp-pin {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #1b1b1d;
+  border: 2px solid #d8d8d8;
+}
+
+.bp-pin.bp-pin--in {
+  left: -6px;
+  top: 15px;
+}
+
+.bp-pin.bp-pin--out {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.react-flow__handle.bp-pin.connectionindicator:hover {
+  background: #f0a020;
+  border-color: #f0a020;
+}
+
+/* ---- Edges ---- */
+.bp-root .react-flow__edge-path {
+  stroke: #e6e6e6;
+  stroke-width: 2;
+}
+
+.bp-root .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #f0a020;
+}

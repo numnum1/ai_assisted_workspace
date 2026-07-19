@@ -62,6 +62,10 @@ import {
   writeStoryboard,
 } from "./services/storyboardService.js";
 import {
+  readBlueprint,
+  writeBlueprint,
+} from "./services/blueprintService.js";
+import {
   listEvents,
   createEvent,
   updateEvent,
@@ -70,6 +74,7 @@ import {
 import type { ArcData } from "../src/shared/types.js";
 import type { StoryboardData } from "../src/shared/types.js";
 import type { EventStatus } from "../src/shared/types.js";
+import type { BlueprintData } from "../src/shared/types.js";
 import {
   previewChatContext,
   startChatStream,
@@ -217,6 +222,17 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("storyboard:openWindow", () => {
     openWindow("storyboard");
+    return { status: "ok" };
+  });
+
+  ipcMain.handle("blueprint:read", () =>
+    readBlueprint(getCurrentProjectPath()),
+  );
+  ipcMain.handle("blueprint:write", (_event, data: BlueprintData) =>
+    writeBlueprint(getCurrentProjectPath(), data),
+  );
+  ipcMain.handle("blueprint:openWindow", () => {
+    openWindow("blueprint");
     return { status: "ok" };
   });
 
@@ -886,7 +902,13 @@ function registerIpcHandlers(): void {
  * first suggestion instead of popping up the menu. */
 let pendingSpellFixWindowId: number | null = null;
 
-type WindowKind = "book" | "storyboard" | "chat" | "events" | "settings";
+type WindowKind =
+  | "book"
+  | "storyboard"
+  | "chat"
+  | "events"
+  | "settings"
+  | "blueprint";
 
 const WINDOW_CONFIG: Record<
   WindowKind,
@@ -897,6 +919,7 @@ const WINDOW_CONFIG: Record<
   chat: { width: 900, height: 800, title: "KI-Chat" },
   events: { width: 420, height: 620, title: "Ereignisse" },
   settings: { width: 640, height: 720, title: "Einstellungen" },
+  blueprint: { width: 1400, height: 900, title: "Blueprint" },
 };
 
 const appIconPath = app.isPackaged
@@ -1044,6 +1067,7 @@ function buildTrayMenu(): Menu {
     { label: "Pinnwand", click: () => openWindow("storyboard") },
     { label: "KI-Chat", click: () => openWindow("chat") },
     { label: "Ereignisse", click: () => openWindow("events") },
+    { label: "Blueprint", click: () => openWindow("blueprint") },
     { label: "Einstellungen", click: () => openWindow("settings") },
     { type: "separator" },
     {

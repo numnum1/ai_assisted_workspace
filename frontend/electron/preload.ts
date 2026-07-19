@@ -343,6 +343,11 @@ contextBridge.exposeInMainWorld("appBridge", {
     write: (data: unknown) => ipcRenderer.invoke("storyboard:write", data),
     openWindow: () => ipcRenderer.invoke("storyboard:openWindow"),
   },
+  blueprint: {
+    read: () => ipcRenderer.invoke("blueprint:read"),
+    write: (data: unknown) => ipcRenderer.invoke("blueprint:write", data),
+    openWindow: () => ipcRenderer.invoke("blueprint:openWindow"),
+  },
   events: {
     list: () => ipcRenderer.invoke("events:list"),
     create: (title: string, summary: string) =>
