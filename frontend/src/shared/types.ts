@@ -725,6 +725,9 @@ export interface BlueprintNode {
   outputs: BlueprintPin[];
   /** When set, this node is a container: it owns the referenced sub-graph. */
   subGraphId?: string;
+  /** `entry`/`exit` only: the pin id on the parent container this tunnel
+   * mirrors — `"in"` for the entry, or the container output pin id it exits. */
+  pinId?: string;
   /** Phase 2: arc tags as `@[..](arc:ID)` / `@[..](arcpoint:ID)` mentions. */
   arcRefs?: string;
 }

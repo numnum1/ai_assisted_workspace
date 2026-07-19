@@ -4,6 +4,7 @@ interface BlueprintDetailsPanelProps {
   node: BlueprintNode;
   onChange: (patch: Partial<BlueprintNode>) => void;
   onRemovePin: (pinId: string) => void;
+  onOpenOrCreateSubGraph: () => void;
 }
 
 function newPinId(): string {
@@ -16,7 +17,9 @@ export function BlueprintDetailsPanel({
   node,
   onChange,
   onRemovePin,
+  onOpenOrCreateSubGraph,
 }: BlueprintDetailsPanelProps) {
+  const isContainer = node.subGraphId !== undefined;
   const setPinLabel = (pinId: string, label: string) => {
     onChange({
       outputs: node.outputs.map((p) => (p.id === pinId ? { ...p, label } : p)),
@@ -57,6 +60,7 @@ export function BlueprintDetailsPanel({
           <label>Von</label>
           <input
             type="number"
+            disabled={isContainer}
             value={node.from ?? ""}
             onChange={(e) =>
               onChange({
@@ -69,6 +73,7 @@ export function BlueprintDetailsPanel({
           <label>Bis</label>
           <input
             type="number"
+            disabled={isContainer}
             value={node.to ?? ""}
             onChange={(e) =>
               onChange({
@@ -77,6 +82,16 @@ export function BlueprintDetailsPanel({
             }
           />
         </div>
+      </div>
+      <div className="bp-details__field">
+        <label>Sub-Graph</label>
+        <button
+          type="button"
+          className="bp-details__add-pin"
+          onClick={onOpenOrCreateSubGraph}
+        >
+          {isContainer ? "Sub-Graph öffnen" : "Sub-Graph erstellen"}
+        </button>
       </div>
       <div className="bp-details__field">
         <label>Ausgänge</label>

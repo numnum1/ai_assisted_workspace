@@ -167,6 +167,47 @@
   transform: translateY(-50%);
 }
 
+/* ---- Tunnel nodes (entry/exit) ---- */
+.bp-tunnel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 110px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 15px;
+  background: linear-gradient(#33333a, #29292e);
+  border: 1px solid #55555c;
+  font-size: 12px;
+  color: #d8d8dc;
+}
+
+.bp-tunnel--entry {
+  justify-content: flex-start;
+}
+
+.bp-tunnel--exit {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.bp-tunnel.is-selected {
+  border-color: #f0a020;
+  box-shadow: 0 0 0 1px #f0a020;
+}
+
+.bp-tunnel .bp-pin--in {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.bp-tunnel .bp-pin--out {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 /* ---- Edges ---- */
 .bp-root .react-flow__edge-path {
   stroke: #e6e6e6;
@@ -278,6 +319,52 @@
   padding: 0 4px;
 }
 
+/* ---- Breadcrumbs ---- */
+.bp-breadcrumbs {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: rgba(28, 28, 30, 0.9);
+  border: 1px solid #3a3a3d;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #cfcfd4;
+}
+
+.bp-breadcrumbs__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bp-breadcrumbs__sep {
+  color: #666;
+}
+
+.bp-breadcrumbs__current {
+  color: #f0a020;
+  font-weight: 600;
+}
+
+.bp-breadcrumbs button {
+  background: transparent;
+  border: none;
+  color: #cfcfd4;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+
+.bp-breadcrumbs button:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
 /* ---- Details panel ---- */
 .bp-details {
   flex: 0 0 300px;
@@ -313,6 +400,11 @@
   padding: 6px 8px;
   font-size: 13px;
   font-family: inherit;
+}
+
+.bp-details__field input:disabled {
+  color: #8a8a90;
+  background: #232327;
 }
 
 .bp-details__row {
