@@ -1,5 +1,6 @@
 import { dialog, shell } from 'electron';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import type { FileNode } from '../../src/shared/types.js';
 
@@ -28,6 +29,48 @@ interface ProjectState {
 const state: ProjectState = {
   projectPath: null,
 };
+
+// ── Last-project persistence ──────────────────────────────────────────
+// Main-process-owned (unlike the renderer's own localStorage copy) so the
+// project is already open by the time any window — Buch, Pinnwand,
+// Ereignisse, KI-Chat — is opened from the tray, not only after the Buch
+// window happens to run its restore-on-mount effect.
+const APP_DIR_NAME = '.writing-assistant';
+const LAST_PROJECT_FILE_NAME = 'last-project.json';
+
+function getAppDataDir(): string {
+  if (process.env.APP_DATA_DIR && process.env.APP_DATA_DIR.trim()) {
+    return process.env.APP_DATA_DIR.trim();
+  }
+  return path.join(os.homedir(), APP_DIR_NAME);
+}
+
+function getLastProjectFilePath(): string {
+  return path.join(getAppDataDir(), LAST_PROJECT_FILE_NAME);
+}
+
+async function saveLastProjectPath(projectPath: string): Promise<void> {
+  try {
+    await fs.mkdir(getAppDataDir(), { recursive: true });
+    await fs.writeFile(
+      getLastProjectFilePath(),
+      JSON.stringify({ path: projectPath }, null, 2),
+      'utf-8',
+    );
+  } catch (err) {
+    console.error('[projectService] Failed to persist last project path:', err);
+  }
+}
+
+async function loadLastProjectPath(): Promise<string | null> {
+  try {
+    const raw = await fs.readFile(getLastProjectFilePath(), 'utf-8');
+    const parsed = JSON.parse(raw) as { path?: string };
+    return parsed.path?.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 function normalizeProjectPath(inputPath: string): string {
   return path.resolve(inputPath);
@@ -146,6 +189,7 @@ export async function openProject(projectPath: string): Promise<ProjectOpenResul
   await ensureDirectory(normalizedPath);
 
   state.projectPath = normalizedPath;
+  await saveLastProjectPath(normalizedPath);
 
   return {
     status: 'ok',
@@ -153,6 +197,22 @@ export async function openProject(projectPath: string): Promise<ProjectOpenResul
     tree: await buildFileNode(normalizedPath, normalizedPath),
     initialized: await isInitializedProject(normalizedPath),
   };
+}
+
+/**
+ * Reopen the last-used project at app startup, before any window (tray menu
+ * entries all assume `getCurrentProjectPath()` is already set). A missing or
+ * no-longer-existing path is silently ignored — the user just sees the normal
+ * "no project" state instead of a crash.
+ */
+export async function restoreLastProject(): Promise<void> {
+  const last = await loadLastProjectPath();
+  if (!last) return;
+  try {
+    await openProject(last);
+  } catch (err) {
+    console.error('[projectService] Failed to restore last project:', err);
+  }
 }
 
 export async function revealProject(): Promise<{ status: string }> {

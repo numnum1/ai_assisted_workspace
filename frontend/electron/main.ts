@@ -9,6 +9,7 @@ import {
   getCurrentProject,
   getCurrentProjectPath,
   openProject,
+  restoreLastProject,
   revealProject,
 } from "./services/projectService.js";
 import {
@@ -1072,9 +1073,10 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on("second-instance", () => openWindow("book"));
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     registerIpcHandlers();
+    await restoreLastProject();
     createTray();
 
     app.on("activate", () => {
