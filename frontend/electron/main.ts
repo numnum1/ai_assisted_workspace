@@ -822,6 +822,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle("projectConfig:resetCommentCategories", () =>
     resetProjectCommentCategories(getCurrentProjectPath()),
   );
+  ipcMain.handle("projectConfig:notifyChanged", () => {
+    broadcast("workspace:changed", { reason: "settings" });
+    return { status: "ok" };
+  });
   ipcMain.handle("preferences:get", () => getPreferences());
   ipcMain.handle("preferences:set", (_event, patch) =>
     patchPreferences(patch),
@@ -882,7 +886,7 @@ function registerIpcHandlers(): void {
  * first suggestion instead of popping up the menu. */
 let pendingSpellFixWindowId: number | null = null;
 
-type WindowKind = "book" | "storyboard" | "chat" | "events";
+type WindowKind = "book" | "storyboard" | "chat" | "events" | "settings";
 
 const WINDOW_CONFIG: Record<
   WindowKind,
@@ -892,6 +896,7 @@ const WINDOW_CONFIG: Record<
   storyboard: { width: 1200, height: 820, title: "Pinnwand" },
   chat: { width: 900, height: 800, title: "KI-Chat" },
   events: { width: 420, height: 620, title: "Ereignisse" },
+  settings: { width: 640, height: 720, title: "Einstellungen" },
 };
 
 const appIconPath = app.isPackaged
@@ -1039,6 +1044,7 @@ function buildTrayMenu(): Menu {
     { label: "Pinnwand", click: () => openWindow("storyboard") },
     { label: "KI-Chat", click: () => openWindow("chat") },
     { label: "Ereignisse", click: () => openWindow("events") },
+    { label: "Einstellungen", click: () => openWindow("settings") },
     { type: "separator" },
     {
       label: "Beim Login starten",

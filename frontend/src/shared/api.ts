@@ -323,6 +323,12 @@ export const projectConfigApi = {
     if (api?.projectConfig) return api.projectConfig.resetCommentCategories();
     throw new Error("Electron bridge not available");
   },
+  /** Tell every window (Buch included) that project config/modes changed elsewhere. */
+  notifyChanged: async (): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.projectConfig) return api.projectConfig.notifyChanged();
+    throw new Error("Electron bridge not available");
+  },
 };
 
 export interface LlmCreateRequest {
@@ -928,7 +934,7 @@ export const eventsApi = {
 
 export const windowApi = {
   open: async (
-    kind: "book" | "storyboard" | "chat" | "events",
+    kind: "book" | "storyboard" | "chat" | "events" | "settings",
   ): Promise<{ status: string }> => {
     const api = getElectronApi();
     if (api?.window) return api.window.open(kind);

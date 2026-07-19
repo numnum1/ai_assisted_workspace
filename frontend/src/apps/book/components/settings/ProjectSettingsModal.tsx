@@ -28,10 +28,11 @@ import { CommentCategoriesTab } from "./CommentCategoriesTab.tsx";
 
 interface ProjectSettingsModalProps {
   onClose: () => void;
-  onModesChanged: () => void;
-  onGeneralConfigSaved?: () => void;
-  /** Bumps workspace mode cache in the app (file tree labels, subproject dialog) after plugin list refresh */
-  onWorkspacePluginsChanged?: () => void;
+  /**
+   * "overlay" = centered dialog over the app with a dark backdrop;
+   * "window" = fills a dedicated OS window (no backdrop, no click-outside-close).
+   */
+  variant?: "overlay" | "window";
 }
 
 type Tab =
@@ -256,9 +257,7 @@ function RulesEditor({
 
 export function ProjectSettingsModal({
   onClose,
-  onModesChanged,
-  onGeneralConfigSaved,
-  onWorkspacePluginsChanged,
+  variant = "overlay",
 }: ProjectSettingsModalProps) {
   const { preferences } = usePreferences();
   const uiTheme: "light" | "dark" =
@@ -338,7 +337,7 @@ export function ProjectSettingsModal({
         ]);
         setWorkspaceModesDir(dir);
         setWorkspaceModesList(list);
-        if (syncApp) onWorkspacePluginsChanged?.();
+        if (syncApp) void projectConfigApi.notifyChanged();
       } catch (err) {
         setError(
           err instanceof Error
@@ -349,7 +348,7 @@ export function ProjectSettingsModal({
         setLoadingWorkspacePlugins(false);
       }
     },
-    [onWorkspacePluginsChanged],
+    [],
   );
 
   useEffect(() => {
@@ -418,7 +417,7 @@ export function ProjectSettingsModal({
       setInitialized(true);
       const mds = await projectConfigApi.getModes();
       setModes(mds);
-      onModesChanged();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Initialization failed");
     } finally {
@@ -436,7 +435,7 @@ export function ProjectSettingsModal({
       setInitialized(true);
       const mds = await projectConfigApi.getModes();
       setModes(mds);
-      onModesChanged();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Initialization failed");
     } finally {
@@ -453,7 +452,7 @@ export function ProjectSettingsModal({
       await projectConfigApi.update(config);
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 2000);
-      onGeneralConfigSaved?.();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -468,7 +467,7 @@ export function ProjectSettingsModal({
       await projectConfigApi.update(config);
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 2000);
-      onGeneralConfigSaved?.();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -529,7 +528,7 @@ export function ProjectSettingsModal({
       setModes(updated);
       setModeForm(null);
       setEditingModeId(null);
-      onModesChanged();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save mode");
     } finally {
@@ -547,7 +546,7 @@ export function ProjectSettingsModal({
         setModeForm(null);
         setEditingModeId(null);
       }
-      onModesChanged();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete mode");
     } finally {
@@ -569,7 +568,7 @@ export function ProjectSettingsModal({
       setModes(defaults);
       setModeForm(null);
       setEditingModeId(null);
-      onModesChanged();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Modi konnten nicht zurückgesetzt werden",
@@ -593,7 +592,7 @@ export function ProjectSettingsModal({
       await projectConfigApi.saveMode(newId, duplicate);
       const updated = await projectConfigApi.getModes();
       setModes(updated);
-      onModesChanged();
+      void projectConfigApi.notifyChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to duplicate mode");
     } finally {
@@ -715,8 +714,14 @@ export function ProjectSettingsModal({
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="ps-overlay" onClick={onClose}>
-      <div className="ps-modal" onClick={(e) => e.stopPropagation()}>
+    <div
+      className={`ps-overlay${variant === "window" ? " ps-overlay--window" : ""}`}
+      onClick={variant === "overlay" ? onClose : undefined}
+    >
+      <div
+        className={`ps-modal${variant === "window" ? " ps-modal--full" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="ps-header">
           <Settings size={15} className="ps-header-icon" />
@@ -1369,7 +1374,7 @@ export function ProjectSettingsModal({
               <div className="ps-tab-content ps-wp-tab">
                 <p className="ps-hint">
                   Lege hier eigene Medien-Projekt-Typen ab: eine YAML-Datei pro
-                  Modus (Dateiname = id, z. B. <code>my-mode.yaml</code>). Mit{" "}
+                  Modus (Dateiname = id, z. B. <code>my-mode.yaml</code>). Mit{" "}
                   <code>mediaType: true</code> erscheint der Typ im Kontextmenü
                   „Als Medien-Projekt einrichten“. Nach Änderungen auf der
                   Festplatte unten auf „App neu laden“ klicken.

@@ -286,6 +286,7 @@ export interface AppBridge {
     ) => Promise<CommentCategoryDef>;
     deleteCommentCategory: (id: string) => Promise<{ status: string }>;
     resetCommentCategories: () => Promise<CommentCategoryDef[]>;
+    notifyChanged: () => Promise<{ status: string }>;
   };
   llms?: {
     list: () => Promise<LlmsListResponse>;
@@ -474,7 +475,7 @@ export interface AppBridge {
     minimize: () => Promise<void>;
     close: () => Promise<void>;
     open: (
-      kind: "book" | "storyboard" | "chat" | "events",
+      kind: "book" | "storyboard" | "chat" | "events" | "settings",
     ) => Promise<{ status: string }>;
     onWorkspaceChanged: (
       listener: (payload: unknown) => void,

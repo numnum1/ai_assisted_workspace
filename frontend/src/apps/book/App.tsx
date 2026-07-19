@@ -27,7 +27,7 @@ import type {
   Conversation,
   FileDiffView,
 } from "../../shared/types.ts";
-import { vectorApi, gitApi, filesApi, storyboardApi } from "../../shared/api.ts";
+import { vectorApi, gitApi, filesApi, storyboardApi, windowApi } from "../../shared/api.ts";
 import { collectBookProjects } from "../../shared/utils/bookProjects.ts";
 
 import { usePreferences } from "../../shared/hooks/usePreferences.ts";
@@ -63,7 +63,6 @@ function parseChatHistoryFile(text: string): Conversation[] {
 
 interface CommandActionsDeps {
   setPaletteOpen: (open: boolean) => void;
-  setSettingsOpen: (open: boolean) => void;
   setAppearanceOpen: (open: boolean) => void;
   importFileInputRef: React.RefObject<HTMLInputElement | null>;
   isGitRepo: boolean | undefined;
@@ -74,7 +73,6 @@ interface CommandActionsDeps {
 
 function buildCommandActions({
   setPaletteOpen,
-  setSettingsOpen,
   setAppearanceOpen,
   importFileInputRef,
   isGitRepo,
@@ -109,7 +107,7 @@ function buildCommandActions({
       icon: <Settings size={16} />,
       handler: () => {
         setPaletteOpen(false);
-        setSettingsOpen(true);
+        void windowApi.open("settings");
       },
     },
     {
@@ -199,8 +197,6 @@ function App() {
   const {
     paletteOpen,
     setPaletteOpen,
-    settingsOpen,
-    setSettingsOpen,
     searchOpen,
     setSearchOpen,
     arcsOpen,
@@ -466,7 +462,6 @@ function App() {
     () =>
       buildCommandActions({
         setPaletteOpen,
-        setSettingsOpen,
         setAppearanceOpen,
         importFileInputRef,
         isGitRepo: gitStatus?.isRepo,
@@ -474,21 +469,28 @@ function App() {
         syncBadge,
         fetchGitState,
       }),
-    [hasUncommitted, syncBadge, gitStatus?.isRepo, fetchGitState, setPaletteOpen, setSettingsOpen, setAppearanceOpen],
+    [hasUncommitted, syncBadge, gitStatus?.isRepo, fetchGitState, setPaletteOpen, setAppearanceOpen],
   );
 
   const showMetaChrome =
     selectedMeta != null &&
     (chapter.activeChapter != null || selectedMeta.type === "book");
 
-  const onProjectGeneralSaved = useCallback(() => {
-    loadModes();
-    void refreshWorkspaceModeSchema();
-  }, [loadModes, refreshWorkspaceModeSchema]);
-
   const onWorkspacePluginsChanged = useCallback(() => {
     void refreshWorkspaceModeSchema();
   }, [refreshWorkspaceModeSchema]);
+
+  useEffect(() => {
+    return windowApi.onWorkspaceChanged((payload) => {
+      const reason =
+        payload && typeof payload === "object" && "reason" in payload
+          ? (payload as { reason?: unknown }).reason
+          : undefined;
+      if (reason !== "settings") return;
+      loadModes();
+      onWorkspacePluginsChanged();
+    });
+  }, [loadModes, onWorkspacePluginsChanged]);
 
   const handleContentBrowserSelectFile = useCallback(
     (path: string) => {
@@ -517,7 +519,6 @@ function App() {
 
   const handleClosePalette = useCallback(() => setPaletteOpen(false), [setPaletteOpen]);
   const handleCloseContentBrowser = useCallback(() => setContentBrowserOpen(false), [setContentBrowserOpen]);
-  const handleCloseSettings = useCallback(() => setSettingsOpen(false), [setSettingsOpen]);
   const handleCloseSubproject = useCallback(() => setSubprojectDialog(null), []);
   const handleCloseFileHistory = useCallback(() => setFileHistoryPath(null), [setFileHistoryPath]);
   const handleCloseAppearance = useCallback(() => setAppearanceOpen(false), [setAppearanceOpen]);
@@ -566,11 +567,6 @@ function App() {
         credDialogOpen={credDialogOpen}
         onCredSuccess={handleCredSuccess}
         onCredCancel={handleCredCancel}
-        settingsOpen={settingsOpen}
-        onCloseSettings={handleCloseSettings}
-        onModesChanged={loadModes}
-        onGeneralConfigSaved={onProjectGeneralSaved}
-        onWorkspacePluginsChanged={onWorkspacePluginsChanged}
         subprojectDialog={subprojectDialog}
         onCloseSubproject={handleCloseSubproject}
         onSubprojectSaved={handleSubprojectSaved}

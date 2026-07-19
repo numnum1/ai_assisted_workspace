@@ -3,7 +3,6 @@ import { CommandPalette } from "../git/CommandPalette.tsx";
 import type { CommandAction } from "../git/CommandPalette.tsx";
 import { GitCredentialsDialog } from "../git/GitCredentialsDialog.tsx";
 import { FileHistoryModal } from "../git/FileHistoryModal.tsx";
-import { ProjectSettingsModal } from "../settings/ProjectSettingsModal.tsx";
 import { SubprojectTypeDialog } from "../settings/SubprojectTypeDialog.tsx";
 import { AppearanceModal } from "../settings/AppearanceModal.tsx";
 import { ContentBrowserOverlay } from "../outliner/ContentBrowserOverlay.tsx";
@@ -27,12 +26,6 @@ export interface AppOverlaysProps {
   credDialogOpen: boolean;
   onCredSuccess: () => void;
   onCredCancel: () => void;
-
-  settingsOpen: boolean;
-  onCloseSettings: () => void;
-  onModesChanged: () => void;
-  onGeneralConfigSaved: () => void;
-  onWorkspacePluginsChanged: () => void;
 
   subprojectDialog: { path: string; initialType?: string | null } | null;
   onCloseSubproject: () => void;
@@ -66,11 +59,6 @@ export const AppOverlays = memo(function AppOverlays({
   credDialogOpen,
   onCredSuccess,
   onCredCancel,
-  settingsOpen,
-  onCloseSettings,
-  onModesChanged,
-  onGeneralConfigSaved,
-  onWorkspacePluginsChanged,
   subprojectDialog,
   onCloseSubproject,
   onSubprojectSaved,
@@ -105,15 +93,6 @@ export const AppOverlays = memo(function AppOverlays({
 
       {credDialogOpen && (
         <GitCredentialsDialog onSuccess={onCredSuccess} onCancel={onCredCancel} />
-      )}
-
-      {settingsOpen && (
-        <ProjectSettingsModal
-          onClose={onCloseSettings}
-          onModesChanged={onModesChanged}
-          onGeneralConfigSaved={onGeneralConfigSaved}
-          onWorkspacePluginsChanged={onWorkspacePluginsChanged}
-        />
       )}
 
       {subprojectDialog && (

@@ -389,6 +389,7 @@ contextBridge.exposeInMainWorld("appBridge", {
       ipcRenderer.invoke("projectConfig:deleteCommentCategory", id),
     resetCommentCategories: () =>
       ipcRenderer.invoke("projectConfig:resetCommentCategories"),
+    notifyChanged: () => ipcRenderer.invoke("projectConfig:notifyChanged"),
   },
   preferences: {
     get: () => ipcRenderer.invoke("preferences:get"),
