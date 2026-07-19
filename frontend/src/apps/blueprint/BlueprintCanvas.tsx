@@ -18,6 +18,7 @@ import {
   type Edge,
   type Node,
   type NodeTypes,
+  type OnConnectStartParams,
   type OnSelectionChangeParams,
   type XYPosition,
 } from "@xyflow/react";
@@ -58,13 +59,37 @@ const nodeTypes: NodeTypes = {
   exit: ExitNode,
 };
 
-function toRfNodes(graph: BlueprintGraph): Node[] {
-  return graph.nodes.map((n) => ({
+function toRfNode(n: BlueprintNode): Node {
+  return {
     id: n.id,
     type: n.kind,
     position: { x: n.from !== undefined ? n.from * TIME_UNIT_PX : n.x, y: n.y },
     data: n as unknown as Record<string, unknown>,
-  }));
+  };
+}
+
+function toRfNodes(graph: BlueprintGraph): Node[] {
+  return graph.nodes.map(toRfNode);
+}
+
+/** Build a fresh content node whose X (and thus `from`) comes from the drop
+ * position on the time axis. */
+function makeNode(
+  kind: Extract<BlueprintNodeKind, "event" | "reroute">,
+  flowPos: XYPosition,
+): BlueprintNode {
+  const from = Math.round((flowPos.x / TIME_UNIT_PX) * 100) / 100;
+  const base = {
+    id: newId("node"),
+    description: "",
+    status: "idee" as const,
+    x: flowPos.x,
+    y: flowPos.y,
+    from,
+  };
+  return kind === "event"
+    ? { ...base, kind: "event", title: "Neues Ereignis", outputs: [{ id: newId("pin"), label: "danach" }] }
+    : { ...base, kind: "reroute", title: "", outputs: [{ id: "out", label: "" }] };
 }
 
 function toRfEdges(graph: BlueprintGraph): Edge[] {
@@ -97,6 +122,7 @@ function BlueprintCanvasInner() {
   const activeGraphRef = useRef<string | null>(null);
   const loadedRef = useRef(false);
   const saveTimer = useRef<number | null>(null);
+  const connectingPin = useRef<{ nodeId: string; handleId: string } | null>(null);
 
   useEffect(() => {
     blueprintApi
@@ -245,67 +271,58 @@ function BlueprintCanvasInner() {
     [updateNodeData, autoArrange],
   );
 
-  const onNodeDragStop = useCallback(
-    (_event: unknown, node: Node) => {
-      const current = node.data as unknown as BlueprintNode;
-      if (current.kind !== "event" && current.kind !== "reroute") return;
-      const from = Math.round((node.position.x / TIME_UNIT_PX) * 100) / 100;
-      if (from === current.from) return; // pure vertical drag — leave lanes as the user set them
-      const duration =
-        current.from !== undefined && current.to !== undefined
-          ? current.to - current.from
-          : undefined;
-      updateNodeTime(node.id, {
-        from,
-        to: duration !== undefined ? from + duration : current.to,
-      });
-    },
-    [updateNodeTime],
-  );
-
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     setSelectedNodeId(params.nodes.length === 1 ? params.nodes[0].id : null);
   }, []);
 
   const addNode = useCallback(
     (kind: Extract<BlueprintNodeKind, "event" | "reroute">, position: XYPosition) => {
-      const from = Math.round((position.x / TIME_UNIT_PX) * 100) / 100;
-      const node: BlueprintNode =
-        kind === "event"
-          ? {
-              id: newId("node"),
-              kind: "event",
-              title: "Neues Ereignis",
-              description: "",
-              status: "idee",
-              x: position.x,
-              y: position.y,
-              from,
-              outputs: [{ id: newId("pin"), label: "danach" }],
-            }
-          : {
-              id: newId("node"),
-              kind: "reroute",
-              title: "",
-              description: "",
-              status: "idee",
-              x: position.x,
-              y: position.y,
-              from,
-              outputs: [{ id: "out", label: "" }],
-            };
-      setNodes((nds) => [
-        ...nds,
-        {
-          id: node.id,
-          type: kind,
-          position: { x: node.x, y: node.y },
-          data: node as unknown as Record<string, unknown>,
-        },
-      ]);
+      setNodes((nds) => [...nds, toRfNode(makeNode(kind, position))]);
       autoArrange();
     },
     [setNodes, autoArrange],
+  );
+
+  /** UE-style node authoring: dragging a wire out of an output pin and
+   * releasing on empty canvas spawns a new event node, already wired from that
+   * pin. Manual repositioning is disabled — this drag is the only way to create
+   * a node (except the very first one, via the context menu). */
+  const onConnectStart = useCallback(
+    (_event: unknown, params: OnConnectStartParams) => {
+      connectingPin.current =
+        params.handleType === "source" && params.nodeId
+          ? { nodeId: params.nodeId, handleId: params.handleId ?? "" }
+          : null;
+    },
+    [],
+  );
+
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      const source = connectingPin.current;
+      connectingPin.current = null;
+      if (!source) return;
+      const target = event.target as Element | null;
+      if (!target?.classList?.contains("react-flow__pane")) return;
+      const point = "changedTouches" in event ? event.changedTouches[0] : event;
+      const flowPos = screenToFlowPosition({ x: point.clientX, y: point.clientY });
+      const node = makeNode("event", flowPos);
+      setNodes((nds) => [...nds, toRfNode(node)]);
+      setEdges((eds) =>
+        addEdge(
+          {
+            id: newId("edge"),
+            source: source.nodeId,
+            sourceHandle: source.handleId,
+            target: node.id,
+            targetHandle: "in",
+          },
+          eds,
+        ),
+      );
+      autoArrange();
+    },
+    [screenToFlowPosition, setNodes, setEdges, autoArrange],
   );
 
   const addColumn = useCallback((flowPosition: XYPosition) => {
@@ -468,6 +485,10 @@ function BlueprintCanvasInner() {
     | unknown as BlueprintNode
     | undefined;
 
+  const hasEventNodes = nodes.some(
+    (n) => (n.data as unknown as BlueprintNode).kind === "event",
+  );
+
   if (error) {
     return <div className="bp-error">Blueprint konnte nicht laden: {error}</div>;
   }
@@ -481,13 +502,15 @@ function BlueprintCanvasInner() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onNodeDragStop={onNodeDragStop}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
           onNodeDoubleClick={onNodeDoubleClick}
           onSelectionChange={onSelectionChange}
           onPaneContextMenu={onPaneContextMenu}
           onPaneClick={closeContextMenu}
           onMove={closeContextMenu}
           nodeTypes={nodeTypes}
+          nodesDraggable={false}
           fitView
           minZoom={0.2}
           deleteKeyCode={["Backspace", "Delete"]}
@@ -501,24 +524,17 @@ function BlueprintCanvasInner() {
             className="bp-context-menu"
             style={{ left: contextMenu.screenX, top: contextMenu.screenY }}
           >
-            <button
-              type="button"
-              onClick={() => {
-                addNode("event", contextMenu.flowPosition);
-                closeContextMenu();
-              }}
-            >
-              Ereignis erstellen
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                addNode("reroute", contextMenu.flowPosition);
-                closeContextMenu();
-              }}
-            >
-              Reroute-Punkt einfügen
-            </button>
+            {!hasEventNodes && (
+              <button
+                type="button"
+                onClick={() => {
+                  addNode("event", contextMenu.flowPosition);
+                  closeContextMenu();
+                }}
+              >
+                Erstes Ereignis erstellen
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
