@@ -613,6 +613,14 @@ export interface StoryboardCard {
   bookPaths?: string[];
   /** Enclosing frame id, or null/absent when loose on the canvas. */
   frameId?: string | null;
+  /**
+   * Id of the {@link EventRecord} this card places on the board. When set,
+   * `title`/`note` are ignored for display — the card mirrors the live event
+   * (title, summary) instead of holding its own copy. Removing such a card
+   * only removes this placement; the event's canonical file is untouched
+   * (deleting an event is only possible from the Ereignisse window).
+   */
+  eventId?: string;
   status?: StoryboardCardStatus;
   /** Optional explicit card size; falls back to the default when absent. */
   w?: number;

@@ -12,10 +12,12 @@ import {
   Copy,
   Search,
   Maximize2,
+  CalendarClock,
 } from "lucide-react";
-import { storyboardApi } from "../../shared/api.ts";
+import { eventsApi, storyboardApi } from "../../shared/api.ts";
 import { useBookProjects } from "../../shared/hooks/useBookProjects.ts";
 import type {
+  EventRecord,
   StoryboardCard,
   StoryboardCardStatus,
   StoryboardData,
@@ -41,6 +43,9 @@ const DRAG_THRESHOLD = 4;
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.2;
 const HISTORY_LIMIT = 80;
+
+/** Drag payload MIME identifying an event id dragged from the events panel. */
+const EVENT_DRAG_MIME = "application/x-writing-assistant-event-id";
 
 /** Swatches for cards, frames and edges — muted tones that sit calmly on parchment. */
 const SWATCHES = [
@@ -175,6 +180,31 @@ export function StoryboardCanvas({
     if (open) load();
   }, [open, load]);
 
+  // ── Ereignisse (canonical registry, read-only mirror here) ──────────
+  const [events, setEvents] = useState<EventRecord[]>([]);
+  const loadEvents = useCallback(() => {
+    eventsApi.list().then(setEvents).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (open) loadEvents();
+  }, [open, loadEvents]);
+
+  const eventsById = useMemo(
+    () => new Map(events.map((e) => [e.id, e])),
+    [events],
+  );
+  const placedEventIds = useMemo(
+    () =>
+      new Set(
+        (data?.cards ?? []).flatMap((c) => (c.eventId ? [c.eventId] : [])),
+      ),
+    [data],
+  );
+  const unplacedEvents = useMemo(
+    () => events.filter((e) => !placedEventIds.has(e.id)),
+    [events, placedEventIds],
+  );
+
   const scheduleSave = useCallback((next: StoryboardData) => {
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
@@ -269,6 +299,49 @@ export function StoryboardCanvas({
         cards: d.cards.map((c) => (c.id === id ? { ...c, ...patch } : c)),
       })),
     [apply],
+  );
+
+  /**
+   * Place an event on the board. Only ever creates a card that references
+   * `eventId` — never touches the event's canonical file, and refuses to add
+   * a second card for an event already placed on this board.
+   */
+  const addEventCardAt = useCallback(
+    (eventId: string, x: number, y: number) => {
+      const cardId = `card_${newId()}`;
+      let created = false;
+      commit((d) => {
+        if (d.cards.some((c) => c.eventId === eventId)) return d;
+        created = true;
+        return {
+          ...d,
+          cards: [
+            ...d.cards,
+            { id: cardId, title: "", note: "", x, y, status: "idea", eventId },
+          ],
+        };
+      });
+      if (created) setSelection([{ type: "card", id: cardId }]);
+    },
+    [commit],
+  );
+
+  const onCanvasDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes(EVENT_DRAG_MIME)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+
+  const onCanvasDrop = useCallback(
+    (e: React.DragEvent) => {
+      const eventId = e.dataTransfer.getData(EVENT_DRAG_MIME);
+      if (!eventId) return;
+      e.preventDefault();
+      const { x, y } = toWorld(e.clientX, e.clientY);
+      addEventCardAt(eventId, x, y);
+    },
+    [toWorld, addEventCardAt],
   );
 
   const addFrame = useCallback(() => {
@@ -823,13 +896,16 @@ export function StoryboardCanvas({
   const cardMatches = useCallback(
     (c: StoryboardCard): boolean => {
       if (!q) return false;
+      const linked = c.eventId ? eventsById.get(c.eventId) : undefined;
+      const title = linked ? linked.title : c.title;
+      const note = linked ? linked.summary : (c.note ?? "");
       return (
-        c.title.toLowerCase().includes(q) ||
-        (c.note ?? "").toLowerCase().includes(q) ||
+        title.toLowerCase().includes(q) ||
+        note.toLowerCase().includes(q) ||
         (c.tags ?? []).some((t) => t.toLowerCase().includes(q))
       );
     },
-    [q],
+    [q, eventsById],
   );
   const matchCount = useMemo(
     () => (q ? visibleCards.filter(cardMatches).length : 0),
@@ -1049,11 +1125,70 @@ export function StoryboardCanvas({
         </div>
 
         <div className="storyboard-body">
+          <div className="storyboard-events-panel">
+            <div className="storyboard-events-panel-header">
+              <span className="storyboard-events-panel-title">
+                <CalendarClock size={14} /> Ereignisse
+              </span>
+              <div className="storyboard-events-panel-actions">
+                <button
+                  type="button"
+                  className="storyboard-icon-btn"
+                  onClick={loadEvents}
+                  title="Aktualisieren"
+                >
+                  <RefreshCw size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="storyboard-icon-btn"
+                  onClick={() => void eventsApi.openWindow()}
+                  title="Ereignis anlegen (öffnet Ereignisse-Fenster)"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
+            </div>
+            {unplacedEvents.length === 0 ? (
+              <div className="storyboard-events-panel-hint">
+                {events.length === 0
+                  ? "Noch keine Ereignisse angelegt."
+                  : "Alle Ereignisse sind platziert."}
+              </div>
+            ) : (
+              <div className="storyboard-events-panel-list">
+                {unplacedEvents.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="storyboard-events-panel-item"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(EVENT_DRAG_MIME, ev.id);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    title="Auf die Pinnwand ziehen"
+                  >
+                    <span className="storyboard-events-panel-item-title">
+                      {ev.title}
+                    </span>
+                    <span
+                      className={`storyboard-events-panel-item-badge storyboard-events-panel-item-badge--${ev.status}`}
+                    >
+                      {ev.status === "kanon" ? "Kanon" : "Idee"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div
             className="storyboard-canvas"
             ref={canvasRef}
             onPointerDown={onCanvasPointerDown}
             onWheel={onWheel}
+            onDragOver={onCanvasDragOver}
+            onDrop={onCanvasDrop}
           >
             {loading && <div className="storyboard-status">Lädt…</div>}
             {error && <div className="storyboard-status storyboard-status--err">{error}</div>}
@@ -1169,10 +1304,13 @@ export function StoryboardCanvas({
                 const sel = isSel("card", c.id);
                 const dim = q ? !cardMatches(c) : false;
                 const hit = q ? cardMatches(c) : false;
+                const linkedEvent = c.eventId ? eventsById.get(c.eventId) : undefined;
+                const displayTitle = linkedEvent ? linkedEvent.title : c.title;
+                const displayNote = linkedEvent ? linkedEvent.summary : c.note;
                 return (
                   <div
                     key={c.id}
-                    className={`storyboard-card storyboard-card--${status} ${sel ? "storyboard-card--sel" : ""} ${dim ? "storyboard-card--dim" : ""} ${hit ? "storyboard-card--hit" : ""}`}
+                    className={`storyboard-card storyboard-card--${status} ${c.eventId ? "storyboard-card--event" : ""} ${sel ? "storyboard-card--sel" : ""} ${dim ? "storyboard-card--dim" : ""} ${hit ? "storyboard-card--hit" : ""}`}
                     style={{
                       left: c.x,
                       top: c.y,
@@ -1182,10 +1320,20 @@ export function StoryboardCanvas({
                     }}
                     onPointerDown={(e) => startCardDrag(e, c)}
                   >
+                    {c.eventId && (
+                      <div className="storyboard-card-event-tag">
+                        <CalendarClock size={11} />
+                        {linkedEvent
+                          ? linkedEvent.status === "kanon"
+                            ? "Kanon"
+                            : "Idee"
+                          : "Ereignis entfernt"}
+                      </div>
+                    )}
                     <div className="storyboard-card-title">
-                      {c.title || <span className="storyboard-card-placeholder">Ohne Titel</span>}
+                      {displayTitle || <span className="storyboard-card-placeholder">Ohne Titel</span>}
                     </div>
-                    {c.note && <div className="storyboard-card-note">{c.note}</div>}
+                    {displayNote && <div className="storyboard-card-note">{displayNote}</div>}
                     {(c.tags?.length || (c.bookPaths?.length ?? 0) > 0) && (
                       <div className="storyboard-card-tags">
                         {c.tags?.map((t) => (
@@ -1233,6 +1381,11 @@ export function StoryboardCanvas({
                 <CardEditor
                   key={singleCard.id}
                   card={singleCard}
+                  linkedEvent={
+                    singleCard.eventId
+                      ? eventsById.get(singleCard.eventId)
+                      : undefined
+                  }
                   books={books}
                   titleRef={titleInputRef}
                   onChange={(patch) => updateCard(singleCard.id, patch)}
@@ -1360,12 +1513,14 @@ interface BookRef {
 
 function CardEditor({
   card,
+  linkedEvent,
   books,
   titleRef,
   onChange,
   onDelete,
 }: {
   card: StoryboardCard;
+  linkedEvent?: EventRecord;
   books: BookRef[];
   titleRef: React.RefObject<HTMLInputElement | null>;
   onChange: (patch: Partial<StoryboardCard>) => void;
@@ -1383,27 +1538,63 @@ function CardEditor({
 
   return (
     <div className="storyboard-editor">
-      <label className="storyboard-field">
-        <span className="storyboard-label">Titel</span>
-        <input
-          ref={titleRef}
-          type="text"
-          className="storyboard-input"
-          value={card.title}
-          placeholder="Idee benennen…"
-          onChange={(e) => onChange({ title: e.target.value })}
-        />
-      </label>
-      <label className="storyboard-field">
-        <span className="storyboard-label">Notiz</span>
-        <textarea
-          className="storyboard-input storyboard-textarea"
-          value={card.note ?? ""}
-          rows={5}
-          placeholder="Was ist die Idee?"
-          onChange={(e) => onChange({ note: e.target.value })}
-        />
-      </label>
+      {card.eventId ? (
+        <div className="storyboard-field">
+          <span className="storyboard-label">Ereignis</span>
+          {linkedEvent ? (
+            <div className="storyboard-event-preview">
+              <div className="storyboard-event-preview-title">
+                {linkedEvent.title}
+              </div>
+              {linkedEvent.summary && (
+                <div className="storyboard-event-preview-summary">
+                  {linkedEvent.summary}
+                </div>
+              )}
+              <span
+                className={`storyboard-events-panel-item-badge storyboard-events-panel-item-badge--${linkedEvent.status}`}
+              >
+                {linkedEvent.status === "kanon" ? "Kanon" : "Idee"}
+              </span>
+            </div>
+          ) : (
+            <div className="storyboard-event-preview storyboard-event-preview--missing">
+              Ereignis wurde im Ereignisse-Fenster gelöscht.
+            </div>
+          )}
+          <button
+            type="button"
+            className="storyboard-btn"
+            onClick={() => void eventsApi.openWindow()}
+          >
+            Im Ereignisse-Fenster bearbeiten
+          </button>
+        </div>
+      ) : (
+        <>
+          <label className="storyboard-field">
+            <span className="storyboard-label">Titel</span>
+            <input
+              ref={titleRef}
+              type="text"
+              className="storyboard-input"
+              value={card.title}
+              placeholder="Idee benennen…"
+              onChange={(e) => onChange({ title: e.target.value })}
+            />
+          </label>
+          <label className="storyboard-field">
+            <span className="storyboard-label">Notiz</span>
+            <textarea
+              className="storyboard-input storyboard-textarea"
+              value={card.note ?? ""}
+              rows={5}
+              placeholder="Was ist die Idee?"
+              onChange={(e) => onChange({ note: e.target.value })}
+            />
+          </label>
+        </>
+      )}
       <label className="storyboard-field">
         <span className="storyboard-label">Status</span>
         <select
@@ -1463,7 +1654,8 @@ function CardEditor({
         className="storyboard-btn storyboard-btn--danger"
         onClick={onDelete}
       >
-        <Trash2 size={14} /> Karte löschen
+        <Trash2 size={14} />{" "}
+        {card.eventId ? "Von der Pinnwand entfernen" : "Karte löschen"}
       </button>
     </div>
   );
