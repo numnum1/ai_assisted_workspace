@@ -18,10 +18,10 @@ afterEach(async () => {
 describe("storyboardService", () => {
   it("returns an empty board when no file exists yet", async () => {
     const data = await readStoryboard(root);
-    expect(data).toEqual({ cards: [], frames: [] });
+    expect(data).toEqual({ cards: [], frames: [], edges: [] });
   });
 
-  it("round-trips cards and frames through write then read", async () => {
+  it("round-trips cards, frames and edges through write then read", async () => {
     const board: StoryboardData = {
       cards: [
         {
@@ -38,11 +38,23 @@ describe("storyboardService", () => {
       frames: [
         { id: "frame_1", title: "Akt 2", x: 0, y: 0, w: 320, h: 260 },
       ],
+      edges: [
+        { id: "edge_1", a: "card_1", b: "card_2", label: "hängt zusammen" },
+      ],
     };
 
     await writeStoryboard(root, board);
     const roundTripped = await readStoryboard(root);
     expect(roundTripped).toEqual(board);
+  });
+
+  it("backfills edges when reading a legacy board file without them", async () => {
+    const file = path.join(root, ".assistant", "storyboard", "board.json");
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify({ cards: [], frames: [] }), "utf8");
+
+    const data = await readStoryboard(root);
+    expect(data).toEqual({ cards: [], frames: [], edges: [] });
   });
 
   it("tolerates a malformed board file by falling back to empty", async () => {
@@ -51,7 +63,7 @@ describe("storyboardService", () => {
     await fs.writeFile(file, "{ not json", "utf8");
 
     const data = await readStoryboard(root);
-    expect(data).toEqual({ cards: [], frames: [] });
+    expect(data).toEqual({ cards: [], frames: [], edges: [] });
   });
 
   it("throws when no project is open", async () => {

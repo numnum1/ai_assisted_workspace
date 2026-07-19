@@ -229,6 +229,23 @@ export interface AppBridge {
     ) => Promise<{ status: string }>;
     openWindow: () => Promise<{ status: string }>;
   };
+  events?: {
+    list: () => Promise<import('../types.ts').EventRecord[]>;
+    create: (
+      title: string,
+      summary: string,
+    ) => Promise<import('../types.ts').EventRecord>;
+    update: (
+      id: string,
+      patch: {
+        title?: string;
+        summary?: string;
+        status?: import('../types.ts').EventStatus;
+      },
+    ) => Promise<import('../types.ts').EventRecord>;
+    delete: (id: string) => Promise<{ status: string }>;
+    openWindow: () => Promise<{ status: string }>;
+  };
   snapshots?: {
     get: (id: string) => Promise<SnapshotData>;
     apply: (id: string) => Promise<SnapshotApplyResult>;
@@ -456,7 +473,9 @@ export interface AppBridge {
   window?: {
     minimize: () => Promise<void>;
     close: () => Promise<void>;
-    open: (kind: "book" | "storyboard" | "chat") => Promise<{ status: string }>;
+    open: (
+      kind: "book" | "storyboard" | "chat" | "events",
+    ) => Promise<{ status: string }>;
     onWorkspaceChanged: (
       listener: (payload: unknown) => void,
     ) => { unsubscribe: () => void };

@@ -24,6 +24,7 @@ import type {
   ArcCoverage,
 } from "./types.ts";
 import type { StoryboardData } from "./types.ts";
+import type { EventRecord, EventStatus } from "./types.ts";
 import type { FileContentResult as ElectronFileContentResult } from "./electron/bridge.ts";
 import {
   buildConversationById,
@@ -894,9 +895,40 @@ export const storyboardApi = {
   },
 };
 
+export const eventsApi = {
+  list: async (): Promise<EventRecord[]> => {
+    const api = getElectronApi();
+    if (api?.events) return api.events.list();
+    throw new Error("Electron bridge not available");
+  },
+  create: async (title: string, summary: string): Promise<EventRecord> => {
+    const api = getElectronApi();
+    if (api?.events) return api.events.create(title, summary);
+    throw new Error("Electron bridge not available");
+  },
+  update: async (
+    id: string,
+    patch: { title?: string; summary?: string; status?: EventStatus },
+  ): Promise<EventRecord> => {
+    const api = getElectronApi();
+    if (api?.events) return api.events.update(id, patch);
+    throw new Error("Electron bridge not available");
+  },
+  delete: async (id: string): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.events) return api.events.delete(id);
+    throw new Error("Electron bridge not available");
+  },
+  openWindow: async (): Promise<{ status: string }> => {
+    const api = getElectronApi();
+    if (api?.events) return api.events.openWindow();
+    throw new Error("Electron bridge not available");
+  },
+};
+
 export const windowApi = {
   open: async (
-    kind: "book" | "storyboard" | "chat",
+    kind: "book" | "storyboard" | "chat" | "events",
   ): Promise<{ status: string }> => {
     const api = getElectronApi();
     if (api?.window) return api.window.open(kind);

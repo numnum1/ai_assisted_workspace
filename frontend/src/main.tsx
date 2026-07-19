@@ -5,10 +5,17 @@ import './apps/book/builtinMediaProjects.ts'
 import App from './apps/book/App.tsx'
 import { StoryboardWindow } from './apps/storyboard/StoryboardWindow.tsx'
 import { ChatWindow } from './apps/chat/ChatWindow.tsx'
+import { EventsWindow } from './apps/events/EventsWindow.tsx'
 
 const kind = new URLSearchParams(window.location.search).get('window')
 const Root =
-  kind === 'storyboard' ? StoryboardWindow : kind === 'chat' ? ChatWindow : App
+  kind === 'storyboard'
+    ? StoryboardWindow
+    : kind === 'chat'
+      ? ChatWindow
+      : kind === 'events'
+        ? EventsWindow
+        : App
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

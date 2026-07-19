@@ -60,8 +60,15 @@ import {
   readStoryboard,
   writeStoryboard,
 } from "./services/storyboardService.js";
+import {
+  listEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+} from "./services/eventsService.js";
 import type { ArcData } from "../src/shared/types.js";
 import type { StoryboardData } from "../src/shared/types.js";
+import type { EventStatus } from "../src/shared/types.js";
 import {
   previewChatContext,
   startChatStream,
@@ -209,6 +216,28 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("storyboard:openWindow", () => {
     openWindow("storyboard");
+    return { status: "ok" };
+  });
+
+  ipcMain.handle("events:list", () => listEvents(getCurrentProjectPath()));
+  ipcMain.handle(
+    "events:create",
+    (_event, title: string, summary: string) =>
+      createEvent(getCurrentProjectPath(), title, summary),
+  );
+  ipcMain.handle(
+    "events:update",
+    (
+      _event,
+      id: string,
+      patch: { title?: string; summary?: string; status?: EventStatus },
+    ) => updateEvent(getCurrentProjectPath(), id, patch),
+  );
+  ipcMain.handle("events:delete", (_event, id: string) =>
+    deleteEvent(getCurrentProjectPath(), id),
+  );
+  ipcMain.handle("events:openWindow", () => {
+    openWindow("events");
     return { status: "ok" };
   });
 
@@ -852,7 +881,7 @@ function registerIpcHandlers(): void {
  * first suggestion instead of popping up the menu. */
 let pendingSpellFixWindowId: number | null = null;
 
-type WindowKind = "book" | "storyboard" | "chat";
+type WindowKind = "book" | "storyboard" | "chat" | "events";
 
 const WINDOW_CONFIG: Record<
   WindowKind,
@@ -861,6 +890,7 @@ const WINDOW_CONFIG: Record<
   book: { width: 1400, height: 900, title: "Buch-Schreibtool" },
   storyboard: { width: 1200, height: 820, title: "Pinnwand" },
   chat: { width: 900, height: 800, title: "KI-Chat" },
+  events: { width: 420, height: 620, title: "Ereignisse" },
 };
 
 const appIconPath = app.isPackaged
@@ -1007,6 +1037,7 @@ function buildTrayMenu(): Menu {
     { label: "Buch-Schreibtool", click: () => openWindow("book") },
     { label: "Pinnwand", click: () => openWindow("storyboard") },
     { label: "KI-Chat", click: () => openWindow("chat") },
+    { label: "Ereignisse", click: () => openWindow("events") },
     { type: "separator" },
     {
       label: "Beim Login starten",

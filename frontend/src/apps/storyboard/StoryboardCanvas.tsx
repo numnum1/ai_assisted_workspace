@@ -7,7 +7,11 @@ import {
   Square,
   Trash2,
   Undo2,
+  Redo2,
   Eraser,
+  Copy,
+  Search,
+  Maximize2,
 } from "lucide-react";
 import { storyboardApi } from "../../shared/api.ts";
 import { useBookProjects } from "../../shared/hooks/useBookProjects.ts";
@@ -15,6 +19,7 @@ import type {
   StoryboardCard,
   StoryboardCardStatus,
   StoryboardData,
+  StoryboardEdge,
   StoryboardFrame,
 } from "../../shared/types.ts";
 import "./StoryboardCanvas.css";
@@ -35,8 +40,9 @@ const CARD_H = 120;
 const DRAG_THRESHOLD = 4;
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.2;
+const HISTORY_LIMIT = 80;
 
-/** Swatches for cards and frames — muted tones that sit calmly on parchment. */
+/** Swatches for cards, frames and edges — muted tones that sit calmly on parchment. */
 const SWATCHES = [
   "#C9A227",
   "#1D9E75",
@@ -66,28 +72,49 @@ function newId(): string {
     : Math.random().toString(36).slice(2, 10);
 }
 
-function frameContains(frame: StoryboardFrame, cx: number, cy: number): boolean {
+type Rect = { x: number; y: number; w: number; h: number };
+
+function cardRect(c: StoryboardCard): Rect {
+  return { x: c.x, y: c.y, w: c.w ?? CARD_W, h: c.h ?? CARD_H };
+}
+
+function rectContains(r: Rect, px: number, py: number): boolean {
+  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+}
+
+function rectsOverlap(a: Rect, b: Rect): boolean {
   return (
-    cx >= frame.x &&
-    cx <= frame.x + frame.w &&
-    cy >= frame.y &&
-    cy <= frame.y + frame.h
+    a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y
   );
 }
 
-type Viewport = { tx: number; ty: number; scale: number };
-type Selection =
-  | { type: "card"; id: string }
-  | { type: "frame"; id: string }
-  | null;
+/** Point where the line from a rect's center toward (tx,ty) exits the rect. */
+function edgeAnchor(r: Rect, tx: number, ty: number): { x: number; y: number } {
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  const dx = tx - cx;
+  const dy = ty - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const scale = 1 / Math.max(Math.abs(dx) / (r.w / 2), Math.abs(dy) / (r.h / 2));
+  return { x: cx + dx * scale, y: cy + dy * scale };
+}
 
+type Viewport = { tx: number; ty: number; scale: number };
+type SelKind = "card" | "frame" | "edge";
+type SelItem = { type: SelKind; id: string };
 type BookFilter = "all" | "unassigned" | string;
+type Marquee = { x0: number; y0: number; x1: number; y1: number } | null;
+type Linking = { fromId: string; x: number; y: number } | null;
 
 /**
  * Pinboard workspace: free-floating story-idea cards on a pan/zoom canvas — the
- * pre-canon place for material that belongs to no chapter, book or arc yet.
- * Purely manual (no AI). Series-wide: each card may be assigned to one or more
- * books. Editing writes through to .assistant/storyboard/ (debounced autosave).
+ * space for developing a book/series and collecting ideas, decoupled from the
+ * manuscript and wiki. Cards can be connected with undirected links, grouped in
+ * frames, multi-selected, resized, duplicated, searched and undone/redone.
+ * Editing writes through to .assistant/storyboard/ (debounced autosave).
  */
 export function StoryboardCanvas({
   open,
@@ -101,10 +128,13 @@ export function StoryboardCanvas({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [selection, setSelection] = useState<Selection>(null);
+  const [selection, setSelection] = useState<SelItem[]>([]);
   const [bookFilter, setBookFilter] = useState<BookFilter>("all");
   const [showDiscarded, setShowDiscarded] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [marquee, setMarquee] = useState<Marquee>(null);
+  const [linking, setLinking] = useState<Linking>(null);
   const [viewport, setViewport] = useState<Viewport>({ tx: 40, ty: 40, scale: 1 });
 
   const books = useBookProjects(projectPath).filter((b) => b.subprojectType);
@@ -113,14 +143,25 @@ export function StoryboardCanvas({
   const saveTimer = useRef<number | null>(null);
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
+  const dataRef = useRef<StoryboardData | null>(data);
+  dataRef.current = data;
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Undo/redo history holds full board snapshots at gesture boundaries. Text
+  // edits inside the sidebar are intentionally not tracked per keystroke.
+  const past = useRef<StoryboardData[]>([]);
+  const future = useRef<StoryboardData[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setData(await storyboardApi.read());
-      setSelection(null);
+      setSelection([]);
+      past.current = [];
+      future.current = [];
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Pinnwand konnte nicht geladen werden.",
@@ -150,6 +191,14 @@ export function StoryboardCanvas({
     }, 400);
   }, []);
 
+  /** Snapshot the current board into the undo stack (call before a mutation). */
+  const pushHistory = useCallback(() => {
+    if (!dataRef.current) return;
+    past.current.push(dataRef.current);
+    if (past.current.length > HISTORY_LIMIT) past.current.shift();
+    future.current = [];
+  }, []);
+
   /** Apply a pure transform to the current data and persist (debounced). */
   const apply = useCallback(
     (fn: (d: StoryboardData) => StoryboardData) => {
@@ -163,20 +212,54 @@ export function StoryboardCanvas({
     [scheduleSave],
   );
 
+  /** History-tracked mutation for discrete actions (add/delete/duplicate/…). */
+  const commit = useCallback(
+    (fn: (d: StoryboardData) => StoryboardData) => {
+      pushHistory();
+      apply(fn);
+    },
+    [pushHistory, apply],
+  );
+
+  const undo = useCallback(() => {
+    if (!past.current.length || !dataRef.current) return;
+    const prev = past.current.pop() as StoryboardData;
+    future.current.push(dataRef.current);
+    setData(prev);
+    scheduleSave(prev);
+    setSelection([]);
+  }, [scheduleSave]);
+
+  const redo = useCallback(() => {
+    if (!future.current.length || !dataRef.current) return;
+    const next = future.current.pop() as StoryboardData;
+    past.current.push(dataRef.current);
+    setData(next);
+    scheduleSave(next);
+    setSelection([]);
+  }, [scheduleSave]);
+
+  // ── Coordinate helpers ─────────────────────────────────────────────
+  const toWorld = useCallback((clientX: number, clientY: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const v = viewportRef.current;
+    return {
+      x: (clientX - (rect?.left ?? 0) - v.tx) / v.scale,
+      y: (clientY - (rect?.top ?? 0) - v.ty) / v.scale,
+    };
+  }, []);
+
   // ── Mutations ──────────────────────────────────────────────────────
   const addCardAt = useCallback(
     (x: number, y: number) => {
       const id = `card_${newId()}`;
-      apply((d) => ({
+      commit((d) => ({
         ...d,
-        cards: [
-          ...d.cards,
-          { id, title: "", note: "", x, y, status: "idea" },
-        ],
+        cards: [...d.cards, { id, title: "", note: "", x, y, status: "idea" }],
       }));
-      setSelection({ type: "card", id });
+      setSelection([{ type: "card", id }]);
     },
-    [apply],
+    [commit],
   );
 
   const updateCard = useCallback(
@@ -188,27 +271,17 @@ export function StoryboardCanvas({
     [apply],
   );
 
-  const deleteCard = useCallback(
-    (id: string) =>
-      apply((d) => ({ ...d, cards: d.cards.filter((c) => c.id !== id) })),
-    [apply],
-  );
-
   const addFrame = useCallback(() => {
     const id = `frame_${newId()}`;
     const { tx, ty, scale } = viewportRef.current;
-    // Drop the frame near the current viewport origin, in world coordinates.
     const x = (60 - tx) / scale;
     const y = (60 - ty) / scale;
-    apply((d) => ({
+    commit((d) => ({
       ...d,
-      frames: [
-        ...d.frames,
-        { id, title: "Gruppe", x, y, w: 320, h: 260 },
-      ],
+      frames: [...d.frames, { id, title: "Gruppe", x, y, w: 320, h: 260 }],
     }));
-    setSelection({ type: "frame", id });
-  }, [apply]);
+    setSelection([{ type: "frame", id }]);
+  }, [commit]);
 
   const updateFrame = useCallback(
     (id: string, patch: Partial<StoryboardFrame>) =>
@@ -219,23 +292,144 @@ export function StoryboardCanvas({
     [apply],
   );
 
-  const deleteFrame = useCallback(
-    (id: string) =>
+  const updateEdge = useCallback(
+    (id: string, patch: Partial<StoryboardEdge>) =>
       apply((d) => ({
         ...d,
-        frames: d.frames.filter((f) => f.id !== id),
-        cards: d.cards.map((c) =>
-          c.frameId === id ? { ...c, frameId: null } : c,
-        ),
+        edges: d.edges.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       })),
     [apply],
   );
 
+  const addEdge = useCallback(
+    (a: string, b: string) => {
+      if (a === b) return;
+      commit((d) => {
+        const exists = d.edges.some(
+          (e) => (e.a === a && e.b === b) || (e.a === b && e.b === a),
+        );
+        if (exists) return d;
+        return { ...d, edges: [...d.edges, { id: `edge_${newId()}`, a, b }] };
+      });
+    },
+    [commit],
+  );
+
+  const duplicateSelection = useCallback(() => {
+    const ids = selectionRef.current
+      .filter((s) => s.type === "card")
+      .map((s) => s.id);
+    if (!ids.length) return;
+    const created: SelItem[] = [];
+    commit((d) => {
+      const set = new Set(ids);
+      const clones = d.cards
+        .filter((c) => set.has(c.id))
+        .map((c) => {
+          const id = `card_${newId()}`;
+          created.push({ type: "card", id });
+          return { ...c, id, x: c.x + 24, y: c.y + 24, frameId: null };
+        });
+      return { ...d, cards: [...d.cards, ...clones] };
+    });
+    if (created.length) setSelection(created);
+  }, [commit]);
+
+  const deleteSelection = useCallback(() => {
+    const cur = selectionRef.current;
+    if (!cur.length) return;
+    const cardIds = new Set(
+      cur.filter((s) => s.type === "card").map((s) => s.id),
+    );
+    const frameIds = new Set(
+      cur.filter((s) => s.type === "frame").map((s) => s.id),
+    );
+    const edgeIds = new Set(
+      cur.filter((s) => s.type === "edge").map((s) => s.id),
+    );
+    commit((d) => ({
+      cards: d.cards
+        .filter((c) => !cardIds.has(c.id))
+        .map((c) =>
+          c.frameId && frameIds.has(c.frameId) ? { ...c, frameId: null } : c,
+        ),
+      frames: d.frames.filter((f) => !frameIds.has(f.id)),
+      edges: d.edges.filter(
+        (e) =>
+          !edgeIds.has(e.id) && !cardIds.has(e.a) && !cardIds.has(e.b),
+      ),
+    }));
+    setSelection([]);
+  }, [commit]);
+
+  const applyColorToSelection = useCallback(
+    (color: string) => {
+      const cardIds = new Set(
+        selectionRef.current
+          .filter((s) => s.type === "card")
+          .map((s) => s.id),
+      );
+      if (!cardIds.size) return;
+      commit((d) => ({
+        ...d,
+        cards: d.cards.map((c) => (cardIds.has(c.id) ? { ...c, color } : c)),
+      }));
+    },
+    [commit],
+  );
+
   const clearAll = useCallback(() => {
-    apply(() => ({ cards: [], frames: [] }));
-    setSelection(null);
+    commit(() => ({ cards: [], frames: [], edges: [] }));
+    setSelection([]);
     setConfirmClearOpen(false);
-  }, [apply]);
+  }, [commit]);
+
+  // ── View controls ──────────────────────────────────────────────────
+  const resetView = useCallback(
+    () => setViewport({ tx: 40, ty: 40, scale: 1 }),
+    [],
+  );
+
+  const fitView = useCallback(() => {
+    const d = dataRef.current;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!d || !rect) return;
+    const rects: Rect[] = [
+      ...d.cards.map(cardRect),
+      ...d.frames.map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h })),
+    ];
+    if (!rects.length) return resetView();
+    const minX = Math.min(...rects.map((r) => r.x));
+    const minY = Math.min(...rects.map((r) => r.y));
+    const maxX = Math.max(...rects.map((r) => r.x + r.w));
+    const maxY = Math.max(...rects.map((r) => r.y + r.h));
+    const pad = 60;
+    const bw = Math.max(1, maxX - minX);
+    const bh = Math.max(1, maxY - minY);
+    const scale = Math.min(
+      MAX_SCALE,
+      Math.max(
+        MIN_SCALE,
+        Math.min((rect.width - pad * 2) / bw, (rect.height - pad * 2) / bh),
+      ),
+    );
+    setViewport({
+      scale,
+      tx: (rect.width - bw * scale) / 2 - minX * scale,
+      ty: (rect.height - bh * scale) / 2 - minY * scale,
+    });
+  }, [resetView]);
+
+  const centerOn = useCallback((c: StoryboardCard) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const r = cardRect(c);
+    setViewport((v) => ({
+      ...v,
+      tx: rect.width / 2 - (r.x + r.w / 2) * v.scale,
+      ty: rect.height / 2 - (r.y + r.h / 2) * v.scale,
+    }));
+  }, []);
 
   // ── Pan / zoom ─────────────────────────────────────────────────────
   const onWheel = useCallback((e: React.WheelEvent) => {
@@ -246,19 +440,54 @@ export function StoryboardCanvas({
     setViewport((v) => {
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
       const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * factor));
-      // Keep the point under the cursor stationary while zooming.
       const wx = (sx - v.tx) / v.scale;
       const wy = (sy - v.ty) / v.scale;
       return { scale, tx: sx - wx * scale, ty: sy - wy * scale };
     });
   }, []);
 
-  /** Pan when dragging empty canvas; deselect on a plain click. */
+  /** Shift+drag on empty canvas = marquee select; plain drag = pan. */
   const onCanvasPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
       const startX = e.clientX;
       const startY = e.clientY;
+
+      if (e.shiftKey) {
+        const start = toWorld(startX, startY);
+        let moved = false;
+        const onMove = (ev: PointerEvent) => {
+          const cur = toWorld(ev.clientX, ev.clientY);
+          if (
+            !moved &&
+            Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD
+          )
+            return;
+          moved = true;
+          setMarquee({ x0: start.x, y0: start.y, x1: cur.x, y1: cur.y });
+        };
+        const onUp = (ev: PointerEvent) => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          setMarquee(null);
+          if (!moved) return;
+          const end = toWorld(ev.clientX, ev.clientY);
+          const box: Rect = {
+            x: Math.min(start.x, end.x),
+            y: Math.min(start.y, end.y),
+            w: Math.abs(end.x - start.x),
+            h: Math.abs(end.y - start.y),
+          };
+          const hits = (dataRef.current?.cards ?? [])
+            .filter((c) => rectsOverlap(cardRect(c), box))
+            .map((c) => ({ type: "card" as const, id: c.id }));
+          setSelection(hits);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+        return;
+      }
+
       const origin = { ...viewportRef.current };
       let moved = false;
       const onMove = (ev: PointerEvent) => {
@@ -271,56 +500,91 @@ export function StoryboardCanvas({
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
-        if (!moved) setSelection(null);
+        if (!moved) setSelection([]);
       };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [],
+    [toWorld],
   );
-
 
   // ── Card / frame dragging ──────────────────────────────────────────
   const startCardDrag = useCallback(
     (e: React.PointerEvent, card: StoryboardCard) => {
       e.stopPropagation();
       if (e.button !== 0) return;
-      setSelection({ type: "card", id: card.id });
+
+      if (e.shiftKey) {
+        setSelection((prev) => {
+          const has = prev.some((s) => s.type === "card" && s.id === card.id);
+          return has
+            ? prev.filter((s) => !(s.type === "card" && s.id === card.id))
+            : [...prev, { type: "card", id: card.id }];
+        });
+        return;
+      }
+
+      const cur = selectionRef.current;
+      const selectedCardIds = cur
+        .filter((s) => s.type === "card")
+        .map((s) => s.id);
+      const inMulti =
+        selectedCardIds.length > 1 && selectedCardIds.includes(card.id);
+      const dragIds = inMulti ? selectedCardIds : [card.id];
+      if (!inMulti) setSelection([{ type: "card", id: card.id }]);
+
       const startX = e.clientX;
       const startY = e.clientY;
-      const origin = { x: card.x, y: card.y };
       const scale = viewportRef.current.scale;
+      const dragSet = new Set(dragIds);
+      const origins = new Map(
+        (dataRef.current?.cards ?? [])
+          .filter((c) => dragSet.has(c.id))
+          .map((c) => [c.id, { x: c.x, y: c.y }]),
+      );
       let moved = false;
+
       const onMove = (ev: PointerEvent) => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-        moved = true;
-        updateCard(card.id, {
-          x: origin.x + dx / scale,
-          y: origin.y + dy / scale,
+        if (!moved) {
+          moved = true;
+          pushHistory();
+        }
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            cards: prev.cards.map((c) => {
+              const o = origins.get(c.id);
+              return o
+                ? { ...c, x: o.x + dx / scale, y: o.y + dy / scale }
+                : c;
+            }),
+          };
         });
       };
-      const onUp = (ev: PointerEvent) => {
+      const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         if (!moved) return;
-        // Re-home the card into whichever frame now contains its center.
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
-        const cx = origin.x + dx / scale + CARD_W / 2;
-        const cy = origin.y + dy / scale + CARD_H / 2;
+        // Re-home each dragged card into whichever frame now holds its center.
         setData((prev) => {
           if (!prev) return prev;
-          const hit = prev.frames.find((f) => frameContains(f, cx, cy));
-          const frameId = hit ? hit.id : null;
-          const target = prev.cards.find((c) => c.id === card.id);
-          if ((target?.frameId ?? null) === frameId) return prev;
           const next = {
             ...prev,
-            cards: prev.cards.map((c) =>
-              c.id === card.id ? { ...c, frameId } : c,
-            ),
+            cards: prev.cards.map((c) => {
+              if (!dragSet.has(c.id)) return c;
+              const r = cardRect(c);
+              const cx = r.x + r.w / 2;
+              const cy = r.y + r.h / 2;
+              const hit = prev.frames.find((f) =>
+                rectContains({ x: f.x, y: f.y, w: f.w, h: f.h }, cx, cy),
+              );
+              const frameId = hit ? hit.id : null;
+              return (c.frameId ?? null) === frameId ? c : { ...c, frameId };
+            }),
           };
           scheduleSave(next);
           return next;
@@ -329,14 +593,69 @@ export function StoryboardCanvas({
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [updateCard, scheduleSave],
+    [pushHistory, scheduleSave],
+  );
+
+  const startCardResize = useCallback(
+    (e: React.PointerEvent, card: StoryboardCard) => {
+      e.stopPropagation();
+      if (e.button !== 0) return;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const scale = viewportRef.current.scale;
+      const origin = { w: card.w ?? CARD_W, h: card.h ?? CARD_H };
+      let started = false;
+      const onMove = (ev: PointerEvent) => {
+        if (!started) {
+          started = true;
+          pushHistory();
+        }
+        updateCard(card.id, {
+          w: Math.max(140, origin.w + (ev.clientX - startX) / scale),
+          h: Math.max(90, origin.h + (ev.clientY - startY) / scale),
+        });
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [pushHistory, updateCard],
+  );
+
+  const startLink = useCallback(
+    (e: React.PointerEvent, card: StoryboardCard) => {
+      e.stopPropagation();
+      if (e.button !== 0) return;
+      const start = toWorld(e.clientX, e.clientY);
+      setLinking({ fromId: card.id, x: start.x, y: start.y });
+      const onMove = (ev: PointerEvent) => {
+        const p = toWorld(ev.clientX, ev.clientY);
+        setLinking({ fromId: card.id, x: p.x, y: p.y });
+      };
+      const onUp = (ev: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        setLinking(null);
+        const p = toWorld(ev.clientX, ev.clientY);
+        const target = (dataRef.current?.cards ?? []).find(
+          (c) => c.id !== card.id && rectContains(cardRect(c), p.x, p.y),
+        );
+        if (target) addEdge(card.id, target.id);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [toWorld, addEdge],
   );
 
   const startFrameDrag = useCallback(
     (e: React.PointerEvent, frame: StoryboardFrame) => {
       e.stopPropagation();
       if (e.button !== 0) return;
-      setSelection({ type: "frame", id: frame.id });
+      setSelection([{ type: "frame", id: frame.id }]);
       const startX = e.clientX;
       const startY = e.clientY;
       const scale = viewportRef.current.scale;
@@ -349,19 +668,17 @@ export function StoryboardCanvas({
         if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
         if (!moved) {
           moved = true;
-          setData((prev) => {
-            memberOrigins = (prev?.cards ?? [])
-              .filter((c) => c.frameId === frame.id)
-              .map((c) => ({ id: c.id, x: c.x, y: c.y }));
-            return prev;
-          });
+          pushHistory();
+          memberOrigins = (dataRef.current?.cards ?? [])
+            .filter((c) => c.frameId === frame.id)
+            .map((c) => ({ id: c.id, x: c.x, y: c.y }));
         }
         const wdx = dx / scale;
         const wdy = dy / scale;
+        const moves = new Map(memberOrigins.map((m) => [m.id, m]));
         setData((prev) => {
           if (!prev) return prev;
-          const moves = new Map(memberOrigins.map((m) => [m.id, m]));
-          const next = {
+          return {
             ...prev,
             frames: prev.frames.map((f) =>
               f.id === frame.id
@@ -373,7 +690,6 @@ export function StoryboardCanvas({
               return m ? { ...c, x: m.x + wdx, y: m.y + wdy } : c;
             }),
           };
-          return next;
         });
       };
       const onUp = () => {
@@ -384,7 +700,7 @@ export function StoryboardCanvas({
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [scheduleSave],
+    [pushHistory, scheduleSave],
   );
 
   const startFrameResize = useCallback(
@@ -395,12 +711,15 @@ export function StoryboardCanvas({
       const startY = e.clientY;
       const scale = viewportRef.current.scale;
       const origin = { w: frame.w, h: frame.h };
+      let started = false;
       const onMove = (ev: PointerEvent) => {
-        const wdx = (ev.clientX - startX) / scale;
-        const wdy = (ev.clientY - startY) / scale;
+        if (!started) {
+          started = true;
+          pushHistory();
+        }
         updateFrame(frame.id, {
-          w: Math.max(160, origin.w + wdx),
-          h: Math.max(140, origin.h + wdy),
+          w: Math.max(160, origin.w + (ev.clientX - startX) / scale),
+          h: Math.max(140, origin.h + (ev.clientY - startY) / scale),
         });
       };
       const onUp = () => {
@@ -410,14 +729,53 @@ export function StoryboardCanvas({
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [updateFrame],
+    [pushHistory, updateFrame],
   );
 
+  // ── Keyboard ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "F2" && selection?.type === "card") {
+      const target = e.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (typing) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        duplicateSelection();
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectionRef.current.length) {
+          e.preventDefault();
+          deleteSelection();
+        }
+        return;
+      }
+      if (
+        e.key === "F2" &&
+        selectionRef.current.length === 1 &&
+        selectionRef.current[0].type === "card"
+      ) {
         e.preventDefault();
         titleInputRef.current?.focus();
         titleInputRef.current?.select();
@@ -425,8 +783,9 @@ export function StoryboardCanvas({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, selection]);
+  }, [open, onClose, undo, redo, duplicateSelection, deleteSelection]);
 
+  // ── Derived ────────────────────────────────────────────────────────
   const cardVisible = useCallback(
     (card: StoryboardCard): boolean => {
       const status = card.status ?? "idea";
@@ -443,27 +802,79 @@ export function StoryboardCanvas({
     () => (data?.cards ?? []).filter(cardVisible),
     [data, cardVisible],
   );
+  const visibleCardMap = useMemo(
+    () => new Map(visibleCards.map((c) => [c.id, c])),
+    [visibleCards],
+  );
+  const visibleEdges = useMemo(
+    () =>
+      (data?.edges ?? []).filter(
+        (e) => visibleCardMap.has(e.a) && visibleCardMap.has(e.b),
+      ),
+    [data, visibleCardMap],
+  );
   const discardedCount = useMemo(
     () => (data?.cards ?? []).filter((c) => (c.status ?? "idea") === "discarded")
       .length,
     [data],
   );
 
-  const selectedCard =
-    selection?.type === "card"
-      ? data?.cards.find((c) => c.id === selection.id)
+  const q = query.trim().toLowerCase();
+  const cardMatches = useCallback(
+    (c: StoryboardCard): boolean => {
+      if (!q) return false;
+      return (
+        c.title.toLowerCase().includes(q) ||
+        (c.note ?? "").toLowerCase().includes(q) ||
+        (c.tags ?? []).some((t) => t.toLowerCase().includes(q))
+      );
+    },
+    [q],
+  );
+  const matchCount = useMemo(
+    () => (q ? visibleCards.filter(cardMatches).length : 0),
+    [q, visibleCards, cardMatches],
+  );
+
+  const onSearchEnter = useCallback(() => {
+    if (!q) return;
+    const first = visibleCards.find(cardMatches);
+    if (first) {
+      centerOn(first);
+      setSelection([{ type: "card", id: first.id }]);
+    }
+  }, [q, visibleCards, cardMatches, centerOn]);
+
+  const isSel = useCallback(
+    (type: SelKind, id: string) =>
+      selection.some((s) => s.type === type && s.id === id),
+    [selection],
+  );
+
+  const singleCard =
+    selection.length === 1 && selection[0].type === "card"
+      ? data?.cards.find((c) => c.id === selection[0].id)
       : undefined;
-  const selectedFrame =
-    selection?.type === "frame"
-      ? data?.frames.find((f) => f.id === selection.id)
+  const singleFrame =
+    selection.length === 1 && selection[0].type === "frame"
+      ? data?.frames.find((f) => f.id === selection[0].id)
       : undefined;
+  const singleEdge =
+    selection.length === 1 && selection[0].type === "edge"
+      ? data?.edges.find((e) => e.id === selection[0].id)
+      : undefined;
+  const multiCount = selection.length > 1 ? selection.length : 0;
 
   if (!open) return null;
 
   const isEmpty =
     !loading && !error && data !== null && data.cards.length === 0;
-
   const isWindow = variant === "window";
+  const hasSelectedCards = selection.some((s) => s.type === "card");
+
+  const linkFrom = linking
+    ? visibleCardMap.get(linking.fromId)
+    : undefined;
 
   return (
     <div
@@ -524,6 +935,61 @@ export function StoryboardCanvas({
           <button type="button" className="storyboard-btn" onClick={addFrame}>
             <Square size={14} /> Gruppe
           </button>
+          <button
+            type="button"
+            className="storyboard-btn"
+            onClick={duplicateSelection}
+            disabled={!hasSelectedCards}
+            title="Auswahl duplizieren (Strg+D)"
+          >
+            <Copy size={14} /> Duplizieren
+          </button>
+
+          <div className="storyboard-tool-group">
+            <button
+              type="button"
+              className="storyboard-icon-btn"
+              onClick={undo}
+              disabled={!past.current.length}
+              title="Rückgängig (Strg+Z)"
+            >
+              <Undo2 size={15} />
+            </button>
+            <button
+              type="button"
+              className="storyboard-icon-btn"
+              onClick={redo}
+              disabled={!future.current.length}
+              title="Wiederholen (Strg+Umschalt+Z)"
+            >
+              <Redo2 size={15} />
+            </button>
+            <button
+              type="button"
+              className="storyboard-icon-btn"
+              onClick={fitView}
+              title="Alles einpassen"
+            >
+              <Maximize2 size={15} />
+            </button>
+          </div>
+
+          <label className="storyboard-search">
+            <Search size={13} className="storyboard-search-icon" aria-hidden />
+            <input
+              type="text"
+              className="storyboard-search-input"
+              value={query}
+              placeholder="Suchen…"
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSearchEnter();
+              }}
+            />
+            {q && (
+              <span className="storyboard-search-count">{matchCount}</span>
+            )}
+          </label>
 
           <div className="storyboard-filterbar">
             <button
@@ -566,13 +1032,19 @@ export function StoryboardCanvas({
             type="button"
             className="storyboard-btn storyboard-btn--danger-outline"
             onClick={() => setConfirmClearOpen(true)}
-            disabled={!data || (data.cards.length === 0 && data.frames.length === 0)}
-            title="Alle Karten und Gruppen entfernen"
+            disabled={
+              !data ||
+              (data.cards.length === 0 &&
+                data.frames.length === 0 &&
+                data.edges.length === 0)
+            }
+            title="Alle Karten, Gruppen und Verbindungen entfernen"
           >
             <Eraser size={14} /> Alles löschen
           </button>
           <span className="storyboard-hint">
-            Ziehen = verschieben · Rad = Zoom
+            Ziehen = verschieben · Rad = Zoom · Umschalt+Ziehen = auswählen · Punkt
+            am Rand = verbinden
           </span>
         </div>
 
@@ -596,10 +1068,85 @@ export function StoryboardCanvas({
                 transform: `translate(${viewport.tx}px, ${viewport.ty}px) scale(${viewport.scale})`,
               }}
             >
+              <svg className="storyboard-edges" aria-hidden>
+                {visibleEdges.map((e) => {
+                  const a = visibleCardMap.get(e.a) as StoryboardCard;
+                  const b = visibleCardMap.get(e.b) as StoryboardCard;
+                  const ra = cardRect(a);
+                  const rb = cardRect(b);
+                  const cbx = rb.x + rb.w / 2;
+                  const cby = rb.y + rb.h / 2;
+                  const cax = ra.x + ra.w / 2;
+                  const cay = ra.y + ra.h / 2;
+                  const p1 = edgeAnchor(ra, cbx, cby);
+                  const p2 = edgeAnchor(rb, cax, cay);
+                  const sel = isSel("edge", e.id);
+                  return (
+                    <g key={e.id}>
+                      <line
+                        x1={p1.x}
+                        y1={p1.y}
+                        x2={p2.x}
+                        y2={p2.y}
+                        className="storyboard-edge-hit"
+                        onPointerDown={(ev) => {
+                          ev.stopPropagation();
+                          setSelection([{ type: "edge", id: e.id }]);
+                        }}
+                      />
+                      <line
+                        x1={p1.x}
+                        y1={p1.y}
+                        x2={p2.x}
+                        y2={p2.y}
+                        className={`storyboard-edge ${sel ? "storyboard-edge--sel" : ""}`}
+                        style={e.color ? { stroke: e.color } : undefined}
+                      />
+                    </g>
+                  );
+                })}
+                {linking && linkFrom && (
+                  <line
+                    x1={
+                      edgeAnchor(cardRect(linkFrom), linking.x, linking.y).x
+                    }
+                    y1={
+                      edgeAnchor(cardRect(linkFrom), linking.x, linking.y).y
+                    }
+                    x2={linking.x}
+                    y2={linking.y}
+                    className="storyboard-edge storyboard-edge--draft"
+                  />
+                )}
+              </svg>
+
+              {visibleEdges.map((e) => {
+                if (!e.label) return null;
+                const a = visibleCardMap.get(e.a) as StoryboardCard;
+                const b = visibleCardMap.get(e.b) as StoryboardCard;
+                const ra = cardRect(a);
+                const rb = cardRect(b);
+                const mx = (ra.x + ra.w / 2 + rb.x + rb.w / 2) / 2;
+                const my = (ra.y + ra.h / 2 + rb.y + rb.h / 2) / 2;
+                return (
+                  <div
+                    key={`lbl_${e.id}`}
+                    className="storyboard-edge-label"
+                    style={{ left: mx, top: my }}
+                    onPointerDown={(ev) => {
+                      ev.stopPropagation();
+                      setSelection([{ type: "edge", id: e.id }]);
+                    }}
+                  >
+                    {e.label}
+                  </div>
+                );
+              })}
+
               {data?.frames.map((f) => (
                 <div
                   key={f.id}
-                  className={`storyboard-frame ${selection?.type === "frame" && selection.id === f.id ? "storyboard-frame--sel" : ""}`}
+                  className={`storyboard-frame ${isSel("frame", f.id) ? "storyboard-frame--sel" : ""}`}
                   style={{
                     left: f.x,
                     top: f.y,
@@ -616,19 +1163,21 @@ export function StoryboardCanvas({
                   />
                 </div>
               ))}
+
               {visibleCards.map((c) => {
                 const status = c.status ?? "idea";
-                const sel =
-                  selection?.type === "card" && selection.id === c.id;
+                const sel = isSel("card", c.id);
+                const dim = q ? !cardMatches(c) : false;
+                const hit = q ? cardMatches(c) : false;
                 return (
                   <div
                     key={c.id}
-                    className={`storyboard-card storyboard-card--${status} ${sel ? "storyboard-card--sel" : ""}`}
+                    className={`storyboard-card storyboard-card--${status} ${sel ? "storyboard-card--sel" : ""} ${dim ? "storyboard-card--dim" : ""} ${hit ? "storyboard-card--hit" : ""}`}
                     style={{
                       left: c.x,
                       top: c.y,
-                      width: CARD_W,
-                      minHeight: CARD_H,
+                      width: c.w ?? CARD_W,
+                      minHeight: c.h ?? CARD_H,
                       borderTopColor: c.color ?? "var(--accent)",
                     }}
                     onPointerDown={(e) => startCardDrag(e, c)}
@@ -651,37 +1200,88 @@ export function StoryboardCanvas({
                         ))}
                       </div>
                     )}
+                    <span
+                      className="storyboard-card-linkport"
+                      title="Verbinden — auf eine andere Karte ziehen"
+                      onPointerDown={(e) => startLink(e, c)}
+                    />
+                    <span
+                      className="storyboard-card-resize"
+                      onPointerDown={(e) => startCardResize(e, c)}
+                    />
                   </div>
                 );
               })}
-            </div>
-          </div>
 
-          {(selectedCard || selectedFrame) && (
-            <div className="storyboard-sidebar">
-              {selectedCard && (
-                <CardEditor
-                  key={selectedCard.id}
-                  card={selectedCard}
-                  books={books}
-                  titleRef={titleInputRef}
-                  onChange={(patch) => updateCard(selectedCard.id, patch)}
-                  onDelete={() => {
-                    deleteCard(selectedCard.id);
-                    setSelection(null);
+              {marquee && (
+                <div
+                  className="storyboard-marquee"
+                  style={{
+                    left: Math.min(marquee.x0, marquee.x1),
+                    top: Math.min(marquee.y0, marquee.y1),
+                    width: Math.abs(marquee.x1 - marquee.x0),
+                    height: Math.abs(marquee.y1 - marquee.y0),
                   }}
                 />
               )}
-              {selectedFrame && (
-                <FrameEditor
-                  key={selectedFrame.id}
-                  frame={selectedFrame}
-                  onChange={(patch) => updateFrame(selectedFrame.id, patch)}
-                  onDelete={() => {
-                    deleteFrame(selectedFrame.id);
-                    setSelection(null);
-                  }}
+            </div>
+          </div>
+
+          {(singleCard || singleFrame || singleEdge || multiCount > 0) && (
+            <div className="storyboard-sidebar">
+              {singleCard && (
+                <CardEditor
+                  key={singleCard.id}
+                  card={singleCard}
+                  books={books}
+                  titleRef={titleInputRef}
+                  onChange={(patch) => updateCard(singleCard.id, patch)}
+                  onDelete={deleteSelection}
                 />
+              )}
+              {singleFrame && (
+                <FrameEditor
+                  key={singleFrame.id}
+                  frame={singleFrame}
+                  onChange={(patch) => updateFrame(singleFrame.id, patch)}
+                  onDelete={deleteSelection}
+                />
+              )}
+              {singleEdge && (
+                <EdgeEditor
+                  key={singleEdge.id}
+                  edge={singleEdge}
+                  onChange={(patch) => updateEdge(singleEdge.id, patch)}
+                  onDelete={deleteSelection}
+                />
+              )}
+              {multiCount > 0 && (
+                <div className="storyboard-editor">
+                  <span className="storyboard-label">
+                    {multiCount} ausgewählt
+                  </span>
+                  {hasSelectedCards && (
+                    <div className="storyboard-field">
+                      <span className="storyboard-label">Farbe</span>
+                      <SwatchRow onPick={applyColorToSelection} />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="storyboard-btn"
+                    onClick={duplicateSelection}
+                    disabled={!hasSelectedCards}
+                  >
+                    <Copy size={14} /> Duplizieren
+                  </button>
+                  <button
+                    type="button"
+                    className="storyboard-btn storyboard-btn--danger"
+                    onClick={deleteSelection}
+                  >
+                    <Trash2 size={14} /> Auswahl löschen
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -702,8 +1302,9 @@ export function StoryboardCanvas({
                 Wirklich alles löschen?
               </h3>
               <p className="storyboard-confirm-text">
-                Entfernt alle {data?.cards.length ?? 0} Karten und {data?.frames.length ?? 0}{" "}
-                Gruppen von der Pinnwand. Das kann nicht rückgängig gemacht werden.
+                Entfernt alle {data?.cards.length ?? 0} Karten, {data?.frames.length ?? 0}{" "}
+                Gruppen und {data?.edges.length ?? 0} Verbindungen von der Pinnwand.
+                Das kann nicht rückgängig gemacht werden.
               </p>
               <div className="storyboard-confirm-actions">
                 <button
@@ -898,6 +1499,42 @@ function FrameEditor({
         onClick={onDelete}
       >
         <Trash2 size={14} /> Gruppe löschen
+      </button>
+    </div>
+  );
+}
+
+function EdgeEditor({
+  edge,
+  onChange,
+  onDelete,
+}: {
+  edge: StoryboardEdge;
+  onChange: (patch: Partial<StoryboardEdge>) => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="storyboard-editor">
+      <label className="storyboard-field">
+        <span className="storyboard-label">Beschriftung</span>
+        <input
+          type="text"
+          className="storyboard-input"
+          value={edge.label ?? ""}
+          placeholder="z.B. hängt zusammen, Kontrast"
+          onChange={(e) => onChange({ label: e.target.value })}
+        />
+      </label>
+      <div className="storyboard-field">
+        <span className="storyboard-label">Farbe</span>
+        <SwatchRow value={edge.color} onPick={(color) => onChange({ color })} />
+      </div>
+      <button
+        type="button"
+        className="storyboard-btn storyboard-btn--danger"
+        onClick={onDelete}
+      >
+        <Trash2 size={14} /> Verbindung löschen
       </button>
     </div>
   );

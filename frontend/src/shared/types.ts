@@ -614,6 +614,9 @@ export interface StoryboardCard {
   /** Enclosing frame id, or null/absent when loose on the canvas. */
   frameId?: string | null;
   status?: StoryboardCardStatus;
+  /** Optional explicit card size; falls back to the default when absent. */
+  w?: number;
+  h?: number;
 }
 
 /** A named region on the canvas that groups the cards placed inside it. */
@@ -627,8 +630,48 @@ export interface StoryboardFrame {
   color?: string;
 }
 
+/**
+ * An undirected connection between two cards. Direction carries no meaning
+ * (`a`/`b` are interchangeable); the optional `label` names the relationship
+ * ("hängt zusammen", "Kontrast", "gleiches Motiv").
+ */
+export interface StoryboardEdge {
+  id: string;
+  a: string;
+  b: string;
+  label?: string;
+  color?: string;
+}
+
 /** Full contents of the pinboard workspace (.assistant/storyboard/). */
 export interface StoryboardData {
   cards: StoryboardCard[];
   frames: StoryboardFrame[];
+  edges: StoryboardEdge[];
+}
+
+/**
+ * `idee` = not yet settled, may still change or be discarded; `kanon` =
+ * settled fact other workspaces (storyboard nodes, scenes, arcs) may safely
+ * reference.
+ */
+export type EventStatus = "idee" | "kanon";
+
+/**
+ * The canonical unit of "what happens" in the story world — the source-of-truth
+ * atom that other workspaces only reference, never duplicate. Wiki, Timeline,
+ * Storyboard and Buch are all projections of the same underlying events; this
+ * record is managed exclusively through the standalone Ereignisse window
+ * (CRUD), never created or deleted implicitly by a projection. Stored as one
+ * Markdown file per event under `events/<id>.md` (front-matter + `summary` as
+ * body) — sichtbar and git-trackable, unlike the `.assistant/` caches.
+ */
+export interface EventRecord {
+  id: string;
+  title: string;
+  /** The kanon fact: what happens. Plain text/Markdown body of the file. */
+  summary: string;
+  status: EventStatus;
+  createdAt: string;
+  updatedAt: string;
 }

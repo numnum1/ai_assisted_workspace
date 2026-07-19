@@ -354,7 +354,7 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     cursor: grab;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .storyboard-card:active {
@@ -493,4 +493,153 @@
     font-size: 12px;
     color: var(--text);
     cursor: pointer;
+}
+
+/* ── Toolbar: undo/redo/fit group + search ─────────────────────────── */
+.storyboard-tool-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding-left: 6px;
+    border-left: 1px solid var(--border);
+}
+
+.storyboard-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.storyboard-search-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.storyboard-search-input {
+    width: 130px;
+    border: none;
+    background: none;
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+}
+
+.storyboard-search-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    border-radius: 999px;
+    padding: 0 6px;
+}
+
+/* ── Edges (undirected connections) ────────────────────────────────── */
+.storyboard-edges {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.storyboard-edge {
+    stroke: var(--text-muted);
+    stroke-width: 1.5;
+    fill: none;
+}
+
+.storyboard-edge--sel {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+}
+
+.storyboard-edge--draft {
+    stroke: var(--accent);
+    stroke-dasharray: 5 4;
+    opacity: 0.8;
+}
+
+.storyboard-edge-hit {
+    stroke: transparent;
+    stroke-width: 12;
+    fill: none;
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.storyboard-edge-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 1px 7px;
+    font-size: 10.5px;
+    color: var(--text);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+/* ── Marquee (Shift+drag) selection box ────────────────────────────── */
+.storyboard-marquee {
+    position: absolute;
+    border: 1px solid var(--accent);
+    background: rgba(76, 123, 181, 0.12);
+    pointer-events: none;
+}
+
+/* ── Search highlight states ───────────────────────────────────────── */
+.storyboard-card--dim {
+    opacity: 0.3;
+}
+
+.storyboard-card--hit {
+    box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Card handles: link port + resize ──────────────────────────────── */
+.storyboard-card-linkport {
+    position: absolute;
+    top: 50%;
+    right: -7px;
+    width: 13px;
+    height: 13px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg-secondary);
+    opacity: 0;
+    cursor: crosshair;
+    transition: opacity 0.12s;
+}
+
+.storyboard-card:hover .storyboard-card-linkport {
+    opacity: 0.85;
+}
+
+.storyboard-card-linkport:hover {
+    opacity: 1;
+}
+
+.storyboard-card-resize {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    opacity: 0;
+    background:
+        linear-gradient(135deg, transparent 50%, var(--text-muted) 50%);
+    border-bottom-right-radius: 8px;
+    transition: opacity 0.12s;
+}
+
+.storyboard-card:hover .storyboard-card-resize {
+    opacity: 0.6;
 }

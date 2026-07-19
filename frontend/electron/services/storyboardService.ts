@@ -17,7 +17,7 @@ function getBoardFilePath(projectRoot: string): string {
   return path.join(getStoryboardDir(projectRoot), "board.json");
 }
 
-const EMPTY_BOARD: StoryboardData = { cards: [], frames: [] };
+const EMPTY_BOARD: StoryboardData = { cards: [], frames: [], edges: [] };
 
 async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
   try {
@@ -44,6 +44,7 @@ export async function readStoryboard(
   return {
     cards: data.cards ?? [],
     frames: data.frames ?? [],
+    edges: data.edges ?? [],
   };
 }
 
@@ -56,7 +57,7 @@ export async function writeStoryboard(
   await fs.mkdir(getStoryboardDir(root), { recursive: true });
   await fs.writeFile(
     getBoardFilePath(root),
-    `${JSON.stringify({ cards: data.cards, frames: data.frames }, null, 2)}\n`,
+    `${JSON.stringify({ cards: data.cards, frames: data.frames, edges: data.edges }, null, 2)}\n`,
     "utf8",
   );
   return { status: "ok" };

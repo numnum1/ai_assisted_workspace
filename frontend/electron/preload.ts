@@ -343,6 +343,17 @@ contextBridge.exposeInMainWorld("appBridge", {
     write: (data: unknown) => ipcRenderer.invoke("storyboard:write", data),
     openWindow: () => ipcRenderer.invoke("storyboard:openWindow"),
   },
+  events: {
+    list: () => ipcRenderer.invoke("events:list"),
+    create: (title: string, summary: string) =>
+      ipcRenderer.invoke("events:create", title, summary),
+    update: (
+      id: string,
+      patch: { title?: string; summary?: string; status?: string },
+    ) => ipcRenderer.invoke("events:update", id, patch),
+    delete: (id: string) => ipcRenderer.invoke("events:delete", id),
+    openWindow: () => ipcRenderer.invoke("events:openWindow"),
+  },
   subproject: {
     info: (path: string) => ipcRenderer.invoke("subproject:info", path),
     init: (path: string, type: string, name: string) =>
