@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { FlaskConical, History } from "lucide-react";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { NewChatButton } from "./components/chat/NewChatButton.tsx";
@@ -48,6 +49,17 @@ import {
 
 const NAVI_MODE_ID = NAVI_MODES[0].id;
 
+const NAVI_PANEL_WIDTH_KEY = "navi-state-panel-width";
+const NAVI_PANEL_MIN_WIDTH = 300;
+const NAVI_PANEL_MAX_WIDTH = 640;
+const NAVI_PANEL_DEFAULT_WIDTH = 360;
+
+function loadNaviPanelWidth(): number {
+  const raw = Number(localStorage.getItem(NAVI_PANEL_WIDTH_KEY));
+  if (!Number.isFinite(raw) || raw <= 0) return NAVI_PANEL_DEFAULT_WIDTH;
+  return Math.min(NAVI_PANEL_MAX_WIDTH, Math.max(NAVI_PANEL_MIN_WIDTH, raw));
+}
+
 function App() {
   const refs = useReferencedFiles();
   const { preferences, updatePreferences } = usePreferences();
@@ -66,6 +78,36 @@ function App() {
     loadInitialDisabledToolkits,
   );
   const [rulesEnabled, setRulesEnabled] = useState(loadInitialRulesEnabled);
+  const [naviPanelWidth, setNaviPanelWidth] = useState(loadNaviPanelWidth);
+  const naviPanelResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const handleNaviPanelResizeStart = useCallback(
+    (e: ReactMouseEvent) => {
+      e.preventDefault();
+      naviPanelResizeRef.current = { startX: e.clientX, startWidth: naviPanelWidth };
+      const handleMove = (moveEvent: MouseEvent) => {
+        const drag = naviPanelResizeRef.current;
+        if (!drag) return;
+        const next = Math.min(
+          NAVI_PANEL_MAX_WIDTH,
+          Math.max(NAVI_PANEL_MIN_WIDTH, drag.startWidth + (moveEvent.clientX - drag.startX)),
+        );
+        setNaviPanelWidth(next);
+      };
+      const handleUp = () => {
+        naviPanelResizeRef.current = null;
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+        setNaviPanelWidth((w) => {
+          localStorage.setItem(NAVI_PANEL_WIDTH_KEY, String(w));
+          return w;
+        });
+      };
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [naviPanelWidth],
+  );
 
   const [activeSelection, setActiveSelection] =
     useState<SelectionContext | null>(null);
@@ -377,7 +419,7 @@ function App() {
   return (
     <div className="app">
       <div className="app-panels navi-app-panels">
-        <div className="navi-state-column">
+        <div className="navi-state-column" style={{ width: naviPanelWidth }}>
           {history.activeConversation?.naviStateId && (
             <NaviStatePanel
               naviStateId={history.activeConversation.naviStateId}
@@ -389,6 +431,11 @@ function App() {
             />
           )}
         </div>
+
+        <div
+          className="resize-handle navi-state-resize-handle"
+          onMouseDown={handleNaviPanelResizeStart}
+        />
 
         <div className="navi-chat-column">
           <div className="navi-chat-header">

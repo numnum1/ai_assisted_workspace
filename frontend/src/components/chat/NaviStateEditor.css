@@ -67,6 +67,7 @@
 
 .navi-editor-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border-bottom: 1px solid var(--border, #313244);
   padding-bottom: 2px;
