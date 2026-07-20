@@ -4,10 +4,15 @@ import * as os from "os";
 import { DEFAULT_NAVI_USE_CASES, type NaviUseCase } from "../../src/naviUseCases.js";
 import { DEFAULT_NAVI_TOOLS, naviToolUrl, naviCategoryUrl, type NaviTool } from "../../src/naviTools.js";
 import type { NaviState } from "../../src/naviStateMachine.js";
+import {
+  TOOLS_FILE_NAME,
+  USE_CASES_FILE_NAME,
+  assertActiveProfileWritable,
+  profileFilePath,
+  touchActiveProfile,
+} from "./naviProfileStore.js";
 
 const NAVI_DATA_DIR = path.join(os.homedir(), ".writing-assistant", "navi");
-const USE_CASES_FILE_NAME = "use-cases.json";
-const TOOLS_FILE_NAME = "tools.json";
 
 export class NaviKnowledgeValidationError extends Error {}
 
@@ -31,9 +36,31 @@ function backupIfExists(filePath: string): void {
 }
 
 function writeJsonFile(filePath: string, data: unknown): void {
-  fs.mkdirSync(NAVI_DATA_DIR, { recursive: true });
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   backupIfExists(filePath);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+
+/** Persists into the active profile; the built-in profile is read-only and rejected first. */
+function writeProfileFile(fileName: string, data: unknown): void {
+  assertActiveProfileWritable();
+  const filePath = profileFilePath(fileName);
+  if (!filePath) return;
+  writeJsonFile(filePath, data);
+  touchActiveProfile();
+}
+
+/** Drops the active profile's override so the coded default applies again. */
+function resetProfileFile(fileName: string): void {
+  assertActiveProfileWritable();
+  const filePath = profileFilePath(fileName);
+  if (!filePath) return;
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // Already absent — nothing to reset.
+  }
+  touchActiveProfile();
 }
 
 export function validateUseCases(useCases: NaviUseCase[]): void {
@@ -75,50 +102,38 @@ export function validateTools(tools: NaviTool[]): void {
  * public read API for the `navi:getUseCases`/`navi:getTools` IPC handlers.
  */
 export function loadUseCases(): NaviUseCase[] {
-  const override = readJsonFile<NaviUseCase[]>(
-    path.join(NAVI_DATA_DIR, USE_CASES_FILE_NAME),
-  );
+  const filePath = profileFilePath(USE_CASES_FILE_NAME);
+  const override = filePath ? readJsonFile<NaviUseCase[]>(filePath) : null;
   return Array.isArray(override) && override.length > 0
     ? override
     : DEFAULT_NAVI_USE_CASES;
 }
 
 export function loadTools(): NaviTool[] {
-  const override = readJsonFile<NaviTool[]>(
-    path.join(NAVI_DATA_DIR, TOOLS_FILE_NAME),
-  );
+  const filePath = profileFilePath(TOOLS_FILE_NAME);
+  const override = filePath ? readJsonFile<NaviTool[]>(filePath) : null;
   return Array.isArray(override) && override.length > 0 ? override : DEFAULT_NAVI_TOOLS;
 }
 
 export function saveUseCases(useCases: NaviUseCase[]): NaviUseCase[] {
   validateUseCases(useCases);
-  writeJsonFile(path.join(NAVI_DATA_DIR, USE_CASES_FILE_NAME), useCases);
+  writeProfileFile(USE_CASES_FILE_NAME, useCases);
   return useCases;
 }
 
 export function resetUseCases(): NaviUseCase[] {
-  const filePath = path.join(NAVI_DATA_DIR, USE_CASES_FILE_NAME);
-  try {
-    fs.unlinkSync(filePath);
-  } catch {
-    // Already absent — nothing to reset.
-  }
+  resetProfileFile(USE_CASES_FILE_NAME);
   return DEFAULT_NAVI_USE_CASES;
 }
 
 export function saveTools(tools: NaviTool[]): NaviTool[] {
   validateTools(tools);
-  writeJsonFile(path.join(NAVI_DATA_DIR, TOOLS_FILE_NAME), tools);
+  writeProfileFile(TOOLS_FILE_NAME, tools);
   return tools;
 }
 
 export function resetTools(): NaviTool[] {
-  const filePath = path.join(NAVI_DATA_DIR, TOOLS_FILE_NAME);
-  try {
-    fs.unlinkSync(filePath);
-  } catch {
-    // Already absent — nothing to reset.
-  }
+  resetProfileFile(TOOLS_FILE_NAME);
   return DEFAULT_NAVI_TOOLS;
 }
 

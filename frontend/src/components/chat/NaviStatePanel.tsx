@@ -15,7 +15,11 @@ import {
 } from "lucide-react";
 import { getEffectiveSlots, getAllSlotLabels, getNaviState } from "../../naviStateMachine.ts";
 import { useNaviStateConfig } from "../../hooks/useNaviStateConfig.ts";
+import { useNaviProfiles } from "../../hooks/useNaviProfiles.ts";
 import { NaviStateEditor } from "./NaviStateEditor.tsx";
+import { NaviProfileBar } from "./NaviProfileBar.tsx";
+import { NAVI_BUILTIN_PROFILE_NAME } from "../../naviProfile.ts";
+import { getAppBridge } from "../../electron/bridge.ts";
 import { DEFAULT_NAVI_PERSONA } from "../../naviPersona.ts";
 import { conversationToMarkdown } from "./chatMarkdownExport.ts";
 import type { NaviImprovementProposal } from "../../naviImprovement.ts";
@@ -40,6 +44,18 @@ export function NaviStatePanel({
   llmId,
 }: Props) {
   const {
+    profiles,
+    activeProfileId,
+    activeIsBuiltIn,
+    error: profileError,
+    selectProfile,
+    createProfile,
+    renameProfile,
+    deleteProfile,
+    exportProfile,
+    importProfile,
+  } = useNaviProfiles();
+  const {
     states,
     tips,
     persona,
@@ -63,11 +79,43 @@ export function NaviStatePanel({
     proposeImprovement,
     improving,
     improvementError,
-  } = useNaviStateConfig();
+  } = useNaviStateConfig(activeProfileId);
   const [editing, setEditing] = useState(false);
   const [proposal, setProposal] = useState<NaviImprovementProposal | null>(null);
+  const [forkNotice, setForkNotice] = useState<string | null>(null);
 
   const hasRatedFeedback = conversation?.messages.some((m) => m.feedback) ?? false;
+  const canTransfer = !!getAppBridge()?.navi;
+
+  /**
+   * The built-in profile is read-only, so the first save while it is active forks it into a
+   * fresh profile. The main process activates that profile inside the create call, so the
+   * subsequent save already lands in the new one.
+   */
+  const ensureWritableProfile = async (): Promise<boolean> => {
+    if (!activeIsBuiltIn) return true;
+    const name = `${NAVI_BUILTIN_PROFILE_NAME} (Kopie)`;
+    const id = await createProfile(name);
+    if (!id) return false;
+    setForkNotice(
+      `"${NAVI_BUILTIN_PROFILE_NAME}" ist schreibgeschützt — deine Änderungen wurden in das neue Profil "${name}" übernommen.`,
+    );
+    return true;
+  };
+
+  const withFork =
+    <T,>(save: (next: T) => Promise<boolean>) =>
+    async (next: T): Promise<boolean> =>
+      (await ensureWritableProfile()) ? save(next) : false;
+
+  /**
+   * "Standard" on the built-in profile is a no-op — its content already *is* the default —
+   * so it must not fork a throwaway profile just to delete an override that never existed.
+   */
+  const skipResetOnBuiltIn =
+    <T,>(reset: () => Promise<T>, current: T) =>
+    async (): Promise<T> =>
+      activeIsBuiltIn ? current : reset();
 
   const handleImprove = async () => {
     if (!conversation) return;
@@ -90,13 +138,49 @@ export function NaviStatePanel({
     return idx !== -1 && idx < currentIndex;
   };
 
+  const profileBar = (
+    <NaviProfileBar
+      profiles={profiles}
+      activeProfileId={activeProfileId}
+      canTransfer={canTransfer}
+      error={profileError}
+      onSelect={(id) => {
+        setForkNotice(null);
+        void selectProfile(id);
+      }}
+      onCreate={(name, fromId) => {
+        setForkNotice(null);
+        void createProfile(name, fromId);
+      }}
+      onRename={(id, name) => void renameProfile(id, name)}
+      onDelete={(id) => {
+        setForkNotice(null);
+        void deleteProfile(id);
+      }}
+      onExport={(id) => void exportProfile(id)}
+      onImport={() => {
+        setForkNotice(null);
+        void importProfile();
+      }}
+    />
+  );
+
+  // The profile bar stays mounted while a switch reloads the configuration, so the dropdown
+  // does not vanish under the cursor mid-switch.
   if (loading) {
-    return <div className="navi-panel navi-panel--loading">Lade Navi-Konfiguration …</div>;
+    return (
+      <div className="navi-panel">
+        {profileBar}
+        <div className="navi-panel--loading">Lade Navi-Konfiguration …</div>
+      </div>
+    );
   }
 
   if (editing) {
     return (
       <div className="navi-panel">
+        {profileBar}
+        {forkNotice && <div className="navi-section navi-profile-notice">{forkNotice}</div>}
         <NaviStateEditor
           initialStates={proposal?.states ?? states}
           initialTips={proposal?.tips ?? tips}
@@ -104,17 +188,17 @@ export function NaviStatePanel({
           initialUseCases={proposal?.useCases ?? useCases}
           initialTools={proposal?.tools ?? tools}
           initialImprovementLlm={improvementLlm ?? { apiUrl: "", model: "", apiKeySet: false }}
-          onSaveStates={saveStates}
-          onSaveTips={saveTips}
-          onSavePersona={savePersona}
-          onSaveUseCases={saveUseCases}
-          onSaveTools={saveTools}
+          onSaveStates={withFork(saveStates)}
+          onSaveTips={withFork(saveTips)}
+          onSavePersona={withFork(savePersona)}
+          onSaveUseCases={withFork(saveUseCases)}
+          onSaveTools={withFork(saveTools)}
           onSaveImprovementLlm={saveImprovementLlm}
-          onResetStates={resetStates}
-          onResetTips={resetTips}
-          onResetPersona={resetPersona}
-          onResetUseCases={resetUseCases}
-          onResetTools={resetTools}
+          onResetStates={skipResetOnBuiltIn(resetStates, states)}
+          onResetTips={skipResetOnBuiltIn(resetTips, tips)}
+          onResetPersona={skipResetOnBuiltIn(resetPersona, persona ?? DEFAULT_NAVI_PERSONA)}
+          onResetUseCases={skipResetOnBuiltIn(resetUseCases, useCases)}
+          onResetTools={skipResetOnBuiltIn(resetTools, tools)}
           onResetImprovementLlm={resetImprovementLlm}
           onClose={() => {
             setEditing(false);
@@ -129,6 +213,8 @@ export function NaviStatePanel({
 
   return (
     <div className="navi-panel">
+      {profileBar}
+      {forkNotice && <div className="navi-section navi-profile-notice">{forkNotice}</div>}
       <div className="navi-section navi-section--toolbar">
         <button type="button" className="navi-edit-toggle" onClick={() => setEditing(true)}>
           <Pencil size={11} />

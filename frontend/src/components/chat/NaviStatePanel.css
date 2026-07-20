@@ -45,6 +45,11 @@
   cursor: not-allowed;
 }
 
+.navi-profile-notice {
+  font-size: 10.5px;
+  color: var(--accent, #89b4fa);
+}
+
 .navi-improvement-error {
   font-size: 10.5px;
   color: #f38ba8;

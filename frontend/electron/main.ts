@@ -50,6 +50,17 @@ import {
   resetTools,
 } from "./services/naviKnowledgeBase.js";
 import { proposeNaviImprovement } from "./services/naviImprovementService.js";
+import {
+  listNaviProfiles,
+  createNaviProfile,
+  renameNaviProfile,
+  deleteNaviProfile,
+  setActiveNaviProfile,
+} from "./services/naviProfileStore.js";
+import {
+  exportNaviProfile,
+  importNaviProfile,
+} from "./services/naviProfileTransfer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,6 +137,22 @@ function registerIpcHandlers(): void {
   ipcMain.handle("navi:getImprovementLlm", () => loadNaviImprovementLlm());
   ipcMain.handle("navi:setImprovementLlm", (_event, input) => saveNaviImprovementLlm(input));
   ipcMain.handle("navi:resetImprovementLlm", () => resetNaviImprovementLlm());
+
+  ipcMain.handle("navi:profiles:list", () => listNaviProfiles());
+  ipcMain.handle("navi:profiles:setActive", (_event, id: string) => setActiveNaviProfile(id));
+  ipcMain.handle("navi:profiles:create", (_event, name: string, fromId?: string) =>
+    createNaviProfile({ name, fromId }),
+  );
+  ipcMain.handle("navi:profiles:rename", (_event, id: string, name: string) =>
+    renameNaviProfile(id, name),
+  );
+  ipcMain.handle("navi:profiles:delete", (_event, id: string) => deleteNaviProfile(id));
+  ipcMain.handle("navi:profiles:export", (event, id: string) =>
+    exportNaviProfile(id, BrowserWindow.fromWebContents(event.sender)),
+  );
+  ipcMain.handle("navi:profiles:import", (event) =>
+    importNaviProfile(BrowserWindow.fromWebContents(event.sender)),
+  );
 
   ipcMain.handle("spellcheck:fixAtCursor", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);

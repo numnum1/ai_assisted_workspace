@@ -1,0 +1,79 @@
+.navi-profile-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #313244);
+  background: color-mix(in srgb, var(--accent, #89b4fa) 5%, transparent);
+}
+
+.navi-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.navi-profile-icon {
+  color: var(--text-muted, #6c7086);
+  flex-shrink: 0;
+}
+
+.navi-profile-select,
+.navi-profile-rename-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #313244);
+  background: var(--bg-primary, #1e1e2e);
+  color: var(--text-primary, #cdd6f4);
+}
+
+.navi-profile-lock {
+  display: inline-flex;
+  color: var(--text-muted, #6c7086);
+  flex-shrink: 0;
+}
+
+.navi-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.navi-profile-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted, #6c7086);
+  cursor: pointer;
+}
+
+.navi-profile-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent, #89b4fa) 15%, transparent);
+  color: var(--accent, #89b4fa);
+}
+
+.navi-profile-action--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #f38ba8 15%, transparent);
+  color: #f38ba8;
+}
+
+.navi-profile-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.navi-profile-error {
+  flex-basis: 100%;
+  font-size: 10.5px;
+  color: #f38ba8;
+}

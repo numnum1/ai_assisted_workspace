@@ -13,17 +13,18 @@ import type {
   NaviImprovementLlmInput,
 } from "../../src/naviImprovement.js";
 import type { NaviSimulationRunRecord } from "../../src/types.js";
+import {
+  PERSONA_FILE_NAME,
+  STATES_FILE_NAME,
+  TIPS_FILE_NAME,
+  assertActiveProfileWritable,
+  profileFilePath,
+  touchActiveProfile,
+} from "./naviProfileStore.js";
 
 const NAVI_DATA_DIR = path.join(os.homedir(), ".writing-assistant", "navi");
-const STATES_FILE_NAME = "states.json";
-const TIPS_FILE_NAME = "tips.json";
-const PERSONA_FILE_NAME = "persona.json";
 const IMPROVEMENT_LLM_FILE_NAME = "improvement-llm.json";
 const SIMULATIONS_DIR_NAME = "simulations";
-
-async function ensureNaviDataDir(): Promise<void> {
-  await fs.mkdir(NAVI_DATA_DIR, { recursive: true });
-}
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -55,7 +56,7 @@ async function backupIfExists(filePath: string): Promise<void> {
 }
 
 async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
-  await ensureNaviDataDir();
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
   await backupIfExists(filePath);
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
@@ -132,69 +133,79 @@ export function validatePersona(persona: NaviPersonaConfig): void {
   }
 }
 
+/**
+ * Deletes the active profile's override for `fileName` so the coded default applies again.
+ * The built-in profile has no overrides to delete, hence the writable guard.
+ */
+async function resetProfileFile(fileName: string): Promise<void> {
+  assertActiveProfileWritable();
+  const filePath = profileFilePath(fileName);
+  if (!filePath) return;
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    // Already absent — nothing to reset.
+  }
+  touchActiveProfile();
+}
+
+/** Persists into the active profile. `profileFilePath` returns null only for the read-only built-in profile, which `assertActiveProfileWritable` has already rejected. */
+async function writeProfileFile(fileName: string, data: unknown): Promise<void> {
+  assertActiveProfileWritable();
+  const filePath = profileFilePath(fileName);
+  if (!filePath) return;
+  await writeJsonFile(filePath, data);
+  touchActiveProfile();
+}
+
 export async function loadNaviStates(): Promise<NaviState[]> {
-  const filePath = path.join(NAVI_DATA_DIR, STATES_FILE_NAME);
-  const override = await readJsonFile<NaviState[]>(filePath);
+  const filePath = profileFilePath(STATES_FILE_NAME);
+  const override = filePath ? await readJsonFile<NaviState[]>(filePath) : null;
   return Array.isArray(override) && override.length > 0 ? override : DEFAULT_NAVI_STATES;
 }
 
 export async function saveNaviStates(states: NaviState[]): Promise<NaviState[]> {
   validateStates(states);
-  await writeJsonFile(path.join(NAVI_DATA_DIR, STATES_FILE_NAME), states);
+  await writeProfileFile(STATES_FILE_NAME, states);
   return states;
 }
 
 export async function resetNaviStates(): Promise<NaviState[]> {
-  const filePath = path.join(NAVI_DATA_DIR, STATES_FILE_NAME);
-  try {
-    await fs.unlink(filePath);
-  } catch {
-    // Already absent — nothing to reset.
-  }
+  await resetProfileFile(STATES_FILE_NAME);
   return DEFAULT_NAVI_STATES;
 }
 
 export async function loadNaviTips(): Promise<NaviTip[]> {
-  const filePath = path.join(NAVI_DATA_DIR, TIPS_FILE_NAME);
-  const override = await readJsonFile<NaviTip[]>(filePath);
+  const filePath = profileFilePath(TIPS_FILE_NAME);
+  const override = filePath ? await readJsonFile<NaviTip[]>(filePath) : null;
   return Array.isArray(override) ? override : DEFAULT_NAVI_TIPS;
 }
 
 export async function saveNaviTips(tips: NaviTip[]): Promise<NaviTip[]> {
   validateTips(tips);
-  await writeJsonFile(path.join(NAVI_DATA_DIR, TIPS_FILE_NAME), tips);
+  await writeProfileFile(TIPS_FILE_NAME, tips);
   return tips;
 }
 
 export async function resetNaviTips(): Promise<NaviTip[]> {
-  const filePath = path.join(NAVI_DATA_DIR, TIPS_FILE_NAME);
-  try {
-    await fs.unlink(filePath);
-  } catch {
-    // Already absent — nothing to reset.
-  }
+  await resetProfileFile(TIPS_FILE_NAME);
   return DEFAULT_NAVI_TIPS;
 }
 
 export async function loadNaviPersona(): Promise<NaviPersonaConfig> {
-  const filePath = path.join(NAVI_DATA_DIR, PERSONA_FILE_NAME);
-  const override = await readJsonFile<NaviPersonaConfig>(filePath);
+  const filePath = profileFilePath(PERSONA_FILE_NAME);
+  const override = filePath ? await readJsonFile<NaviPersonaConfig>(filePath) : null;
   return override && typeof override.roleIntro === "string" ? override : DEFAULT_NAVI_PERSONA;
 }
 
 export async function saveNaviPersona(persona: NaviPersonaConfig): Promise<NaviPersonaConfig> {
   validatePersona(persona);
-  await writeJsonFile(path.join(NAVI_DATA_DIR, PERSONA_FILE_NAME), persona);
+  await writeProfileFile(PERSONA_FILE_NAME, persona);
   return persona;
 }
 
 export async function resetNaviPersona(): Promise<NaviPersonaConfig> {
-  const filePath = path.join(NAVI_DATA_DIR, PERSONA_FILE_NAME);
-  try {
-    await fs.unlink(filePath);
-  } catch {
-    // Already absent — nothing to reset.
-  }
+  await resetProfileFile(PERSONA_FILE_NAME);
   return DEFAULT_NAVI_PERSONA;
 }
 

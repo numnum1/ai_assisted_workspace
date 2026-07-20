@@ -44,8 +44,11 @@ function errorMessage(err: unknown): string {
 /**
  * Loads the effective (possibly user-edited) Navi configuration — state machine, tips,
  * persona rules, and the use-case/tool knowledge base — and exposes save/reset for each.
+ *
+ * Everything is scoped to the active profile by the main process. Passing `activeProfileId`
+ * is what makes a profile switch reload the whole configuration; it is not sent anywhere.
  */
-export function useNaviStateConfig(): UseNaviStateConfigResult {
+export function useNaviStateConfig(activeProfileId?: string): UseNaviStateConfigResult {
   const [states, setStates] = useState<NaviState[]>([]);
   const [tips, setTips] = useState<NaviTip[]>([]);
   const [persona, setPersona] = useState<NaviPersonaConfig | null>(null);
@@ -59,6 +62,7 @@ export function useNaviStateConfig(): UseNaviStateConfigResult {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const [loadedStates, loadedTips, loadedPersona, loadedUseCases, loadedTools, loadedImprovementLlm] =
@@ -86,7 +90,7 @@ export function useNaviStateConfig(): UseNaviStateConfigResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeProfileId]);
 
   const saveStates = useCallback(async (next: NaviState[]): Promise<boolean> => {
     try {

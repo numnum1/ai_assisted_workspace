@@ -78,6 +78,15 @@ contextBridge.exposeInMainWorld("appBridge", {
     getImprovementLlm: () => ipcRenderer.invoke("navi:getImprovementLlm"),
     setImprovementLlm: (input: unknown) => ipcRenderer.invoke("navi:setImprovementLlm", input),
     resetImprovementLlm: () => ipcRenderer.invoke("navi:resetImprovementLlm"),
+    listProfiles: () => ipcRenderer.invoke("navi:profiles:list"),
+    setActiveProfile: (id: string) => ipcRenderer.invoke("navi:profiles:setActive", id),
+    createProfile: (name: string, fromId?: string) =>
+      ipcRenderer.invoke("navi:profiles:create", name, fromId),
+    renameProfile: (id: string, name: string) =>
+      ipcRenderer.invoke("navi:profiles:rename", id, name),
+    deleteProfile: (id: string) => ipcRenderer.invoke("navi:profiles:delete", id),
+    exportProfile: (id: string) => ipcRenderer.invoke("navi:profiles:export", id),
+    importProfile: () => ipcRenderer.invoke("navi:profiles:import"),
   },
   shell: {
     openDevTools: () => ipcRenderer.invoke("shell:openDevTools"),

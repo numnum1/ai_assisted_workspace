@@ -211,6 +211,30 @@ Händler schickt Nachricht
 
 ---
 
+## Profile
+
+Die gesamte editierbare Navi-Konfiguration (States, Tips, Persona, Use-Cases, Tools) gehört einem **Profil**. Das aktive Profil wählt man im Dropdown oben im `NaviStatePanel`.
+
+```
+~/.writing-assistant/navi/
+  profiles.json                  # { activeProfileId, profiles: [{ id, name, createdAt, updatedAt }] }
+  profiles/<id>/states.json      # + tips.json, persona.json, use-cases.json, tools.json
+  improvement-llm.json           # global, NICHT Teil eines Profils (enthält einen API-Key)
+```
+
+- **„Marc"** (id `marc`) ist das ausgelieferte Standardprofil. Es hat **kein Verzeichnis**: solange es aktiv ist, liefert jeder Loader die `DEFAULT_NAVI_*`-Konstanten aus dem Quellcode, und jeder Schreibversuch wird abgelehnt. Es ist nicht umbenennbar und nicht löschbar.
+- **Auto-Fork:** Speichern im Editor, während „Marc" aktiv ist, legt automatisch „Marc (Kopie)" an, aktiviert es und schreibt dorthin. Der Auslieferungsstand bleibt so garantiert unberührt.
+- Innerhalb eines Profils bleibt jede Datei ein *Override*: fehlt sie, gilt der codierte Default. „Standard" im Editor löscht also nur die Override-Datei.
+- **Austauschformat** für Import/Export (native Electron-Dialoge, `naviProfileTransfer.ts`):
+  ```json
+  { "kind": "navi-profile", "version": 1, "name": "…", "states": [], "tips": [], "persona": {}, "useCases": [], "tools": [] }
+  ```
+  Beim Import laufen alle fünf Domains durch dieselben `validate*`-Funktionen wie die Speichern-Buttons; erst danach entsteht ein neues lokales Profil.
+- **Migration:** Liegen noch Konfigdateien direkt in `navi/` (Stand vor den Profilen), werden sie beim ersten Zugriff in ein Profil „Eigenes Profil" verschoben und dieses aktiviert.
+- Im Dev-Web-Modus (ohne Electron) spiegelt `src/electron/bridge.ts` dasselbe Modell in `localStorage` mit pro Profil namensraumierten Keys; Import/Export gibt es dort nicht.
+
+---
+
 ## Simulations-Modus
 
 Navi kann automatisiert getestet werden: Ein simulierter Händler antwortet nach jedem Navi-Turn automatisch. Nach Abschluss wird das Gespräch bewertet (Score 0–100, Stärken, Schwächen, Verbesserungsvorschläge).
@@ -228,6 +252,10 @@ Navi kann automatisiert getestet werden: Ein simulierter Händler antwortet nach
 | `src/components/chat/naviStateMachineClient.ts` | Client-seitige State-Labels für die UI |
 | `src/components/chat/NaviStatePanel.tsx` | State-Fortschritts-Panel: Slot-Checkliste der aktuellen Phase + akkumulierte Faktenlage |
 | `electron/services/naviKnowledgeBase.ts` | Use Cases und Tools für Advisory-States |
+| `src/naviProfile.ts` | Profil-Typen + Konstanten (`NAVI_BUILTIN_PROFILE_ID`), von Main und Renderer geteilt |
+| `electron/services/naviProfileStore.ts` | Profil-Index, Pfadauflösung pro aktivem Profil, Schreibschutz für „Marc", Legacy-Migration |
+| `electron/services/naviProfileTransfer.ts` | Import/Export via nativer Datei-Dialoge inkl. Validierung |
+| `src/components/chat/NaviProfileBar.tsx` | Profil-Dropdown mit Neu/Duplizieren/Umbenennen/Löschen/Import/Export |
 | `src/naviUseCases.ts` | Use-Case-Definitionen |
 | `src/naviTools.ts` | Tool-Definitionen |
 | `src/naviTips.ts` | Tip-Definitionen (optionale Hinweise) |
