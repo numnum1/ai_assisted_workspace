@@ -65,15 +65,8 @@ import {
   readBlueprint,
   writeBlueprint,
 } from "./services/blueprintService.js";
-import {
-  listEvents,
-  createEvent,
-  updateEvent,
-  deleteEvent,
-} from "./services/eventsService.js";
 import type { ArcData } from "../src/shared/types.js";
 import type { StoryboardData } from "../src/shared/types.js";
-import type { EventStatus } from "../src/shared/types.js";
 import type { BlueprintData } from "../src/shared/types.js";
 import {
   previewChatContext,
@@ -233,28 +226,6 @@ function registerIpcHandlers(): void {
   );
   ipcMain.handle("blueprint:openWindow", () => {
     openWindow("blueprint");
-    return { status: "ok" };
-  });
-
-  ipcMain.handle("events:list", () => listEvents(getCurrentProjectPath()));
-  ipcMain.handle(
-    "events:create",
-    (_event, title: string, summary: string) =>
-      createEvent(getCurrentProjectPath(), title, summary),
-  );
-  ipcMain.handle(
-    "events:update",
-    (
-      _event,
-      id: string,
-      patch: { title?: string; summary?: string; status?: EventStatus },
-    ) => updateEvent(getCurrentProjectPath(), id, patch),
-  );
-  ipcMain.handle("events:delete", (_event, id: string) =>
-    deleteEvent(getCurrentProjectPath(), id),
-  );
-  ipcMain.handle("events:openWindow", () => {
-    openWindow("events");
     return { status: "ok" };
   });
 
@@ -906,7 +877,6 @@ type WindowKind =
   | "book"
   | "storyboard"
   | "chat"
-  | "events"
   | "settings"
   | "blueprint";
 
@@ -917,7 +887,6 @@ const WINDOW_CONFIG: Record<
   book: { width: 1400, height: 900, title: "Buch-Schreibtool" },
   storyboard: { width: 1200, height: 820, title: "Pinnwand" },
   chat: { width: 900, height: 800, title: "KI-Chat" },
-  events: { width: 420, height: 620, title: "Ereignisse" },
   settings: { width: 640, height: 720, title: "Einstellungen" },
   blueprint: { width: 1400, height: 900, title: "Blueprint" },
 };
@@ -1066,7 +1035,6 @@ function buildTrayMenu(): Menu {
     { label: "Buch-Schreibtool", click: () => openWindow("book") },
     { label: "Pinnwand", click: () => openWindow("storyboard") },
     { label: "KI-Chat", click: () => openWindow("chat") },
-    { label: "Ereignisse", click: () => openWindow("events") },
     { label: "Blueprint", click: () => openWindow("blueprint") },
     { label: "Einstellungen", click: () => openWindow("settings") },
     { type: "separator" },

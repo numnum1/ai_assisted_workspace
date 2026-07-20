@@ -511,6 +511,10 @@ function BlueprintCanvasInner() {
           onMove={closeContextMenu}
           nodeTypes={nodeTypes}
           nodesDraggable={false}
+          panOnDrag={[2]}
+          selectionOnDrag
+          selectionKeyCode={null}
+          zoomOnDoubleClick={false}
           fitView
           minZoom={0.2}
           deleteKeyCode={["Backspace", "Delete"]}

@@ -5,7 +5,6 @@ import './apps/book/builtinMediaProjects.ts'
 import App from './apps/book/App.tsx'
 import { StoryboardWindow } from './apps/storyboard/StoryboardWindow.tsx'
 import { ChatWindow } from './apps/chat/ChatWindow.tsx'
-import { EventsWindow } from './apps/events/EventsWindow.tsx'
 import { SettingsWindow } from './apps/settings/SettingsWindow.tsx'
 import { BlueprintWindow } from './apps/blueprint/BlueprintWindow.tsx'
 
@@ -15,13 +14,11 @@ const Root =
     ? StoryboardWindow
     : kind === 'chat'
       ? ChatWindow
-      : kind === 'events'
-        ? EventsWindow
-        : kind === 'settings'
-          ? SettingsWindow
-          : kind === 'blueprint'
-            ? BlueprintWindow
-            : App
+      : kind === 'settings'
+        ? SettingsWindow
+        : kind === 'blueprint'
+          ? BlueprintWindow
+          : App
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -613,14 +613,6 @@ export interface StoryboardCard {
   bookPaths?: string[];
   /** Enclosing frame id, or null/absent when loose on the canvas. */
   frameId?: string | null;
-  /**
-   * Id of the {@link EventRecord} this card places on the board. When set,
-   * `title`/`note` are ignored for display — the card mirrors the live event
-   * (title, summary) instead of holding its own copy. Removing such a card
-   * only removes this placement; the event's canonical file is untouched
-   * (deleting an event is only possible from the Ereignisse window).
-   */
-  eventId?: string;
   status?: StoryboardCardStatus;
   /** Optional explicit card size; falls back to the default when absent. */
   w?: number;
@@ -659,40 +651,14 @@ export interface StoryboardData {
 }
 
 /**
- * `idee` = not yet settled, may still change or be discarded; `kanon` =
- * settled fact other workspaces (storyboard nodes, scenes, arcs) may safely
- * reference.
- */
-export type EventStatus = "idee" | "kanon";
-
-/**
- * The canonical unit of "what happens" in the story world — the source-of-truth
- * atom that other workspaces only reference, never duplicate. Wiki, Timeline,
- * Storyboard and Buch are all projections of the same underlying events; this
- * record is managed exclusively through the standalone Ereignisse window
- * (CRUD), never created or deleted implicitly by a projection. Stored as one
- * Markdown file per event under `events/<id>.md` (front-matter + `summary` as
- * body) — sichtbar and git-trackable, unlike the `.assistant/` caches.
- */
-export interface EventRecord {
-  id: string;
-  title: string;
-  /** The kanon fact: what happens. Plain text/Markdown body of the file. */
-  summary: string;
-  status: EventStatus;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
  * Blueprint — the world-chronology graph (the *Fabula*: what happens in the
  * story world), an UE-Blueprint-style node graph orthogonal to the Buch
  * narration and the Wiki. Nodes are self-contained world events connected by
  * *named execution pins* (narrative flow, not code execution). Time runs along
  * the X-axis as a unitless `from`/`to` range; a node can hold its own inner
- * graph (`subGraphId`) like a collapsed UE function. Blueprint is intended to
- * eventually supersede the standalone Event system; nodes carry the same
- * `idee`/`kanon` status as `EventRecord` so that migration stays trivial.
+ * graph (`subGraphId`) like a collapsed UE function. Nodes carry an
+ * `idee`/`kanon` status: `idee` = not yet settled, may still change or be
+ * discarded; `kanon` = settled fact other workspaces may safely reference.
  */
 export type BlueprintNodeStatus = "idee" | "kanon";
 
