@@ -148,8 +148,12 @@ export function useSimulationRunner({
         const evaluation = await bridge.simulation.evaluateRun({
           persona: sim.personaPrompt?.trim() || sim.goal,
           personaName: sim.personaName,
+          personaId: sim.personaId,
           transcript,
           llmId: exec.llmId,
+          finalStateId: conv.naviStateId ?? "greeting",
+          finalFacts: conv.naviFacts,
+          resultFile: sim.resultFile,
         });
         if (evaluation?.report) {
           appendMessageToConversation(conv.id, {

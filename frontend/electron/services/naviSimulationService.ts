@@ -5,6 +5,8 @@ import {
   ensureChatCompletionsUrl,
   type OpenAiMessage,
 } from "./openAiClient.js";
+import { loadNaviPersona, saveNaviSimulationRun } from "./naviStateConfigService.js";
+import type { NaviFacts } from "../../src/types.js";
 
 export interface SimulationTranscriptLine {
   /** `"navi"` = the Navi advisor, `"merchant"` = the simulated user. */
@@ -28,10 +30,18 @@ export interface EvaluateNaviSimulationRequest {
   persona: string;
   /** Optional persona name for context. */
   personaName?: string;
+  /** Id of the persona library entry, if any — carried through to the persisted run record. */
+  personaId?: string;
   /** Full Navi ↔ merchant transcript, in order. */
   transcript: SimulationTranscriptLine[];
   /** Provider to use; falls back to the default provider. */
   llmId?: string | null;
+  /** State machine phase Navi was in when the simulation stopped (e.g. "closing" if it finished naturally). */
+  finalStateId?: string;
+  /** Final NaviFacts snapshot (slots, recommendation, ...) — lets the judge check completion, not just tone. */
+  finalFacts?: NaviFacts;
+  /** Slug identifying this run; when set, the finished evaluation is persisted under ~/.writing-assistant/navi/simulations/. */
+  resultFile?: string;
 }
 
 export interface EvaluateNaviSimulationResult {
@@ -116,6 +126,7 @@ export async function evaluateNaviSimulation(
 ): Promise<EvaluateNaviSimulationResult> {
   const provider = await resolveAiProvider(req.llmId);
   const endpoint = resolveProviderEndpoint(provider, false);
+  const naviPersona = await loadNaviPersona();
 
   const persona = normalizeText(req.persona) || "Ein typischer kleiner Händler.";
   const personaName = normalizeText(req.personaName ?? "");
@@ -129,12 +140,39 @@ export async function evaluateNaviSimulation(
     .filter(Boolean)
     .join("\n");
 
+  const principlesText = [naviPersona.roleIntro, ...naviPersona.fullPersonaRules]
+    .map((rule) => `- ${rule}`)
+    .join("\n");
+
+  const factsText = req.finalFacts
+    ? [
+        req.finalFacts.currentProblem ? `Aktuelles Problem: ${req.finalFacts.currentProblem}` : "",
+        req.finalFacts.hypothesis ? `Hypothese: ${req.finalFacts.hypothesis}` : "",
+        req.finalFacts.recommendation ? `Empfehlung: ${req.finalFacts.recommendation}` : "(keine Empfehlung im Fact-Sheet festgehalten)",
+        Object.keys(req.finalFacts.slots ?? {}).length > 0
+          ? `Ausgefüllte Slots: ${Object.entries(req.finalFacts.slots)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(", ")}`
+          : "(keine Slots ausgefüllt)",
+        req.finalFacts.problemQueue?.length
+          ? `Offene, noch nicht behandelte Probleme: ${req.finalFacts.problemQueue.join("; ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "(kein Fact-Sheet verfügbar)";
+
   const systemPrompt = [
     "Du bist ein strenger, fairer Qualitätsprüfer für 'Navi', einen KI-Berater, der kleinen Händlern hilft herauszufinden, ob und welche KI-/Software-Tools ihnen nützen.",
-    "Du bekommst das Profil eines simulierten Händlers und das vollständige Gesprächsprotokoll zwischen Navi und diesem Händler.",
+    "Du bekommst das Profil eines simulierten Händlers, das vollständige Gesprächsprotokoll, sowie den finalen Gesprächszustand (Phase + Fact-Sheet) am Ende der Simulation.",
     "Bewerte AUSSCHLIESSLICH die Leistung von Navi (nicht die des Händlers).",
-    "Achte auf: Hat Navi das Problem des Händlers richtig verstanden? Wurden gute, gezielte Rückfragen gestellt? War die Empfehlung passend, konkret und auf das Profil zugeschnitten? Blieb Navi im roten Faden, ohne sich zu wiederholen oder abzuschweifen? War der Ton angemessen?",
-    "Sei ehrlich und konkret – belege Stärken und Schwächen mit Bezug auf das Gespräch.",
+    "",
+    "Navi hat verbindliche Leitprinzipien. Miss jede Antwort von Navi konkret an diesen Regeln – ein Regelverstoß ist ein schwerwiegenderer Mangel als ein suboptimaler Ton:",
+    principlesText,
+    "",
+    "Prüfe zusätzlich den Gesprächsabschluss anhand des mitgelieferten Gesprächszustands: Wurde eine echte, zum Profil passende Empfehlung erarbeitet, oder brach das Gespräch vorzeitig ab (State ungleich 'closing', kein 'recommendation' im Fact-Sheet)? Ein Abbruch ohne Empfehlung ist ein wesentlicher Mangel, auch wenn der Gesprächston gut war.",
+    "Achte außerdem auf: Hat Navi das Problem des Händlers richtig verstanden? Wurden gute, gezielte Rückfragen gestellt? War die Empfehlung passend, konkret und auf das Profil zugeschnitten? Blieb Navi im roten Faden, ohne sich zu wiederholen oder abzuschweifen?",
+    "Sei ehrlich und konkret – belege Stärken und Schwächen mit Bezug auf das Gespräch bzw. auf konkrete Regelverstöße.",
     "Antworte als gültiges JSON-Objekt mit genau diesen Feldern:",
     '{ "score": <Zahl 0-100>, "summary": "<1-2 Sätze Gesamturteil>", "strengths": ["..."], "weaknesses": ["..."], "suggestions": ["..."] }',
     "Antworte NUR mit dem JSON, ohne Markdown-Codeblock, ohne weiteren Text.",
@@ -146,6 +184,9 @@ export async function evaluateNaviSimulation(
     "",
     "Gesprächsprotokoll:",
     transcriptText || "(Kein Gesprächsverlauf vorhanden.)",
+    "",
+    `Finaler Gesprächszustand (Phase: ${req.finalStateId ?? "unbekannt"}):`,
+    factsText,
   ]
     .filter((l) => l !== "")
     .join("\n");
@@ -197,27 +238,50 @@ export async function evaluateNaviSimulation(
     parsed = null;
   }
 
+  let result: EvaluateNaviSimulationResult;
   if (!parsed) {
-    return { score: -1, report: raw || "_Keine Bewertung verfügbar._" };
+    result = { score: -1, report: raw || "_Keine Bewertung verfügbar._" };
+  } else {
+    const scoreNum = Number(parsed.score);
+    const score =
+      Number.isFinite(scoreNum) && scoreNum >= 0 && scoreNum <= 100 ? Math.round(scoreNum) : -1;
+    const summary = normalizeText(String(parsed.summary ?? ""));
+    const toList = (value: unknown): string[] =>
+      Array.isArray(value) ? value.map((v) => normalizeText(String(v))).filter(Boolean) : [];
+    const strengths = toList(parsed.strengths);
+    const weaknesses = toList(parsed.weaknesses);
+    const suggestions = toList(parsed.suggestions);
+
+    const reportLines: string[] = [];
+    reportLines.push(`**Gesamtbewertung:** ${score >= 0 ? `${score}/100` : "—"}`);
+    if (summary) reportLines.push("", summary);
+    if (strengths.length > 0) reportLines.push("", "**Stärken**", ...strengths.map((s) => `- ${s}`));
+    if (weaknesses.length > 0) reportLines.push("", "**Schwächen**", ...weaknesses.map((s) => `- ${s}`));
+    if (suggestions.length > 0)
+      reportLines.push("", "**Verbesserungsvorschläge**", ...suggestions.map((s) => `- ${s}`));
+
+    result = { score, report: reportLines.join("\n") };
   }
 
-  const scoreNum = Number(parsed.score);
-  const score =
-    Number.isFinite(scoreNum) && scoreNum >= 0 && scoreNum <= 100 ? Math.round(scoreNum) : -1;
-  const summary = normalizeText(String(parsed.summary ?? ""));
-  const toList = (value: unknown): string[] =>
-    Array.isArray(value) ? value.map((v) => normalizeText(String(v))).filter(Boolean) : [];
-  const strengths = toList(parsed.strengths);
-  const weaknesses = toList(parsed.weaknesses);
-  const suggestions = toList(parsed.suggestions);
+  if (req.resultFile) {
+    try {
+      await saveNaviSimulationRun({
+        id: req.resultFile,
+        createdAt: new Date().toISOString(),
+        personaId: req.personaId,
+        personaName: req.personaName,
+        persona,
+        transcript: req.transcript,
+        finalStateId: req.finalStateId,
+        finalFacts: req.finalFacts,
+        score: result.score,
+        report: result.report,
+        llmId: req.llmId,
+      });
+    } catch (err) {
+      console.error("[simulation] failed to persist run", err);
+    }
+  }
 
-  const reportLines: string[] = [];
-  reportLines.push(`**Gesamtbewertung:** ${score >= 0 ? `${score}/100` : "—"}`);
-  if (summary) reportLines.push("", summary);
-  if (strengths.length > 0) reportLines.push("", "**Stärken**", ...strengths.map((s) => `- ${s}`));
-  if (weaknesses.length > 0) reportLines.push("", "**Schwächen**", ...weaknesses.map((s) => `- ${s}`));
-  if (suggestions.length > 0)
-    reportLines.push("", "**Verbesserungsvorschläge**", ...suggestions.map((s) => `- ${s}`));
-
-  return { score, report: reportLines.join("\n") };
+  return result;
 }

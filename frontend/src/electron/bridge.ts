@@ -4,6 +4,7 @@ import type {
   ChatRequest,
   LlmsListResponse,
   LlmPublic,
+  NaviFacts,
   Persona,
 } from "../types.ts";
 import { DEFAULT_NAVI_STATES, type NaviState } from "../naviStateMachine.ts";
@@ -100,8 +101,12 @@ export interface AppBridge {
     evaluateRun: (req: {
       persona: string;
       personaName?: string;
+      personaId?: string;
       transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
       llmId?: string | null;
+      finalStateId?: string;
+      finalFacts?: NaviFacts;
+      resultFile?: string;
     }) => Promise<{ score: number; report: string }>;
   };
   persona?: {

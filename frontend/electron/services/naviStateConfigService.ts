@@ -18,6 +18,7 @@ const STATES_FILE_NAME = "states.json";
 const TIPS_FILE_NAME = "tips.json";
 const PERSONA_FILE_NAME = "persona.json";
 const IMPROVEMENT_LLM_FILE_NAME = "improvement-llm.json";
+const SIMULATIONS_DIR_NAME = "simulations";
 
 async function ensureNaviDataDir(): Promise<void> {
   await fs.mkdir(NAVI_DATA_DIR, { recursive: true });
@@ -248,4 +249,44 @@ export async function resetNaviImprovementLlm(): Promise<NaviImprovementLlmPubli
     // Already absent — nothing to reset.
   }
   return toPublicImprovementLlm(EMPTY_IMPROVEMENT_LLM);
+}
+
+/** Persisted record of one finished Navi simulation run, for later review/comparison. */
+export interface NaviSimulationRunRecord {
+  id: string;
+  createdAt: string;
+  personaId?: string;
+  personaName?: string;
+  persona: string;
+  transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
+  finalStateId?: string;
+  finalFacts?: unknown;
+  score: number;
+  report: string;
+  llmId?: string | null;
+}
+
+/** Writes a finished simulation run to NAVI_DATA_DIR/simulations/<id>.json so runs can be compared later instead of only existing as a transient chat message. */
+export async function saveNaviSimulationRun(run: NaviSimulationRunRecord): Promise<void> {
+  const dir = path.join(NAVI_DATA_DIR, SIMULATIONS_DIR_NAME);
+  await fs.mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, `${run.id}.json`);
+  await fs.writeFile(filePath, JSON.stringify(run, null, 2), "utf-8");
+}
+
+export async function listNaviSimulationRuns(): Promise<NaviSimulationRunRecord[]> {
+  const dir = path.join(NAVI_DATA_DIR, SIMULATIONS_DIR_NAME);
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  const runs: NaviSimulationRunRecord[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const record = await readJsonFile<NaviSimulationRunRecord>(path.join(dir, entry));
+    if (record) runs.push(record);
+  }
+  return runs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
