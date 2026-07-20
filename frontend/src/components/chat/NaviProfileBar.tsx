@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Plus, Copy, Pencil, Trash2, Download, Upload, Users } from "lucide-react";
+import { Lock, Plus, Copy, Pencil, Trash2, Download, Upload, Users, Check, X } from "lucide-react";
 import { isBuiltInProfile, type NaviProfileMeta } from "../../naviProfile.ts";
 import "./NaviProfileBar.css";
 
@@ -33,34 +33,32 @@ export function NaviProfileBar({
   onExport,
   onImport,
 }: Props) {
-  const [renaming, setRenaming] = useState(false);
+  /** Which name-entry flow is open, if any. Electron has no `window.prompt`, so the name is typed inline. */
+  const [pending, setPending] = useState<"create" | "duplicate" | "rename" | null>(null);
   const [draftName, setDraftName] = useState("");
 
   const active = profiles.find((p) => p.id === activeProfileId);
   const activeIsBuiltIn = isBuiltInProfile(activeProfileId);
 
-  const startRename = () => {
-    setDraftName(active?.name ?? "");
-    setRenaming(true);
-  };
-
-  const commitRename = () => {
-    const name = draftName.trim();
-    if (name && name !== active?.name) onRename(activeProfileId, name);
-    setRenaming(false);
-  };
-
-  const handleCreate = () => {
-    const name = window.prompt("Name des neuen Profils:", "Neues Profil");
-    if (name?.trim()) onCreate(name.trim());
-  };
-
-  const handleDuplicate = () => {
-    const name = window.prompt(
-      "Name der Kopie:",
-      `${active?.name ?? "Profil"} (Kopie)`,
+  const startNaming = (mode: "create" | "duplicate" | "rename") => {
+    setDraftName(
+      mode === "create"
+        ? "Neues Profil"
+        : mode === "duplicate"
+          ? `${active?.name ?? "Profil"} (Kopie)`
+          : (active?.name ?? ""),
     );
-    if (name?.trim()) onCreate(name.trim(), activeProfileId);
+    setPending(mode);
+  };
+
+  const commitName = () => {
+    const name = draftName.trim();
+    if (name) {
+      if (pending === "create") onCreate(name);
+      else if (pending === "duplicate") onCreate(name, activeProfileId);
+      else if (pending === "rename" && name !== active?.name) onRename(activeProfileId, name);
+    }
+    setPending(null);
   };
 
   const handleDelete = () => {
@@ -75,16 +73,17 @@ export function NaviProfileBar({
     <div className="navi-profile-bar">
       <div className="navi-profile-row">
         <Users size={11} className="navi-profile-icon" />
-        {renaming ? (
+        {pending ? (
           <input
             className="navi-profile-rename-input"
             value={draftName}
             autoFocus
+            placeholder="Profilname"
+            onFocus={(e) => e.target.select()}
             onChange={(e) => setDraftName(e.target.value)}
-            onBlur={commitRename}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
-              if (e.key === "Escape") setRenaming(false);
+              if (e.key === "Enter") commitName();
+              if (e.key === "Escape") setPending(null);
             }}
           />
         ) : (
@@ -109,43 +108,82 @@ export function NaviProfileBar({
       </div>
 
       <div className="navi-profile-actions">
-        <button type="button" className="navi-profile-action" onClick={handleCreate} title="Neues Profil auf Basis der Standardeinstellungen">
-          <Plus size={11} />
-        </button>
-        <button type="button" className="navi-profile-action" onClick={handleDuplicate} title="Aktuelles Profil duplizieren">
-          <Copy size={11} />
-        </button>
-        <button
-          type="button"
-          className="navi-profile-action"
-          onClick={startRename}
-          disabled={activeIsBuiltIn}
-          title={activeIsBuiltIn ? "Das Standardprofil kann nicht umbenannt werden" : "Profil umbenennen"}
-        >
-          <Pencil size={11} />
-        </button>
-        <button
-          type="button"
-          className="navi-profile-action navi-profile-action--danger"
-          onClick={handleDelete}
-          disabled={activeIsBuiltIn}
-          title={activeIsBuiltIn ? "Das Standardprofil kann nicht gelöscht werden" : "Profil löschen"}
-        >
-          <Trash2 size={11} />
-        </button>
-        {canTransfer && (
+        {pending ? (
           <>
             <button
               type="button"
               className="navi-profile-action"
-              onClick={() => onExport(activeProfileId)}
-              title="Profil als Datei exportieren"
+              onClick={commitName}
+              disabled={!draftName.trim()}
+              title="Übernehmen"
             >
-              <Download size={11} />
+              <Check size={11} />
             </button>
-            <button type="button" className="navi-profile-action" onClick={onImport} title="Profil aus Datei importieren">
-              <Upload size={11} />
+            <button
+              type="button"
+              className="navi-profile-action"
+              onClick={() => setPending(null)}
+              title="Abbrechen"
+            >
+              <X size={11} />
             </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="navi-profile-action"
+              onClick={() => startNaming("create")}
+              title="Neues Profil auf Basis der Standardeinstellungen"
+            >
+              <Plus size={11} />
+            </button>
+            <button
+              type="button"
+              className="navi-profile-action"
+              onClick={() => startNaming("duplicate")}
+              title="Aktuelles Profil duplizieren"
+            >
+              <Copy size={11} />
+            </button>
+            <button
+              type="button"
+              className="navi-profile-action"
+              onClick={() => startNaming("rename")}
+              disabled={activeIsBuiltIn}
+              title={activeIsBuiltIn ? "Das Standardprofil kann nicht umbenannt werden" : "Profil umbenennen"}
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              type="button"
+              className="navi-profile-action navi-profile-action--danger"
+              onClick={handleDelete}
+              disabled={activeIsBuiltIn}
+              title={activeIsBuiltIn ? "Das Standardprofil kann nicht gelöscht werden" : "Profil löschen"}
+            >
+              <Trash2 size={11} />
+            </button>
+            {canTransfer && (
+              <>
+                <button
+                  type="button"
+                  className="navi-profile-action"
+                  onClick={() => onExport(activeProfileId)}
+                  title="Profil als Datei exportieren"
+                >
+                  <Download size={11} />
+                </button>
+                <button
+                  type="button"
+                  className="navi-profile-action"
+                  onClick={onImport}
+                  title="Profil aus Datei importieren"
+                >
+                  <Upload size={11} />
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
