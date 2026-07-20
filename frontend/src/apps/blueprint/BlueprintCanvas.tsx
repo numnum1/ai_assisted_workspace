@@ -41,6 +41,7 @@ import { ColumnsLayer } from "./ColumnsLayer.tsx";
 import { BlueprintColumnsPanel } from "./BlueprintColumnsPanel.tsx";
 import { BlueprintDetailsPanel } from "./BlueprintDetailsPanel.tsx";
 import { BlueprintBreadcrumbs, type BreadcrumbEntry } from "./BlueprintBreadcrumbs.tsx";
+import { ArcRegistryProvider } from "./arcRegistry.tsx";
 import {
   assignLanes,
   BASE_Y,
@@ -590,7 +591,9 @@ function BlueprintCanvasInner() {
 export function BlueprintCanvas() {
   return (
     <ReactFlowProvider>
-      <BlueprintCanvasInner />
+      <ArcRegistryProvider>
+        <BlueprintCanvasInner />
+      </ArcRegistryProvider>
     </ReactFlowProvider>
   );
 }

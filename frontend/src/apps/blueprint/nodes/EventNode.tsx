@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { BlueprintNode } from "../../../shared/types.ts";
+import { arcColor, useArcRegistry } from "../arcRegistryContext.ts";
 
 /**
  * A world-event node: a single implicit input on the left, and one named
@@ -9,12 +10,28 @@ import type { BlueprintNode } from "../../../shared/types.ts";
  */
 export function EventNode({ data, selected }: NodeProps) {
   const node = data as unknown as BlueprintNode;
+  const arcs = useArcRegistry();
+  const tags = (node.arcRefs ?? [])
+    .map((id) => arcs.find((a) => a.id === id))
+    .filter((a) => a !== undefined);
   return (
     <div
       className={`bp-node bp-node--${node.status}${selected ? " is-selected" : ""}`}
     >
       <Handle type="target" position={Position.Left} id="in" className="bp-pin bp-pin--in" />
       <div className="bp-node__header">{node.title || "Ereignis"}</div>
+      {tags.length > 0 && (
+        <div className="bp-node__tags">
+          {tags.map((arc) => (
+            <span
+              key={arc.id}
+              className="bp-node__tag"
+              title={arc.title}
+              style={{ backgroundColor: arcColor(arc) }}
+            />
+          ))}
+        </div>
+      )}
       <div className="bp-node__outputs">
         {node.outputs.length === 0 ? (
           <div className="bp-node__output bp-node__output--empty">—</div>

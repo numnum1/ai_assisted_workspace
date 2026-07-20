@@ -94,6 +94,19 @@
   background: linear-gradient(#3a3a42, #303036);
 }
 
+.bp-node__tags {
+  display: flex;
+  gap: 4px;
+  padding: 5px 12px 0;
+}
+
+.bp-node__tag {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 .bp-node__outputs {
   padding: 6px 0;
 }
@@ -388,6 +401,31 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #9a9aa0;
+}
+
+.bp-details__hint {
+  font-size: 12px;
+  color: #7a7a80;
+}
+
+.bp-details__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bp-details__tag {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.bp-details__tag.is-active {
+  font-weight: 500;
 }
 
 .bp-details__field input,

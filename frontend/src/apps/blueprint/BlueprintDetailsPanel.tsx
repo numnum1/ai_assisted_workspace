@@ -1,4 +1,5 @@
 import type { BlueprintNode, BlueprintNodeStatus } from "../../shared/types.ts";
+import { arcColor, useArcRegistry } from "./arcRegistryContext.ts";
 
 interface BlueprintDetailsPanelProps {
   node: BlueprintNode;
@@ -20,6 +21,15 @@ export function BlueprintDetailsPanel({
   onOpenOrCreateSubGraph,
 }: BlueprintDetailsPanelProps) {
   const isContainer = node.subGraphId !== undefined;
+  const arcs = useArcRegistry();
+  const arcRefs = node.arcRefs ?? [];
+  const toggleArc = (arcId: string) => {
+    onChange({
+      arcRefs: arcRefs.includes(arcId)
+        ? arcRefs.filter((id) => id !== arcId)
+        : [...arcRefs, arcId],
+    });
+  };
   const setPinLabel = (pinId: string, label: string) => {
     onChange({
       outputs: node.outputs.map((p) => (p.id === pinId ? { ...p, label } : p)),
@@ -92,6 +102,26 @@ export function BlueprintDetailsPanel({
         >
           {isContainer ? "Sub-Graph öffnen" : "Sub-Graph erstellen"}
         </button>
+      </div>
+      <div className="bp-details__field">
+        <label>Bögen</label>
+        {arcs.length === 0 ? (
+          <div className="bp-details__hint">Keine Bögen angelegt (Spannungsbögen-Fenster).</div>
+        ) : (
+          <div className="bp-details__tags">
+            {arcs.map((arc) => (
+              <button
+                key={arc.id}
+                type="button"
+                className={`bp-details__tag${arcRefs.includes(arc.id) ? " is-active" : ""}`}
+                style={{ borderColor: arcColor(arc), color: arcRefs.includes(arc.id) ? "#fff" : arcColor(arc), backgroundColor: arcRefs.includes(arc.id) ? arcColor(arc) : "transparent" }}
+                onClick={() => toggleArc(arc.id)}
+              >
+                {arc.title}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="bp-details__field">
         <label>Ausgänge</label>

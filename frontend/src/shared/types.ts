@@ -694,8 +694,9 @@ export interface BlueprintNode {
   /** `entry`/`exit` only: the pin id on the parent container this tunnel
    * mirrors — `"in"` for the entry, or the container output pin id it exits. */
   pinId?: string;
-  /** Phase 2: arc tags as `@[..](arc:ID)` / `@[..](arcpoint:ID)` mentions. */
-  arcRefs?: string;
+  /** Arc ids from the central arc registry (`.assistant/arcs/`) this event
+   * belongs to — a fixed tag set picked from the registry, not free text. */
+  arcRefs?: string[];
 }
 
 /** A directed execution wire from a node's named output pin to another node's
