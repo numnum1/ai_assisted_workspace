@@ -23,6 +23,21 @@ export interface NaviFacts {
   notes?: string;
 }
 
+/** Persisted record of one finished Navi simulation run (see electron/services/naviStateConfigService.ts), for later review/comparison. */
+export interface NaviSimulationRunRecord {
+  id: string;
+  createdAt: string;
+  personaId?: string;
+  personaName?: string;
+  persona: string;
+  transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
+  finalStateId?: string;
+  finalFacts?: NaviFacts;
+  score: number;
+  report: string;
+  llmId?: string | null;
+}
+
 /**
  * Debugging/observability record for one Navi turn — answers "why did it just ask that?".
  * Emitted after every turn (`navi_trace` event), independent of NaviFacts itself so it can carry

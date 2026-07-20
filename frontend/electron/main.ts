@@ -39,6 +39,7 @@ import {
   loadNaviImprovementLlm,
   saveNaviImprovementLlm,
   resetNaviImprovementLlm,
+  listNaviSimulationRuns,
 } from "./services/naviStateConfigService.js";
 import {
   loadUseCases,
@@ -88,6 +89,7 @@ function registerIpcHandlers(): void {
     (_event, req: EvaluateNaviSimulationRequest) =>
       evaluateNaviSimulation(req),
   );
+  ipcMain.handle("simulation:listRuns", () => listNaviSimulationRuns());
 
   ipcMain.handle("persona:list", () => listPersonas());
   ipcMain.handle("persona:read", (_event, id: string) => readPersona(id));

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, History } from "lucide-react";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { NewChatButton } from "./components/chat/NewChatButton.tsx";
 import { NaviStatePanel } from "./components/chat/NaviStatePanel.tsx";
@@ -7,6 +7,7 @@ import {
   SimulationSetupModal,
   type SimulationSetupResult,
 } from "./components/simulation/SimulationSetupModal.tsx";
+import { SimulationRunsModal } from "./components/simulation/SimulationRunsModal.tsx";
 import { AppearanceModal } from "./components/settings/AppearanceModal.tsx";
 import type {
   Conversation,
@@ -53,6 +54,7 @@ function App() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const modes = NAVI_MODES;
   const [simulationSetupOpen, setSimulationSetupOpen] = useState(false);
+  const [simulationRunsOpen, setSimulationRunsOpen] = useState(false);
   const [selectedMode] = useState(NAVI_MODE_ID);
   const [useReasoning, setUseReasoning] = useState(false);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
@@ -400,6 +402,14 @@ function App() {
               >
                 <FlaskConical size={14} />
               </button>
+              <button
+                type="button"
+                className="chat-history-sim-btn"
+                onClick={() => setSimulationRunsOpen(true)}
+                title="Simulationsläufe ansehen"
+              >
+                <History size={14} />
+              </button>
               <NewChatButton onClick={() => handleNewChat()} />
             </div>
           </div>
@@ -462,6 +472,10 @@ function App() {
           onConfirm={handleCreateSimulation}
           onCancel={() => setSimulationSetupOpen(false)}
         />
+      )}
+
+      {simulationRunsOpen && (
+        <SimulationRunsModal onCancel={() => setSimulationRunsOpen(false)} />
       )}
     </div>
   );

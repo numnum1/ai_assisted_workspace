@@ -12,6 +12,7 @@ import type {
   NaviImprovementLlmPublic,
   NaviImprovementLlmInput,
 } from "../../src/naviImprovement.js";
+import type { NaviSimulationRunRecord } from "../../src/types.js";
 
 const NAVI_DATA_DIR = path.join(os.homedir(), ".writing-assistant", "navi");
 const STATES_FILE_NAME = "states.json";
@@ -249,21 +250,6 @@ export async function resetNaviImprovementLlm(): Promise<NaviImprovementLlmPubli
     // Already absent — nothing to reset.
   }
   return toPublicImprovementLlm(EMPTY_IMPROVEMENT_LLM);
-}
-
-/** Persisted record of one finished Navi simulation run, for later review/comparison. */
-export interface NaviSimulationRunRecord {
-  id: string;
-  createdAt: string;
-  personaId?: string;
-  personaName?: string;
-  persona: string;
-  transcript: Array<{ speaker: "navi" | "merchant"; content: string }>;
-  finalStateId?: string;
-  finalFacts?: unknown;
-  score: number;
-  report: string;
-  llmId?: string | null;
 }
 
 /** Writes a finished simulation run to NAVI_DATA_DIR/simulations/<id>.json so runs can be compared later instead of only existing as a transient chat message. */

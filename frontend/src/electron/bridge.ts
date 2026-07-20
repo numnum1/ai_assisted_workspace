@@ -5,6 +5,7 @@ import type {
   LlmsListResponse,
   LlmPublic,
   NaviFacts,
+  NaviSimulationRunRecord,
   Persona,
 } from "../types.ts";
 import { DEFAULT_NAVI_STATES, type NaviState } from "../naviStateMachine.ts";
@@ -108,6 +109,7 @@ export interface AppBridge {
       finalFacts?: NaviFacts;
       resultFile?: string;
     }) => Promise<{ score: number; report: string }>;
+    listRuns: () => Promise<NaviSimulationRunRecord[]>;
   };
   persona?: {
     list: () => Promise<Persona[]>;
