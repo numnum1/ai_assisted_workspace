@@ -73,7 +73,6 @@ interface ChatPanelProps {
   naviStep?: string | null;
   naviFacts?: NaviFacts;
   simulationConfig?: SimulationConfig;
-  onOpenSimulationSetup?: () => void;
 }
 
 export function ChatPanel({

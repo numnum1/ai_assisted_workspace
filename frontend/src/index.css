@@ -5523,7 +5523,8 @@ body.file-tree-native-dragging {
 
 .chat-history-new-btn,
 .chat-history-close-btn,
-.chat-history-clear-all-btn {
+.chat-history-clear-all-btn,
+.chat-history-sim-btn {
     display: flex;
     align-items: center;
     padding: 3px;
@@ -5548,6 +5549,11 @@ body.file-tree-native-dragging {
 .chat-history-new-btn:hover {
     background: var(--bg-hover);
     color: var(--green);
+}
+
+.chat-history-sim-btn:hover {
+    background: var(--bg-hover);
+    color: var(--purple, #8b5cf6);
 }
 
 .chat-history-close-btn:hover {

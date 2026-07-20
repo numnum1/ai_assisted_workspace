@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { FlaskConical } from "lucide-react";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { NewChatButton } from "./components/chat/NewChatButton.tsx";
 import { NaviStatePanel } from "./components/chat/NaviStatePanel.tsx";
@@ -391,6 +392,14 @@ function App() {
           <div className="navi-chat-header">
             <span className="navi-chat-header-title">KI-Navi Handel</span>
             <div className="chat-header-actions">
+              <button
+                type="button"
+                className="chat-history-sim-btn"
+                onClick={() => setSimulationSetupOpen(true)}
+                title="Navi-Simulation starten"
+              >
+                <FlaskConical size={14} />
+              </button>
               <NewChatButton onClick={() => handleNewChat()} />
             </div>
           </div>
@@ -432,7 +441,6 @@ function App() {
             naviStateId={history.activeConversation?.naviStateId ?? null}
             naviFacts={history.activeConversation?.naviFacts}
             simulationConfig={history.activeConversation?.simulationConfig}
-            onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
             activeSelection={activeSelection}
             onDismissSelection={handleDismissSelection}
             chatFocusTriggerRef={chatFocusTriggerRef}
