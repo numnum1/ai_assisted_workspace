@@ -79,7 +79,7 @@ function makeNode(
   kind: Extract<BlueprintNodeKind, "event" | "reroute">,
   flowPos: XYPosition,
 ): BlueprintNode {
-  const from = Math.round((flowPos.x / TIME_UNIT_PX) * 100) / 100;
+  const from = Math.round(flowPos.x / TIME_UNIT_PX);
   const base = {
     id: newId("node"),
     description: "",
@@ -124,6 +124,11 @@ function BlueprintCanvasInner() {
   const loadedRef = useRef(false);
   const saveTimer = useRef<number | null>(null);
   const connectingPin = useRef<{ nodeId: string; handleId: string } | null>(null);
+  const edgesRef = useRef<Edge[]>([]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
   useEffect(() => {
     blueprintApi
@@ -177,19 +182,46 @@ function BlueprintCanvasInner() {
     }, 400);
   }, [nodes, edges, columns]);
 
+  /** Re-settles every node onto a lane derived from the execution wiring: a
+   * linear chain shares one lane, each extra branch fans onto its own lane
+   * below. Re-run whenever the wiring or a node's time could have changed. */
+  const autoArrange = useCallback(
+    (edgeList?: Edge[]) => {
+      const activeEdges = edgeList ?? edgesRef.current;
+      setNodes((nds) => {
+        const dataList = nds
+          .map((n) => n.data as unknown as BlueprintNode)
+          .filter((n) => n.kind === "event" || n.kind === "reroute");
+        const lanes = assignLanes(
+          dataList,
+          activeEdges.map((e) => ({ source: e.source, target: e.target })),
+        );
+        return nds.map((n) => {
+          const lane = lanes.get(n.id);
+          if (lane === undefined) return n;
+          return { ...n, position: { ...n.position, y: BASE_Y + lane * NODE_LANE_HEIGHT } };
+        });
+      });
+    },
+    [setNodes],
+  );
+
   /** An input pin accepts at most one wire — connecting a new one replaces
    * whatever was already plugged into that node's implicit "in" pin. */
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => {
-        const withoutExistingTarget = eds.filter((e) => e.target !== connection.target);
-        return addEdge(
-          { ...connection, id: newId("edge"), targetHandle: "in" },
-          withoutExistingTarget,
-        );
-      });
+      const withoutExistingTarget = edgesRef.current.filter(
+        (e) => e.target !== connection.target,
+      );
+      const next = addEdge(
+        { ...connection, id: newId("edge"), targetHandle: "in" },
+        withoutExistingTarget,
+      );
+      edgesRef.current = next;
+      setEdges(next);
+      autoArrange(next);
     },
-    [setEdges],
+    [setEdges, autoArrange],
   );
 
   const updateNodeData = useCallback(
@@ -244,24 +276,6 @@ function BlueprintCanvasInner() {
     [nodes, updateNodeData, setEdges],
   );
 
-  /** Spreads event/reroute nodes onto non-overlapping vertical lanes purely
-   * from their time ranges — this is the "collapse to a lane if you fit,
-   * else make a new one" packer, re-run automatically whenever any node's
-   * time range could have changed so overlapping nodes never stay stacked. */
-  const autoArrange = useCallback(() => {
-    setNodes((nds) => {
-      const dataList = nds
-        .map((n) => n.data as unknown as BlueprintNode)
-        .filter((n) => n.kind === "event" || n.kind === "reroute");
-      const lanes = assignLanes(dataList);
-      return nds.map((n) => {
-        const lane = lanes.get(n.id);
-        if (lane === undefined) return n;
-        return { ...n, position: { ...n.position, y: BASE_Y + lane * NODE_LANE_HEIGHT } };
-      });
-    });
-  }, [setNodes]);
-
   /** Apply a from/to change and immediately re-settle every node's lane —
    * the automatic counterpart to the manual "Automatisch anordnen" action. */
   const updateNodeTime = useCallback(
@@ -309,19 +323,19 @@ function BlueprintCanvasInner() {
       const flowPos = screenToFlowPosition({ x: point.clientX, y: point.clientY });
       const node = makeNode("event", flowPos);
       setNodes((nds) => [...nds, toRfNode(node)]);
-      setEdges((eds) =>
-        addEdge(
-          {
-            id: newId("edge"),
-            source: source.nodeId,
-            sourceHandle: source.handleId,
-            target: node.id,
-            targetHandle: "in",
-          },
-          eds,
-        ),
+      const next = addEdge(
+        {
+          id: newId("edge"),
+          source: source.nodeId,
+          sourceHandle: source.handleId,
+          target: node.id,
+          targetHandle: "in",
+        },
+        edgesRef.current,
       );
-      autoArrange();
+      edgesRef.current = next;
+      setEdges(next);
+      autoArrange(next);
     },
     [screenToFlowPosition, setNodes, setEdges, autoArrange],
   );

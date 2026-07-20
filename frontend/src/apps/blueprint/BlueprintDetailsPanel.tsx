@@ -70,11 +70,12 @@ export function BlueprintDetailsPanel({
           <label>Von</label>
           <input
             type="number"
+            step={1}
             disabled={isContainer}
             value={node.from ?? ""}
             onChange={(e) =>
               onChange({
-                from: e.target.value === "" ? undefined : Number(e.target.value),
+                from: e.target.value === "" ? undefined : Math.round(Number(e.target.value)),
               })
             }
           />
@@ -83,11 +84,12 @@ export function BlueprintDetailsPanel({
           <label>Bis</label>
           <input
             type="number"
+            step={1}
             disabled={isContainer}
             value={node.to ?? ""}
             onChange={(e) =>
               onChange({
-                to: e.target.value === "" ? undefined : Number(e.target.value),
+                to: e.target.value === "" ? undefined : Math.round(Number(e.target.value)),
               })
             }
           />

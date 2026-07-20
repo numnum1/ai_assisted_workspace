@@ -18,16 +18,36 @@ function event(id: string, from: number, to?: number): BlueprintNode {
 }
 
 describe("assignLanes", () => {
-  it("keeps non-overlapping nodes on the same lane", () => {
-    const lanes = assignLanes([event("a", 0, 1), event("b", 1, 2)]);
+  it("keeps a linear chain on one lane", () => {
+    const lanes = assignLanes(
+      [event("a", 0), event("b", 1), event("c", 2)],
+      [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+      ],
+    );
     expect(lanes.get("a")).toBe(0);
     expect(lanes.get("b")).toBe(0);
+    expect(lanes.get("c")).toBe(0);
   });
 
-  it("separates overlapping nodes into different lanes", () => {
-    const lanes = assignLanes([event("a", 0, 2), event("b", 1, 3)]);
+  it("fans a node's branches onto separate lanes, earliest branch on top", () => {
+    const lanes = assignLanes(
+      [event("a", 0), event("b", 1), event("c", 2)],
+      [
+        { source: "a", target: "b" },
+        { source: "a", target: "c" },
+      ],
+    );
     expect(lanes.get("a")).toBe(0);
-    expect(lanes.get("b")).toBe(1);
+    expect(lanes.get("b")).toBe(0);
+    expect(lanes.get("c")).toBe(1);
+  });
+
+  it("gives each disconnected root its own lane, in time order", () => {
+    const lanes = assignLanes([event("late", 5), event("early", 0)]);
+    expect(lanes.get("early")).toBe(0);
+    expect(lanes.get("late")).toBe(1);
   });
 });
 

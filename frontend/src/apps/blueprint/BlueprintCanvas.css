@@ -64,40 +64,68 @@
 /* ---- Node ---- */
 .bp-node {
   position: relative;
-  min-width: 180px;
-  background: linear-gradient(#2a2a2e, #232327);
-  border: 1px solid #4a4a50;
-  border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  min-width: 340px;
+  background: linear-gradient(180deg, #34343a 0%, #232328 16%, #1b1b20 100%);
+  border: 1px solid #0c0c0d;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   font-size: 13px;
+  overflow: hidden;
 }
 
 .bp-node.is-selected {
-  border-color: #f0a020;
-  box-shadow: 0 0 0 1px #f0a020, 0 4px 16px rgba(0, 0, 0, 0.5);
+  border-color: #ffb02e;
+  box-shadow: 0 0 0 2px #ffb02e, 0 6px 22px rgba(0, 0, 0, 0.6);
 }
 
 .bp-node__header {
-  padding: 6px 12px;
-  font-weight: 600;
-  color: #f2f2f2;
-  border-bottom: 1px solid #3a3a40;
-  border-radius: 6px 6px 0 0;
-  background: linear-gradient(#3a3a42, #303036);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  background: linear-gradient(180deg, #3f8fd6 0%, #2668b3 52%, #1a4d93 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .bp-node--kanon .bp-node__header {
-  background: linear-gradient(#2f4a34, #26402c);
+  background: linear-gradient(180deg, #35c07a 0%, #1f9d5c 52%, #157a45 100%);
 }
 
 .bp-node--idee .bp-node__header {
-  background: linear-gradient(#3a3a42, #303036);
+  background: linear-gradient(180deg, #7a5cff 0%, #5a3ee0 52%, #4429b8 100%);
+}
+
+.bp-node__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bp-node__title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+.bp-node__subtitle {
+  font-size: 11px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bp-node__tags {
   display: flex;
   gap: 4px;
-  padding: 5px 12px 0;
+  padding: 8px 16px 0;
 }
 
 .bp-node__tag {
@@ -105,10 +133,11 @@
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
 .bp-node__outputs {
-  padding: 6px 0;
+  padding: 9px 0;
 }
 
 .bp-node__output {
@@ -116,8 +145,9 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  padding: 3px 14px 3px 12px;
-  color: #cfcfd4;
+  padding: 6px 18px 6px 14px;
+  min-height: 26px;
+  color: #d6d6db;
 }
 
 .bp-node__output--empty {
@@ -129,24 +159,27 @@
   white-space: nowrap;
 }
 
-/* ---- Pins (execution handles) ---- */
+/* ---- Pins (execution handles) — UE-style filled/hollow arrowheads ---- */
 .bp-pin {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: #1b1b1d;
-  border: 2px solid #d8d8d8;
+  width: 14px;
+  height: 12px;
+  background: #f0f0f2;
+  border: none;
+  border-radius: 0;
+  clip-path: polygon(0% 5%, 78% 50%, 0% 95%);
 }
 
 .bp-pin.bp-pin--in {
-  left: -6px;
-  top: 15px;
+  left: -8px;
+  top: 22px;
 }
 
 .bp-pin.bp-pin--out {
-  right: -6px;
+  right: -8px;
   top: 50%;
   transform: translateY(-50%);
+  background: transparent;
+  border: 2px solid #f0f0f2;
 }
 
 .react-flow__handle.bp-pin.connectionindicator:hover {
