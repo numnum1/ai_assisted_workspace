@@ -4,8 +4,86 @@ Bedienungsanleitung für Navi — den KI-Berater-Chat für Einzelhändler.
 
 Diese Anleitung wächst mit dem Programm. Aktuell enthalten:
 
+- [Was ist das KI-Navi?](#was-ist-das-ki-navi)
 - [Profile](#profile)
 - [Die Felder im Navi-Editor](#die-felder-im-navi-editor)
+
+---
+
+## Was ist das KI-Navi?
+
+### Das Ziel
+
+Das KI-Navi ist ein Chat-Berater für Einzelhändler. Ein Händler beschreibt ein Problem aus seinem Alltag — zu wenig Laufkundschaft, zu viel Zeit in der Kundenkommunikation, unübersichtliches Lager — und Navi arbeitet mit ihm heraus, **ob** Software oder KI dabei überhaupt helfen kann, und wenn ja, **was** konkret.
+
+Der entscheidende Punkt ist das „ob". Navi ist ausdrücklich **kein Verkaufsgespräch**:
+
+- Die Beratung setzt am **Ist-Zustand** an. Erst wird verstanden, was der Händler tatsächlich hat und tut — dann wird empfohlen. Ein Vorschlag, der einen kompletten Umbau voraussetzt, ist meist der falsche.
+- **„Das lohnt sich für dich nicht" ist eine gültige Antwort.** Navi darf und soll abraten, wenn ein Problem nicht software-lösbar ist oder der Aufwand nicht zum Nutzen passt.
+- Die **Investitionsbereitschaft ist Randbedingung, nicht Verhandlungsmasse.** Navi fragt vor jeder Empfehlung, wie viel Zeit, laufendes Geld und einmaliges Startbudget realistisch drin sind — und schlägt dann bewusst die schlankere Lösung vor, wenn eine der drei Dimensionen eng ist.
+- KI wird **nicht aufgedrängt.** Der Hauptpfad des Gesprächs gibt den ehrlichsten Rat, ganz gleich ob er mit KI zu tun hat. Erst wenn der Händler mit der Empfehlung zufrieden ist, fragt Navi **einmalig** nach, ob er sich gezielt KI-Tools ansehen möchte — ein „nein" ändert nichts am bereits gegebenen Rat.
+
+### Wie ein Gespräch abläuft
+
+Navi plaudert nicht frei, sondern arbeitet sich durch feste **Phasen**. Jede Phase hat genau einen Auftrag, und Navi weiß in jedem Moment nur, was für diese eine Phase nötig ist:
+
+```
+Begrüßung → Problem erfragen → Problem klären → Software-Stack →
+Aufwandbereitschaft → Verständnis bestätigen → Einschätzung →
+Empfehlung → (Anpassen) → KI-Erkundung anbieten → (KI-Lösungen) → Abschluss
+```
+
+Grob in drei Abschnitten: Navi **fragt** erst (Problem, vorhandene Software, Budget), **fasst zusammen** und lässt sich bestätigen, und **berät** dann (Einschätzung, Empfehlung, Nachschärfen).
+
+Damit Navi nicht vorschnell in den Beratungsmodus springt — der klassische Fehler solcher Assistenten — gibt es drei Schutzmechanismen:
+
+**1. Navi weiß in Frage-Phasen nicht, dass es ein Berater ist.**
+In den reinen Frage-Phasen bekommt das Sprachmodell keine Berater-Identität, keine Hinweise und keinen Tool-Katalog — es weiß nur: „Ich führe ein strukturiertes Gespräch und stelle eine Frage." Wer seine Beraterrolle gar nicht kennt, empfiehlt auch nichts. Erst ab der Einschätzungsphase wird die volle Persona zugeschaltet. Im Editor ist das der Schalter *Persona* (`narrow` / `full`).
+
+**2. In Frage-Phasen ist freier Text technisch ausgeschlossen.**
+Navi kann dort nur über vorgegebene Werkzeuge antworten: eine offene Frage, eine Frage mit anklickbaren Antwortoptionen oder eine Ja/Nein-Frage. Ein Absatz mit ungefragten Ratschlägen ist damit nicht bloß unerwünscht, sondern strukturell unmöglich.
+
+**3. Der Phasenwechsel wird gerechnet, nicht geschätzt.**
+Jede Frage-Phase hat eine **Checkliste** dessen, was geklärt sein muss. Solange auch nur ein Punkt offen ist, lehnt das Programm einen Phasenwechsel ab — unabhängig davon, für wie fertig das Modell sich selbst hält. Nur die Ausnahmen (Themenwechsel, „das war ein Missverständnis") werden von einem kleinen Zusatz-Aufruf beurteilt.
+
+### Das Fakten-Blatt
+
+Parallel zum Gespräch führt Navi ein **Fakten-Blatt**: was der Händler gesagt hat, was Navi daraus schließt, welche Anliegen noch offen sind, welche Empfehlung im Raum steht. Navi pflegt es nach **jeder** Nachricht selbst und bekommt es bei jeder Antwort vollständig wieder vorgelegt.
+
+Das ist der Grund, warum Navi im späteren Gesprächsverlauf nichts vergisst und nichts doppelt fragt — es arbeitet nicht mit einem Gesprächsausschnitt, sondern mit einer durchgehend gepflegten Zusammenfassung.
+
+### Die Oberfläche
+
+Links der Chat, rechts das **Navi-Panel**. Das Panel ist das Beobachtungsfenster: Es zeigt, was intern gerade passiert.
+
+| Abschnitt | Was du dort siehst |
+|---|---|
+| Profilleiste (ganz oben) | Welche Konfiguration gerade aktiv ist → [Profile](#profile) |
+| **Bearbeiten** / **Aus Feedback verbessern** | Öffnet den Editor → [Die Felder im Navi-Editor](#die-felder-im-navi-editor) |
+| State | Aktuelle Phase mit Persona-Kennzeichnung und dem kompletten Arbeitsauftrag, den Navi gerade hat |
+| Slot-Checkliste (Gate) | Was in dieser Phase noch offen ist und was bereits als bekannt gilt |
+| Begründung (letzte Turns) | Das Protokoll der letzten Züge: welche Fakten neu erfasst wurden, ob ein Phasenwechsel versucht und angenommen oder abgelehnt wurde (mit den noch offenen Punkten), ob ein Themenwechsel erkannt wurde. Die erste Anlaufstelle, wenn Navi sich unerwartet verhält. |
+| Probleme | Das aktuell behandelte Anliegen plus die Anliegen, die der Händler nebenbei erwähnt hat und die später drankommen |
+| Faktenlage | Das gesammelte Fakten-Blatt über alle Phasen hinweg |
+| Hinweise | Optionale Themen und ob sie im Gespräch schon untergebracht wurden |
+| Übergänge / Flow | Wohin es von hier aus gehen kann, und wo im Gesamtablauf das Gespräch steht |
+
+### Navi anpassen
+
+Nichts an Navis Verhalten ist fest verdrahtet — Phasen, Arbeitsaufträge, Checklisten, Tonfall, Use-Cases und Tool-Katalog sind alle im **Editor** änderbar (Knopf **Bearbeiten**). Eine komplette solche Konfiguration heißt **Profil**; du kannst mehrere davon nebeneinander halten, umschalten und als Datei weitergeben.
+
+Zwei Wege führen zu Änderungen:
+
+- **Von Hand** — im Editor, Feld für Feld. Alle Felder sind unter [Die Felder im Navi-Editor](#die-felder-im-navi-editor) erklärt.
+- **Aus Feedback** — bewerte einzelne Navi-Antworten im Chat und klicke dann **Aus Feedback verbessern**. Ein Sprachmodell leitet daraus Änderungsvorschläge ab und füllt sie in den Editor vor. Übernommen wird nichts automatisch: Du prüfst die Vorschläge und speicherst, was du behalten willst.
+
+Zum Ausprobieren gibt es außerdem einen **Simulations-Modus**: Ein simulierter Händler mit vorgegebener Persona führt das Gespräch automatisch von Anfang bis Ende, danach wird der Verlauf bewertet (Punktzahl 0–100, Stärken, Schwächen, Verbesserungsvorschläge). So lassen sich zwei Profile vergleichen, ohne jedes Mal selbst zu tippen.
+
+### Wo läuft das Ganze?
+
+Das Programm ist eine Desktop-Anwendung; es gibt keinen Server, der zwischengeschaltet wäre. Gespräche und Konfiguration liegen auf deinem Rechner (Konfiguration unter `.writing-assistant` in deinem Benutzerordner). Nach außen geht ausschließlich das, was für die Antwort des Sprachmodells nötig ist — an den KI-Anbieter, den du in den Einstellungen hinterlegt hast.
+
+Chat-Verläufe sind bewusst **flüchtig** und hängen am Browser-Speicher der App; die **Konfiguration** dagegen ist dauerhaft in Dateien abgelegt und überlebt Neustarts.
 
 ---
 

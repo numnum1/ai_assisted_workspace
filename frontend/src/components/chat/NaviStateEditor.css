@@ -257,6 +257,10 @@
   resize: vertical;
 }
 
+.navi-editor-field textarea {
+  padding: 10px 14px;
+}
+
 .navi-editor-checkbox {
   display: flex;
   align-items: center;
@@ -303,7 +307,7 @@
 .navi-editor-list-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
 }
 
 .navi-editor-list-row {
@@ -319,7 +323,7 @@
   background: var(--bg-primary, #1e1e2e);
   border: 1px solid var(--border, #313244);
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 8px 12px;
   resize: vertical;
 }
 
@@ -351,6 +355,10 @@
   resize: vertical;
 }
 
+.navi-editor-transition textarea {
+  padding: 8px 12px;
+}
+
 .navi-editor-tip {
   display: flex;
   flex-direction: column;
@@ -366,6 +374,6 @@
   background: var(--bg-primary, #1e1e2e);
   border: 1px solid var(--border, #313244);
   border-radius: 4px;
-  padding: 5px 7px;
+  padding: 10px 14px;
   resize: vertical;
 }
