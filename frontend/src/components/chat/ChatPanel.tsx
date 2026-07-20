@@ -9,6 +9,7 @@ import type {
   MessageFeedback,
   ReasoningEffort,
   SimulationConfig,
+  NaviFacts,
 } from "../../types.ts";
 import { ChatPane } from "./ChatPane.tsx";
 
@@ -70,6 +71,7 @@ interface ChatPanelProps {
   theme?: "light" | "dark";
   naviStateId?: string | null;
   naviStep?: string | null;
+  naviFacts?: NaviFacts;
   simulationConfig?: SimulationConfig;
   onOpenSimulationSetup?: () => void;
 }
@@ -115,8 +117,13 @@ export function ChatPanel({
   theme = "light",
   naviStateId,
   naviStep,
+  naviFacts,
   simulationConfig,
 }: ChatPanelProps) {
+  const activeConversationTitle = useMemo(
+    () => conversations.find((c) => c.id === activeConversationId)?.title,
+    [conversations, activeConversationId],
+  );
   /** Guided header must match persisted conversation (agent preset), not global toolbar state. */
   const guidedExecSummary = useMemo(() => {
     if (activeSessionKind !== "guided") return null;
@@ -173,6 +180,8 @@ export function ChatPanel({
           toolActivity={toolActivity}
           naviStep={naviStep}
           naviStateId={naviStateId}
+          naviFacts={naviFacts}
+          conversationTitle={activeConversationTitle}
           onSend={onSend}
           onStop={onStop}
           onEditMessage={onEditMessage}

@@ -430,6 +430,7 @@ function App() {
             onSetMessageFeedback={conversation.setMessageFeedback}
             activeSessionKind={history.activeConversation?.sessionKind ?? "navi"}
             naviStateId={history.activeConversation?.naviStateId ?? null}
+            naviFacts={history.activeConversation?.naviFacts}
             simulationConfig={history.activeConversation?.simulationConfig}
             onOpenSimulationSetup={() => setSimulationSetupOpen(true)}
             activeSelection={activeSelection}

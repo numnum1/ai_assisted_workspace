@@ -13,6 +13,7 @@ import type {
   MessageFeedback,
   ReasoningEffort,
   SimulationConfig,
+  NaviFacts,
 } from "../../types.ts";
 import { SimulationContextBanner } from "../simulation/SimulationContextBanner.tsx";
 import { ChatInput } from "./ChatInput.tsx";
@@ -21,6 +22,8 @@ import { SuggestedActionsCard } from "./SuggestedActionsCard.tsx";
 import { YesNoCard } from "./YesNoCard.tsx";
 import { parseClarificationQuestions, parseYesNoQuestion } from "./clarificationUtils.ts";
 import { ChatMessagesPane } from "./ChatMessagesPane.tsx";
+import { NaviPlanCard } from "./NaviPlanCard.tsx";
+import { naviPlanIsAvailable } from "./naviPlanExport.ts";
 import "./ChatPane.css";
 
 /** Chars above which auto-scroll stops following during streaming. */
@@ -36,6 +39,8 @@ export interface ChatPaneProps {
   toolActivity: string | null;
   naviStep?: string | null;
   naviStateId?: string | null;
+  naviFacts?: NaviFacts;
+  conversationTitle?: string;
 
   onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
   onStop: () => void;
@@ -82,6 +87,8 @@ export function ChatPane({
   toolActivity,
   naviStep,
   naviStateId,
+  naviFacts,
+  conversationTitle,
   onSend,
   onStop,
   onEditMessage,
@@ -313,6 +320,10 @@ export function ChatPane({
 
         {simulationConfig && (
           <SimulationContextBanner simulationConfig={simulationConfig} />
+        )}
+
+        {naviStateId === "closing" && !streaming && naviPlanIsAvailable(naviFacts) && (
+          <NaviPlanCard naviFacts={naviFacts!} conversationTitle={conversationTitle} />
         )}
 
         <div className="chat-composer-stack">

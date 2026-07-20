@@ -1,0 +1,49 @@
+.navi-plan-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.navi-plan-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.navi-plan-card-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.navi-plan-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.navi-plan-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.navi-plan-btn:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
