@@ -57,6 +57,7 @@ import {
   DEFAULT_COLUMN_GAP,
   MAX_COLUMN_GAP,
   deriveSpan,
+  eventBox,
   newId,
   syncTunnelExits,
   timeToX,
@@ -86,18 +87,31 @@ interface GridScale {
   columnGap: number;
 }
 
+/** Event nodes are positioned/sized from their Von–Bis span, inset by a
+ * margin so they never touch their column's edges; every other kind keeps
+ * its intrinsic size and sits flush on the time axis (a reroute is a dot,
+ * a tunnel a fixed pill). */
+function rfBox(n: BlueprintNode, grid: GridScale): { x: number; width?: number } {
+  if (n.kind === "event") {
+    const box = eventBox(n, grid.columns, grid.unitPx, grid.columnGap);
+    if (box) return box;
+  }
+  return {
+    x:
+      n.from !== undefined
+        ? timeToX(n.from, grid.columns, grid.unitPx, grid.columnGap)
+        : n.x,
+  };
+}
+
 function toRfNode(n: BlueprintNode, grid: GridScale): Node {
+  const { x, width } = rfBox(n, grid);
   return {
     id: n.id,
     type: n.kind,
-    position: {
-      x:
-        n.from !== undefined
-          ? timeToX(n.from, grid.columns, grid.unitPx, grid.columnGap)
-          : n.x,
-      y: n.y,
-    },
+    position: { x, y: n.y },
     data: n as unknown as Record<string, unknown>,
+    ...(width !== undefined ? { style: { width } } : {}),
   };
 }
 
@@ -177,8 +191,13 @@ function BlueprintCanvasInner() {
       .then((d) => {
         dataRef.current = d;
         activeGraphRef.current = d.rootGraphId;
-        const unit = d.unitPx ?? DEFAULT_UNIT_PX;
-        const gap = d.columnGap ?? DEFAULT_COLUMN_GAP;
+        // Clamped, not taken raw: documents saved before a node ever had a
+        // fixed width can carry a unit narrower than one node.
+        const unit = Math.min(
+          MAX_UNIT_PX,
+          Math.max(MIN_UNIT_PX, d.unitPx ?? DEFAULT_UNIT_PX),
+        );
+        const gap = Math.min(MAX_COLUMN_GAP, Math.max(0, d.columnGap ?? DEFAULT_COLUMN_GAP));
         const graph = d.graphs[d.rootGraphId];
         setUnitPx(unit);
         setColumnGap(gap);
@@ -239,10 +258,14 @@ function BlueprintCanvasInner() {
       const next = nds.map((n) => {
         const data = n.data as unknown as BlueprintNode;
         if (data.from === undefined) return n;
-        const x = timeToX(data.from, columns, unitPx, columnGap);
-        if (x === n.position.x) return n;
+        const { x, width } = rfBox(data, { columns, unitPx, columnGap });
+        if (x === n.position.x && width === n.style?.width) return n;
         moved = true;
-        return { ...n, position: { x, y: n.position.y } };
+        return {
+          ...n,
+          position: { x, y: n.position.y },
+          style: width !== undefined ? { ...n.style, width } : n.style,
+        };
       });
       return moved ? next : nds;
     });
@@ -322,14 +345,16 @@ function BlueprintCanvasInner() {
           if (n.id !== nodeId) return n;
           const current = n.data as unknown as BlueprintNode;
           const nextData: BlueprintNode = { ...current, ...patch };
-          const position =
-            patch.from !== undefined
-              ? {
-                  x: timeToX(patch.from, grid.columns, grid.unitPx, grid.columnGap),
-                  y: n.position.y,
-                }
-              : n.position;
-          return { ...n, position, data: nextData as unknown as Record<string, unknown> };
+          // Either bound moving re-derives the whole box — position and
+          // width both follow the span, so they have to update together.
+          const spanChanged = "from" in patch || "to" in patch;
+          const box = spanChanged ? rfBox(nextData, grid) : undefined;
+          return {
+            ...n,
+            position: box ? { x: box.x, y: n.position.y } : n.position,
+            style: box?.width !== undefined ? { ...n.style, width: box.width } : n.style,
+            data: nextData as unknown as Record<string, unknown>,
+          };
         }),
       );
     },

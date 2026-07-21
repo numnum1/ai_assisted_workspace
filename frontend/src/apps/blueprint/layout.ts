@@ -1,19 +1,29 @@
 import type { BlueprintGraph, BlueprintNode, BlueprintPin } from "../../shared/types.ts";
 
+/** Rendered node width — kept in sync with `.bp-node`'s fixed width in CSS. */
+export const NODE_WIDTH = 340;
+
 /** Default pixels per unit on the unitless time axis (X); the live value is
  * configurable per document via `BlueprintData.unitPx`. */
-export const DEFAULT_UNIT_PX = 200;
+export const DEFAULT_UNIT_PX = 420;
 
-/** Bounds and step for the configurable grid spacing. */
-export const MIN_UNIT_PX = 80;
-export const MAX_UNIT_PX = 600;
+/** Bounds and step for the configurable grid spacing. One time unit never gets
+ * narrower than a node, so a node placed on a unit boundary always fits inside
+ * its column instead of spilling across the gutter into the next one. */
+export const MIN_UNIT_PX = NODE_WIDTH + 40;
+export const MAX_UNIT_PX = 900;
 export const UNIT_PX_STEP = 20;
 
 /** Horizontal gutter (px) inserted after every column band. Everything past a
  * column — bands *and* nodes — shifts right by one gap per crossed column. */
-export const DEFAULT_COLUMN_GAP = 40;
-export const MAX_COLUMN_GAP = 240;
+export const DEFAULT_COLUMN_GAP = 100;
+export const MAX_COLUMN_GAP = 300;
 export const COLUMN_GAP_STEP = 10;
+
+/** Breathing room (px) an event node keeps on each side of its own Von–Bis
+ * span, so it reads as sitting *inside* its time range/column instead of
+ * exactly filling it edge-to-edge. */
+export const NODE_MARGIN = 14;
 
 type TimeRange = { from: number; to: number };
 
@@ -21,26 +31,78 @@ function byStartTime(columns: TimeRange[]): TimeRange[] {
   return [...columns].sort((a, b) => a.from - b.from);
 }
 
-/** Accumulated gutter width preceding time `t`: one gap per column that has
- * already ended by then. */
-export function gapShift(t: number, columns: TimeRange[], gap: number): number {
+/** Accumulated gutter width preceding time `t`. A boundary is "passed"
+ * inclusively for a left edge (something starting at a column's end belongs
+ * *after* the gutter) but exclusively for a right edge (something ending there
+ * stops *before* it) — otherwise spans would swallow their trailing gutter. */
+function gapsBefore(
+  t: number,
+  columns: TimeRange[],
+  gap: number,
+  inclusive: boolean,
+): number {
   if (gap <= 0) return 0;
   let shift = 0;
   for (const col of byStartTime(columns)) {
-    if (t < col.to) break;
+    if (inclusive ? t < col.to : t <= col.to) break;
     shift += gap;
   }
   return shift;
 }
 
-/** Time → canvas X, the single mapping every node and column band goes through. */
+/** Time → canvas X for a *left* edge (node position, column band start). */
 export function timeToX(
   t: number,
   columns: TimeRange[],
   unitPx: number,
   gap: number,
 ): number {
-  return t * unitPx + gapShift(t, columns, gap);
+  return t * unitPx + gapsBefore(t, columns, gap, true);
+}
+
+/** Time → canvas X for a *right* edge (node/band end). Ending exactly on a
+ * column boundary stops at the gutter instead of reaching across it. */
+export function spanEndX(
+  t: number,
+  columns: TimeRange[],
+  unitPx: number,
+  gap: number,
+): number {
+  return t * unitPx + gapsBefore(t, columns, gap, false);
+}
+
+/** Rendered width of an event node: it spans its own Von–Bis stretch of the
+ * axis (crossed gutters included). Undefined or empty spans fall back to a
+ * single node width, so a point-in-time event still reads as a normal node. */
+export function eventWidth(
+  node: Pick<BlueprintNode, "from" | "to">,
+  columns: TimeRange[],
+  unitPx: number,
+  gap: number,
+): number {
+  const { from, to } = node;
+  if (from === undefined || to === undefined || to <= from) return NODE_WIDTH;
+  return Math.max(
+    NODE_WIDTH,
+    spanEndX(to, columns, unitPx, gap) - timeToX(from, columns, unitPx, gap),
+  );
+}
+
+/** An event node's rendered box: inset by {@link NODE_MARGIN} on each side of
+ * its Von–Bis span, so it never touches its column's edges or a neighbouring
+ * node's gutter. The single place that combines position and width for
+ * rendering — callers should never add the margin themselves. */
+export function eventBox(
+  node: Pick<BlueprintNode, "from" | "to">,
+  columns: TimeRange[],
+  unitPx: number,
+  gap: number,
+): { x: number; width: number } | undefined {
+  if (node.from === undefined) return undefined;
+  return {
+    x: timeToX(node.from, columns, unitPx, gap) + NODE_MARGIN,
+    width: eventWidth(node, columns, unitPx, gap) - 2 * NODE_MARGIN,
+  };
 }
 
 /** Inverse of {@link timeToX} — used to turn a drop position back into a time.

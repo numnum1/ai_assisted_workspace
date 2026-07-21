@@ -82,7 +82,11 @@
 /* ---- Node ---- */
 .bp-node {
   position: relative;
-  min-width: 340px;
+  /* The width comes from React Flow's node style, computed in layout.ts from
+     the node's Von–Bis span — never from the content, which would let a long
+     pin label push the node past its own time range. */
+  width: 100%;
+  box-sizing: border-box;
   background: linear-gradient(180deg, #34343a 0%, #232328 16%, #1b1b20 100%);
   border: 1px solid #0c0c0d;
   border-radius: 12px;
@@ -185,34 +189,37 @@
 
 .bp-node__output-label {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-/* ---- Pins (execution handles) — UE-style filled/hollow arrowheads ---- */
+/* ---- Pins (execution handles) — UE-style arrowheads ----
+   Solid triangles via clip-path. A hollow variant is deliberately avoided:
+   `border` only paints the element's box edges, which clip-path then cuts
+   away along the diagonals, leaving a visibly broken outline. */
 .bp-pin {
-  width: 14px;
-  height: 12px;
+  width: 13px;
+  height: 14px;
   background: #f0f0f2;
   border: none;
   border-radius: 0;
-  clip-path: polygon(0% 5%, 78% 50%, 0% 95%);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 
 .bp-pin.bp-pin--in {
-  left: -8px;
+  left: -7px;
   top: 22px;
 }
 
 .bp-pin.bp-pin--out {
-  right: -7px;
+  right: -6px;
   top: 50%;
   transform: translateY(-50%);
-  background: transparent;
-  border: 2px solid #f0f0f2;
 }
 
 .react-flow__handle.bp-pin.connectionindicator:hover {
-  background: #f0a020;
-  border-color: #f0a020;
+  background: #ffb02e;
 }
 
 /* ---- Reroute node ---- */

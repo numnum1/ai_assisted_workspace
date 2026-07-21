@@ -1,6 +1,6 @@
 import { useViewport } from "@xyflow/react";
 import type { BlueprintColumn } from "../../shared/types.ts";
-import { timeToX } from "./layout.ts";
+import { spanEndX, timeToX } from "./layout.ts";
 
 interface ColumnsLayerProps {
   columns: BlueprintColumn[];
@@ -23,7 +23,11 @@ export function ColumnsLayer({ columns, unitPx, columnGap }: ColumnsLayerProps) 
           className="bp-column"
           style={{
             left: timeToX(col.from, columns, unitPx, columnGap),
-            width: Math.max(40, (col.to - col.from) * unitPx),
+            width: Math.max(
+              40,
+              spanEndX(col.to, columns, unitPx, columnGap) -
+                timeToX(col.from, columns, unitPx, columnGap),
+            ),
           }}
         >
           <div className="bp-column__header">{col.label}</div>

@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { assignLanes, deriveSpan, syncTunnelExits, timeToX, xToTime } from "./layout.ts";
+import {
+  assignLanes,
+  deriveSpan,
+  eventBox,
+  eventWidth,
+  NODE_MARGIN,
+  NODE_WIDTH,
+  spanEndX,
+  syncTunnelExits,
+  timeToX,
+  xToTime,
+} from "./layout.ts";
 import type { BlueprintGraph, BlueprintNode } from "../../shared/types.ts";
 
 function event(id: string, from: number, to?: number): BlueprintNode {
@@ -69,15 +80,69 @@ describe("timeToX / xToTime", () => {
   });
 
   it("puts a real gutter between two adjacent bands", () => {
-    const firstBandRight = timeToX(0, cols, 100, 40) + (2 - 0) * 100;
+    const firstBandRight = spanEndX(2, cols, 100, 40);
     const secondBandLeft = timeToX(2, cols, 100, 40);
     expect(secondBandLeft - firstBandRight).toBe(40);
+  });
+
+  it("does not let a right edge reach across the gutter it ends on", () => {
+    expect(spanEndX(2, cols, 100, 40)).toBe(200);
+    expect(timeToX(2, cols, 100, 40)).toBe(240);
   });
 
   it("round-trips through xToTime at every gutter level", () => {
     for (const t of [0, 1, 2, 3, 4, 5]) {
       expect(xToTime(timeToX(t, cols, 100, 40), cols, 100, 40)).toBeCloseTo(t);
     }
+  });
+});
+
+describe("eventWidth", () => {
+  const cols = [
+    { from: 0, to: 2 },
+    { from: 2, to: 4 },
+  ];
+
+  it("falls back to one node width without a span", () => {
+    expect(eventWidth({ from: 1, to: undefined }, cols, 400, 0)).toBe(NODE_WIDTH);
+    expect(eventWidth({ from: 1, to: 1 }, cols, 400, 0)).toBe(NODE_WIDTH);
+  });
+
+  it("stretches across the span", () => {
+    expect(eventWidth({ from: 0, to: 2 }, cols, 400, 0)).toBe(800);
+  });
+
+  it("includes gutters the span crosses", () => {
+    expect(eventWidth({ from: 0, to: 3 }, cols, 400, 40)).toBe(1240);
+  });
+
+  it("stops at the gutter when the span ends on a column boundary", () => {
+    expect(eventWidth({ from: 0, to: 2 }, cols, 400, 40)).toBe(800);
+  });
+
+  it("never renders narrower than a node", () => {
+    expect(eventWidth({ from: 0, to: 0.1 }, cols, 400, 0)).toBe(NODE_WIDTH);
+  });
+});
+
+describe("eventBox", () => {
+  const cols = [{ from: 0, to: 2 }];
+
+  it("insets the span by NODE_MARGIN on each side", () => {
+    const box = eventBox({ from: 0, to: 2 }, cols, 400, 0)!;
+    expect(box.x).toBe(0 + NODE_MARGIN);
+    expect(box.width).toBe(800 - 2 * NODE_MARGIN);
+  });
+
+  it("leaves equal room to both column edges", () => {
+    const box = eventBox({ from: 0, to: 2 }, cols, 400, 0)!;
+    const columnRight = spanEndX(2, cols, 400, 0);
+    expect(box.x - timeToX(0, cols, 400, 0)).toBe(NODE_MARGIN);
+    expect(columnRight - (box.x + box.width)).toBe(NODE_MARGIN);
+  });
+
+  it("is undefined for nodes with no time position", () => {
+    expect(eventBox({ from: undefined, to: undefined }, cols, 400, 0)).toBeUndefined();
   });
 });
 
