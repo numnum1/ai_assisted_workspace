@@ -729,4 +729,7 @@ export interface BlueprintGraph {
 export interface BlueprintData {
   rootGraphId: string;
   graphs: Record<string, BlueprintGraph>;
+  /** Pixels per time unit — the grid's horizontal scale. Widens/narrows every
+   * column band and node spacing together. Absent = default. */
+  unitPx?: number;
 }

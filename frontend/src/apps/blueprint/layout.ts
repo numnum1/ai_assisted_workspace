@@ -1,7 +1,18 @@
 import type { BlueprintGraph, BlueprintNode, BlueprintPin } from "../../shared/types.ts";
 
-/** Pixels per unit on the unitless time axis (X). */
-export const TIME_UNIT_PX = 200;
+/** Default pixels per unit on the unitless time axis (X); the live value is
+ * configurable per document via `BlueprintData.unitPx`. */
+export const DEFAULT_UNIT_PX = 200;
+
+/** Bounds and step for the configurable grid spacing. */
+export const MIN_UNIT_PX = 80;
+export const MAX_UNIT_PX = 600;
+export const UNIT_PX_STEP = 20;
+
+/** Fallback scale for deriving a node's time from a stored pixel X — only hit
+ * for legacy nodes that predate the `from` field; scale-independent for the
+ * lane ordering that uses it, so the default is fine even at other zooms. */
+const TIME_UNIT_PX = DEFAULT_UNIT_PX;
 
 /** Vertical spacing between auto-arranged lanes. */
 export const NODE_LANE_HEIGHT = 140;
