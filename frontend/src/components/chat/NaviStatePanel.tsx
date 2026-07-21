@@ -33,6 +33,8 @@ interface Props {
   naviTrace?: NaviTraceEntry[];
   conversation?: Conversation;
   llmId?: string | null;
+  showNaviTrace?: boolean;
+  onToggleNaviTrace?: () => void;
 }
 
 export function NaviStatePanel({
@@ -42,6 +44,8 @@ export function NaviStatePanel({
   naviTrace,
   conversation,
   llmId,
+  showNaviTrace,
+  onToggleNaviTrace,
 }: Props) {
   const {
     profiles,
@@ -237,6 +241,28 @@ export function NaviStatePanel({
       </div>
       {improvementError && (
         <div className="navi-section navi-improvement-error">{improvementError}</div>
+      )}
+      {onToggleNaviTrace && (
+        <div className="navi-section navi-section--switch-row">
+          <label className="navi-switch-row">
+            <span className="navi-switch-row-label">
+              <History size={11} />
+              Änderungen im Chat anzeigen
+            </span>
+            <span className={`navi-switch${showNaviTrace ? " navi-switch--on" : ""}`}>
+              <input
+                type="checkbox"
+                className="navi-switch-input"
+                checked={!!showNaviTrace}
+                onChange={onToggleNaviTrace}
+                title="Phasenwechsel, neue Fakten und blockierte Übergänge direkt unter jeder Navi-Antwort im Chat anzeigen"
+              />
+              <span className="navi-switch-track">
+                <span className="navi-switch-thumb" />
+              </span>
+            </span>
+          </label>
+        </div>
       )}
 
       {/* ── Section 1: Current State ────────────────────────── */}

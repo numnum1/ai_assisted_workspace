@@ -45,6 +45,8 @@ export interface NaviSimulationRunRecord {
  */
 export interface NaviTraceEntry {
   at: number;
+  /** Groups this trace entry with the chat turn (user+assistant messages) that produced it. */
+  turnId?: string;
   /** The phase this turn's visible reply was generated in (after any redirect/advance_phase). */
   stateId: string;
   /** Slot labels still open in {@link stateId} at the moment the visible reply was produced. */

@@ -10,6 +10,7 @@ import type {
   ReasoningEffort,
   SimulationConfig,
   NaviFacts,
+  NaviTraceEntry,
 } from "../../types.ts";
 import { ChatPane } from "./ChatPane.tsx";
 
@@ -72,6 +73,8 @@ interface ChatPanelProps {
   naviStateId?: string | null;
   naviStep?: string | null;
   naviFacts?: NaviFacts;
+  naviTrace?: NaviTraceEntry[];
+  showNaviTrace?: boolean;
   simulationConfig?: SimulationConfig;
 }
 
@@ -117,6 +120,8 @@ export function ChatPanel({
   naviStateId,
   naviStep,
   naviFacts,
+  naviTrace,
+  showNaviTrace,
   simulationConfig,
 }: ChatPanelProps) {
   const activeConversationTitle = useMemo(
@@ -180,6 +185,8 @@ export function ChatPanel({
           naviStep={naviStep}
           naviStateId={naviStateId}
           naviFacts={naviFacts}
+          naviTrace={naviTrace}
+          showNaviTrace={showNaviTrace}
           conversationTitle={activeConversationTitle}
           onSend={onSend}
           onStop={onStop}

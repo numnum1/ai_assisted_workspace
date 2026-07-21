@@ -1,0 +1,108 @@
+.navi-turn-trace {
+    margin: 0.1rem 0 0.5rem;
+    border-left: 3px solid var(--border-subtle, rgba(120, 120, 160, 0.45));
+    border-radius: 0 6px 6px 0;
+    background: var(--bg-tertiary, rgba(35, 35, 48, 0.35));
+    overflow: hidden;
+}
+
+.navi-turn-trace-header {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    padding: 0.3rem 0.55rem;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.76rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.navi-turn-trace-header:hover {
+    background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+}
+
+.navi-turn-trace-chevron {
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: transform 0.15s ease;
+}
+
+.navi-turn-trace-chevron--open {
+    transform: rotate(90deg);
+}
+
+.navi-turn-trace-icon {
+    flex-shrink: 0;
+    opacity: 0.75;
+    color: var(--accent, #8b8bff);
+}
+
+.navi-turn-trace-summary {
+    color: var(--text-muted, rgba(200, 200, 220, 0.75));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.navi-turn-trace-summary--empty {
+    opacity: 0.65;
+}
+
+.navi-turn-trace-warn {
+    flex-shrink: 0;
+    margin-left: auto;
+    color: var(--yellow, #f9c74f);
+}
+
+.navi-turn-trace-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0 0.55rem 0.5rem 1.65rem;
+    font-size: 0.78rem;
+}
+
+.navi-turn-trace-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.navi-turn-trace-row-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted, rgba(200, 200, 220, 0.6));
+}
+
+.navi-turn-trace-row-value {
+    color: var(--text-primary, #cdd6f4);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.navi-turn-trace-row--blocked .navi-turn-trace-row-value {
+    color: var(--yellow, #f9c74f);
+}
+
+.navi-turn-trace-row--empty {
+    color: var(--text-muted, rgba(200, 200, 220, 0.5));
+    font-style: italic;
+}
+
+.navi-turn-trace-facts {
+    margin: 0;
+    padding-left: 1rem;
+    color: var(--text-primary, #cdd6f4);
+}
+
+.navi-turn-trace-facts li {
+    word-break: break-word;
+}

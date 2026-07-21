@@ -213,7 +213,7 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
         : undefined;
 
       const onNaviTraceCb = onNaviTraceRef.current
-        ? (entry: NaviTraceEntry) => onNaviTraceRef.current!(entry, naviConversationId)
+        ? (entry: NaviTraceEntry) => onNaviTraceRef.current!({ ...entry, turnId }, naviConversationId)
         : undefined;
 
       const streamCbs: StreamCallbacks = {

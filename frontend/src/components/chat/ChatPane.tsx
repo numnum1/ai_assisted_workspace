@@ -14,6 +14,7 @@ import type {
   ReasoningEffort,
   SimulationConfig,
   NaviFacts,
+  NaviTraceEntry,
 } from "../../types.ts";
 import { SimulationContextBanner } from "../simulation/SimulationContextBanner.tsx";
 import { ChatInput } from "./ChatInput.tsx";
@@ -40,6 +41,8 @@ export interface ChatPaneProps {
   naviStep?: string | null;
   naviStateId?: string | null;
   naviFacts?: NaviFacts;
+  naviTrace?: NaviTraceEntry[];
+  showNaviTrace?: boolean;
   conversationTitle?: string;
 
   onSend: (message: string, clarificationData?: { questions: Array<{ question: string; options: string[]; allow_multiple?: boolean }>; selected: Record<number, string[]> }) => void;
@@ -88,6 +91,8 @@ export function ChatPane({
   naviStep,
   naviStateId,
   naviFacts,
+  naviTrace,
+  showNaviTrace,
   conversationTitle,
   onSend,
   onStop,
@@ -304,6 +309,8 @@ export function ChatPane({
           toolActivity={toolActivity}
           naviStep={naviStep}
           naviStateId={naviStateId}
+          naviTrace={naviTrace}
+          showNaviTrace={showNaviTrace}
           editingIdx={editingIdx}
           setEditingIdx={setEditingIdx}
           onEditMessage={onEditMessage}

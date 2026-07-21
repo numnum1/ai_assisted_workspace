@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatMessage, MessageFeedback, SelectionContext } from "../../types.ts";
+import type { ChatMessage, MessageFeedback, NaviTraceEntry, SelectionContext } from "../../types.ts";
 import { ChatMessageMarkdown } from "./ChatMessageMarkdown.tsx";
 import { AssistantTurnCard } from "./AssistantTurnCard.tsx";
+import { NaviTurnTraceLine } from "./NaviTurnTraceLine.tsx";
 import { TurnCard } from "./TurnCard.tsx";
 import { buildChatRenderUnits } from "./chatRenderUnits.ts";
 import {
@@ -164,6 +165,8 @@ export interface ChatMessagesPaneProps {
   toolActivity: string | null;
   naviStep?: string | null;
   naviStateId?: string | null;
+  naviTrace?: NaviTraceEntry[];
+  showNaviTrace?: boolean;
   editingIdx: number | null;
   setEditingIdx: (idx: number | null) => void;
   onEditMessage: (index: number, content: string) => void;
@@ -189,6 +192,8 @@ export function ChatMessagesPane({
   toolActivity,
   naviStep,
   naviStateId,
+  naviTrace,
+  showNaviTrace,
   editingIdx,
   setEditingIdx,
   onEditMessage,
@@ -214,6 +219,14 @@ export function ChatMessagesPane({
     [visibleEntries],
   );
 
+  const traceByTurn = useMemo(() => {
+    const map = new Map<string, { entry: NaviTraceEntry; prev?: NaviTraceEntry }>();
+    (naviTrace ?? []).forEach((entry, i) => {
+      if (entry.turnId) map.set(entry.turnId, { entry, prev: naviTrace![i - 1] });
+    });
+    return map;
+  }, [naviTrace]);
+
   return (
     <div
       className={`chat-messages${readOnly ? " chat-messages--readonly" : ""}`}
@@ -235,25 +248,31 @@ export function ChatMessagesPane({
           const isLastAssistantTurn = !renderUnits
             .slice(unitIdx + 1)
             .some((u) => u.type === "assistantTurn");
+          const turnId = messages[unit.lastOriginalIdx]?.turnId;
+          const trace = turnId ? traceByTurn.get(turnId) : undefined;
           return (
-            <AssistantTurnCard
-              key={`turn-${unit.originalIndices.join("-")}`}
-              originalIndices={unit.originalIndices}
-              lastOriginalIdx={unit.lastOriginalIdx}
-              subUnits={unit.subUnits}
-              messages={messages}
-              visibleEntries={visibleEntries}
-              renderUnits={renderUnits}
-              readOnly={readOnly}
-              streaming={streaming}
-              onDeleteMessages={onDeleteMessages}
-              onSetMessageFeedback={onSetMessageFeedback}
-              onReplaceSelection={onReplaceSelection}
-              onApplyFieldUpdate={onApplyFieldUpdate}
-              fieldLabels={fieldLabels}
-              naviStep={isLastAssistantTurn ? naviStep : null}
-              naviStateId={naviStateId}
-            />
+            <React.Fragment key={`turn-${unit.originalIndices.join("-")}`}>
+              <AssistantTurnCard
+                originalIndices={unit.originalIndices}
+                lastOriginalIdx={unit.lastOriginalIdx}
+                subUnits={unit.subUnits}
+                messages={messages}
+                visibleEntries={visibleEntries}
+                renderUnits={renderUnits}
+                readOnly={readOnly}
+                streaming={streaming}
+                onDeleteMessages={onDeleteMessages}
+                onSetMessageFeedback={onSetMessageFeedback}
+                onReplaceSelection={onReplaceSelection}
+                onApplyFieldUpdate={onApplyFieldUpdate}
+                fieldLabels={fieldLabels}
+                naviStep={isLastAssistantTurn ? naviStep : null}
+                naviStateId={naviStateId}
+              />
+              {showNaviTrace && trace && (
+                <NaviTurnTraceLine entry={trace.entry} prevEntry={trace.prev} />
+              )}
+            </React.Fragment>
           );
         }
 

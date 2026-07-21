@@ -60,6 +60,12 @@ function loadNaviPanelWidth(): number {
   return Math.min(NAVI_PANEL_MAX_WIDTH, Math.max(NAVI_PANEL_MIN_WIDTH, raw));
 }
 
+const NAVI_TRACE_IN_CHAT_KEY = "navi-trace-in-chat";
+
+function loadNaviTraceInChat(): boolean {
+  return localStorage.getItem(NAVI_TRACE_IN_CHAT_KEY) === "1";
+}
+
 function App() {
   const refs = useReferencedFiles();
   const { preferences, updatePreferences } = usePreferences();
@@ -80,6 +86,15 @@ function App() {
   const [rulesEnabled, setRulesEnabled] = useState(loadInitialRulesEnabled);
   const [naviPanelWidth, setNaviPanelWidth] = useState(loadNaviPanelWidth);
   const naviPanelResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const [showNaviTrace, setShowNaviTrace] = useState(loadNaviTraceInChat);
+
+  const handleToggleNaviTrace = useCallback(() => {
+    setShowNaviTrace((prev) => {
+      const next = !prev;
+      localStorage.setItem(NAVI_TRACE_IN_CHAT_KEY, next ? "1" : "0");
+      return next;
+    });
+  }, []);
 
   const handleNaviPanelResizeStart = useCallback(
     (e: ReactMouseEvent) => {
@@ -210,7 +225,7 @@ function App() {
     onNaviTrace: (entry, conversationId) => {
       const conv = history.conversations.find((c) => c.id === conversationId);
       const existing = conv?.naviTrace ?? [];
-      const naviTrace = [...existing, entry].slice(-30);
+      const naviTrace = [...existing, entry].slice(-100);
       history.patchConversation(conversationId, { naviTrace });
     },
     onAssistantResponseComplete: (_fullText, meta) => {
@@ -428,6 +443,8 @@ function App() {
               naviTrace={history.activeConversation.naviTrace}
               conversation={history.activeConversation}
               llmId={modeLlmId}
+              showNaviTrace={showNaviTrace}
+              onToggleNaviTrace={handleToggleNaviTrace}
             />
           )}
         </div>
@@ -497,6 +514,8 @@ function App() {
             activeSessionKind={history.activeConversation?.sessionKind ?? "navi"}
             naviStateId={history.activeConversation?.naviStateId ?? null}
             naviFacts={history.activeConversation?.naviFacts}
+            naviTrace={history.activeConversation?.naviTrace}
+            showNaviTrace={showNaviTrace}
             simulationConfig={history.activeConversation?.simulationConfig}
             activeSelection={activeSelection}
             onDismissSelection={handleDismissSelection}

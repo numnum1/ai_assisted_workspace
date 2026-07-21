@@ -45,6 +45,83 @@
   cursor: not-allowed;
 }
 
+.navi-edit-toggle--active {
+  background: color-mix(in srgb, var(--accent, #89b4fa) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #89b4fa) 55%, transparent);
+}
+
+/* ── Switch row (e.g. "Änderungen im Chat anzeigen") ─────────── */
+.navi-section--switch-row {
+  padding-top: 0;
+  padding-bottom: 6px;
+}
+
+.navi-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.navi-switch-row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted, #a6adc8);
+}
+
+.navi-switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.navi-switch-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.navi-switch-track {
+  display: inline-flex;
+  align-items: center;
+  width: 30px;
+  height: 17px;
+  border-radius: 999px;
+  background: var(--bg-tertiary, #313244);
+  border: 1px solid var(--border, #45475a);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.navi-switch-thumb {
+  width: 11px;
+  height: 11px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--text-muted, #a6adc8);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.navi-switch--on .navi-switch-track {
+  background: color-mix(in srgb, var(--accent, #89b4fa) 55%, transparent);
+  border-color: var(--accent, #89b4fa);
+}
+
+.navi-switch--on .navi-switch-thumb {
+  background: var(--accent, #89b4fa);
+  transform: translateX(13px);
+}
+
+.navi-switch-input:focus-visible ~ .navi-switch-track {
+  outline: 2px solid var(--accent, #89b4fa);
+  outline-offset: 2px;
+}
+
 .navi-profile-notice {
   font-size: 10.5px;
   color: var(--accent, #89b4fa);
