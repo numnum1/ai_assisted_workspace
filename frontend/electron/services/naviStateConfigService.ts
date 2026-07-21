@@ -95,8 +95,8 @@ export function validateStates(states: NaviState[]): void {
         );
       }
     }
-    const isGatedNarrow = state.persona === "narrow" && Array.isArray(state.workPlan) && state.workPlan.length > 0;
-    if (isGatedNarrow && transitions.length === 0) {
+    const isGated = Array.isArray(state.workPlan) && state.workPlan.length > 0;
+    if (isGated && transitions.length === 0) {
       throw new NaviConfigValidationError(
         `"${state.id}" hat eine Checkliste, aber keinen Übergang — der automatische Weiterschritt bräuchte ein Ziel.`,
       );

@@ -1,9 +1,13 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { FlaskConical, History } from "lucide-react";
+import { Download, FlaskConical, History } from "lucide-react";
 import { ChatPanel } from "./components/chat/ChatPanel.tsx";
 import { NewChatButton } from "./components/chat/NewChatButton.tsx";
 import { NaviStatePanel } from "./components/chat/NaviStatePanel.tsx";
+import {
+  conversationToMarkdown,
+  downloadMarkdownFile,
+} from "./components/chat/chatMarkdownExport.ts";
 import {
   SimulationSetupModal,
   type SimulationSetupResult,
@@ -431,6 +435,13 @@ function App() {
     // Only one mode ("navi") exists — nothing to switch.
   }, []);
 
+  const handleExportConversation = useCallback(() => {
+    const conv = history.activeConversation;
+    if (!conv) return;
+    const markdown = conversationToMarkdown(conv);
+    downloadMarkdownFile(conv.title || "navi-gespraech", markdown);
+  }, [history.activeConversation]);
+
   return (
     <div className="app">
       <div className="app-panels navi-app-panels">
@@ -473,6 +484,14 @@ function App() {
                 title="Simulationsläufe ansehen"
               >
                 <History size={14} />
+              </button>
+              <button
+                type="button"
+                className="chat-history-sim-btn"
+                onClick={handleExportConversation}
+                title="Gespräch exportieren"
+              >
+                <Download size={14} />
               </button>
               <NewChatButton onClick={() => handleNewChat()} />
             </div>

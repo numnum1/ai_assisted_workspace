@@ -36,8 +36,8 @@ function generateUniqueId(label: string, existingIds: Set<string>): string {
   return `${base}_${i}`;
 }
 
-function isGatedNarrow(state: NaviState): boolean {
-  return state.persona === "narrow" && state.workPlan.length > 0;
+function isGated(state: NaviState): boolean {
+  return state.workPlan.length > 0;
 }
 
 interface Props {
@@ -409,7 +409,7 @@ export function NaviStateEditor({
             <div className="navi-editor-state-list">
               {states.map((state, index) => {
                 const expanded = expandedId === state.id;
-                const gated = isGatedNarrow(state);
+                const gated = isGated(state);
                 return (
                   <div key={state.id} className="navi-editor-state">
                     <div className="navi-editor-state-header" onClick={() => setExpandedId(expanded ? null : state.id)}>

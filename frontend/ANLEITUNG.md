@@ -40,16 +40,13 @@ Empfehlung → (Anpassen) → KI-Erkundung anbieten → (KI-Lösungen) → Absch
 
 Grob in drei Abschnitten: Navi **fragt** erst (Problem, vorhandene Software, Budget), **fasst zusammen** und lässt sich bestätigen, und **berät** dann (Einschätzung, Empfehlung, Nachschärfen).
 
-Damit Navi nicht vorschnell in den Beratungsmodus springt — der klassische Fehler solcher Assistenten — gibt es drei Schutzmechanismen:
+Damit Navi nicht vorschnell in den Beratungsmodus springt — der klassische Fehler solcher Assistenten — verlässt sich das Programm auf einen einzigen **festen, vom Programm selbst geprüften Mechanismus**, der nicht vom Wohlwollen des Modells abhängt: das **Slot-Gate**.
 
-**1. Navi weiß in Frage-Phasen nicht, dass es ein Berater ist.**
-In den reinen Frage-Phasen bekommt das Sprachmodell keine Berater-Identität, keine Hinweise und keinen Tool-Katalog — es weiß nur: „Ich führe ein strukturiertes Gespräch und stelle eine Frage." Wer seine Beraterrolle gar nicht kennt, empfiehlt auch nichts. Erst ab der Einschätzungsphase wird die volle Persona zugeschaltet. Im Editor ist das der Schalter *Persona* (`narrow` / `full`).
+Jede Phase mit einer **Checkliste** (z.B. „Problem klären", „Software-Stack") hat einen ersten, festen Übergang in die nächste Phase. Solange auch nur ein Checklisten-Punkt offen ist, lehnt das Programm genau diesen Übergang ab — unabhängig davon, für wie fertig sich das Modell selbst hält. Das gilt für jede Phase mit Checkliste, ohne Ausnahme.
 
-**2. In Frage-Phasen ist freier Text technisch ausgeschlossen.**
-Navi kann dort nur über vorgegebene Werkzeuge antworten: eine offene Frage, eine Frage mit anklickbaren Antwortoptionen oder eine Ja/Nein-Frage. Ein Absatz mit ungefragten Ratschlägen ist damit nicht bloß unerwünscht, sondern strukturell unmöglich.
+Alle anderen Übergänge — Themenwechsel, „das war ein Missverständnis", „Händler ist zufrieden" — entscheidet Navi selbst, direkt in derselben Antwort, mit der es auch spricht. Es gibt dafür keinen separaten Prüf-Schritt mehr: Navi wählt die passende Zielphase selbst, anhand der Bedingungstexte, die im Editor bei jedem Übergang hinterlegt sind.
 
-**3. Der Phasenwechsel wird gerechnet, nicht geschätzt.**
-Jede Frage-Phase hat eine **Checkliste** dessen, was geklärt sein muss. Solange auch nur ein Punkt offen ist, lehnt das Programm einen Phasenwechsel ab — unabhängig davon, für wie fertig das Modell sich selbst hält. Nur die Ausnahmen (Themenwechsel, „das war ein Missverständnis") werden von einem kleinen Zusatz-Aufruf beurteilt.
+Ob Navi dabei zu früh berät oder zu lange fragt, hängt also stärker als früher an der **Formulierung von Instruction und Persona-Regeln** — und weniger an technischen Sperren. Das ist Absicht: Ein Sprachmodell, das einem Arbeitsplan zuverlässig folgt, muss man nicht mehr künstlich an der kurzen Leine führen.
 
 ### Das Fakten-Blatt
 
@@ -65,7 +62,8 @@ Links der Chat, rechts das **Navi-Panel**. Das Panel ist das Beobachtungsfenster
 |---|---|
 | Profilleiste (ganz oben) | Welche Konfiguration gerade aktiv ist → [Profile](#profile) |
 | **Bearbeiten** / **Aus Feedback verbessern** | Öffnet den Editor → [Die Felder im Navi-Editor](#die-felder-im-navi-editor) |
-| State | Aktuelle Phase mit Persona-Kennzeichnung und dem kompletten Arbeitsauftrag, den Navi gerade hat |
+| Schalter „Änderungen im Chat anzeigen" | Blendet die Begründung zusätzlich direkt unter jeder Navi-Antwort im Chat ein, siehe unten |
+| State | Aktuelle Phase mit dem kompletten Arbeitsauftrag, den Navi gerade hat (die Persona-Kennzeichnung dort ist inzwischen nur noch Anzeige, siehe [Persona](#die-felder-im-navi-editor)) |
 | Slot-Checkliste (Gate) | Was in dieser Phase noch offen ist und was bereits als bekannt gilt |
 | Begründung (letzte Turns) | Das Protokoll der letzten Züge: welche Fakten neu erfasst wurden, ob ein Phasenwechsel versucht und angenommen oder abgelehnt wurde (mit den noch offenen Punkten), ob ein Themenwechsel erkannt wurde. Die erste Anlaufstelle, wenn Navi sich unerwartet verhält. |
 | Probleme | Das aktuell behandelte Anliegen plus die Anliegen, die der Händler nebenbei erwähnt hat und die später drankommen |
@@ -115,11 +113,19 @@ In der Kopfzeile über dem Chat sitzen drei Schaltflächen:
 
 **Navi fängt an.** Sobald ein Gespräch existiert, schickt Navi von sich aus die Begrüßung — du musst nicht anfangen zu tippen. Danach antwortest du unten im Eingabefeld wie in jedem Chat.
 
-**Manche Fragen sind anklickbar.** Stellt Navi eine Frage mit vorgegebenen Optionen (Werkzeug `ask_clarification`) oder eine Ja/Nein-Frage (`ask_yes_no`), erscheinen statt des freien Eingabefelds Schaltflächen. Bei Mehrfachauswahl kannst du mehrere anklicken. Das ist kein Sonderfall, sondern das normale Verhalten der Frage-Phasen — welche Phase welches Werkzeug benutzen darf, steuerst du im Editor unter [Tools](#die-felder).
+**Manche Fragen sind anklickbar.** Stellt Navi eine Frage mit vorgegebenen Optionen (Werkzeug `ask_clarification`) oder eine Ja/Nein-Frage (`ask_yes_no`), erscheinen statt des freien Eingabefelds Schaltflächen. Bei Mehrfachauswahl kannst du mehrere anklicken. Welche Phase welches dieser Werkzeuge zur Auswahl hat, steuerst du im Editor unter [Tools](#die-felder-im-navi-editor) — benutzt wird es nur, wenn Navi es für die konkrete Frage passend findet; sonst antwortet es normal im Fließtext.
 
 **Bewerten nicht vergessen.** Unter jeder Navi-Antwort sitzen 👍/👎. Sie sind der Rohstoff für die [Selbstverbesserung](#selbstverbesserung-aus-feedback-lernen) — wer Navi weiterentwickeln will, bewertet im Vorbeigehen mit.
 
 **Ein neues Gespräch** startest du über die Schaltfläche in der Kopfzeile. Wichtig zu wissen: Die Navi-Ansicht zeigt immer **genau ein** Gespräch; eine Liste, über die du zu einem früheren zurückspringen könntest, gibt es hier nicht. Was du behalten willst, kopier dir vorher heraus.
+
+### Änderungen direkt im Chat verfolgen
+
+Der Abschnitt *Begründung* im Panel zeigt die letzten Turns — bei einem längeren Gespräch musst du dabei scrollen und selbst zuordnen, welche Chat-Nachricht zu welchem Protokolleintrag gehört. Der Schalter **„Änderungen im Chat anzeigen"** oben im Panel blendet dieselbe Information stattdessen direkt **unter der jeweiligen Navi-Antwort** ein — als schmale, aufklappbare Zeile.
+
+Eingeklappt zeigt sie eine Kurzfassung: den Phasenwechsel dieses Zugs (z.B. „clarify_problem → explore_software_stack"), die Anzahl neu erfasster Fakten, und ein Warndreieck, falls Navi versucht hat, die Phase zu wechseln, und das Slot-Gate den Übergang abgelehnt hat. Aufgeklappt siehst du Details: welche Fakten mit welchem Wert neu eingetragen wurden, welche Checklisten-Punkte noch offen sind, und — falls blockiert — welcher Übergang an welchen fehlenden Punkten hing.
+
+Der Schalter ist reine Ansichtssache für dich als Betrachter, nicht Teil dessen, was ein Händler in einer echten Beratung sehen würde. Die Einstellung wird gemerkt und übersteht einen Neustart des Programms.
 
 ### Welches KI-Modell benutzt Navi?
 
@@ -271,12 +277,9 @@ Reiner Anzeigetext für die Oberfläche (Phasenliste, Fortschrittsanzeige im Nav
 Ebenfalls nur Anzeige: die Zeile unter dem Phasennamen im Navi-Panel, damit beim Zuschauen klar ist, was gerade passiert. Beeinflusst Navis Verhalten nicht.
 
 **Persona**
-Der wichtigste Schalter der ganzen Phase. Er entscheidet, *wer* Navi in dieser Phase ist:
+Ein Auswahlfeld mit den Werten `narrow` und `full` — historisch der wichtigste Schalter der Phase, inzwischen aber **ohne Wirkung auf das Gespräch**. Jede Phase bekommt heute dieselbe volle Rollenbeschreibung, dieselben Verhaltensregeln, dieselben offenen Hinweise und (falls unten angehakt) dieselbe Wissensbasis in den Prompt — unabhängig vom hier gewählten Wert. Das Feld bleibt aus zwei Gründen bestehen: Es speist die Persona-Kennzeichnung im Navi-Panel (rein informativ), und ältere Profile/Exporte enthalten den Wert noch. Ändere es, wenn du magst — es hat keinen Effekt mehr auf Navis Antworten.
 
-- **narrow — reiner Fragensteller:** Navi bekommt **keine** Berater-Identität, keine Rollenbeschreibung, keine Hinweise und keine Wissensbasis in den Prompt. Es weiß nur: „Ich führe ein strukturiertes Gespräch und stelle eine Frage." Das ist die Schutzschicht gegen voreilige Empfehlungen — ein Modell, das seine Beraterrolle gar nicht kennt, springt auch nicht mittendrin in Lösungsvorschläge.
-- **full — voller Berater:** Navi bekommt Rollenbeschreibung, Full-Persona-Regeln, offene Hinweise und (falls unten angehakt) die Wissensbasis. Nötig überall dort, wo Navi bewerten, empfehlen oder sich vorstellen soll.
-
-Die Wahl hat zwei Nebenwirkungen: nur **narrow**-Phasen *mit* Checkliste bekommen das automatische Slot-Gate (siehe unten), und nur **full**-Phasen können Hinweise und Wissensbasis einblenden.
+Was in dieser Phase tatsächlich strukturell erzwungen wird, steuerst du stattdessen über die **Checkliste** (Slot-Gate, siehe unten) — die Persona spielt dabei keine Rolle mehr.
 
 **Instruction**
 Der eigentliche Arbeitsauftrag der Phase, wortwörtlich in den Prompt eingesetzt („Deine Aufgabe in diesem Schritt: …"). Hier steht das *Was* — welches Ziel die Phase hat, was gefragt werden soll, was verboten ist, Beispiele für gute und schlechte Fragen.
@@ -284,10 +287,10 @@ Der eigentliche Arbeitsauftrag der Phase, wortwörtlich in den Prompt eingesetzt
 Das *Wie* der Kommunikation (Tonfall, „der Händler kennt die Fachbegriffe nicht", erst erklären dann benennen) gehört **nicht** hierher, sondern zentral in den Reiter *Persona* — sonst musst du es in jeder Phase pflegen.
 
 **Antwort muss eine Frage enthalten**
-Eine Notbremse nach der Generierung: Enthält Navis Antwort kein Fragezeichen, wird automatisch eines angehängt. Sinnvoll in allen Phasen, die zwingend mit einer Frage enden sollen. Kein Ersatz für eine klare Instruction — nur ein Sicherheitsnetz für Ausreißer.
+Ohne Funktion — die zugehörige Notbremse (automatisch ein „?" anhängen) gehörte zu einem Werkzeug, das es nicht mehr gibt. Das Häkchen bleibt im Editor nur aus Kompatibilitätsgründen bestehen. Willst du erzwingen, dass eine Phase mit einer Frage endet, formuliere das in der **Instruction**.
 
 **Use-Cases einblenden (Wissensbasis-Tab)**
-Hängt die Use-Case-Liste aus dem Reiter *Wissensbasis* an den Prompt an, zusammen mit der Anweisung, das Problem des Händlers einem Use-Case zuzuordnen (und ehrlich zu sagen, wenn keiner passt). Wirkt nur in **full**-Phasen. Anhaken, wo Navi einschätzt oder empfiehlt — nicht in reinen Frage-Phasen, dort lenkt es nur ab.
+Hängt die Use-Case-Liste aus dem Reiter *Wissensbasis* an den Prompt an, zusammen mit der Anweisung, das Problem des Händlers einem Use-Case zuzuordnen (und ehrlich zu sagen, wenn keiner passt). Anhaken, wo Navi einschätzt oder empfiehlt — nicht in reinen Frage-Phasen, dort lenkt es nur ab.
 
 **Tool-Katalog einblenden**
 Hängt zusätzlich den Katalog der KI-Tools an, nach Kategorie gruppiert und jeweils mit Link auf die Tool-Seite; dazu die Pflicht, bei einer konkreten Empfehlung den passenden Markdown-Link mitzugeben und keine URLs zu erfinden. Setzt **Use-Cases einblenden** voraus — ohne Use-Cases wird der Katalog gar nicht erst erzeugt. Denn: Es werden nur Tools eingeblendet, deren Kategorie bei mindestens einem Use-Case vorkommt.
@@ -296,24 +299,23 @@ Hängt zusätzlich den Katalog der KI-Tools an, nach Kategorie gruppiert und jew
 Hat der Händler im Gespräch weitere Themen erwähnt, die noch nicht behandelt wurden (Navi führt darüber intern eine Liste), wird an die Instruction dieser Phase ein Zusatz angehängt: Navi soll am Ende freundlich fragen, ob eines dieser Themen noch dran soll. Gedacht für die Abschlussphase. Gibt es keine offenen Anliegen, passiert nichts.
 
 **Tools** (Häkchen `ask_question`, `ask_clarification`, `ask_yes_no`)
-Legt fest, **wie** Navi in dieser Phase antworten darf:
+Legt fest, welche **zusätzlichen** Antwort-Werkzeuge Navi in dieser Phase zur Verfügung stehen — Navi *kann* sie benutzen, ist aber zu nichts gezwungen:
 
-| Häkchen | Wirkung |
+| Häkchen | Wirkung, wenn Navi es benutzt |
 |---|---|
-| *keins gesetzt* | Navi antwortet als freier Fließtext. Richtig für Berater-Phasen (Einschätzung, Empfehlung, Abschluss). |
-| `ask_question` | Eine offene Frage. Der Text wird ganz normal ausgegeben — für den Händler sieht das aus wie eine gewöhnliche Nachricht. |
+| `ask_question` | Ohne Funktion — ein früheres Werkzeug für offene Fragen, heute nicht mehr implementiert. Ankreuzen ändert nichts. |
 | `ask_clarification` | Frage **mit vorgegebenen Antwortoptionen** als anklickbare Auswahl. |
 | `ask_yes_no` | Frage als Ja/Nein-Auswahl. |
 
-Wichtig: Sobald **mindestens ein Häkchen** gesetzt ist, ist freier Text in dieser Phase strukturell ausgeschlossen — Navi *muss* eines der erlaubten Werkzeuge benutzen. Mehrere Häkchen bedeuten „eines davon, Navi wählt". Genau das verhindert, dass eine Frage-Phase in einen Ratschlag abrutscht.
+Setzt Navi keines der funktionierenden Häkchen ein (oder ist keines angehakt), antwortet es als freier Fließtext — das ist inzwischen der Normalfall in **jeder** Phase, auch in den Frage-Phasen. Ob Navi ein angehaktes Werkzeug tatsächlich benutzt oder lieber frei antwortet, entscheidet das Modell selbst anhand der Instruction; anders als früher gibt es dafür keine technische Pflicht mehr.
 
 **Checkliste (workPlan)**
 Die Punkte, die Navi in dieser Phase geklärt haben muss, bevor es weitergehen darf. Jeder Punkt wird zu einem **Slot**: Navi trägt selbst ein, was es dazu erfahren hat, und die Oberfläche zeigt dir live `[offen]` bzw. `[bekannt]`.
 
-Der Effekt hängt an der Persona:
+Der Effekt hängt allein an der **Checkliste selbst**, nicht mehr an der Persona:
 
-- **narrow-Phase mit mindestens einem Punkt:** Es entsteht ein **Slot-Gate**. Der Weiterschritt in die nächste Phase wird vom Programm geprüft, nicht vom Modell eingeschätzt — solange auch nur ein Punkt offen ist, wird ein Phasenwechsel schlicht abgelehnt, und Navi muss weiterfragen. Der Editor blendet in diesem Fall den Hinweis *„erster Übergang ist das Slot-Gate"* ein.
-- **full-Phase oder leere Checkliste:** Kein Gate. Die Punkte dienen dann nur noch als Orientierung im Prompt und in der Anzeige.
+- **Mindestens ein Punkt:** Es entsteht ein **Slot-Gate** auf dem **ersten** Übergang dieser Phase (siehe *Übergänge* unten). Der Weiterschritt dorthin wird vom Programm geprüft, nicht vom Modell eingeschätzt — solange auch nur ein Punkt offen ist, wird genau dieser eine Übergang abgelehnt, und Navi muss weiterfragen. Der Editor blendet in diesem Fall den Hinweis *„erster Übergang ist das Slot-Gate"* ein.
+- **Leere Checkliste:** Kein Gate. Navi entscheidet alle Übergänge dieser Phase frei anhand ihrer Bedingung.
 
 Formuliere die Punkte als überprüfbaren Zustand („Online-Präsenz bekannt — auch ‚nur stationär' ist gültig"), nicht als Aufgabe („nach Online-Präsenz fragen"). Und halte sie so knapp wie möglich: Jeder Punkt ist eine Hürde, die das Gespräch verlängert.
 
@@ -326,32 +328,36 @@ Wohin es von dieser Phase aus gehen kann. Jeder Übergang hat drei Teile:
 |---|---|
 | Auswahlliste | Die **Zielphase**. Nur vorhandene Phasen sind wählbar. |
 | Kurzbeschriftung (UI) | Reiner Anzeigetext im Navi-Panel („Problem genannt"). Wirkt nicht auf das Verhalten. |
-| Bedingung | Der Text, an dem ein separater Klassifizierer erkennt, ob dieser Übergang greift. Beschreibe **beobachtbares Verhalten des Händlers** („Nutzer beschreibt ein konkretes Problem mit erkennbarem Kontext"), nicht eine Absicht. |
+| Bedingung | Der Text, den Navi selbst im Prompt vorgelegt bekommt, um zu entscheiden, ob dieser Übergang gerade passt. Beschreibe **beobachtbares Verhalten des Händlers** („Nutzer beschreibt ein konkretes Problem mit erkennbarem Kontext"), nicht eine Absicht. |
 
-**Die Reihenfolge der Übergänge ist bedeutsam** — aber nur bei narrow-Phasen mit Checkliste: Dort ist der **erste** Übergang der automatische Weiterschritt (das Slot-Gate); seine Bedingung wird gar nicht ausgewertet, es zählt allein, ob alle Punkte gefüllt sind. Alle **weiteren** Übergänge sind Ausnahmen (Themenwechsel, Missverständnis) und werden vom Klassifizierer nach ihrer Bedingung geprüft.
+Es gibt keinen separaten Prüf-Schritt mehr: Navi wählt die Zielphase über dasselbe Werkzeug, mit dem es auch antwortet, und orientiert sich dabei an den Bedingungstexten aller Übergänge dieser Phase.
 
-Bei full-Phasen gibt es kein Gate: Dort entscheidet der Klassifizierer über *alle* Übergänge anhand der Bedingungen.
+**Die Reihenfolge der Übergänge ist bedeutsam** — aber nur bei Phasen **mit Checkliste**: Dort ist der **erste** Übergang der automatische Weiterschritt (das Slot-Gate); seine Bedingung ist reine Doku für dich, sie wird vom Programm gar nicht ausgewertet — es zählt allein, ob alle Checklisten-Punkte gefüllt sind. Alle **weiteren** Übergänge sind Ausnahmen (Themenwechsel, Missverständnis, Zufriedenheit) und wählt Navi selbst anhand ihrer Bedingung.
 
-**Speichern:** Der Knopf **Phasen speichern** unten. Das Programm prüft vorher und lehnt bei Fehlern komplett ab — doppelte Phasen-ID, fehlende Startphase `greeting`, ein Übergang auf eine nicht existierende Phase, oder eine narrow-Phase mit Checkliste, aber ganz ohne Übergang (dem Slot-Gate fehlt dann das Ziel).
+Bei Phasen **ohne Checkliste** gibt es kein Gate: Navi wählt *alle* Übergänge frei anhand der Bedingungen — oder bleibt in der Phase und antwortet normal weiter, wenn keine passt.
+
+Versucht Navi einen Übergang, den es in dieser Phase gar nicht gibt, wird das schlicht verworfen (sichtbar im Abschnitt *Begründung*) — Navi bleibt dann in der aktuellen Phase.
+
+**Speichern:** Der Knopf **Phasen speichern** unten. Das Programm prüft vorher und lehnt bei Fehlern komplett ab — doppelte Phasen-ID, fehlende Startphase `greeting`, ein Übergang auf eine nicht existierende Phase, oder eine Phase mit Checkliste, aber ganz ohne Übergang (dem Slot-Gate fehlt dann das Ziel).
 
 ### Reiter „Persona"
 
-Hier steht das *Wie* und das *Wer* — einmal zentral, statt in jeder Phase wiederholt.
+Hier steht das *Wie* und das *Wer* — einmal zentral, statt in jeder Phase wiederholt. Beide Felder unten gelten inzwischen für **jede** Phase gleichermaßen (siehe Hinweis zum Feld *Persona* im Reiter *Phasen*) — die Aufteilung „Full" vs. „Narrow" ist nur noch in der Editor-Struktur sichtbar, nicht mehr im tatsächlichen Verhalten.
 
 **Rollenbeschreibung (roleIntro)**
-Die Identitäts-Einweisung („Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler …"). Sie steht als **erster Absatz** im Prompt jeder **full**-Phase. **narrow**-Phasen bekommen sie bewusst nicht — genau das macht den Schutz vor voreiliger Beratung aus. Darf nicht leer sein.
+Die Identitäts-Einweisung („Du bist Navi, ein ehrlicher KI-Berater für Einzelhändler …"). Sie steht als **erster Absatz** im Prompt **jeder** Phase. Darf nicht leer sein.
 
-**Full-Persona-Regeln (Berater-Phasen)**
-Eine Liste von Verhaltensregeln, die in jeder full-Phase hinter der Rollenbeschreibung landen: Tonfall, Umgang mit Fachbegriffen, Ehrlichkeit statt Verkaufe, Antwortlänge. Jede Regel ist ein eigener Eintrag — das hält sie im Prompt sauber getrennt und macht sie einzeln löschbar.
+**Full-Persona-Regeln**
+Die Liste von Verhaltensregeln, die in jeder Phase hinter der Rollenbeschreibung landen: Tonfall, Umgang mit Fachbegriffen, Ehrlichkeit statt Verkaufe, Antwortlänge, „stelle genau eine Frage". Jede Regel ist ein eigener Eintrag — das hält sie im Prompt sauber getrennt und macht sie einzeln löschbar. Das ist inzwischen das **einzige** Regelwerk, das tatsächlich verwendet wird.
 
-**Narrow-Persona-Regeln (Frage-Phasen)**
-Dasselbe für die Frage-Phasen, und dort das **einzige** Verhaltensfundament (keine Rolle, keine Wissensbasis). Hier gehören Dinge hin wie „stelle genau eine Frage", „keine Bewertung", „keine Lösungsvorschläge".
+**Narrow-Persona-Regeln**
+Wird **nicht mehr in den Prompt eingesetzt** — ein Überbleibsel aus der Zeit, als Frage-Phasen eine eigene, schmalere Persona hatten. Das Feld bleibt im Editor nur, damit ältere Profile beim Laden nicht kaputtgehen. Trag hier nichts Neues ein; es hätte keine Wirkung.
 
 Leere Regeln werden beim Speichern abgelehnt — lösche eine Regel lieber über 🗑️, statt ihr Feld zu leeren.
 
 ### Reiter „Hinweise"
 
-Optionale Themen, die Navi **einmalig** im Gespräch unterbringen soll, sobald sie natürlich hineinpassen. Nur in **full**-Phasen; narrow-Phasen sehen sie nicht.
+Optionale Themen, die Navi **einmalig** im Gespräch unterbringen soll, sobald sie natürlich hineinpassen. Werden in jeder Phase in den Prompt eingesetzt, solange sie noch nicht als abgedeckt gelten.
 
 | Feld | Bedeutung |
 |---|---|
@@ -586,17 +592,18 @@ Die Begriffe, die in der Oberfläche und in dieser Anleitung auftauchen — kurz
 |---|---|
 | **Phase** (auch *State*) | Ein Abschnitt des Gesprächs mit genau einem Auftrag, z.B. „Problem klären". Navi bekommt pro Phase einen eigenen Arbeitsauftrag. |
 | **Phasen-ID** | Der technische Name einer Phase (`clarify_problem`). Wird beim Anlegen vergeben und ist danach fest — Übergänge zeigen darauf. |
-| **Persona** (`narrow` / `full`) | Welche Identität Navi in einer Phase hat. `narrow` = reiner Fragensteller ohne Beraterwissen, `full` = voller Berater. |
+| **Persona** (`narrow` / `full`) | Historisches Feld pro Phase — heute ohne Wirkung auf das Gespräch. Jede Phase nutzt dieselbe volle Berater-Persona, egal welcher Wert hier steht. |
 | **Instruction** | Der Arbeitsauftrag einer Phase — was Navi hier erreichen soll. |
-| **Checkliste / workPlan** | Was in einer Phase geklärt sein muss, bevor es weitergeht. |
+| **Checkliste / workPlan** | Was in einer Phase geklärt sein muss, bevor der erste Übergang möglich ist. |
 | **Slot** | Ein einzelner Checklisten-Punkt samt dem Wert, den Navi dazu erfahren hat. |
-| **Slot-Gate** | Die Sperre, die den Phasenwechsel verhindert, solange ein Slot offen ist. Wird gerechnet, nicht vom Modell eingeschätzt. |
-| **Übergang** | Ein möglicher Wechsel in eine andere Phase, mit einer Bedingung, an der er erkannt wird. |
+| **Slot-Gate** | Die Sperre, die den ersten Übergang einer Phase mit Checkliste verhindert, solange ein Slot offen ist. Wird gerechnet, nicht vom Modell eingeschätzt — der einzige rein technische Schutzmechanismus, der noch übrig ist. |
+| **Übergang** | Ein möglicher Wechsel in eine andere Phase, mit einer Bedingung, anhand derer Navi selbst entscheidet, ob er passt (Ausnahme: der erste Übergang einer Phase mit Checkliste, siehe Slot-Gate). |
 | **Fakten-Blatt** | Navis laufend gepflegte Zusammenfassung des Gesprächs — im Panel als *Faktenlage* sichtbar. |
 | **Hinweis / Tip** | Ein Thema, das Navi einmalig im Gespräch unterbringen soll. |
 | **Use-Case** | Eine Beratungs-Kategorie, der Navi das Problem des Händlers zuordnet. |
 | **Tool** (Wissensbasis) | Ein konkretes KI-Produkt, das Navi empfehlen darf. **Nicht** zu verwechseln mit → |
-| **Werkzeug** (`ask_question` usw.) | Die Antwortform, die Navi in einer Phase benutzen darf: offene Frage, Auswahlfrage, Ja/Nein-Frage. Im Editor stehen beide unter dem Wort „Tools" — das obere Häkchenfeld meint die Antwortform, der Reiter *Wissensbasis* die empfehlbaren Produkte. |
+| **Werkzeug** (`ask_clarification`, `ask_yes_no`) | Eine optionale Antwortform, die Navi zusätzlich zum freien Fließtext benutzen kann: Auswahlfrage, Ja/Nein-Frage. `ask_question` steht zwar noch als Häkchen im Editor, ist aber ohne Funktion. Im Editor stehen beide unter dem Wort „Tools" — das obere Häkchenfeld meint die Antwortform, der Reiter *Wissensbasis* die empfehlbaren Produkte. |
+| **Änderungen im Chat** | Schalter im Panel, der die Begründung eines Zugs zusätzlich als aufklappbare Zeile unter der jeweiligen Navi-Antwort im Chat einblendet. |
 | **Profil** | Ein kompletter Satz Navi-Konfiguration, umschaltbar und weitergebbar. |
 | **Verbesserungs-LLM** | Das Modell, das aus deinem Feedback Änderungsvorschläge erzeugt — nicht das Modell, das den Chat führt. |
 | **Persona** (Simulation) | Achtung, zweite Bedeutung: der simulierte Händler in einem Testlauf. Hat mit der Navi-Persona oben nichts zu tun. |
