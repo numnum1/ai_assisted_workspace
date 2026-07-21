@@ -6,7 +6,7 @@ Navi ist ein KI-gestützter Beratungs-Assistent für Einzelhändler. Er führt s
 
 ## Gesprächsfluss (State Machine)
 
-Navi arbeitet als Zustandsautomat mit 8 States. Der Übergang zwischen States wird nach jeder Händler-Nachricht automatisch klassifiziert.
+Navi arbeitet als Zustandsautomat mit 8 States. Das Modell wählt den Übergang zwischen States selbst per Tool-Aufruf (`advance_phase`); für Sammel-Phasen mit Arbeitsplan prüft das Backend zusätzlich deterministisch, ob alle Slots gefüllt sind (siehe unten).
 
 ```
 greeting
@@ -52,57 +52,34 @@ closing
 
 ### Arbeitsplan-Gate → Slot-Checkliste (deterministisch)
 
-Jeder Punkt im `workPlan` eines narrow-Persona-States (`clarify_problem`, `explore_software_stack`, `explore_investment`) wird zu einem **Slot** mit stabiler id (`slugifySlotLabel`, `src/naviStateMachine.ts`). Das Modell trägt Werte über das Tool `update_facts` selbst ein – **in jedem Turn**, nicht nur bei einem State-Wechsel. Der Wechsel in die nächste Phase (`advance_phase`-Tool) wird vom Backend **deterministisch** geprüft: er gelingt nur, wenn für den aktuellen State jeder Slot einen Wert im Fakten-Blatt hat (`allSlotsFilled`, siehe unten). Es gibt keine zweite Instanz, die das per Prosa-Interpretation nochmal einschätzt.
+Jeder Punkt im `workPlan` eines Sammel-States (`clarify_problem`, `explore_software_stack`, `explore_investment`) wird zu einem **Slot** mit stabiler id (`slugifySlotLabel`, `src/naviStateMachine.ts`). Das Modell trägt Werte über das Tool `update_facts` selbst ein – **in jedem Turn**, nicht nur bei einem State-Wechsel. Das Modell wählt Phasenübergänge selbst über das Tool `advance_phase({ to })`; für den **primären Vorwärts-Übergang** (Index 0 der `transitions`) eines States mit nicht-leerem `workPlan` prüft das Backend zusätzlich **deterministisch**, ob jeder Slot einen Wert im Fakten-Blatt hat, bevor der Wechsel akzeptiert wird (`openSlots`, siehe unten). Es gibt keine zweite Instanz, die das per Prosa-Interpretation nochmal einschätzt.
 
 Beispiel `clarify_problem`:
 - Problem konkret beschrieben (nicht nur benannt)
 - Problem-Typ/Ursache klar
 
-Full-Persona-States (`assess_situation`, `give_recommendation`, …) haben kein Slot-Gate – ihre Übergänge werden weiterhin vollständig vom Klassifizierer entschieden (siehe unten), genau wie schon vor diesem Umbau.
+States ohne `workPlan` (`assess_situation`, `give_recommendation`, …) haben kein Slot-Gate – jeder ihrer Übergänge wird sofort akzeptiert, sobald das Modell `advance_phase` mit dem passenden Ziel aufruft.
 
 ---
 
-## Drei Schutzschichten gegen voreilige Schlüsse
+## Ein Hauptcall pro Turn (Stand seit Grok 4.5)
 
-### Schicht 1 – Schmale Persona (`persona: "narrow" | "full"`)
+Bis Grok 4.3 folgte das Modell einem längeren Arbeitsplan nicht zuverlässig – deshalb liefen pro Nachricht mehrere LLM-Calls: ein separater Redirect-Klassifizierer parallel zu einer spekulativ gestarteten Hauptantwort, erzwungenes `tool_choice: "required"` in Info-States, und eine „Narrow-Persona", die dem Modell in Sammel-Phasen die Berater-Identität vorenthielt. Mit einem planfähigeren Modell entfällt diese Kleinteiligkeit: **ein** Call pro Runde genügt. Das Modell trägt Fakten ein (`update_facts`), entscheidet Phasenübergänge selbst (`advance_phase({ to })`) und erzeugt die sichtbare Antwort – alles im selben Aufruf.
 
-Info-Gathering-States (`clarify_problem`, `explore_software_stack`) erhalten keine KI-Berater-Identität. Das LLM weiß dort nur: „Ich führe ein strukturiertes Gespräch und stelle genau eine Frage." Es kennt weder den Gesamtzweck noch hat es Meinungen zu KI-Lösungen.
+Bewusst erhalten bleiben zwei billige, deterministische Garantien – das sind keine Modell-Workarounds, sondern Struktur-Garantien unabhängig von der Modellqualität:
 
-Advisory-States (`assess_situation`, `give_recommendation`, `refine_recommendation`, `closing`) erhalten die vollständige Navi-Persona als KI-Berater.
+- **Slot-Gate** (siehe oben): verhindert vorzeitiges Weiterschalten in Sammel-Phasen.
+- **Strukturierte State/Facts-Emission** (`navi_state`, `navi_facts`): UI-Contract für Statuspanel und Simulation.
 
-Greeting-States (`greeting`, `ask_problem`) erhalten die volle Persona, da Navi sich dort als KI-Berater vorstellen muss.
+Alle States nutzen dieselbe volle Berater-Persona (`persona.roleIntro` + `fullPersonaRules`) – die frühere Narrow-Persona und das erzwungene `tool_choice` für Info-States sind entfallen. `ask_clarification` und `ask_yes_no` bleiben als **optionale** Werkzeuge verfügbar, wo States sie deklarieren; das Modell nutzt sie laut Persona-Regel, ohne dazu gezwungen zu sein. Das `ask_question`-Werkzeug (samt automatischem Anhängen eines „?") ist entfallen; ehemalige Info-Phasen antworten jetzt im normalen Fließtext.
 
-**Zentrale Navi-Stimme (`naviVoice.ts`):** Das *Wie* der Kommunikation – „User kennt die Software nicht", erst erklären *was/wofür* dann benennen, Gedankengang zeigen – ist **einmal** zentral definiert (`NAVI_FULL_PERSONA_RULES` / `NAVI_NARROW_PERSONA_RULES`) und wird in jeden State-Prompt injiziert. Die State-Instructions in `naviStateMachine.ts` beschreiben nur noch das *Was* (welches Ziel die Phase hat), nicht das *Wie*.
+## Phasenübergänge – modellgetrieben (früher: separater Redirect-Klassifizierer)
 
-**Konfigurierbare Rolle (das *Wer*):** Die Identitäts-Einweisung („Du bist Navi, ein ehrlicher KI-Berater …") ist von den Verhaltens­regeln getrennt (`NAVI_DEFAULT_ROLE` in `naviVoice.ts`) und wird Full-Persona-States als erster Absatz vorangestellt. Sie lässt sich pro Projekt überschreiben: Projekt-Settings → Navi-Tab → **Navi-Modus** wählt einen Modus (aus dem Modi-Tab), dessen `systemPrompt` dann die Rolle liefert. Ein Default-Modus **„KI Navi"** ist bereits angelegt. Ist kein Navi-Modus gesetzt (oder leer), greift `NAVI_DEFAULT_ROLE`. Die Auflösung ist an `naviModeId` gekoppelt (`naviChat.ts`), damit ein normaler Story-Modus wie „Story-Review" nie versehentlich als Navi-Rolle einfließt. Narrow-States bekommen bewusst **keine** Rolle – das ist Teil von Schicht 1.
+Das Modell entscheidet Übergänge direkt im Hauptcall über `advance_phase({ to: "<ziel-state>" })`. Der System-Prompt listet dazu alle möglichen Ziele des aktuellen States mit ihrer Bedingung (`renderTransitionOptions`, `naviChat.ts`). Das Backend validiert nur:
 
-### Schicht 2 – Tool-Constraints (`tools?: NaviStateToolName[]`)
-
-In Info-Gathering-States kann das LLM nur per Tool antworten – freier Text ist strukturell ausgeschlossen:
-
-| State | Verfügbare Tools | Erzwungen? |
-|---|---|---|
-| `clarify_problem` | `ask_question` | ja (`tool_choice: required`) |
-| `explore_software_stack` | `ask_question`, `ask_clarification` | ja (eines davon) |
-| alle anderen | – | nein (freier Text) |
-
-**`ask_question`**: Das LLM gibt Bestätigung + Frage im `response`-Feld zurück. Das Backend extrahiert den Text und streamt ihn transparent als normale Nachricht – das Frontend sieht keinen Unterschied zu freiem Text.
-
-**`ask_clarification`**: Zeigt dem Händler vordefinierte Antwortoptionen als UI-Element. Stoppt die Verarbeitung und wartet auf Nutzereingabe.
-
-### Schicht 3 – Output-Validierung (`validation?: { requiresQuestion: boolean }`)
-
-Nach der Extraktion aus einem `ask_question`-Tool-Call: wenn die Antwort kein `?` enthält, wird automatisch eines angehängt. Safety-Net für Randverhalten des Modells.
-
----
-
-## Redirect-Klassifizierer (Sicherheitsnetz für Ausnahmen)
-
-Früher lief bei jeder Nachricht ein Klassifizierer, der über den kompletten State-Übergang entschied (inkl. „ist der Arbeitsplan vollständig?"). Das ist jetzt in zwei getrennte Mechanismen aufgeteilt:
-
-- **Vorwärtsgang** (alle Slots eines narrow States bekannt → nächste Phase): deterministisch, siehe Slot-Checkliste oben. Kein LLM-Urteil nötig.
-- **Ausnahmen/Redirects** (Themenwechsel, „das war ein Missverständnis", Zufriedenheits-/Einwand-Erkennung in Full-Persona-States): ein schlanker, nicht-streamender Klassifizierer-Call (`buildRedirectClassifierPrompt`, `electron/services/naviStateMachine.ts`), der **nur** die nicht slot-förmigen Transitions eines States prüft. Für narrow States mit Slot-Gate ist das nur die zweite (Ausnahme-)Transition; für Full-Persona-States (kein Slot-Gate) bleiben es weiterhin alle Transitions – hier entscheidet der Klassifizierer wie schon zuvor allein.
-- Läuft parallel zur (spekulativ gestarteten) Hauptantwort; meldet er einen Wechsel, wird die spekulative Antwort verworfen und die Hauptantwort in der neuen Phase neu gestartet.
+- **`to` muss ein deklariertes Übergangsziel des aktuellen States sein** – sonst wird der Versuch abgelehnt und protokolliert (`navi_trace.advancePhaseAttempts`).
+- **Slot-Gate** greift ausschließlich beim primären Vorwärts-Übergang (Index 0) eines States mit nicht-leerem `workPlan`.
+- Jeder andere Übergang (Themenwechsel, Missverständnis, Zufriedenheit, Einwand, …) wird sofort akzeptiert, sobald das Modell ihn wählt.
 
 ---
 
@@ -123,7 +100,7 @@ interface NaviFacts {
 
 - **`update_facts`**-Tool: still (nicht sichtbar für den Händler), das Modell ruft es auf, sobald die letzte Nachricht auch nur eine Kleinigkeit Neues enthält – bevor es antwortet oder die Phase wechselt.
 - Das volle, aktuelle Fakten-Blatt (nicht nur ein Ausschnitt) wird in **jeden** System-Prompt injiziert – zusammen mit der Slot-Checkliste der aktuellen Phase (gefüllt/offen).
-- **`advance_phase`**-Tool (nur narrow States mit Slots): siehe Slot-Gate oben.
+- **`advance_phase`**-Tool: bei States mit nicht-leerem `workPlan` (Slots) greift beim primären Vorwärts-Übergang das Slot-Gate, siehe oben.
 - Ergebnis: kein Fenster mehr, das Fakten abschneiden kann, und keine Verzögerung zwischen „Händler sagt etwas" und „Fakten-Blatt weiß es".
 - Event ans Frontend: `navi_facts` (ersetzt die früheren `navi_context`/`navi_plan`/`navi_problems`-Events), gespeichert als `conversation.naviFacts`.
 
@@ -141,8 +118,8 @@ In `assess_situation`, `give_recommendation`, `refine_recommendation` und `explo
 
 Der Primärpfad (`assess_situation` → `give_recommendation`) bleibt KI-agnostisch: Navi gibt den ehrlichsten, schlanksten Rat, ohne KI aufzudrängen. Da das Feature aber das „KI-Navi" ist, fragt Navi den Händler **einmalig** nach einer zufriedenen Empfehlung (vor `closing`), ob er gezielt KI-Tools erkunden möchte:
 
-- `offer_ai_exploration` (persona `full`, Tool `ask_yes_no`, `tool_choice: required`): stellt die Opt-in-Frage als Ja/Nein-UI. Kein Druck; bei „Nein" → `closing`.
-- `explore_ai_solutions` (persona `full`, Tool-KB injiziert): präsentiert konkrete KI-Tools passend zu Use-Case und Stack, ehrlich zu Aufwand/Kosten/Rahmen. Eine ehrliche Fehlanzeige ist erlaubt.
+- `offer_ai_exploration` (Tool `ask_yes_no` verfügbar, aber seit dem Wegfall von `tool_choice: required` nicht mehr erzwungen – das Modell nutzt es laut Persona-Regel „IMMER ask_yes_no()"): stellt die Opt-in-Frage als Ja/Nein-UI. Kein Druck; bei „Nein" → `closing`.
+- `explore_ai_solutions` (Tool-KB injiziert): präsentiert konkrete KI-Tools passend zu Use-Case und Stack, ehrlich zu Aufwand/Kosten/Rahmen. Eine ehrliche Fehlanzeige ist erlaubt.
 
 Overrides möglich über externe JSON-Dateien in `~/.writing-assistant/navi/`.
 
@@ -189,25 +166,20 @@ Diese Overrides greifen zur Laufzeit und haben Vorrang vor den Defaults in `src/
 ```
 Händler schickt Nachricht
   │
-  ├─ Speculative Fetch startet SOFORT für die aktuelle Phase (Tools: update_facts,
-  │   advance_phase falls Slot-State, sichtbare Antwort-Tools)
-  │
-  ├─ Parallel: Redirect-Klassifizierer prüft Ausnahme-Transitions (nicht-streamend)
-  │   → bei Redirect: spekulative Antwort verworfen, neue Antwort in der Zielphase gestartet
-  │   → sonst: spekulative Antwort wird verwendet
-  │
-  ├─ navi_step / navi_state Events → Frontend aktualisiert Status-Anzeige
-  │
-  └─ Runden-Schleife (max. 4, electron/services/conversation/naviChat.ts):
+  └─ Runden-Schleife (max. 4, electron/services/conversation/naviChat.ts), Runde 0 startet sofort:
       1. Modell antwortet mit Tool-Call(s): update_facts (Fakten-Blatt aktualisieren),
-         advance_phase (Phasenwechsel, deterministisch gegen Slot-Checkliste geprüft),
-         und/oder sichtbares Antwort-Tool (ask_question/ask_clarification/ask_yes_no)
-         bzw. freier Text (Full-Persona ohne erzwungenes Tool)
-      2. Stille Tool-Calls werden sofort ausgeführt (Fakten-Blatt/Phase aktualisiert,
-         navi_facts/navi_state Events emittiert); ohne sichtbare Antwort läuft die
-         Schleife mit frisch gerendertem Prompt weiter
+         advance_phase({ to }) (Phasenwechsel – Ziel muss gültig sein; Slot-Gate greift nur
+         beim primären Vorwärts-Übergang eines States mit workPlan),
+         und/oder sichtbares Antwort-Tool (ask_clarification/ask_yes_no)
+         bzw. freier Text (kein Tool erzwungen)
+      2. Stille Tool-Calls (update_facts/advance_phase) werden sofort ausgeführt
+         (Fakten-Blatt/Phase aktualisiert, navi_facts/navi_state Events emittiert);
+         ohne sichtbare Antwort läuft die Schleife mit frisch gerendertem Prompt
+         (neue Phase + aktualisiertes Fakten-Blatt) weiter
       3. Sobald ein sichtbares Antwort-Tool oder freier Text vorliegt: Turn endet (`done`)
 ```
+
+Kein separater Klassifizierer-Call, keine Spekulation, kein `navi_step`-Event mehr – ein Fetch pro Runde.
 
 ---
 
@@ -246,9 +218,9 @@ Navi kann automatisiert getestet werden: Ein simulierter Händler antwortet nach
 | Datei | Inhalt |
 |---|---|
 | `src/naviStateMachine.ts` | State-Definitionen (das *Was* jeder Phase) **plus** Slot-Helper (`slugifySlotLabel`, `getEffectiveSlots`, `allSlotsFilled`, `getAllSlotLabels`) — von Backend und Frontend-Panel gemeinsam genutzt |
-| `electron/services/conversation/naviVoice.ts` | Zentrale Navi-Stimme – das *Wie* der Kommunikation (Persona-Regeln) |
-| `electron/services/conversation/naviChat.ts` | Kern-Logik: Turn-Loop, Fakten-Blatt-Rendering, `update_facts`/`advance_phase`-Tools, Redirect-Klassifizierer |
-| `electron/services/naviStateMachine.ts` | Re-exportiert die Slot-Helper aus `src/naviStateMachine.ts` + `buildRedirectClassifierPrompt` |
+| `src/naviPersona.ts` | Zentrale Navi-Stimme – Rolle (`roleIntro`) + Verhaltensregeln (`fullPersonaRules`), auf jeden State angewendet |
+| `electron/services/conversation/naviChat.ts` | Kern-Logik: Turn-Loop (ein Call pro Runde), Fakten-Blatt-Rendering, `update_facts`/`advance_phase`-Tools inkl. Transitions-Validierung + Slot-Gate |
+| `electron/services/naviStateMachine.ts` | Re-exportiert die Slot-Helper aus `src/naviStateMachine.ts` |
 | `src/components/chat/naviStateMachineClient.ts` | Client-seitige State-Labels für die UI |
 | `src/components/chat/NaviStatePanel.tsx` | State-Fortschritts-Panel: Slot-Checkliste der aktuellen Phase + akkumulierte Faktenlage |
 | `electron/services/naviKnowledgeBase.ts` | Use Cases und Tools für Advisory-States |

@@ -91,7 +91,7 @@ Wenn der Händler antwortet, aber das Problem sehr vage oder unklar ist (z. B. n
     id: "clarify_problem",
     label: "Problem klären",
     description: "Navi fragt nach der praktischen Lücke – was konkret fehlt oder nicht klappt.",
-    persona: "narrow",
+    persona: "full",
     instruction: `Dein Ziel: Das Problem konkret machen und den Problem-Typ/die Ursache bestimmen – so dass im nächsten Schritt klar ist, welche Stack-Bereiche relevant sind.
 
 FOKUS-REGEL: Du klärst ausschließlich das Problem, das der Händler zu Beginn genannt hat. Frage NICHT nach anderen Problemen, Themen oder Bereichen – auch wenn der Händler Nebenthemen erwähnt. Ein Nebenthema ist kein Grund, das Hauptproblem zu wechseln.
@@ -124,9 +124,7 @@ Falsch: "Hast du Bewertungen auf Google Maps?" – das ist immer gegeben, nicht 
 ANNAHMEN (immer als gegeben voraussetzen, nie erfragen):
 - Der Händler hat Google Maps-Bewertungen.
 
-Tool-Entscheidung – PFLICHT:
-→ Kannst du mindestens 3 konkrete Optionen nennen, die der Händler kennt und selbst beurteilen kann? → ask_clarification mit allow_multiple: true
-→ Sonst: ask_question
+Antworte normal im Fließtext mit deiner nächsten Frage – außer du kannst mindestens 3 konkrete Optionen nennen, die der Händler kennt und selbst beurteilen kann, dann nutze stattdessen ask_clarification mit allow_multiple: true.
 
 Beispiel für ask_clarification:
 - Problem "Kundenkommunikation zu aufwändig" → "Womit kommunizierst du mit Kunden?" → Optionen: Telefon, E-Mail, WhatsApp, gar nicht/alles vor Ort
@@ -148,14 +146,14 @@ Wenn ein Punkt bereits beantwortet wurde, frage NICHT erneut danach.`,
         label: "Missverständnis – neues Problem",
       },
     ],
-    tools: ["ask_question", "ask_clarification"],
+    tools: ["ask_clarification"],
     validation: { requiresQuestion: true },
   },
   {
     id: "explore_software_stack",
     label: "Software-Stack",
     description: "Navi erfragt den vollständigen Stack: Kasse, Online-Shop, Kommunikation, problemrelevanter Bereich.",
-    persona: "narrow",
+    persona: "full",
     instruction: `Dein Ziel: Den Software-Stack des Händlers so weit verstehen, dass eine sinnvolle Empfehlung möglich ist.
 
 EINSTIEG (nur beim ersten Mal in diesem State – wenn du gerade von der Klärungsphase kommst):
@@ -201,8 +199,7 @@ Wenn die Antwort vage ist (z. B. "so Standardsachen"), hak nach:
 
 Bereiche die bereits bekannt sind, NICHT nochmals erfragen.
 Frag NICHT nach: gemeinsamen Aktionen mit anderen Läden, Kooperationen, lokalen Netzwerken – das ist kein Stack-Thema.
-Das ask_clarification Tool verwenden wenn sinnvolle Optionen ableitbar sind (und IMMER für Online-Kanäle).
-Ansonsten ask_question.`,
+Das ask_clarification Tool verwenden wenn sinnvolle Optionen ableitbar sind (und IMMER für Online-Kanäle, siehe BÜNDELUNGS-REGEL). Ansonsten normal im Fließtext fragen.`,
     workPlan: [
       "Online-Präsenz bekannt (Online-Shop ja/nein, und falls ja welche Plattform – auch 'nur stationär' ist gültig)",
       "Alle für das Problem relevanten Tools oder Abläufe bekannt (auch 'kein Tool' oder 'nur Papier' ist gültig – vage Antworten nicht; nicht relevante Bereiche dürfen übersprungen werden)",
@@ -219,14 +216,14 @@ Ansonsten ask_question.`,
         label: "Neuer Problem-Aspekt aufgetaucht",
       },
     ],
-    tools: ["ask_question", "ask_clarification"],
+    tools: ["ask_clarification"],
     validation: { requiresQuestion: true },
   },
   {
     id: "explore_investment",
     label: "Aufwandbereitschaft",
     description: "Navi fragt, wie viel Zeit und Geld der Händler in eine Lösung investieren würde.",
-    persona: "narrow",
+    persona: "full",
     instruction: `Du klärst jetzt ausschließlich die Investitionsbereitschaft – nichts anderes. Diese Phase hat genau ein Ziel: verstehen, ob der Händler grundsätzlich bereit ist, Zeit oder Geld zu investieren. Maximal 1–3 kurze Fragen, dann ist diese Phase erledigt.
 
 WELCHE DIMENSIONEN RELEVANT SIND:
@@ -261,7 +258,7 @@ Falsch: "Was wäre monatlich drin?"
         label: "Zeit + Budget bekannt",
       },
     ],
-    tools: ["ask_question", "ask_clarification", "ask_yes_no"],
+    tools: ["ask_clarification", "ask_yes_no"],
     validation: { requiresQuestion: true },
   },
   {

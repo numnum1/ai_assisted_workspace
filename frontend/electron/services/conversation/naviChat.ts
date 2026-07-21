@@ -13,13 +13,11 @@ import { isStreamActive } from "../chatSession.js";
 import { executeToolCall, describeStreamingToolCall, type ToolExecutionResult } from "../chatToolExecution.js";
 import {
   getNaviState,
-  buildRedirectClassifierPrompt,
   getEffectiveSlots,
   getAllSlotLabels,
   openSlots,
   NAVI_INITIAL_STATE_ID,
   type NaviState,
-  type NaviTransition,
 } from "../naviStateMachine.js";
 import { loadNaviStates, loadNaviTips, loadNaviPersona } from "../naviStateConfigService.js";
 import { buildNaviKnowledgePrompt } from "../naviKnowledgeBase.js";
@@ -28,56 +26,6 @@ import type { NaviPersonaConfig } from "../../../src/naviPersona.js";
 import { TOOLKIT_TOOL_DEFINITIONS, type ToolDefinition } from "./systemPrompt.js";
 import type { ChatRequest, ChatMessage, ToolCall, NaviFacts } from "../../../src/types.js";
 import type { ChatStreamEvent } from "../chatTypes.js";
-
-/**
- * Progressively extracts the unescaped value of the "response" field from a partial
- * ask_question arguments JSON string (e.g. `{"response": "Ich ver...`).
- * Returns as many characters as are safely extractable; call again with more data to get more.
- */
-function extractPartialAskQResponse(buf: string): string {
-  const keyMatch = buf.match(/"response"\s*:\s*"/);
-  if (!keyMatch || keyMatch.index === undefined) return "";
-  let pos = keyMatch.index + keyMatch[0].length;
-  let value = "";
-  while (pos < buf.length) {
-    const ch = buf[pos];
-    if (ch === "\\" && pos + 1 < buf.length) {
-      const next = buf[pos + 1];
-      if (next === '"') { value += '"'; pos += 2; }
-      else if (next === "n") { value += "\n"; pos += 2; }
-      else if (next === "t") { value += "\t"; pos += 2; }
-      else if (next === "\\") { value += "\\"; pos += 2; }
-      else if (next === "r") { value += "\r"; pos += 2; }
-      else { pos++; }
-    } else if (ch === '"') {
-      break;
-    } else {
-      value += ch;
-      pos++;
-    }
-  }
-  return value;
-}
-
-const ASK_QUESTION_TOOL: ToolDefinition = {
-  type: "function",
-  function: {
-    name: "ask_question",
-    description:
-      "Schreibe deine nächste Nachricht im Gespräch und stelle genau eine gezielte Frage. Stell die Frage direkt – ohne das Gesagte vorher zu wiederholen, zusammenzufassen oder zu paraphrasieren. Beginne NICHT mit 'Verstehe', 'Verstanden', 'Alles klar', 'Okay', 'Das klingt nach...' o.Ä. Kein Echo. Kein 'Habe ich das richtig verstanden?'.",
-    parameters: {
-      type: "object",
-      properties: {
-        response: {
-          type: "string",
-          description:
-            "Deine direkte Gesprächsnachricht. Immer 'du', nie 'der Händler'. Fang direkt mit der Frage an. Wenn es natürlich ist, kannst du in einem Halbsatz auf einen konkreten Punkt eingehen – aber KEIN Echo und KEINE Zusammenfassung dessen, was der Händler gerade gesagt hat.",
-        },
-      },
-      required: ["response"],
-    },
-  },
-};
 
 /**
  * Silent, in-turn bookkeeping tool: the model records new/updated facts here — every turn, not
@@ -133,32 +81,48 @@ const UPDATE_FACTS_TOOL: ToolDefinition = {
 };
 
 /**
- * Deterministic forward-progress gate for narrow (info-gathering) phases: calling this only
- * succeeds once every slot of the current phase's checklist has a value in the fact sheet — the
- * backend enforces this, not the model's own judgment. There is exactly one linear target per
- * gated phase (see NAVI_STATES), so no `to` argument is needed.
+ * Model-driven phase transitions: the model picks the target phase itself via this tool's `to`
+ * argument. The backend keeps exactly one deterministic guarantee — for phases with a non-empty
+ * workPlan, the primary forward transition (index 0 by NAVI_STATES convention) is rejected unless
+ * every slot of the current phase's checklist has a value in the fact sheet (enforced in the
+ * advance_phase handler below). Every other transition is accepted on the model's judgment alone.
  */
-function buildAdvancePhaseTool(target: string): ToolDefinition {
+function buildAdvancePhaseTool(state: NaviState): ToolDefinition {
+  const targets = state.transitions.map((t) => t.to);
+  const transitionLines = state.transitions.map((t) => `- "${t.to}": ${t.condition}`);
+  const gateNote =
+    state.workPlan.length > 0 && state.transitions[0]
+      ? `Für den Wechsel zu "${state.transitions[0].to}" gilt zusätzlich: nur möglich, wenn ALLE Punkte der Slot-Checkliste bekannt sind — sonst wird der Wechsel abgelehnt; rufe in diesem Fall stattdessen update_facts auf und stelle die nächste offene Frage.`
+      : "";
   return {
     type: "function",
     function: {
       name: "advance_phase",
-      description:
-        `Wechsle in die nächste Gesprächsphase ("${target}"), sobald ALLE offenen Punkte der Slot-Checkliste bekannt sind. ` +
-        "Der Wechsel wird abgelehnt, solange Punkte offen sind — rufe in diesem Fall stattdessen update_facts auf und stelle die nächste offene Frage.",
-      parameters: { type: "object", properties: {} },
+      description: [
+        "Wechsle die Gesprächsphase, sobald eine der folgenden Bedingungen eindeutig zutrifft:",
+        ...transitionLines,
+        gateNote,
+        "Wechsle NICHT, wenn keine Bedingung eindeutig zutrifft — bleib in der aktuellen Phase und antworte normal weiter.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      parameters: {
+        type: "object",
+        properties: {
+          to: { type: "string", enum: targets, description: "Die Ziel-Phase." },
+        },
+        required: ["to"],
+      },
     },
   };
 }
 
-/** The state's visible-reply tool(s) (ask_question / ask_clarification / ask_yes_no), if any. */
-function buildReplyTools(state: NaviState): { tools: ToolDefinition[]; forced: boolean } {
-  if (!state.tools || state.tools.length === 0) return { tools: [], forced: false };
+/** The state's visible-reply tool(s) (ask_clarification / ask_yes_no), if any — always optional, never forced. */
+function buildReplyTools(state: NaviState): ToolDefinition[] {
+  if (!state.tools || state.tools.length === 0) return [];
   const tools: ToolDefinition[] = [];
   for (const name of state.tools) {
-    if (name === "ask_question") {
-      tools.push(ASK_QUESTION_TOOL);
-    } else if (name === "ask_clarification") {
+    if (name === "ask_clarification") {
       const t = TOOLKIT_TOOL_DEFINITIONS.assistant?.find((d) => d.function.name === "ask_clarification");
       if (t) tools.push(t);
     } else if (name === "ask_yes_no") {
@@ -166,37 +130,17 @@ function buildReplyTools(state: NaviState): { tools: ToolDefinition[]; forced: b
       if (t) tools.push(t);
     }
   }
-  return { tools, forced: tools.length > 0 };
+  return tools;
 }
 
-/** Only narrow phases with a non-empty workPlan get the deterministic slot gate + advance_phase. */
-function isGatedNarrowState(state: NaviState): boolean {
-  return state.persona === "narrow" && state.workPlan.length > 0;
-}
-
-/**
- * Which transitions the redirect/safety-net classifier is responsible for. For gated narrow
- * states, the primary forward transition (index 0, by NAVI_STATES convention) is handled by the
- * deterministic slot gate instead — the classifier only judges the remaining semantic exceptions
- * (topic changes etc). Full-persona states have no slot gate, so the classifier still owns every
- * transition there, exactly as before.
- */
-function getExceptionTransitions(state: NaviState): NaviTransition[] {
-  return isGatedNarrowState(state) ? state.transitions.slice(1) : state.transitions;
-}
-
-function buildToolSet(
-  state: NaviState,
-  includeSilent: boolean,
-): { tools: ToolDefinition[]; toolChoice: "required" | undefined } {
-  const { tools: replyTools, forced } = buildReplyTools(state);
+function buildToolSet(state: NaviState, includeSilent: boolean): { tools: ToolDefinition[] } {
   const tools: ToolDefinition[] = [];
   if (includeSilent) {
     tools.push(UPDATE_FACTS_TOOL);
-    if (isGatedNarrowState(state)) tools.push(buildAdvancePhaseTool(state.transitions[0]?.to ?? ""));
+    if (state.transitions.length > 0) tools.push(buildAdvancePhaseTool(state));
   }
-  tools.push(...replyTools);
-  return { tools, toolChoice: forced ? "required" : undefined };
+  tools.push(...buildReplyTools(state));
+  return { tools };
 }
 
 function renderFactsSection(facts: NaviFacts, states: NaviState[]): string {
@@ -263,6 +207,7 @@ function buildNaviSystemPrompt(
   const knowledgePrompt = buildNaviKnowledgePrompt(state);
   const factsSection = renderFactsSection(facts, states);
   const checklistSection = renderSlotChecklist(state.id, states, facts);
+  const transitionSection = renderTransitionOptions(state);
   const factsToolNote =
     "Trage Fakten IMMER zuerst per update_facts ein (auch beiläufig Erwähntes), bevor du antwortest oder die Phase wechselst.";
 
@@ -276,28 +221,28 @@ function buildNaviSystemPrompt(
         ].join("\n")
       : "";
 
+  return [
+    persona.roleIntro,
+    ...persona.fullPersonaRules,
+    ...(problemFocusBlock ? [problemFocusBlock] : []),
+    ...(factsSection ? [factsSection] : []),
+    ...(checklistSection ? [checklistSection] : []),
+    factsToolNote,
+    `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
+    ...(transitionSection ? [transitionSection] : []),
+    ...(tipsPromptSection ? [tipsPromptSection] : []),
+    ...(knowledgePrompt ? [knowledgePrompt] : []),
+  ].join("\n\n");
+}
+
+/** Lists the phase's possible advance_phase transitions and their conditions, for the prompt. */
+function renderTransitionOptions(state: NaviState): string {
+  if (state.transitions.length === 0) return "";
+  const lines = state.transitions.map((t) => `→ "${t.to}": ${t.condition}`);
   return (
-    state.persona === "narrow"
-      ? [
-          ...persona.narrowPersonaRules,
-          ...(problemFocusBlock ? [problemFocusBlock] : []),
-          ...(factsSection ? [factsSection] : []),
-          ...(checklistSection ? [checklistSection] : []),
-          factsToolNote,
-          `Deine Aufgabe in diesem Schritt: ${effectiveInstruction}`,
-        ]
-      : [
-          persona.roleIntro,
-          ...persona.fullPersonaRules,
-          ...(problemFocusBlock ? [problemFocusBlock] : []),
-          ...(factsSection ? [factsSection] : []),
-          ...(checklistSection ? [checklistSection] : []),
-          factsToolNote,
-          `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
-          ...(tipsPromptSection ? [tipsPromptSection] : []),
-          ...(knowledgePrompt ? [knowledgePrompt] : []),
-        ]
-  ).join("\n\n");
+    "Mögliche Phasenübergänge (per advance_phase-Werkzeug, nur wenn eine Bedingung eindeutig zutrifft):\n" +
+    lines.join("\n")
+  );
 }
 
 function buildNaviMessages(systemPrompt: string, history: ChatMessage[], userMessage: string): OpenAiMessage[] {
@@ -339,8 +284,6 @@ function startNaviResponseFetch(
   endpoint: { apiUrl: string; apiKey: string; model: string },
   messages: OpenAiMessage[],
   tools: ToolDefinition[],
-  toolChoice: "required" | undefined,
-  signal?: AbortSignal,
 ): Promise<Response> {
   return fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
     method: "POST",
@@ -350,12 +293,10 @@ function startNaviResponseFetch(
       stream: true,
       messages,
       ...(tools.length > 0 ? { tools } : {}),
-      ...(toolChoice ? { tool_choice: toolChoice } : {}),
       // xAI/Grok only accepts "low" or "high" for reasoning_effort — any other value is silently
       // ignored (falls back to the model's default, effectively full reasoning).
       reasoning_effort: "low",
     }),
-    ...(signal ? { signal } : {}),
   });
 }
 
@@ -363,14 +304,12 @@ interface StreamRoundResult {
   roundAssistantText: string;
   toolCalls: ToolCall[];
   tokenCount: number;
-  askQStreamedText: string;
 }
 
-/** Reads one streamed response: forwards content tokens live, progressively echoes ask_question. */
+/** Reads one streamed response, forwarding content tokens live as they arrive. */
 async function readStreamRound(
   streamId: string,
   response: Response,
-  hasAskQuestionTool: boolean,
   emit: (event: ChatStreamEvent) => void,
 ): Promise<StreamRoundResult> {
   if (!response.ok) {
@@ -392,8 +331,6 @@ async function readStreamRound(
   let roundAssistantText = "";
   let tokenCount = 0;
   const collectedToolCalls = new Map<number, ToolCall>();
-  let askQEmittedLen = 0;
-  let askQStreamedText = "";
 
   while (true) {
     if (!isStreamActive(streamId)) break;
@@ -432,28 +369,13 @@ async function readStreamRound(
 
       accumulateToolCallChunks(parsed, collectedToolCalls);
 
-      if (hasAskQuestionTool) {
-        const aqCall = [...collectedToolCalls.values()].find((tc) => tc.function.name === "ask_question");
-        if (aqCall) {
-          const currentValue = extractPartialAskQResponse(aqCall.function.arguments);
-          if (currentValue.length > askQEmittedLen) {
-            const newChunk = currentValue.slice(askQEmittedLen);
-            askQEmittedLen = currentValue.length;
-            askQStreamedText += newChunk;
-            tokenCount++;
-            roundAssistantText += newChunk;
-            emit({ type: "token", data: newChunk });
-          }
-        }
-      }
-
       const finishReason = extractFinishReason(parsed);
       if (finishReason === "tool_calls") break;
       currentEvent = "";
     }
   }
 
-  return { roundAssistantText, toolCalls: [...collectedToolCalls.values()], tokenCount, askQStreamedText };
+  return { roundAssistantText, toolCalls: [...collectedToolCalls.values()], tokenCount };
 }
 
 function cloneFacts(facts: NaviFacts): NaviFacts {
@@ -515,47 +437,6 @@ function findPreviousAssistantText(history: ChatMessage[]): string {
   return "";
 }
 
-async function runRedirectClassifier(
-  currentStateId: string,
-  userMessage: string,
-  transitions: NaviTransition[],
-  history: ChatMessage[],
-  endpoint: { apiUrl: string; apiKey: string; model: string },
-): Promise<string | null> {
-  const { prompt, validStates } = buildRedirectClassifierPrompt(currentStateId, userMessage, transitions, history);
-  try {
-    const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-      body: JSON.stringify({
-        model: endpoint.model,
-        stream: false,
-        max_tokens: 512,
-        // "minimal" is not a valid xAI/Grok value (only "low"/"high") and was likely being ignored,
-        // silently falling back to full reasoning for what's meant to be a cheap classification call.
-        reasoning_effort: "low",
-        messages: [
-          {
-            role: "system",
-            content:
-              'Du analysierst eine Nutzer-Nachricht und prüfst auf Ausnahme-Situationen. Antworte NUR mit dem State-Namen oder "none". Keine Erklärung.',
-          },
-          { role: "user", content: prompt },
-        ],
-      }),
-    });
-    if (!response.ok) return null;
-    const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const raw = (json?.choices?.[0]?.message?.content ?? "").trim().toLowerCase();
-    for (const s of validStates) {
-      if (s !== "none" && raw.includes(s.toLowerCase())) return s;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export async function runNaviChatStream(
   streamId: string,
   request: ChatRequest,
@@ -596,7 +477,6 @@ export async function runNaviChatStream(
     // were at turn start so we can diff what update_facts actually changed this turn.
     const slotsAtTurnStart = { ...facts.slots };
     const advancePhaseAttempts: { target: string; accepted: boolean; openSlots: string[] }[] = [];
-    let redirectTo: string | undefined;
 
     const history = Array.isArray(request.history) ? request.history : [];
 
@@ -617,7 +497,6 @@ export async function runNaviChatStream(
           hypothesis: facts.hypothesis,
           recommendation: facts.recommendation,
           ...(advancePhaseAttempts.length > 0 ? { advancePhaseAttempts } : {}),
-          ...(redirectTo ? { redirectTo } : {}),
         },
       });
       await tipsPromise;
@@ -625,100 +504,30 @@ export async function runNaviChatStream(
       emit({ type: "done", data: { fullAssistantText } });
     };
 
-    // ── Speculative round-0 read, overlapped with the redirect classifier ──
-    // The current-phase response starts generating and streaming into a buffer immediately, so the
-    // model is already working while the "Prüfe Themenwechsel" classifier runs in parallel — the
-    // classifier is no longer on the critical path before the first token. If the classifier then
-    // picks a different phase, the buffered (now-wrong) output is discarded and a fresh fetch for the
-    // redirect target is read instead; otherwise the buffer is flushed live and its result reused.
-    const speculativeAbort = new AbortController();
-    const speculativeSystemPrompt = buildNaviSystemPrompt(
-      currentState, facts, states, persona, tips, request.naviCoveredTips,
-    );
-    const speculativeMessages = buildNaviMessages(speculativeSystemPrompt, history, userMessage);
-    const { tools: specTools, toolChoice: specToolChoice } = buildToolSet(currentState, true);
-    const speculativeFetch = startNaviResponseFetch(
-      endpoint, speculativeMessages, specTools, specToolChoice, speculativeAbort.signal,
+    let activeStateId = currentStateId;
+    let activeState = currentState;
+    const messages: OpenAiMessage[] = buildNaviMessages(
+      buildNaviSystemPrompt(activeState, facts, states, persona, tips, request.naviCoveredTips),
+      history,
+      userMessage,
     );
 
     let fullAssistantText = "";
     let tokenCount = 0;
     const maxRounds = 4;
     let round = 0;
-
-    // Round-0 output is buffered until the classifier's verdict is known (see above).
-    let flushRound0 = false;
-    const round0Buffer: ChatStreamEvent[] = [];
-    const round0Emit = (event: ChatStreamEvent) => {
-      if (flushRound0) emit(event);
-      else round0Buffer.push(event);
-    };
-    const specHasAskQuestion = specTools.some((t) => t.function.name === "ask_question");
-    const speculativeRoundPromise = speculativeFetch
-      .then((res) => readStreamRound(streamId, res, specHasAskQuestion, round0Emit))
-      .then((result) => ({ ok: true as const, result }))
-      .catch((error: unknown) => ({ ok: false as const, error }));
-
-    const exceptionTransitions = getExceptionTransitions(currentState);
-    let redirectPromise: Promise<string | null> = Promise.resolve(null);
-    if (userMessage && exceptionTransitions.length > 0) {
-      emit({ type: "navi_step", data: { label: "Prüfe Themenwechsel …" } });
-      redirectPromise = runRedirectClassifier(currentStateId, userMessage, exceptionTransitions, history, endpoint);
-    }
-    const redirectTarget = await redirectPromise;
-    emit({ type: "navi_step", data: { label: null } });
-
-    if (!isStreamActive(streamId)) return;
-
-    let activeStateId = currentStateId;
-    let activeState = currentState;
-    let currentResponsePromise: Promise<Response> | null = null;
-    let messages: OpenAiMessage[];
-    let pendingRoundResult: StreamRoundResult | null = null;
-
-    if (redirectTarget && redirectTarget !== currentStateId) {
-      // Redirect: abort and discard the speculative round-0 output, read the redirect target instead.
-      redirectTo = redirectTarget;
-      speculativeAbort.abort();
-      await speculativeRoundPromise;
-      round0Buffer.length = 0;
-      activeStateId = redirectTarget;
-      activeState = getNaviState(states, redirectTarget) ?? currentState;
-      emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: currentStateId } });
-      const systemPrompt = buildNaviSystemPrompt(activeState, facts, states, persona, tips, request.naviCoveredTips);
-      messages = buildNaviMessages(systemPrompt, history, userMessage);
-      const { tools, toolChoice } = buildToolSet(activeState, true);
-      currentResponsePromise = startNaviResponseFetch(endpoint, messages, tools, toolChoice);
-    } else {
-      // No redirect: flush the buffered round-0 output live and reuse the speculative read's result.
-      flushRound0 = true;
-      for (const event of round0Buffer) emit(event);
-      round0Buffer.length = 0;
-      messages = speculativeMessages;
-      const settled = await speculativeRoundPromise;
-      if (!settled.ok) throw settled.error;
-      pendingRoundResult = settled.result;
-    }
+    const { tools: initialTools } = buildToolSet(activeState, true);
+    let currentResponsePromise: Promise<Response> = startNaviResponseFetch(endpoint, messages, initialTools);
 
     while (round < maxRounds) {
       if (!isStreamActive(streamId)) return;
 
-      const stateForThisRound = activeState;
-      const isLastRound = round === maxRounds - 1;
-      const { tools: roundTools } = buildToolSet(stateForThisRound, !isLastRound);
-      const hasAskQuestionTool = roundTools.some((t) => t.function.name === "ask_question");
-
-      // Round 0 was already read (buffered) alongside the classifier; later rounds read fresh.
-      const roundResult =
-        pendingRoundResult ??
-        (await readStreamRound(streamId, await currentResponsePromise!, hasAskQuestionTool, emit));
-      pendingRoundResult = null;
+      const roundResult = await readStreamRound(streamId, await currentResponsePromise, emit);
       tokenCount += roundResult.tokenCount;
 
       const silentCalls = roundResult.toolCalls.filter(
         (tc) => tc.function.name === "update_facts" || tc.function.name === "advance_phase",
       );
-      const askQuestionCall = roundResult.toolCalls.find((tc) => tc.function.name === "ask_question");
       const otherReplyCalls = roundResult.toolCalls.filter(
         (tc) => tc.function.name === "ask_clarification" || tc.function.name === "ask_yes_no",
       );
@@ -728,43 +537,33 @@ export async function runNaviChatStream(
           const applied = applyUpdateFacts(facts, call.function.arguments);
           if (applied) emit({ type: "navi_facts", data: cloneFacts(facts) });
         } else if (call.function.name === "advance_phase") {
-          const open = openSlots(states, activeStateId, facts);
-          const target = activeState.transitions[0]?.to ?? "";
+          let target = "";
+          try {
+            const args = JSON.parse(call.function.arguments) as { to?: unknown };
+            target = typeof args.to === "string" ? args.to.trim() : "";
+          } catch {
+            target = "";
+          }
+          const transition = activeState.transitions.find((t) => t.to === target);
+          if (!transition) {
+            advancePhaseAttempts.push({ target: target || "(ungültig)", accepted: false, openSlots: [] });
+            continue;
+          }
+          // The deterministic slot-gate applies only to the primary forward transition (index 0)
+          // of a phase with a non-empty workPlan — every other transition is accepted on the
+          // model's own judgment, since it's a semantic exception (topic change, satisfaction, …)
+          // rather than a "have I gathered everything" progress check.
+          const isGatedForward = activeState.transitions[0]?.to === target && activeState.workPlan.length > 0;
+          const open = isGatedForward ? openSlots(states, activeStateId, facts) : [];
           const accepted = open.length === 0;
           advancePhaseAttempts.push({ target, accepted, openSlots: open.map((s) => s.label) });
-          if (accepted && target) {
+          if (accepted) {
             const completed = activeStateId;
             activeStateId = target;
             activeState = getNaviState(states, target) ?? activeState;
             emit({ type: "navi_state", data: { stateId: activeStateId, completedStateId: completed } });
           }
         }
-      }
-
-      if (askQuestionCall) {
-        let resp = "";
-        try {
-          const args = JSON.parse(askQuestionCall.function.arguments) as { response?: unknown };
-          resp = typeof args.response === "string" ? args.response.trim() : "";
-        } catch {
-          resp = askQuestionCall.function.arguments.trim();
-        }
-        if (stateForThisRound.validation?.requiresQuestion && resp && !resp.includes("?")) {
-          resp += "?";
-        }
-        if (resp) {
-          fullAssistantText = resp;
-          if (roundResult.askQStreamedText.length === 0) {
-            emit({ type: "token", data: resp });
-          } else {
-            const trimmedStreamed = roundResult.askQStreamedText.trim();
-            if (resp.length > trimmedStreamed.length && resp.startsWith(trimmedStreamed)) {
-              emit({ type: "token", data: resp.slice(trimmedStreamed.length) });
-            }
-          }
-        }
-        await finishTurn(fullAssistantText, activeStateId);
-        return;
       }
 
       if (otherReplyCalls.length > 0) {
@@ -820,8 +619,8 @@ export async function runNaviChatStream(
       round += 1;
       if (!isStreamActive(streamId)) return;
       const nextIsLastRound = round === maxRounds - 1;
-      const { tools: nextTools, toolChoice: nextToolChoice } = buildToolSet(activeState, !nextIsLastRound);
-      currentResponsePromise = startNaviResponseFetch(endpoint, messages, nextTools, nextToolChoice);
+      const { tools: nextTools } = buildToolSet(activeState, !nextIsLastRound);
+      currentResponsePromise = startNaviResponseFetch(endpoint, messages, nextTools);
     }
 
     // Round budget exhausted without a visible reply.

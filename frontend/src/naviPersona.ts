@@ -12,16 +12,15 @@ export interface NaviPersonaConfig {
   /** Role / identity briefing ("WHO Navi is"), prepended in full-persona states. */
   roleIntro: string;
   /**
-   * Full-persona states: greeting, ask_problem, confirm_understanding,
-   * assess_situation, give_recommendation, refine_recommendation, closing.
-   * Navi acts as an honest advisor with the authority to assess and recommend.
+   * Applied to every state's system prompt — Navi acts as an honest advisor with the
+   * authority to assess and recommend throughout the whole conversation.
    * Each entry becomes its own paragraph in the assembled system prompt.
    */
   fullPersonaRules: string[];
   /**
-   * Narrow-persona states: clarify_problem, explore_software_stack.
-   * Navi has no advisor identity here — just a focused questioner with no
-   * opinions on solutions. Each entry becomes its own paragraph.
+   * @deprecated No longer consumed by the (now unified full-persona) prompt assembly in
+   * `electron/services/conversation/naviChat.ts` — every state uses `fullPersonaRules` now.
+   * Kept only so saved/exported profiles and the state editor (`NaviStateEditor.tsx`) don't break.
    */
   narrowPersonaRules: string[];
 }
