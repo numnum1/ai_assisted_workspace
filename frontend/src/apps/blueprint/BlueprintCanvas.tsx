@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -53,9 +54,13 @@ import {
   DEFAULT_UNIT_PX,
   MIN_UNIT_PX,
   MAX_UNIT_PX,
+  DEFAULT_COLUMN_GAP,
+  MAX_COLUMN_GAP,
   deriveSpan,
   newId,
   syncTunnelExits,
+  timeToX,
+  xToTime,
 } from "./layout.ts";
 import "./BlueprintCanvas.css";
 
@@ -75,17 +80,30 @@ function miniMapNodeColor(rf: Node): string {
   return node.status === "kanon" ? "#1f9d5c" : "#5a3ee0";
 }
 
-function toRfNode(n: BlueprintNode, unitPx: number): Node {
+interface GridScale {
+  columns: BlueprintColumn[];
+  unitPx: number;
+  columnGap: number;
+}
+
+function toRfNode(n: BlueprintNode, grid: GridScale): Node {
   return {
     id: n.id,
     type: n.kind,
-    position: { x: n.from !== undefined ? n.from * unitPx : n.x, y: n.y },
+    position: {
+      x:
+        n.from !== undefined
+          ? timeToX(n.from, grid.columns, grid.unitPx, grid.columnGap)
+          : n.x,
+      y: n.y,
+    },
     data: n as unknown as Record<string, unknown>,
   };
 }
 
-function toRfNodes(graph: BlueprintGraph, unitPx: number): Node[] {
-  return graph.nodes.map((n) => toRfNode(n, unitPx));
+function toRfNodes(graph: BlueprintGraph, unitPx: number, columnGap: number): Node[] {
+  const grid: GridScale = { columns: graph.columns ?? [], unitPx, columnGap };
+  return graph.nodes.map((n) => toRfNode(n, grid));
 }
 
 /** Build a fresh content node whose X (and thus `from`) comes from the drop
@@ -93,9 +111,9 @@ function toRfNodes(graph: BlueprintGraph, unitPx: number): Node[] {
 function makeNode(
   kind: Extract<BlueprintNodeKind, "event" | "reroute">,
   flowPos: XYPosition,
-  unitPx: number,
+  grid: GridScale,
 ): BlueprintNode {
-  const from = Math.round(flowPos.x / unitPx);
+  const from = Math.round(xToTime(flowPos.x, grid.columns, grid.unitPx, grid.columnGap));
   const base = {
     id: newId("node"),
     description: "",
@@ -130,11 +148,17 @@ function BlueprintCanvasInner() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [columns, setColumns] = useState<BlueprintColumn[]>([]);
   const [unitPx, setUnitPx] = useState(DEFAULT_UNIT_PX);
+  const [columnGap, setColumnGap] = useState(DEFAULT_COLUMN_GAP);
   const [error, setError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbEntry[]>([]);
   const { screenToFlowPosition } = useReactFlow();
+
+  const grid: GridScale = useMemo(
+    () => ({ columns, unitPx, columnGap }),
+    [columns, unitPx, columnGap],
+  );
 
   const dataRef = useRef<BlueprintData | null>(null);
   const activeGraphRef = useRef<string | null>(null);
@@ -154,9 +178,11 @@ function BlueprintCanvasInner() {
         dataRef.current = d;
         activeGraphRef.current = d.rootGraphId;
         const unit = d.unitPx ?? DEFAULT_UNIT_PX;
+        const gap = d.columnGap ?? DEFAULT_COLUMN_GAP;
         const graph = d.graphs[d.rootGraphId];
         setUnitPx(unit);
-        setNodes(toRfNodes(graph, unit));
+        setColumnGap(gap);
+        setNodes(toRfNodes(graph, unit, gap));
         setEdges(toRfEdges(graph));
         setColumns(graph.columns ?? []);
         setBreadcrumbs([{ graphId: d.rootGraphId, label: "Blueprint" }]);
@@ -189,6 +215,7 @@ function BlueprintCanvasInner() {
     const nextData: BlueprintData = {
       ...data,
       unitPx,
+      columnGap,
       graphs: {
         ...data.graphs,
         [graphId]: { ...prev, nodes: nextNodes, edges: nextEdges, columns },
@@ -200,7 +227,26 @@ function BlueprintCanvasInner() {
     saveTimer.current = window.setTimeout(() => {
       void blueprintApi.write(nextData).catch(() => {});
     }, 400);
-  }, [nodes, edges, columns, unitPx]);
+  }, [nodes, edges, columns, unitPx, columnGap]);
+
+  /** The grid scale is derived, never hand-placed: whenever the spacing or the
+   * columns themselves change, every node's X is re-derived from its `from`.
+   * Returning the same array when nothing moved keeps this from looping. */
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    setNodes((nds) => {
+      let moved = false;
+      const next = nds.map((n) => {
+        const data = n.data as unknown as BlueprintNode;
+        if (data.from === undefined) return n;
+        const x = timeToX(data.from, columns, unitPx, columnGap);
+        if (x === n.position.x) return n;
+        moved = true;
+        return { ...n, position: { x, y: n.position.y } };
+      });
+      return moved ? next : nds;
+    });
+  }, [unitPx, columnGap, columns, setNodes]);
 
   /** Re-settles every node onto a lane derived from the execution wiring: a
    * linear chain shares one lane, each extra branch fans onto its own lane
@@ -278,13 +324,16 @@ function BlueprintCanvasInner() {
           const nextData: BlueprintNode = { ...current, ...patch };
           const position =
             patch.from !== undefined
-              ? { x: patch.from * unitPx, y: n.position.y }
+              ? {
+                  x: timeToX(patch.from, grid.columns, grid.unitPx, grid.columnGap),
+                  y: n.position.y,
+                }
               : n.position;
           return { ...n, position, data: nextData as unknown as Record<string, unknown> };
         }),
       );
     },
-    [setNodes, unitPx],
+    [setNodes, grid],
   );
 
   /** Changing a node's output pins also has to keep its sub-graph's exit
@@ -337,10 +386,10 @@ function BlueprintCanvasInner() {
 
   const addNode = useCallback(
     (kind: Extract<BlueprintNodeKind, "event" | "reroute">, position: XYPosition) => {
-      setNodes((nds) => [...nds, toRfNode(makeNode(kind, position, unitPx), unitPx)]);
+      setNodes((nds) => [...nds, toRfNode(makeNode(kind, position, grid), grid)]);
       autoArrange();
     },
-    [setNodes, autoArrange, unitPx],
+    [setNodes, autoArrange, grid],
   );
 
   /** UE-style node authoring: dragging a wire out of an output pin and
@@ -366,8 +415,8 @@ function BlueprintCanvasInner() {
       if (!target?.classList?.contains("react-flow__pane")) return;
       const point = "changedTouches" in event ? event.changedTouches[0] : event;
       const flowPos = screenToFlowPosition({ x: point.clientX, y: point.clientY });
-      const node = makeNode("event", flowPos, unitPx);
-      setNodes((nds) => [...nds, toRfNode(node, unitPx)]);
+      const node = makeNode("event", flowPos, grid);
+      setNodes((nds) => [...nds, toRfNode(node, grid)]);
       const next = addEdge(
         {
           id: newId("edge"),
@@ -382,36 +431,30 @@ function BlueprintCanvasInner() {
       setEdges(next);
       autoArrange(next);
     },
-    [screenToFlowPosition, setNodes, setEdges, autoArrange, unitPx],
+    [screenToFlowPosition, setNodes, setEdges, autoArrange, grid],
   );
 
   const addColumn = useCallback(
     (flowPosition: XYPosition) => {
-      const from = Math.round(flowPosition.x / unitPx);
+      const from = Math.round(
+        xToTime(flowPosition.x, grid.columns, grid.unitPx, grid.columnGap),
+      );
       setColumns((cols) => [
         ...cols,
         { id: newId("col"), label: "Neue Spalte", order: cols.length, from, to: from + 1 },
       ]);
     },
-    [unitPx],
+    [grid],
   );
 
-  /** The document-wide grid scale: widening it spreads every column band and
-   * node apart together. Node X is re-derived from each node's `from`. */
-  const changeUnitPx = useCallback(
-    (value: number) => {
-      const clamped = Math.min(MAX_UNIT_PX, Math.max(MIN_UNIT_PX, Math.round(value)));
-      setUnitPx(clamped);
-      setNodes((nds) =>
-        nds.map((n) => {
-          const data = n.data as unknown as BlueprintNode;
-          if (data.from === undefined) return n;
-          return { ...n, position: { x: data.from * clamped, y: n.position.y } };
-        }),
-      );
-    },
-    [setNodes],
-  );
+  /** Grid scale knobs — the remap effect re-derives every node's X from these. */
+  const changeUnitPx = useCallback((value: number) => {
+    setUnitPx(Math.min(MAX_UNIT_PX, Math.max(MIN_UNIT_PX, Math.round(value))));
+  }, []);
+
+  const changeColumnGap = useCallback((value: number) => {
+    setColumnGap(Math.min(MAX_COLUMN_GAP, Math.max(0, Math.round(value))));
+  }, []);
 
   const updateColumn = useCallback((id: string, patch: Partial<BlueprintColumn>) => {
     setColumns((cols) => cols.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -430,13 +473,13 @@ function BlueprintCanvasInner() {
       const graph = dataRef.current?.graphs[graphId];
       if (!graph) return;
       activeGraphRef.current = graphId;
-      setNodes(toRfNodes(graph, unitPx));
+      setNodes(toRfNodes(graph, unitPx, columnGap));
       setEdges(toRfEdges(graph));
       setColumns(graph.columns ?? []);
       setSelectedNodeId(null);
       setContextMenu(null);
     },
-    [setNodes, setEdges, unitPx],
+    [setNodes, setEdges, unitPx, columnGap],
   );
 
   const enterSubGraph = useCallback(
@@ -619,7 +662,7 @@ function BlueprintCanvasInner() {
             maskColor="rgba(10, 10, 12, 0.65)"
           />
           <Controls showInteractive={false} />
-          <ColumnsLayer columns={columns} unitPx={unitPx} />
+          <ColumnsLayer columns={columns} unitPx={unitPx} columnGap={columnGap} />
         </ReactFlow>
         <BlueprintBreadcrumbs items={breadcrumbs} onNavigate={goToBreadcrumb} />
         {!hasEventNodes && (
@@ -670,6 +713,8 @@ function BlueprintCanvasInner() {
           columns={columns}
           unitPx={unitPx}
           onUnitPxChange={changeUnitPx}
+          columnGap={columnGap}
+          onColumnGapChange={changeColumnGap}
           onAdd={() => addColumn({ x: 0, y: 0 })}
           onChange={updateColumn}
           onRemove={removeColumn}

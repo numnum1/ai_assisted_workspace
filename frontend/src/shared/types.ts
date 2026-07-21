@@ -732,4 +732,7 @@ export interface BlueprintData {
   /** Pixels per time unit — the grid's horizontal scale. Widens/narrows every
    * column band and node spacing together. Absent = default. */
   unitPx?: number;
+  /** Gutter (px) inserted after each column band; everything past a column,
+   * nodes included, shifts right by one gap per crossed column. */
+  columnGap?: number;
 }

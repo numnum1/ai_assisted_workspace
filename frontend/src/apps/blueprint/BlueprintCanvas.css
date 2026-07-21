@@ -352,9 +352,10 @@
   position: absolute;
   top: 0;
   height: 20000px;
-  background: rgba(255, 255, 255, 0.03);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px 6px 0 0;
 }
 
 .bp-column__header {

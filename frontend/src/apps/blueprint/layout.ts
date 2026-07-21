@@ -9,6 +9,60 @@ export const MIN_UNIT_PX = 80;
 export const MAX_UNIT_PX = 600;
 export const UNIT_PX_STEP = 20;
 
+/** Horizontal gutter (px) inserted after every column band. Everything past a
+ * column — bands *and* nodes — shifts right by one gap per crossed column. */
+export const DEFAULT_COLUMN_GAP = 40;
+export const MAX_COLUMN_GAP = 240;
+export const COLUMN_GAP_STEP = 10;
+
+type TimeRange = { from: number; to: number };
+
+function byStartTime(columns: TimeRange[]): TimeRange[] {
+  return [...columns].sort((a, b) => a.from - b.from);
+}
+
+/** Accumulated gutter width preceding time `t`: one gap per column that has
+ * already ended by then. */
+export function gapShift(t: number, columns: TimeRange[], gap: number): number {
+  if (gap <= 0) return 0;
+  let shift = 0;
+  for (const col of byStartTime(columns)) {
+    if (t < col.to) break;
+    shift += gap;
+  }
+  return shift;
+}
+
+/** Time → canvas X, the single mapping every node and column band goes through. */
+export function timeToX(
+  t: number,
+  columns: TimeRange[],
+  unitPx: number,
+  gap: number,
+): number {
+  return t * unitPx + gapShift(t, columns, gap);
+}
+
+/** Inverse of {@link timeToX} — used to turn a drop position back into a time.
+ * Tries each gutter level and keeps the one whose time lands in that level's
+ * own stretch of the axis. */
+export function xToTime(
+  x: number,
+  columns: TimeRange[],
+  unitPx: number,
+  gap: number,
+): number {
+  if (gap <= 0) return x / unitPx;
+  const cols = byStartTime(columns);
+  for (let level = 0; level <= cols.length; level++) {
+    const t = (x - level * gap) / unitPx;
+    const lower = level === 0 ? -Infinity : cols[level - 1].to;
+    const upper = level < cols.length ? cols[level].to : Infinity;
+    if (t >= lower && t < upper) return t;
+  }
+  return x / unitPx;
+}
+
 /** Fallback scale for deriving a node's time from a stored pixel X — only hit
  * for legacy nodes that predate the `from` field; scale-independent for the
  * lane ordering that uses it, so the default is fine even at other zooms. */

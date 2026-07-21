@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignLanes, deriveSpan, syncTunnelExits } from "./layout.ts";
+import { assignLanes, deriveSpan, syncTunnelExits, timeToX, xToTime } from "./layout.ts";
 import type { BlueprintGraph, BlueprintNode } from "../../shared/types.ts";
 
 function event(id: string, from: number, to?: number): BlueprintNode {
@@ -48,6 +48,36 @@ describe("assignLanes", () => {
     const lanes = assignLanes([event("late", 5), event("early", 0)]);
     expect(lanes.get("early")).toBe(0);
     expect(lanes.get("late")).toBe(1);
+  });
+});
+
+describe("timeToX / xToTime", () => {
+  // Two adjacent bands: 0–2 and 2–4, so the gap sits exactly at time 2.
+  const cols = [
+    { from: 0, to: 2 },
+    { from: 2, to: 4 },
+  ];
+
+  it("is a plain scale when there is no gap", () => {
+    expect(timeToX(3, cols, 100, 0)).toBe(300);
+  });
+
+  it("shifts everything past a column by one gap", () => {
+    expect(timeToX(1, cols, 100, 40)).toBe(100);
+    expect(timeToX(2, cols, 100, 40)).toBe(240);
+    expect(timeToX(5, cols, 100, 40)).toBe(580);
+  });
+
+  it("puts a real gutter between two adjacent bands", () => {
+    const firstBandRight = timeToX(0, cols, 100, 40) + (2 - 0) * 100;
+    const secondBandLeft = timeToX(2, cols, 100, 40);
+    expect(secondBandLeft - firstBandRight).toBe(40);
+  });
+
+  it("round-trips through xToTime at every gutter level", () => {
+    for (const t of [0, 1, 2, 3, 4, 5]) {
+      expect(xToTime(timeToX(t, cols, 100, 40), cols, 100, 40)).toBeCloseTo(t);
+    }
   });
 });
 

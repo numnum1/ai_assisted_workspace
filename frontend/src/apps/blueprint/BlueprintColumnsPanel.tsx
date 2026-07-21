@@ -1,10 +1,18 @@
 import type { BlueprintColumn } from "../../shared/types.ts";
-import { MIN_UNIT_PX, MAX_UNIT_PX, UNIT_PX_STEP } from "./layout.ts";
+import {
+  MIN_UNIT_PX,
+  MAX_UNIT_PX,
+  UNIT_PX_STEP,
+  MAX_COLUMN_GAP,
+  COLUMN_GAP_STEP,
+} from "./layout.ts";
 
 interface BlueprintColumnsPanelProps {
   columns: BlueprintColumn[];
   unitPx: number;
   onUnitPxChange: (value: number) => void;
+  columnGap: number;
+  onColumnGapChange: (value: number) => void;
   onAdd: () => void;
   onChange: (id: string, patch: Partial<BlueprintColumn>) => void;
   onRemove: (id: string) => void;
@@ -14,6 +22,8 @@ export function BlueprintColumnsPanel({
   columns,
   unitPx,
   onUnitPxChange,
+  columnGap,
+  onColumnGapChange,
   onAdd,
   onChange,
   onRemove,
@@ -43,6 +53,25 @@ export function BlueprintColumnsPanel({
           step={UNIT_PX_STEP}
           value={unitPx}
           onChange={(e) => onUnitPxChange(Number(e.target.value))}
+        />
+      </div>
+      <div className="bp-columns-panel__spacing">
+        <label>Spaltenlücke</label>
+        <input
+          type="range"
+          min={0}
+          max={MAX_COLUMN_GAP}
+          step={COLUMN_GAP_STEP}
+          value={columnGap}
+          onChange={(e) => onColumnGapChange(Number(e.target.value))}
+        />
+        <input
+          type="number"
+          min={0}
+          max={MAX_COLUMN_GAP}
+          step={COLUMN_GAP_STEP}
+          value={columnGap}
+          onChange={(e) => onColumnGapChange(Number(e.target.value))}
         />
       </div>
       {columns.length === 0 ? (
