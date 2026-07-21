@@ -43,6 +43,7 @@ export function BlueprintDetailsPanel({
 
   return (
     <div className="bp-details">
+      <div className="bp-details__header">Details</div>
       <div className="bp-details__field">
         <label>Titel</label>
         <input value={node.title} onChange={(e) => onChange({ title: e.target.value })} />

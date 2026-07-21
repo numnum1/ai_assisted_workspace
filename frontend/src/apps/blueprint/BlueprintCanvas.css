@@ -2,8 +2,12 @@
   display: flex;
   width: 100%;
   height: 100vh;
-  background: #1b1b1d;
+  background: #1f1f23;
   color: #e8e8e8;
+}
+
+.bp-root .react-flow__pane {
+  background: #1f1f23;
 }
 
 .bp-canvas-wrap {
@@ -61,6 +65,24 @@
   color: #d88;
 }
 
+.bp-empty-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  max-width: 380px;
+  padding: 14px 20px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #8a8a92;
+  background: rgba(28, 28, 32, 0.75);
+  border: 1px dashed #3f3f46;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
 /* ---- Node ---- */
 .bp-node {
   position: relative;
@@ -94,6 +116,16 @@
 
 .bp-node--idee .bp-node__header {
   background: linear-gradient(180deg, #7a5cff 0%, #5a3ee0 52%, #4429b8 100%);
+}
+
+/* Container nodes (own a sub-graph) read like UE collapsed graphs: blue,
+ * regardless of status — the status still shows in the details panel. */
+.bp-node--container .bp-node__header {
+  background: linear-gradient(180deg, #3f8fd6 0%, #2668b3 52%, #1a4d93 100%);
+}
+
+.bp-node:hover:not(.is-selected) {
+  border-color: #3f3f46;
 }
 
 .bp-node__heading {
@@ -198,7 +230,7 @@
 }
 
 .bp-reroute.is-selected {
-  border-color: #f0a020;
+  border-color: #ffb02e;
 }
 
 .bp-reroute .bp-pin--in {
@@ -238,8 +270,8 @@
 }
 
 .bp-tunnel.is-selected {
-  border-color: #f0a020;
-  box-shadow: 0 0 0 1px #f0a020;
+  border-color: #ffb02e;
+  box-shadow: 0 0 0 1px #ffb02e;
 }
 
 .bp-tunnel .bp-pin--in {
@@ -256,12 +288,59 @@
 
 /* ---- Edges ---- */
 .bp-root .react-flow__edge-path {
-  stroke: #e6e6e6;
-  stroke-width: 2;
+  stroke: #d8d8dc;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.bp-root .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #ffffff;
 }
 
 .bp-root .react-flow__edge.selected .react-flow__edge-path {
-  stroke: #f0a020;
+  stroke: #ffb02e;
+}
+
+/* The wire being dragged out of a pin, before it connects. */
+.bp-root .react-flow__connection-path {
+  stroke: #ffb02e;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+/* ---- MiniMap + Controls ---- */
+.bp-root .react-flow__minimap {
+  background: #17171a;
+  border: 1px solid #3a3a3d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bp-root .react-flow__minimap-mask {
+  fill: rgba(10, 10, 12, 0.65);
+}
+
+.bp-root .react-flow__controls {
+  background: #232327;
+  border: 1px solid #3a3a3d;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.bp-root .react-flow__controls-button {
+  background: #232327;
+  border-bottom: 1px solid #3a3a3d;
+  color: #cfcfd4;
+  fill: #cfcfd4;
+}
+
+.bp-root .react-flow__controls-button:hover {
+  background: #2f2f35;
+}
+
+.bp-root .react-flow__controls-button:last-child {
+  border-bottom: none;
 }
 
 /* ---- Columns (named time zones) ---- */
@@ -421,6 +500,18 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.bp-details__header {
+  margin: -14px -14px 0;
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #e4e4e8;
+  background: linear-gradient(180deg, #34343a 0%, #27272c 100%);
+  border-bottom: 1px solid #3a3a3d;
 }
 
 .bp-details__field {

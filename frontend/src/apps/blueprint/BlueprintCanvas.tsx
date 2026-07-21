@@ -10,13 +10,17 @@ import {
   ReactFlowProvider,
   Background,
   BackgroundVariant,
+  MiniMap,
+  Controls,
   addEdge,
   useNodesState,
   useEdgesState,
   useReactFlow,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
+  type NodeChange,
   type NodeTypes,
   type OnConnectStartParams,
   type OnSelectionChangeParams,
@@ -59,6 +63,15 @@ const nodeTypes: NodeTypes = {
   entry: EntryNode,
   exit: ExitNode,
 };
+
+/** MiniMap swatch per node — mirrors the header gradients' mid tones. */
+function miniMapNodeColor(rf: Node): string {
+  const node = rf.data as unknown as BlueprintNode;
+  if (node.kind === "reroute") return "#55555c";
+  if (node.kind === "entry" || node.kind === "exit") return "#47474e";
+  if (node.subGraphId) return "#2668b3";
+  return node.status === "kanon" ? "#1f9d5c" : "#5a3ee0";
+}
 
 function toRfNode(n: BlueprintNode): Node {
   return {
@@ -204,6 +217,31 @@ function BlueprintCanvasInner() {
       });
     },
     [setNodes],
+  );
+
+  /** Deleting nodes (Delete/Backspace) re-settles the remaining lanes. */
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onNodesChange(changes);
+      if (changes.some((c) => c.type === "remove")) autoArrange();
+    },
+    [onNodesChange, autoArrange],
+  );
+
+  /** Deleting a wire re-settles lanes too — a disconnected chain re-packs. */
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      onEdgesChange(changes);
+      const removed = new Set(
+        changes.filter((c) => c.type === "remove").map((c) => c.id),
+      );
+      if (removed.size > 0) {
+        const next = edgesRef.current.filter((e) => !removed.has(e.id));
+        edgesRef.current = next;
+        autoArrange(next);
+      }
+    },
+    [onEdgesChange, autoArrange],
   );
 
   /** An input pin accepts at most one wire — connecting a new one replaces
@@ -514,8 +552,8 @@ function BlueprintCanvasInner() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           onConnectStart={onConnectStart}
           onConnectEnd={onConnectEnd}
@@ -534,10 +572,36 @@ function BlueprintCanvasInner() {
           minZoom={0.2}
           deleteKeyCode={["Backspace", "Delete"]}
         >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1.5} color="#3a3a3d" />
+          <Background
+            id="bp-grid-minor"
+            variant={BackgroundVariant.Lines}
+            gap={28}
+            color="#242428"
+          />
+          <Background
+            id="bp-grid-major"
+            variant={BackgroundVariant.Lines}
+            gap={140}
+            color="#2e2e34"
+          />
+          <MiniMap
+            pannable
+            zoomable
+            nodeColor={miniMapNodeColor}
+            nodeStrokeWidth={0}
+            maskColor="rgba(10, 10, 12, 0.65)"
+          />
+          <Controls showInteractive={false} />
           <ColumnsLayer columns={columns} />
         </ReactFlow>
         <BlueprintBreadcrumbs items={breadcrumbs} onNavigate={goToBreadcrumb} />
+        {!hasEventNodes && (
+          <div className="bp-empty-hint">
+            Rechtsklick auf die Fläche, um das erste Ereignis zu erstellen —
+            weitere Ereignisse entstehen durch Ziehen einer Verbindung von einem
+            Ausgangs-Pin ins Leere.
+          </div>
+        )}
         {contextMenu && (
           <div
             className="bp-context-menu"

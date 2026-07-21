@@ -26,7 +26,7 @@ export function EventNode({ data, selected }: NodeProps) {
   const sub = subtitle(node);
   return (
     <div
-      className={`bp-node bp-node--${node.status}${selected ? " is-selected" : ""}`}
+      className={`bp-node bp-node--${node.status}${node.subGraphId ? " bp-node--container" : ""}${selected ? " is-selected" : ""}`}
     >
       <Handle type="target" position={Position.Left} id="in" className="bp-pin bp-pin--in" />
       <div className="bp-node__header">
