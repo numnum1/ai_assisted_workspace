@@ -210,6 +210,9 @@ function buildNaviSystemPrompt(
   const transitionSection = renderTransitionOptions(state);
   const factsToolNote =
     "Trage Fakten IMMER zuerst per update_facts ein (auch beiläufig Erwähntes), bevor du antwortest oder die Phase wechselst.";
+  const requiresQuestionNote = state.validation?.requiresQuestion
+    ? "PFLICHT: Deine Antwort muss mit genau einer Frage enden (Fragezeichen). Lass das Gespräch nie ohne nächsten Schritt oder offene Frage stehen."
+    : "";
 
   const coveredTips = new Set(naviCoveredTips ?? []);
   const pendingTips = tips.filter((t) => !coveredTips.has(t.id));
@@ -229,6 +232,7 @@ function buildNaviSystemPrompt(
     ...(checklistSection ? [checklistSection] : []),
     factsToolNote,
     `Deine aktuelle Aufgabe: ${effectiveInstruction}`,
+    ...(requiresQuestionNote ? [requiresQuestionNote] : []),
     ...(transitionSection ? [transitionSection] : []),
     ...(tipsPromptSection ? [tipsPromptSection] : []),
     ...(knowledgePrompt ? [knowledgePrompt] : []),
