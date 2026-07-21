@@ -5,8 +5,13 @@ Bedienungsanleitung für Navi — den KI-Berater-Chat für Einzelhändler.
 Diese Anleitung wächst mit dem Programm. Aktuell enthalten:
 
 - [Was ist das KI-Navi?](#was-ist-das-ki-navi)
+- [Die Oberfläche und das erste Gespräch](#die-oberfläche-und-das-erste-gespräch)
 - [Profile](#profile)
 - [Die Felder im Navi-Editor](#die-felder-im-navi-editor)
+- [Selbstverbesserung: aus Feedback lernen](#selbstverbesserung-aus-feedback-lernen)
+- [Simulations-Modus](#simulations-modus)
+- [Wo liegen meine Daten?](#wo-liegen-meine-daten)
+- [Glossar](#glossar)
 
 ---
 
@@ -83,7 +88,46 @@ Zum Ausprobieren gibt es außerdem einen **Simulations-Modus**: Ein simulierter 
 
 Das Programm ist eine Desktop-Anwendung; es gibt keinen Server, der zwischengeschaltet wäre. Gespräche und Konfiguration liegen auf deinem Rechner (Konfiguration unter `.writing-assistant` in deinem Benutzerordner). Nach außen geht ausschließlich das, was für die Antwort des Sprachmodells nötig ist — an den KI-Anbieter, den du in den Einstellungen hinterlegt hast.
 
-Chat-Verläufe sind bewusst **flüchtig** und hängen am Browser-Speicher der App; die **Konfiguration** dagegen ist dauerhaft in Dateien abgelegt und überlebt Neustarts.
+Chat-Verläufe sind bewusst **flüchtig** und hängen am lokalen Speicher der App; die **Konfiguration** dagegen ist dauerhaft in Dateien abgelegt und überlebt Neustarts. Ausführlich: [Wo liegen meine Daten?](#wo-liegen-meine-daten)
+
+---
+
+## Die Oberfläche und das erste Gespräch
+
+### Der Aufbau
+
+Das Fenster ist zweigeteilt:
+
+- **Links das Navi-Panel** — das Beobachtungsfenster in Navis Innenleben (Phase, Checkliste, Faktenlage, Begründung) sowie der Zugang zu Profilen, Editor und Selbstverbesserung. Die Abschnitte sind oben in [Die Oberfläche](#die-oberfläche) tabellarisch aufgeführt.
+- **Rechts der Chat** — überschrieben mit „KI-Navi Handel".
+
+Die Trennlinie zwischen beiden lässt sich mit der Maus verschieben, wenn dir das Panel zu breit oder zu schmal ist.
+
+In der Kopfzeile über dem Chat sitzen drei Schaltflächen:
+
+| Symbol | Funktion |
+|---|---|
+| ⚗️ (Erlenmeyerkolben) | [Simulation starten](#simulations-modus) |
+| 🕘 (Uhr) | Frühere Simulationsläufe ansehen |
+| ✏️ (neues Blatt) | Neues Gespräch beginnen |
+
+### Ein Gespräch führen
+
+**Navi fängt an.** Sobald ein Gespräch existiert, schickt Navi von sich aus die Begrüßung — du musst nicht anfangen zu tippen. Danach antwortest du unten im Eingabefeld wie in jedem Chat.
+
+**Manche Fragen sind anklickbar.** Stellt Navi eine Frage mit vorgegebenen Optionen (Werkzeug `ask_clarification`) oder eine Ja/Nein-Frage (`ask_yes_no`), erscheinen statt des freien Eingabefelds Schaltflächen. Bei Mehrfachauswahl kannst du mehrere anklicken. Das ist kein Sonderfall, sondern das normale Verhalten der Frage-Phasen — welche Phase welches Werkzeug benutzen darf, steuerst du im Editor unter [Tools](#die-felder).
+
+**Bewerten nicht vergessen.** Unter jeder Navi-Antwort sitzen 👍/👎. Sie sind der Rohstoff für die [Selbstverbesserung](#selbstverbesserung-aus-feedback-lernen) — wer Navi weiterentwickeln will, bewertet im Vorbeigehen mit.
+
+**Ein neues Gespräch** startest du über die Schaltfläche in der Kopfzeile. Wichtig zu wissen: Die Navi-Ansicht zeigt immer **genau ein** Gespräch; eine Liste, über die du zu einem früheren zurückspringen könntest, gibt es hier nicht. Was du behalten willst, kopier dir vorher heraus.
+
+### Welches KI-Modell benutzt Navi?
+
+Das Modell für den Händler-Chat kommt aus der Anwendungskonfiguration (die hinterlegten KI-Anbieter) — in der Navi-Ansicht gibt es dafür bewusst keine Auswahl, damit ein Testlauf nicht versehentlich mit einem anderen Modell läuft als der vorige.
+
+Die einzige Modellauswahl, die dir hier begegnet, ist das [Verbesserungs-LLM](#reiter-verbesserungs-llm) im Editor — und das betrifft ausschließlich die Selbstverbesserung, nie das Gespräch selbst.
+
+> **Hinweis:** Das Einrichten der KI-Anbieter selbst ist in dieser Anleitung noch nicht beschrieben. Läuft der Chat gar nicht an oder brechen Antworten sofort mit einem Fehler ab, liegt es fast immer daran.
 
 ---
 
@@ -361,3 +405,198 @@ Diese Einstellungen sind **programmweit**, nicht Teil des Profils — sie werden
 ### Was passiert, wenn ein KI-Änderungsvorschlag vorliegt?
 
 Öffnet sich der Editor mit einem gelben Hinweis oben („KI-Änderungsvorschlag … noch nicht gespeichert"), sind die Felder bereits mit den vorgeschlagenen Werten gefüllt — **gespeichert ist aber nichts**. Geh die Reiter durch, prüfe die Änderungen und speichere jeden Bereich einzeln, den du übernehmen willst. Alles, was du nicht speicherst, verfällt beim Schließen. Konnte ein Bereich nicht übernommen werden, weil der Vorschlag die Prüfung nicht bestanden hat, steht der Grund als Warnung im selben Kasten.
+
+Wie so ein Vorschlag zustande kommt, steht im nächsten Abschnitt.
+
+---
+
+## Selbstverbesserung: aus Feedback lernen
+
+Navi kann seine eigene Konfiguration verbessern — aus deinem Feedback zu einem konkreten Gespräch. Der Knopf dafür heißt **Aus Feedback verbessern** und sitzt im Navi-Panel neben **Bearbeiten**.
+
+### Was das ist — und was nicht
+
+Der Ablauf in einem Satz: Du bewertest im Chat einzelne Navi-Antworten mit 👍/👎 und einem Kommentar; ein Sprachmodell bekommt dieses Gespräch samt Bewertungen und die **aktuelle Konfiguration** vorgelegt und schlägt daraufhin konkrete Änderungen an Phasen, Persona, Hinweisen oder Wissensbasis vor; diese Vorschläge landen im Editor, wo du sie prüfst und einzeln übernimmst.
+
+Wichtig ist, was **nicht** passiert:
+
+- **Navi lernt nicht im Gespräch.** Ein Kommentar ändert nichts an der laufenden Unterhaltung. Navi merkt sich auch nichts von einem Gespräch zum nächsten.
+- **Es wird nichts automatisch gespeichert.** Der Vorschlag füllt nur die Editor-Felder vor. Ohne deinen Klick auf einen Speichern-Knopf verfällt er beim Schließen restlos.
+- **Es ist kein Training.** Das Modell selbst bleibt unverändert — geändert wird ausschließlich der Konfigurationstext, den Navi als Anweisung bekommt. Alles, was hier vorgeschlagen wird, hättest du im Editor auch von Hand tippen können.
+
+Kurz: Die Selbstverbesserung ist ein Schreibassistent für deine Navi-Konfiguration, kein Automatismus.
+
+### Schritt 1 — Antworten bewerten
+
+Fahre im Chat über eine Navi-Antwort; unter ihr erscheinen ein Daumen hoch und ein Daumen runter.
+
+1. Klicke 👍 oder 👎. Es öffnet sich sofort ein Kommentarfeld.
+2. **Der Kommentar ist Pflicht** — der Speichern-Knopf bleibt bei leerem Feld gesperrt. Erst mit dem Speichern ist die Bewertung gesetzt.
+3. Eine gesetzte Bewertung erkennst du am hervorgehobenen Daumen. Über das Sprechblasen-Symbol daneben kannst du den Kommentar später nachbearbeiten; ein erneuter Klick auf denselben Daumen entfernt die Bewertung wieder.
+
+Dass der Kommentar erzwungen wird, hat einen Grund: Ein nacktes 👎 sagt dem Modell nur, dass *irgendetwas* nicht stimmte — daraus lässt sich keine Änderung ableiten. Die Qualität des Vorschlags hängt fast vollständig an der Qualität deiner Kommentare.
+
+Gute Kommentare benennen das beobachtete Verhalten und das gewünschte:
+
+- Statt „schlecht" → „fragt nach dem Schaufenster, obwohl der Händler gerade gesagt hat, dass es ein allgemeines Problem in der Straße ist"
+- Statt „passt nicht" → „empfiehlt einen eigenen Webshop, obwohl der Händler vorher gesagt hat, dass kein Startbudget da ist"
+- Statt „gut" → „gut, dass hier zuerst der Nutzen erklärt wird, bevor die Frage kommt"
+
+**Bewerte auch das Gute.** Die 👍-Kommentare werden ausdrücklich als Schutz gegen Rückschritte mitgegeben: Sie sagen dem Modell, was es beim Reparieren nicht kaputtmachen darf. Ein Durchgang, der nur aus 👎 besteht, verbessert oft die eine Stelle und ruiniert eine andere.
+
+### Schritt 2 — Vorschlag erzeugen
+
+Sobald **mindestens eine** bewertete Antwort im aktuellen Gespräch existiert, wird der Knopf **Aus Feedback verbessern** aktiv (vorher erklärt sein Tooltip, was noch fehlt). Ein Klick startet den Vorgang; der Knopf zeigt so lange „Erzeuge Vorschlag …".
+
+Übergeben werden zwei Dinge:
+
+- **Das ganze Gespräch** als Textprotokoll — alle sichtbaren Nachrichten, die Werkzeug-Aufrufe dazu, deine Bewertungen an der jeweiligen Stelle und eine Feedback-Zusammenfassung am Ende. Immer nur **das eine, gerade offene Gespräch**; es gibt keine Auswertung über mehrere Gespräche hinweg.
+- **Die vollständige aktuelle Konfiguration** des aktiven Profils: Persona, Phasen, Hinweise, Use-Cases, Tools.
+
+Welches Modell das übernimmt, steuerst du im Editor-Reiter *Verbesserungs-LLM*. Ist er vollständig ausgefüllt (URL, Modell **und** API-Key), wird dieser Endpunkt verwendet — sonst still das Modell, das im Chat ausgewählt ist. Für diese Aufgabe lohnt ein starkes Modell: Sie ist deutlich anspruchsvoller als das Beratungsgespräch selbst.
+
+### Schritt 3 — Was das Modell tun darf
+
+Das Modell arbeitet unter festen Regeln, die es nicht umgehen kann:
+
+- **Es muss die Leitprinzipien wahren** — ehrliche Beratung auf Ist-Zustand-Basis, kein Tool-Verkauf, kein Drängen zum Software-Umbau. Feedback, das in diese Richtung zöge, soll nicht umgesetzt werden.
+- **Nur belegte Änderungen.** Geändert werden darf nur, wofür es einen konkreten Beleg im Feedback gibt — keine ungefragten „Verbesserungen" nebenbei.
+- **Bestehende Phasen-IDs und Checklisten-Bezeichner bleiben erhalten**, außer das Feedback verlangt ausdrücklich einen strukturellen Umbau. Jeder Übergang muss auf eine tatsächlich existierende Phase zeigen.
+- **Nur betroffene Bereiche.** Bereiche ohne Änderungsbedarf lässt das Modell komplett weg — der zugehörige Reiter im Editor bleibt dann unverändert.
+
+Ein Detail mit Folgen: Liefert das Modell einen Bereich, **ersetzt dieser Bereich den bisherigen vollständig**. Es gibt keine punktuelle Änderung einzelner Zeilen. Schlägt das Modell also etwas an einer Phase vor, bekommst du die komplette Phasenliste zurück — inklusive aller Phasen, die es eigentlich nicht anfassen wollte. Genau deshalb lohnt es sich, vor dem Speichern auch die Stellen anzusehen, um die es gar nicht ging.
+
+### Schritt 4 — Prüfung und Übernahme
+
+Jeder vorgeschlagene Bereich läuft durch **dieselbe Prüfung wie ein Speichern von Hand**. Fällt einer durch (etwa: ein Übergang zeigt auf eine gelöschte Phase, ein Use-Case ohne Kategorie), wird **nur dieser Bereich verworfen** — die übrigen bleiben erhalten, und der Grund erscheint als Warnung.
+
+Danach öffnet sich der Editor automatisch mit einem Hinweiskasten oben:
+
+| Element im Kasten | Bedeutung |
+|---|---|
+| „… noch nicht gespeichert" | Erinnerung: Die Felder sind vorgefüllt, aber nichts ist übernommen. |
+| Begründung | Welcher Feedback-Kommentar welche Änderung ausgelöst hat, nach Bereichen getrennt. Der wichtigste Text — lies ihn, bevor du die Reiter durchgehst. |
+| Warnungen (falls vorhanden) | Bereiche, die das Modell ändern wollte, die aber die Prüfung nicht bestanden haben und deshalb **nicht** übernommen wurden. |
+
+Nun gehst du die Reiter durch, vergleichst mit der Begründung und klickst in jedem Bereich, den du behalten willst, den zugehörigen Speichern-Knopf — der Reiter *Wissensbasis* hat wie immer zwei. Ein Bereich, den du nicht speicherst, verfällt beim Schließen des Editors.
+
+Zwei Dinge, die dabei greifen wie sonst auch:
+
+- Ist gerade das schreibgeschützte Profil „Marc" aktiv, forkt das erste Speichern automatisch in „Marc (Kopie)". Der Auslieferungsstand bleibt unangetastet.
+- Gefällt dir eine übernommene Änderung im Nachhinein nicht, setzt der Knopf **Standard** den betroffenen Bereich auf die Auslieferungswerte zurück — allerdings *ganz*, nicht nur die letzte Änderung. Es gibt keine Rücknahme einzelner Schritte.
+
+### Wie man damit sinnvoll arbeitet
+
+- **Auf einer Kopie arbeiten.** Dupliziere dein Profil (⧉), bevor du eine Verbesserungsrunde fährst. Dann hast du jederzeit den Vergleichsstand und kannst im Zweifel zurückschalten.
+- **Kleine Runden statt einer großen.** Zwei bis fünf gezielte Bewertungen pro Gespräch führen zu übersichtlichen Vorschlägen. Zwanzig Kommentare auf einmal ergeben einen Vorschlag, der alles gleichzeitig anfasst und kaum noch prüfbar ist.
+- **Danach gegentesten.** Führe nach dem Übernehmen ein neues Gespräch — am besten über den Simulations-Modus mit derselben Händler-Persona wie zuvor. Die Bewertung am Ende (Punktzahl, Stärken, Schwächen) zeigt, ob die Änderung wirklich etwas gebracht hat oder nur an anderer Stelle wehtut.
+- **Der Begründung nicht blind glauben.** Sie beschreibt, was das Modell zu tun *meinte*. Ob das im Feld auch so steht, siehst du nur im Reiter selbst.
+
+### Wenn es nicht klappt
+
+| Meldung / Beobachtung | Ursache |
+|---|---|
+| Knopf ist ausgegraut | Im aktuellen Gespräch ist noch keine Antwort bewertet. Der Tooltip sagt es dir. |
+| „LLM-Anfrage fehlgeschlagen" | Der Endpunkt hat abgelehnt — meist ein falscher API-Key, eine falsche URL oder ein unbekannter Modellname im Reiter *Verbesserungs-LLM*. |
+| „Die Modellantwort war kein gültiges JSON" / „keine Antwort geliefert" | Das gewählte Modell kommt mit der Aufgabe nicht zurecht. Ein stärkeres Modell im Reiter *Verbesserungs-LLM* hinterlegen. |
+| Editor öffnet sich, aber nichts hat sich geändert | Das Modell sah im Feedback keinen belegten Änderungsbedarf. Meist helfen konkretere Kommentare. |
+| Warnung „… Vorschlag verworfen" | Der Vorschlag für diesen einen Bereich war in sich unstimmig und wurde fallengelassen. Die anderen Bereiche kannst du trotzdem übernehmen. |
+
+---
+
+## Simulations-Modus
+
+Um Navi zu testen, musst du nicht selbst den Händler spielen. Im Simulations-Modus übernimmt ein zweites Sprachmodell diese Rolle und führt das Gespräch von der Begrüßung bis zum Abschluss durch — danach wird der Verlauf automatisch bewertet.
+
+Das ist das Gegenstück zur Selbstverbesserung: Dort änderst du die Konfiguration, hier prüfst du, ob die Änderung etwas gebracht hat.
+
+### Einen Lauf starten
+
+Klick auf ⚗️ in der Kopfzeile des Chats. Der Dialog „Navi-Simulation" fragt drei Dinge:
+
+**Persona — wen soll die KI als Händler spielen?**
+Wähle einen gespeicherten Händler aus der Liste, oder leg über 👤➕ einen neuen an (Name + Beschreibung, beide Pflicht). Die Beschreibung ist der eigentliche Hebel: Laden, Alter, Technik-Affinität, Budget, Probleme, Grundhaltung. Je konkreter, desto realistischer verhält sich der simulierte Händler — „Bäckerei in Köln, 55, nutzt nur Excel und Papier, kleines Budget, skeptisch gegenüber Software" liefert brauchbarere Läufe als „ein Bäcker".
+
+Angelegte Personas bleiben erhalten und stehen bei jedem weiteren Lauf zur Auswahl. Genau darin liegt der Nutzen: Dieselbe Persona zweimal laufen zu lassen — vor und nach einer Konfigurationsänderung — ist der einzige halbwegs faire Vergleich, den du hast.
+
+**Testfokus**
+Worauf du bei diesem Lauf achten willst, z.B. „Erreicht Navi die Empfehlung in höchstens 5 Zügen?". Bei gewählter Persona optional; **ohne** Persona ist dieses Feld Pflicht und beschreibt dann selbst den zu spielenden Händler.
+
+**Titel**
+Optional. Bleibt er leer, wird er aus Persona und Testfokus abgeleitet.
+
+Mindestens eines von beidem — Persona oder Testfokus — muss ausgefüllt sein, sonst bleibt **Simulation starten** gesperrt.
+
+### Was dann passiert
+
+Das Gespräch läuft von allein: Navi antwortet, der simulierte Händler antwortet darauf, und so weiter. Ein Banner über dem Chat erinnert daran, dass es sich um einen Simulationslauf handelt. Du kannst live zusehen — im Navi-Panel wandert die Phasenanzeige mit, und der Abschnitt *Begründung* zeigt zu jedem Zug, warum Navi so entschieden hat.
+
+Der Lauf endet automatisch, sobald **eines** davon eintritt:
+
+- Navi erreicht die Abschlussphase, **oder**
+- der simulierte Händler hat **12 Nachrichten** geschickt (Notbremse gegen Endlosschleifen).
+
+Danach bewertet ein weiterer Aufruf das gesamte Gespräch und stellt das Ergebnis als Nachricht in den Chat: **Punktzahl 0–100**, ein kurzes Gesamturteil, Stärken, Schwächen und Verbesserungsvorschläge. Bewertet wird gegen Persona, Protokoll und den erreichten Endzustand — also auch, ob Navi überhaupt bis zu einer Empfehlung gekommen ist.
+
+Endet ein Lauf bei 12 Zügen statt in der Abschlussphase, ist das für sich genommen schon ein Befund: Navi hat sich irgendwo festgefragt. Der Abschnitt *Begründung* im Panel zeigt dir dann meist einen Checklisten-Punkt, der nie als beantwortet erkannt wurde.
+
+### Frühere Läufe ansehen
+
+Das Uhr-Symbol 🕘 in der Kopfzeile öffnet das Archiv. Links die Liste aller Läufe mit farbiger Punktzahl (ab 70 grün, ab 40 gelb, darunter rot), rechts zum ausgewählten Lauf die vollständige Bewertung und das komplette Gesprächsprotokoll.
+
+Läufe werden dauerhaft als Dateien gespeichert und überleben Neustarts.
+
+**Ein Vorbehalt, den du kennen solltest:** Ein gespeicherter Lauf hält Persona, Protokoll, Endzustand und Bewertung fest — **aber nicht, welches Navi-Profil aktiv war**. Zwei Läufe derselben Persona lassen sich später also nicht mehr eindeutig einer Konfiguration zuordnen. Wenn du systematisch vergleichst, schreib das Profil in den Titel des Laufs (z.B. „Bäcker — Profil B, kürzere Klärungsphase").
+
+### Wie man damit vergleicht
+
+1. Persona anlegen und einen Lauf mit dem aktuellen Profil fahren — das ist der Ausgangswert.
+2. Profil duplizieren (⧉), die Änderung im Editor vornehmen.
+3. Denselben Lauf mit derselben Persona wiederholen, das Profil im Titel vermerken.
+4. Beide Bewertungen im Archiv nebeneinanderlegen.
+
+Erwarte dabei keine Messgenauigkeit: Sowohl der simulierte Händler als auch die Bewertung sind Sprachmodell-Ausgaben und schwanken zwischen zwei Läufen auch ohne jede Änderung. Ein Unterschied von wenigen Punkten sagt nichts. Aussagekräftig sind die Stärken/Schwächen-Texte und offensichtliche Sprünge — etwa wenn ein Lauf plötzlich die Abschlussphase erreicht, der vorige aber ins Zugslimit lief.
+
+---
+
+## Wo liegen meine Daten?
+
+Alles bleibt auf deinem Rechner. Nach außen geht nur das, was das Sprachmodell für seine Antwort braucht — an den KI-Anbieter, den du hinterlegt hast.
+
+| Was | Wo | Überlebt Neustart? |
+|---|---|---|
+| Navi-Konfiguration (Profile) | `.writing-assistant\navi\profiles\` im Benutzerordner | ja, als Datei |
+| Sicherungskopien | `.writing-assistant\navi\backups\` | ja — vor **jedem** Überschreiben automatisch angelegt |
+| Simulationsläufe | `.writing-assistant\navi\` | ja, als Datei |
+| Händler-Personas | `.writing-assistant\personas\` | ja, als Datei |
+| Verbesserungs-LLM (inkl. API-Key) | `.writing-assistant\navi\`, **außerhalb** der Profile | ja, als Datei |
+| Chat-Verläufe | interner Speicher der Anwendung | ja, aber **nicht als Datei** |
+
+Der letzte Punkt ist der wichtige: Gespräche liegen nicht in einer Datei, die du sichern oder weitergeben könntest, und die Navi-Ansicht bietet keine Liste, über die du ein früheres Gespräch wieder aufrufen könntest. **Behandle Chat-Verläufe als flüchtig.** Was du behalten willst — eine gelungene Antwortformulierung, ein aufschlussreicher Gesprächsverlauf — kopier es heraus, solange es am Bildschirm steht.
+
+Dass die Sicherungskopien der Konfiguration vor jedem Überschreiben entstehen, ist dein Rettungsanker, wenn eine übernommene Änderung sich als Fehlgriff erweist: Die vorige Fassung liegt noch im `backups`-Ordner und kann von Hand zurückkopiert werden.
+
+---
+
+## Glossar
+
+Die Begriffe, die in der Oberfläche und in dieser Anleitung auftauchen — kurz erklärt.
+
+| Begriff | Bedeutung |
+|---|---|
+| **Phase** (auch *State*) | Ein Abschnitt des Gesprächs mit genau einem Auftrag, z.B. „Problem klären". Navi bekommt pro Phase einen eigenen Arbeitsauftrag. |
+| **Phasen-ID** | Der technische Name einer Phase (`clarify_problem`). Wird beim Anlegen vergeben und ist danach fest — Übergänge zeigen darauf. |
+| **Persona** (`narrow` / `full`) | Welche Identität Navi in einer Phase hat. `narrow` = reiner Fragensteller ohne Beraterwissen, `full` = voller Berater. |
+| **Instruction** | Der Arbeitsauftrag einer Phase — was Navi hier erreichen soll. |
+| **Checkliste / workPlan** | Was in einer Phase geklärt sein muss, bevor es weitergeht. |
+| **Slot** | Ein einzelner Checklisten-Punkt samt dem Wert, den Navi dazu erfahren hat. |
+| **Slot-Gate** | Die Sperre, die den Phasenwechsel verhindert, solange ein Slot offen ist. Wird gerechnet, nicht vom Modell eingeschätzt. |
+| **Übergang** | Ein möglicher Wechsel in eine andere Phase, mit einer Bedingung, an der er erkannt wird. |
+| **Fakten-Blatt** | Navis laufend gepflegte Zusammenfassung des Gesprächs — im Panel als *Faktenlage* sichtbar. |
+| **Hinweis / Tip** | Ein Thema, das Navi einmalig im Gespräch unterbringen soll. |
+| **Use-Case** | Eine Beratungs-Kategorie, der Navi das Problem des Händlers zuordnet. |
+| **Tool** (Wissensbasis) | Ein konkretes KI-Produkt, das Navi empfehlen darf. **Nicht** zu verwechseln mit → |
+| **Werkzeug** (`ask_question` usw.) | Die Antwortform, die Navi in einer Phase benutzen darf: offene Frage, Auswahlfrage, Ja/Nein-Frage. Im Editor stehen beide unter dem Wort „Tools" — das obere Häkchenfeld meint die Antwortform, der Reiter *Wissensbasis* die empfehlbaren Produkte. |
+| **Profil** | Ein kompletter Satz Navi-Konfiguration, umschaltbar und weitergebbar. |
+| **Verbesserungs-LLM** | Das Modell, das aus deinem Feedback Änderungsvorschläge erzeugt — nicht das Modell, das den Chat führt. |
+| **Persona** (Simulation) | Achtung, zweite Bedeutung: der simulierte Händler in einem Testlauf. Hat mit der Navi-Persona oben nichts zu tun. |
