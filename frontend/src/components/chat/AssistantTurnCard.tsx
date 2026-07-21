@@ -7,6 +7,7 @@ import {
   Loader,
   ThumbsUp,
   ThumbsDown,
+  RotateCcw,
 } from "lucide-react";
 import { TurnCard } from "./TurnCard.tsx";
 import type { ChatMessage, MessageFeedback, SelectionContext } from "../../types.ts";
@@ -40,6 +41,7 @@ export interface AssistantTurnCardProps {
 
   onDeleteMessages: (indices: number[]) => void;
   onSetMessageFeedback: (index: number, feedback: MessageFeedback | null) => void;
+  onRegenerate?: () => void;
   onReplaceSelection?: (text: string, ctx: SelectionContext) => void;
   onApplyFieldUpdate?: (field: string, value: string) => void;
   fieldLabels?: Record<string, string>;
@@ -58,6 +60,7 @@ export function AssistantTurnCard({
   streaming,
   onDeleteMessages,
   onSetMessageFeedback,
+  onRegenerate,
   onReplaceSelection,
   onApplyFieldUpdate,
   fieldLabels,
@@ -67,7 +70,10 @@ export function AssistantTurnCard({
   const showNormalActions = !readOnly && !streaming && !naviStateId;
   /** Feedback stays available during Navi-guided turns too — this is exactly what beta testers rate. */
   const showFeedback = !readOnly && !streaming;
-  const showActions = showNormalActions || showFeedback;
+  /** Regenerate (delete + resend the preceding user message) stays available in Navi turns too —
+   * it's the main way to retry a reply after tweaking Navi's config mid-conversation. */
+  const showRegenerate = !readOnly && !streaming && !!onRegenerate;
+  const showActions = showNormalActions || showFeedback || showRegenerate;
 
   const currentFeedback = messages[lastOriginalIdx]?.feedback;
   const [commentOpen, setCommentOpen] = useState(false);
@@ -308,6 +314,16 @@ export function AssistantTurnCard({
             </button>
           </div>
         </div>
+      )}
+      {showRegenerate && (
+        <button
+          type="button"
+          className="chat-fork-btn chat-regenerate-btn"
+          onClick={onRegenerate}
+          title="Antwort löschen und neu generieren"
+        >
+          <RotateCcw size={12} />
+        </button>
       )}
       {showNormalActions && (
         <button

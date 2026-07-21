@@ -250,6 +250,18 @@ export function ChatMessagesPane({
             .some((u) => u.type === "assistantTurn");
           const turnId = messages[unit.lastOriginalIdx]?.turnId;
           const trace = turnId ? traceByTurn.get(turnId) : undefined;
+          // Regenerate = delete-then-resend the user message that preceded this turn — only
+          // offered on the most recent turn, since resending an older one would also wipe out
+          // every turn that came after it (same restriction as the user-turn resend button).
+          let precedingUserIdx = -1;
+          if (isLastAssistantTurn) {
+            for (let i = unit.originalIndices[0]! - 1; i >= 0; i--) {
+              if (messages[i]?.role === "user") {
+                precedingUserIdx = i;
+                break;
+              }
+            }
+          }
           return (
             <React.Fragment key={`turn-${unit.originalIndices.join("-")}`}>
               <AssistantTurnCard
@@ -263,6 +275,11 @@ export function ChatMessagesPane({
                 streaming={streaming}
                 onDeleteMessages={onDeleteMessages}
                 onSetMessageFeedback={onSetMessageFeedback}
+                onRegenerate={
+                  precedingUserIdx >= 0
+                    ? () => onEditMessage(precedingUserIdx, messages[precedingUserIdx]!.content)
+                    : undefined
+                }
                 onReplaceSelection={onReplaceSelection}
                 onApplyFieldUpdate={onApplyFieldUpdate}
                 fieldLabels={fieldLabels}
