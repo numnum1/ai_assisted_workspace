@@ -72,7 +72,6 @@ export function BlueprintDetailsPanel({
           <input
             type="number"
             step={1}
-            disabled={isContainer}
             value={node.from ?? ""}
             onChange={(e) =>
               onChange({
@@ -86,7 +85,6 @@ export function BlueprintDetailsPanel({
           <input
             type="number"
             step={1}
-            disabled={isContainer}
             value={node.to ?? ""}
             onChange={(e) =>
               onChange({
@@ -96,6 +94,12 @@ export function BlueprintDetailsPanel({
           />
         </div>
       </div>
+      {isContainer && (
+        <div className="bp-details__hint">
+          Wird beim Verlassen des Unterablaufs automatisch aus dessen Inhalt neu berechnet, sobald
+          der Unterablauf Ereignisse enthält — bis dahin bleibt der manuell gesetzte Wert bestehen.
+        </div>
+      )}
       <div className="bp-details__field">
         <label>Sub-Graph</label>
         <button
