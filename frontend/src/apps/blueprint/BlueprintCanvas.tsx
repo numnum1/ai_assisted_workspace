@@ -31,6 +31,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { blueprintApi } from "../../shared/api.ts";
 import type {
+  BlueprintColors,
   BlueprintColumn,
   BlueprintData,
   BlueprintEdge,
@@ -50,6 +51,8 @@ import {
   MINIMAP_WIDTH,
 } from "./MiniMapColumns.tsx";
 import { BlueprintColumnsPanel } from "./BlueprintColumnsPanel.tsx";
+import { BlueprintColorPanel } from "./BlueprintColorPanel.tsx";
+import { DEFAULT_BLUEPRINT_COLORS, blueprintColorVars, resolveBlueprintColors } from "./colors.ts";
 import { BlueprintDetailsPanel } from "./BlueprintDetailsPanel.tsx";
 import { BlueprintBreadcrumbs, type BreadcrumbEntry } from "./BlueprintBreadcrumbs.tsx";
 import { ArcRegistryProvider } from "./arcRegistry.tsx";
@@ -84,14 +87,17 @@ const nodeTypes: NodeTypes = {
   exit: ExitNode,
 };
 
-/** MiniMap swatch per node — mirrors the node accents in BlueprintCanvas.css. */
-function miniMapNodeColor(rf: Node): string {
-  const node = rf.data as unknown as BlueprintNode;
-  if (node.kind === "reroute") return "#38d6d6";
-  if (node.kind === "entry") return "#22c98a";
-  if (node.kind === "exit") return "#ff9a4d";
-  if (node.subGraphId) return "#3fc9e6";
-  return node.status === "kanon" ? "#22c98a" : "#8b6bff";
+/** MiniMap swatch per node — mirrors the node accents in BlueprintCanvas.css,
+ * driven by the same user-configurable palette. */
+function miniMapNodeColor(colors: BlueprintColors) {
+  return (rf: Node): string => {
+    const node = rf.data as unknown as BlueprintNode;
+    if (node.kind === "reroute") return colors.reroute;
+    if (node.kind === "entry") return colors.entry;
+    if (node.kind === "exit") return colors.exit;
+    if (node.subGraphId) return colors.container;
+    return node.status === "kanon" ? colors.kanon : colors.idee;
+  };
 }
 
 interface GridScale {
@@ -177,6 +183,8 @@ function BlueprintCanvasInner() {
   const [unitPx, setUnitPx] = useState(DEFAULT_UNIT_PX);
   const [columnGap, setColumnGap] = useState(DEFAULT_COLUMN_GAP);
   const [laneGap, setLaneGap] = useState(DEFAULT_LANE_GAP);
+  const [colors, setColors] = useState<BlueprintColors>(DEFAULT_BLUEPRINT_COLORS);
+  const [colorPanelOpen, setColorPanelOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -217,6 +225,7 @@ function BlueprintCanvasInner() {
         setUnitPx(unit);
         setColumnGap(gap);
         setLaneGap(Math.min(MAX_LANE_GAP, Math.max(0, d.laneGap ?? DEFAULT_LANE_GAP)));
+        setColors(resolveBlueprintColors(d.colors));
         setNodes(toRfNodes(graph, unit, gap));
         setEdges(toRfEdges(graph));
         setColumns(graph.columns ?? []);
@@ -252,6 +261,7 @@ function BlueprintCanvasInner() {
       unitPx,
       columnGap,
       laneGap,
+      colors,
       graphs: {
         ...data.graphs,
         [graphId]: { ...prev, nodes: nextNodes, edges: nextEdges, columns },
@@ -263,7 +273,7 @@ function BlueprintCanvasInner() {
     saveTimer.current = window.setTimeout(() => {
       void blueprintApi.write(nextData).catch(() => {});
     }, 400);
-  }, [nodes, edges, columns, unitPx, columnGap, laneGap]);
+  }, [nodes, edges, columns, unitPx, columnGap, laneGap, colors]);
 
   /** The grid scale is derived, never hand-placed: whenever the spacing or the
    * columns themselves change, every node's X is re-derived from its `from`.
@@ -566,6 +576,12 @@ function BlueprintCanvasInner() {
     setLaneGap(Math.min(MAX_LANE_GAP, Math.max(0, Math.round(value))));
   }, []);
 
+  const changeColors = useCallback((patch: Partial<BlueprintColors>) => {
+    setColors((c) => ({ ...c, ...patch }));
+  }, []);
+
+  const resetColors = useCallback(() => setColors(DEFAULT_BLUEPRINT_COLORS), []);
+
   const updateColumn = useCallback((id: string, patch: Partial<BlueprintColumn>) => {
     setColumns((cols) => cols.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }, []);
@@ -734,12 +750,15 @@ function BlueprintCanvasInner() {
     return maxBottom + COLUMN_BOTTOM_MARGIN;
   }, [nodes]);
 
+  const nodeColor = useMemo(() => miniMapNodeColor(colors), [colors]);
+  const colorVars = useMemo(() => blueprintColorVars(colors), [colors]);
+
   if (error) {
     return <div className="bp-error">Blueprint konnte nicht laden: {error}</div>;
   }
 
   return (
-    <div className="bp-root">
+    <div className="bp-root" style={colorVars}>
       <div className="bp-canvas-wrap">
         <NodeSpanContext.Provider value={nodeSpanDrag}>
         <ReactFlow
@@ -775,7 +794,7 @@ function BlueprintCanvasInner() {
           <MiniMap
             pannable
             zoomable
-            nodeColor={miniMapNodeColor}
+            nodeColor={nodeColor}
             nodeStrokeWidth={0}
             maskColor="rgba(10, 10, 12, 0.65)"
             style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
@@ -850,7 +869,16 @@ function BlueprintCanvasInner() {
           onAdd={() => addColumn({ x: 0, y: 0 })}
           onChange={updateColumn}
           onRemove={removeColumn}
+          onOpenColors={() => setColorPanelOpen((open) => !open)}
         />
+        {colorPanelOpen && (
+          <BlueprintColorPanel
+            colors={colors}
+            onChange={changeColors}
+            onReset={resetColors}
+            onClose={() => setColorPanelOpen(false)}
+          />
+        )}
       </div>
       {selectedNode && selectedNode.kind === "event" && (
         <BlueprintDetailsPanel

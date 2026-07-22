@@ -131,20 +131,20 @@
 }
 
 .bp-node--kanon {
-  --accent: #22c98a;
-  --accent-soft: rgba(34, 201, 138, 0.38);
+  --accent: var(--bp-color-kanon, #22c98a);
+  --accent-soft: color-mix(in srgb, var(--accent) 38%, transparent);
 }
 
 .bp-node--idee {
-  --accent: #8b6bff;
-  --accent-soft: rgba(139, 107, 255, 0.4);
+  --accent: var(--bp-color-idee, #8b6bff);
+  --accent-soft: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 /* Container nodes (own a sub-graph) read like UE collapsed graphs: cyan,
  * regardless of status — the status still shows in the details panel. */
 .bp-node--container {
-  --accent: #3fc9e6;
-  --accent-soft: rgba(63, 201, 230, 0.4);
+  --accent: var(--bp-color-container, #3fc9e6);
+  --accent-soft: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .bp-node:hover:not(.is-selected) {
@@ -282,9 +282,14 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #5fe3e3 0%, #1f9e9e 70%, #157777 100%);
-  border: 2px solid #38d6d6;
-  box-shadow: 0 0 10px -2px rgba(56, 214, 214, 0.8);
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in srgb, var(--bp-color-reroute, #38d6d6) 55%, white) 0%,
+    var(--bp-color-reroute, #38d6d6) 70%,
+    color-mix(in srgb, var(--bp-color-reroute, #38d6d6) 75%, black) 100%
+  );
+  border: 2px solid var(--bp-color-reroute, #38d6d6);
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--bp-color-reroute, #38d6d6) 80%, transparent);
 }
 
 .bp-reroute.is-selected {
@@ -324,15 +329,15 @@
 
 .bp-tunnel--entry {
   justify-content: flex-start;
-  --tunnel-accent: #22c98a;
-  --tunnel-accent-soft: rgba(34, 201, 138, 0.65);
+  --tunnel-accent: var(--bp-color-entry, #22c98a);
+  --tunnel-accent-soft: color-mix(in srgb, var(--tunnel-accent) 65%, transparent);
 }
 
 .bp-tunnel--exit {
   justify-content: flex-end;
   text-align: right;
-  --tunnel-accent: #ff9a4d;
-  --tunnel-accent-soft: rgba(255, 154, 77, 0.65);
+  --tunnel-accent: var(--bp-color-exit, #ff9a4d);
+  --tunnel-accent-soft: color-mix(in srgb, var(--tunnel-accent) 65%, transparent);
 }
 
 .bp-tunnel.is-selected {
@@ -482,6 +487,12 @@
   color: #cfcfd4;
 }
 
+.bp-columns-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .bp-columns-panel__header button {
   background: #2d2d31;
   border: 1px solid #4a4a4f;
@@ -490,6 +501,11 @@
   padding: 3px 8px;
   font-size: 11px;
   cursor: pointer;
+}
+
+.bp-columns-panel__header button:hover {
+  border-color: #7a5cff;
+  color: #cfc6ff;
 }
 
 .bp-columns-panel__spacing {
@@ -562,6 +578,75 @@
   cursor: pointer;
   font-size: 13px;
   padding: 0 4px;
+}
+
+/* ---- Color settings panel ---- */
+.bp-color-panel {
+  position: absolute;
+  left: 300px;
+  bottom: 10px;
+  z-index: 10;
+  width: 220px;
+  background: rgba(28, 28, 30, 0.92);
+  border: 1px solid #3a3a3d;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.bp-color-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.bp-color-panel__row label {
+  flex: 1;
+  color: #cfcfd4;
+}
+
+.bp-color-panel__row input[type="color"] {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid #4a4a50;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.bp-color-panel__row input[type="text"] {
+  flex: 0 0 72px;
+  background: #2b2b30;
+  border: 1px solid #4a4a50;
+  border-radius: 3px;
+  color: #e8e8e8;
+  padding: 3px 5px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.bp-color-panel__reset {
+  width: 100%;
+  margin-top: 4px;
+  background: #2d2d31;
+  border: 1px solid #4a4a4f;
+  border-radius: 4px;
+  color: #e8e8e8;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.bp-color-panel__reset:hover:not(:disabled) {
+  border-color: #7a5cff;
+  color: #cfc6ff;
+}
+
+.bp-color-panel__reset:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* ---- Breadcrumbs ---- */

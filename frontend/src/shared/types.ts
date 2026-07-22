@@ -708,6 +708,18 @@ export interface BlueprintEdge {
   target: string;
 }
 
+/** User-configurable accent palette for the Blueprint canvas — one color per
+ * node role, driving that role's header/border/glow via CSS custom
+ * properties. Absent = the built-in defaults. */
+export interface BlueprintColors {
+  idee: string;
+  kanon: string;
+  container: string;
+  reroute: string;
+  entry: string;
+  exit: string;
+}
+
 /** A named, ordered time zone rendered as a full-height background band. */
 export interface BlueprintColumn {
   id: string;
@@ -738,4 +750,7 @@ export interface BlueprintData {
   /** Extra vertical breathing room (px) between two auto-arranged lanes, on
    * top of the tallest node in the upper lane. Absent = default. */
   laneGap?: number;
+  /** User-picked accent palette; unset keys fall back to the built-in
+   * defaults, so an older document with no `colors` at all still renders. */
+  colors?: Partial<BlueprintColors>;
 }

@@ -20,6 +20,7 @@ interface BlueprintColumnsPanelProps {
   onAdd: () => void;
   onChange: (id: string, patch: Partial<BlueprintColumn>) => void;
   onRemove: (id: string) => void;
+  onOpenColors: () => void;
 }
 
 export function BlueprintColumnsPanel({
@@ -33,14 +34,20 @@ export function BlueprintColumnsPanel({
   onAdd,
   onChange,
   onRemove,
+  onOpenColors,
 }: BlueprintColumnsPanelProps) {
   return (
     <div className="bp-columns-panel">
       <div className="bp-columns-panel__header">
         <span>Spalten</span>
-        <button type="button" onClick={onAdd}>
-          + Spalte
-        </button>
+        <div className="bp-columns-panel__header-actions">
+          <button type="button" onClick={onOpenColors} aria-label="Farben" title="Farben">
+            ⚙
+          </button>
+          <button type="button" onClick={onAdd}>
+            + Spalte
+          </button>
+        </div>
       </div>
       <div className="bp-columns-panel__spacing">
         <label>Rasterabstand</label>
