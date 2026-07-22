@@ -3,8 +3,9 @@ import type { BlueprintNode } from "../../../shared/types.ts";
 import { arcColor, useArcRegistry } from "../arcRegistryContext.ts";
 
 /**
- * A world-event node: a single implicit input on the left, and one named
- * execution output pin per row on the right. Pins carry narrative content
+ * A world-event node: a single implicit input on the left of the *first body
+ * row* (not the header, so it lines up with the outputs it faces), and one
+ * named execution output pin per row on the right. Pins carry narrative content
  * ("Begegnet Charakter Nele"); wires between them express *and then this leads
  * to* — narrative flow, not code execution.
  */
@@ -24,11 +25,13 @@ export function EventNode({ data, selected }: NodeProps) {
     .map((id) => arcs.find((a) => a.id === id))
     .filter((a) => a !== undefined);
   const sub = subtitle(node);
+  const inputPin = (
+    <Handle type="target" position={Position.Left} id="in" className="bp-pin bp-pin--in" />
+  );
   return (
     <div
       className={`bp-node bp-node--${node.status}${node.subGraphId ? " bp-node--container" : ""}${selected ? " is-selected" : ""}`}
     >
-      <Handle type="target" position={Position.Left} id="in" className="bp-pin bp-pin--in" />
       <div className="bp-node__header">
         <div className="bp-node__heading">
           <span className="bp-node__title">{node.title || "Ereignis"}</span>
@@ -49,10 +52,13 @@ export function EventNode({ data, selected }: NodeProps) {
       )}
       <div className="bp-node__outputs">
         {node.outputs.length === 0 ? (
-          <div className="bp-node__output bp-node__output--empty">—</div>
+          <div className="bp-node__output bp-node__output--empty">
+            {inputPin}—
+          </div>
         ) : (
-          node.outputs.map((pin) => (
+          node.outputs.map((pin, i) => (
             <div className="bp-node__output" key={pin.id}>
+              {i === 0 && inputPin}
               <span className="bp-node__output-label">{pin.label}</span>
               <Handle
                 type="source"

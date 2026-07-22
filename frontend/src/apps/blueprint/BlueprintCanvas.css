@@ -207,9 +207,13 @@
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 
+/* The input sits inside the first body row, so it centers on that row instead
+ * of on a fixed header offset — it stays level with the pins it faces however
+ * tall the header grows. */
 .bp-pin.bp-pin--in {
   left: -7px;
-  top: 22px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .bp-pin.bp-pin--out {
