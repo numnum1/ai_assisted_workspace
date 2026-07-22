@@ -17,6 +17,7 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useNodesInitialized,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -173,6 +174,7 @@ function BlueprintCanvasInner() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbEntry[]>([]);
   const { screenToFlowPosition } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
 
   const grid: GridScale = useMemo(
     () => ({ columns, unitPx, columnGap }),
@@ -334,11 +336,13 @@ function BlueprintCanvasInner() {
   /** Horizontal scale and lane spacing both feed the vertical layout: a wider
    * grid changes which nodes collide inside a lane, a wider lane gap changes
    * every lane's Y. Runs after the X-remap effect above, so it already sees the
-   * new positions. */
+   * new positions — and waits for `nodesInitialized`, because lane heights come
+   * from the rendered node boxes, which are unmeasured on the first frame after
+   * a document (or sub-graph) loads. */
   useEffect(() => {
-    if (!loadedRef.current) return;
+    if (!loadedRef.current || !nodesInitialized) return;
     autoArrange();
-  }, [unitPx, columnGap, columns, laneGap, autoArrange]);
+  }, [unitPx, columnGap, columns, laneGap, nodesInitialized, autoArrange]);
 
   /** Deleting nodes (Delete/Backspace) re-settles the remaining lanes. */
   const handleNodesChange = useCallback(
