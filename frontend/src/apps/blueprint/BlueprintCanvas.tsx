@@ -44,6 +44,11 @@ import { RerouteNode } from "./nodes/RerouteNode.tsx";
 import { EntryNode } from "./nodes/EntryNode.tsx";
 import { ExitNode } from "./nodes/ExitNode.tsx";
 import { ColumnsLayer } from "./ColumnsLayer.tsx";
+import {
+  MiniMapColumns,
+  MINIMAP_HEIGHT,
+  MINIMAP_WIDTH,
+} from "./MiniMapColumns.tsx";
 import { BlueprintColumnsPanel } from "./BlueprintColumnsPanel.tsx";
 import { BlueprintDetailsPanel } from "./BlueprintDetailsPanel.tsx";
 import { BlueprintBreadcrumbs, type BreadcrumbEntry } from "./BlueprintBreadcrumbs.tsx";
@@ -738,6 +743,12 @@ function BlueprintCanvasInner() {
             nodeColor={miniMapNodeColor}
             nodeStrokeWidth={0}
             maskColor="rgba(10, 10, 12, 0.65)"
+            style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
+          />
+          <MiniMapColumns
+            columns={columns}
+            unitPx={unitPx}
+            columnGap={columnGap}
           />
           <Controls showInteractive={false} />
           <ColumnsLayer columns={columns} unitPx={unitPx} columnGap={columnGap} />

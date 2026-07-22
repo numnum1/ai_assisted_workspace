@@ -323,6 +323,24 @@
   overflow: hidden;
 }
 
+/* Column bands over the MiniMap: a second panel pinned to the same corner, so
+ * the transparent border mirrors the MiniMap's own 1px one and both SVGs line
+ * up pixel for pixel. Translucent, since it paints over the node dots. */
+.bp-root .bp-minimap-columns {
+  pointer-events: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.bp-root .bp-minimap-columns rect {
+  fill: rgba(255, 255, 255, 0.07);
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
 .bp-root .react-flow__minimap-mask {
   fill: rgba(10, 10, 12, 0.65);
 }
