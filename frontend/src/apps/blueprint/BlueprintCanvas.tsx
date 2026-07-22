@@ -651,16 +651,36 @@ function BlueprintCanvasInner() {
         { id: subGraphId, nodes: [entryNode], edges: [], columns: [] },
         node.outputs,
       );
-      if (dataRef.current) {
+      /** Written straight into dataRef rather than via updateNodeData: this
+       * and the graph switch below (enterSubGraph → loadGraphIntoRf) both
+       * happen inside the same click, so the autosave effect — which only
+       * persists the live `nodes` state on its next render — never gets a
+       * turn before `nodes` is replaced wholesale with the new sub-graph's
+       * content. A setNodes-based update here would simply be discarded,
+       * leaving the parent's copy of this node without its `subGraphId` —
+       * and its Von/Bis then got clobbered the next time the span was
+       * re-derived while leaving the (still-empty) sub-graph, since that
+       * stale parent copy no longer matched what was on screen. */
+      const parentGraphId = activeGraphRef.current;
+      if (dataRef.current && parentGraphId) {
+        const parentGraph = dataRef.current.graphs[parentGraphId];
         dataRef.current = {
           ...dataRef.current,
-          graphs: { ...dataRef.current.graphs, [subGraphId]: seeded },
+          graphs: {
+            ...dataRef.current.graphs,
+            [subGraphId]: seeded,
+            [parentGraphId]: {
+              ...parentGraph,
+              nodes: parentGraph.nodes.map((n) =>
+                n.id === nodeId ? { ...n, subGraphId } : n,
+              ),
+            },
+          },
         };
       }
-      updateNodeData(nodeId, { subGraphId });
       enterSubGraph(nodeId, subGraphId, node.title);
     },
-    [nodes, updateNodeData, enterSubGraph],
+    [nodes, enterSubGraph],
   );
 
   /** Double-click always jumps in — creating the sub-graph on the fly if the
@@ -688,13 +708,23 @@ function BlueprintCanvasInner() {
         const leavingGraph = graphs[leaving.graphId];
         const parentGraph = graphs[leaving.parentGraphId];
         if (!leavingGraph || !parentGraph) continue;
+        // A sub-graph with no content nodes yet (freshly created, or every
+        // node inside it deleted) has nothing to derive — leave the
+        // container's own Von/Bis alone instead of clobbering it with
+        // undefined.
         const span = deriveSpan(leavingGraph);
         graphs = {
           ...graphs,
           [leaving.parentGraphId]: {
             ...parentGraph,
             nodes: parentGraph.nodes.map((n) =>
-              n.id === leaving.containerNodeId ? { ...n, from: span.from, to: span.to } : n,
+              n.id === leaving.containerNodeId
+                ? {
+                    ...n,
+                    ...(span.from !== undefined ? { from: span.from } : {}),
+                    ...(span.to !== undefined ? { to: span.to } : {}),
+                  }
+                : n,
             ),
           },
         };
