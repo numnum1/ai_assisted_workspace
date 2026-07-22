@@ -735,4 +735,7 @@ export interface BlueprintData {
   /** Gutter (px) inserted after each column band; everything past a column,
    * nodes included, shifts right by one gap per crossed column. */
   columnGap?: number;
+  /** Extra vertical breathing room (px) between two auto-arranged lanes, on
+   * top of the tallest node in the upper lane. Absent = default. */
+  laneGap?: number;
 }

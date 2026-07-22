@@ -49,13 +49,17 @@ import { BlueprintBreadcrumbs, type BreadcrumbEntry } from "./BlueprintBreadcrum
 import { ArcRegistryProvider } from "./arcRegistry.tsx";
 import {
   assignLanes,
+  laneTops,
   BASE_Y,
-  NODE_LANE_HEIGHT,
+  MIN_NODE_HEIGHT,
+  NODE_WIDTH,
   DEFAULT_UNIT_PX,
   MIN_UNIT_PX,
   MAX_UNIT_PX,
   DEFAULT_COLUMN_GAP,
   MAX_COLUMN_GAP,
+  DEFAULT_LANE_GAP,
+  MAX_LANE_GAP,
   deriveSpan,
   eventBox,
   newId,
@@ -163,6 +167,7 @@ function BlueprintCanvasInner() {
   const [columns, setColumns] = useState<BlueprintColumn[]>([]);
   const [unitPx, setUnitPx] = useState(DEFAULT_UNIT_PX);
   const [columnGap, setColumnGap] = useState(DEFAULT_COLUMN_GAP);
+  const [laneGap, setLaneGap] = useState(DEFAULT_LANE_GAP);
   const [error, setError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -201,6 +206,7 @@ function BlueprintCanvasInner() {
         const graph = d.graphs[d.rootGraphId];
         setUnitPx(unit);
         setColumnGap(gap);
+        setLaneGap(Math.min(MAX_LANE_GAP, Math.max(0, d.laneGap ?? DEFAULT_LANE_GAP)));
         setNodes(toRfNodes(graph, unit, gap));
         setEdges(toRfEdges(graph));
         setColumns(graph.columns ?? []);
@@ -235,6 +241,7 @@ function BlueprintCanvasInner() {
       ...data,
       unitPx,
       columnGap,
+      laneGap,
       graphs: {
         ...data.graphs,
         [graphId]: { ...prev, nodes: nextNodes, edges: nextEdges, columns },
@@ -246,7 +253,7 @@ function BlueprintCanvasInner() {
     saveTimer.current = window.setTimeout(() => {
       void blueprintApi.write(nextData).catch(() => {});
     }, 400);
-  }, [nodes, edges, columns, unitPx, columnGap]);
+  }, [nodes, edges, columns, unitPx, columnGap, laneGap]);
 
   /** The grid scale is derived, never hand-placed: whenever the spacing or the
    * columns themselves change, every node's X is re-derived from its `from`.
@@ -273,27 +280,65 @@ function BlueprintCanvasInner() {
 
   /** Re-settles every node onto a lane derived from the execution wiring: a
    * linear chain shares one lane, each extra branch fans onto its own lane
-   * below. Re-run whenever the wiring or a node's time could have changed. */
+   * below, and anything that would horizontally collide inside a lane drops to
+   * the next free one. Lane Y comes from the rendered node heights, so a node
+   * with many pins pushes the lanes below it down instead of being overlapped.
+   * Re-run whenever the wiring, a node's time or the lane spacing changed. */
   const autoArrange = useCallback(
     (edgeList?: Edge[]) => {
       const activeEdges = edgeList ?? edgesRef.current;
       setNodes((nds) => {
+        const boxes = new Map(
+          nds.map((n) => {
+            const width =
+              (typeof n.style?.width === "number" ? n.style.width : n.measured?.width) ??
+              NODE_WIDTH;
+            return [
+              n.id,
+              {
+                left: n.position.x,
+                right: n.position.x + width,
+                height: n.measured?.height ?? MIN_NODE_HEIGHT,
+              },
+            ];
+          }),
+        );
         const dataList = nds
           .map((n) => n.data as unknown as BlueprintNode)
           .filter((n) => n.kind === "event" || n.kind === "reroute");
         const lanes = assignLanes(
           dataList,
-          activeEdges.map((e) => ({ source: e.source, target: e.target })),
+          activeEdges.map((e) => ({
+            source: e.source,
+            target: e.target,
+            sourcePin: e.sourceHandle ?? undefined,
+          })),
+          (n) => boxes.get(n.id) ?? { left: n.x, right: n.x + NODE_WIDTH },
         );
+        const laneHeights = new Map<number, number>();
+        for (const [id, lane] of lanes) {
+          const height = boxes.get(id)?.height ?? MIN_NODE_HEIGHT;
+          laneHeights.set(lane, Math.max(laneHeights.get(lane) ?? 0, height));
+        }
+        const tops = laneTops(laneHeights, laneGap);
         return nds.map((n) => {
           const lane = lanes.get(n.id);
           if (lane === undefined) return n;
-          return { ...n, position: { ...n.position, y: BASE_Y + lane * NODE_LANE_HEIGHT } };
+          return { ...n, position: { ...n.position, y: tops.get(lane) ?? BASE_Y } };
         });
       });
     },
-    [setNodes],
+    [setNodes, laneGap],
   );
+
+  /** Horizontal scale and lane spacing both feed the vertical layout: a wider
+   * grid changes which nodes collide inside a lane, a wider lane gap changes
+   * every lane's Y. Runs after the X-remap effect above, so it already sees the
+   * new positions. */
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    autoArrange();
+  }, [unitPx, columnGap, columns, laneGap, autoArrange]);
 
   /** Deleting nodes (Delete/Backspace) re-settles the remaining lanes. */
   const handleNodesChange = useCallback(
@@ -479,6 +524,10 @@ function BlueprintCanvasInner() {
 
   const changeColumnGap = useCallback((value: number) => {
     setColumnGap(Math.min(MAX_COLUMN_GAP, Math.max(0, Math.round(value))));
+  }, []);
+
+  const changeLaneGap = useCallback((value: number) => {
+    setLaneGap(Math.min(MAX_LANE_GAP, Math.max(0, Math.round(value))));
   }, []);
 
   const updateColumn = useCallback((id: string, patch: Partial<BlueprintColumn>) => {
@@ -740,6 +789,8 @@ function BlueprintCanvasInner() {
           onUnitPxChange={changeUnitPx}
           columnGap={columnGap}
           onColumnGapChange={changeColumnGap}
+          laneGap={laneGap}
+          onLaneGapChange={changeLaneGap}
           onAdd={() => addColumn({ x: 0, y: 0 })}
           onChange={updateColumn}
           onRemove={removeColumn}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   assignLanes,
+  BASE_Y,
+  laneTops,
+  MIN_NODE_HEIGHT,
   deriveSpan,
   eventBox,
   eventWidth,
@@ -55,10 +58,67 @@ describe("assignLanes", () => {
     expect(lanes.get("c")).toBe(1);
   });
 
+  it("orders same-time branches by output pin, not by edge/target order", () => {
+    const a: BlueprintNode = {
+      ...event("a", 0),
+      outputs: [
+        { id: "pin_danach", label: "danach" },
+        { id: "pin_neu", label: "neuer Ausgang" },
+      ],
+    };
+    const lanes = assignLanes(
+      [a, event("b", 1), event("c", 1)],
+      [
+        { source: "a", target: "c", sourcePin: "pin_neu" },
+        { source: "a", target: "b", sourcePin: "pin_danach" },
+      ],
+    );
+    expect(lanes.get("b")).toBe(0);
+    expect(lanes.get("c")).toBe(1);
+  });
+
+  it("drops a chain node onto the next lane when it would overlap its parent", () => {
+    const extents: Record<string, { left: number; right: number }> = {
+      a: { left: 0, right: 400 },
+      b: { left: 100, right: 500 },
+      c: { left: 600, right: 800 },
+    };
+    const lanes = assignLanes(
+      [event("a", 0), event("b", 1), event("c", 3)],
+      [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+      ],
+      (n) => extents[n.id],
+    );
+    expect(lanes.get("a")).toBe(0);
+    expect(lanes.get("b")).toBe(1);
+    expect(lanes.get("c")).toBe(0);
+  });
+
   it("gives each disconnected root its own lane, in time order", () => {
     const lanes = assignLanes([event("late", 5), event("early", 0)]);
     expect(lanes.get("early")).toBe(0);
     expect(lanes.get("late")).toBe(1);
+  });
+});
+
+describe("laneTops", () => {
+  it("stacks lanes by their tallest node plus the gap", () => {
+    const tops = laneTops(new Map([[0, 200], [1, 120]]), 40);
+    expect(tops.get(0)).toBe(BASE_Y);
+    expect(tops.get(1)).toBe(BASE_Y + 240);
+  });
+
+  it("never packs a lane tighter than a minimum node height", () => {
+    const tops = laneTops(new Map([[0, 10], [1, 10]]), 0);
+    expect(tops.get(1)).toBe(BASE_Y + MIN_NODE_HEIGHT);
+  });
+
+  it("ignores lane numbers left unused by overlap separation", () => {
+    const tops = laneTops(new Map([[0, 100], [3, 100]]), 20);
+    expect([...tops.keys()]).toEqual([0, 3]);
+    expect(tops.get(3)).toBe(BASE_Y + 120);
   });
 });
 

@@ -5,6 +5,8 @@ import {
   UNIT_PX_STEP,
   MAX_COLUMN_GAP,
   COLUMN_GAP_STEP,
+  MAX_LANE_GAP,
+  LANE_GAP_STEP,
 } from "./layout.ts";
 
 interface BlueprintColumnsPanelProps {
@@ -13,6 +15,8 @@ interface BlueprintColumnsPanelProps {
   onUnitPxChange: (value: number) => void;
   columnGap: number;
   onColumnGapChange: (value: number) => void;
+  laneGap: number;
+  onLaneGapChange: (value: number) => void;
   onAdd: () => void;
   onChange: (id: string, patch: Partial<BlueprintColumn>) => void;
   onRemove: (id: string) => void;
@@ -24,6 +28,8 @@ export function BlueprintColumnsPanel({
   onUnitPxChange,
   columnGap,
   onColumnGapChange,
+  laneGap,
+  onLaneGapChange,
   onAdd,
   onChange,
   onRemove,
@@ -72,6 +78,25 @@ export function BlueprintColumnsPanel({
           step={COLUMN_GAP_STEP}
           value={columnGap}
           onChange={(e) => onColumnGapChange(Number(e.target.value))}
+        />
+      </div>
+      <div className="bp-columns-panel__spacing">
+        <label>Zeilenabstand</label>
+        <input
+          type="range"
+          min={0}
+          max={MAX_LANE_GAP}
+          step={LANE_GAP_STEP}
+          value={laneGap}
+          onChange={(e) => onLaneGapChange(Number(e.target.value))}
+        />
+        <input
+          type="number"
+          min={0}
+          max={MAX_LANE_GAP}
+          step={LANE_GAP_STEP}
+          value={laneGap}
+          onChange={(e) => onLaneGapChange(Number(e.target.value))}
         />
       </div>
       {columns.length === 0 ? (
