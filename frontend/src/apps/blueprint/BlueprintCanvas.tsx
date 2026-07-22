@@ -59,6 +59,7 @@ import {
   BASE_Y,
   MIN_NODE_HEIGHT,
   NODE_WIDTH,
+  COLUMN_BOTTOM_MARGIN,
   DEFAULT_UNIT_PX,
   MIN_UNIT_PX,
   MAX_UNIT_PX,
@@ -695,6 +696,18 @@ function BlueprintCanvasInner() {
     (n) => (n.data as unknown as BlueprintNode).kind === "event",
   );
 
+  /** Column bands stop at the lowest node's edge (+ margin), not an arbitrary
+   * fixed depth — falls back to just past the base lane when the canvas is
+   * empty, so an unpopulated graph still shows a visible band. */
+  const columnsBottom = useMemo(() => {
+    let maxBottom = BASE_Y + MIN_NODE_HEIGHT;
+    for (const n of nodes) {
+      const height = n.measured?.height ?? MIN_NODE_HEIGHT;
+      maxBottom = Math.max(maxBottom, n.position.y + height);
+    }
+    return maxBottom + COLUMN_BOTTOM_MARGIN;
+  }, [nodes]);
+
   if (error) {
     return <div className="bp-error">Blueprint konnte nicht laden: {error}</div>;
   }
@@ -751,7 +764,12 @@ function BlueprintCanvasInner() {
             columnGap={columnGap}
           />
           <Controls showInteractive={false} />
-          <ColumnsLayer columns={columns} unitPx={unitPx} columnGap={columnGap} />
+          <ColumnsLayer
+            columns={columns}
+            unitPx={unitPx}
+            columnGap={columnGap}
+            bottom={columnsBottom}
+          />
         </ReactFlow>
         <BlueprintBreadcrumbs items={breadcrumbs} onNavigate={goToBreadcrumb} />
         {!hasEventNodes && (

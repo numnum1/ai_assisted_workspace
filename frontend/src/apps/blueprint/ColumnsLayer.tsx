@@ -6,11 +6,16 @@ interface ColumnsLayerProps {
   columns: BlueprintColumn[];
   unitPx: number;
   columnGap: number;
+  /** How far down (flow-space Y) each band reaches — the bottom-most node's
+   * edge plus a margin, not an arbitrary large constant. */
+  bottom: number;
 }
 
-/** Full-height background bands for named time zones ("Tag 1 Hafen"), kept in
- * sync with the canvas pan/zoom via the shared flow-space transform. */
-export function ColumnsLayer({ columns, unitPx, columnGap }: ColumnsLayerProps) {
+/** Background bands for named time zones ("Tag 1 Hafen"), reaching from the
+ * top of the canvas down to the lowest node (+ margin) rather than an
+ * arbitrary fixed depth — kept in sync with the canvas pan/zoom via the
+ * shared flow-space transform. */
+export function ColumnsLayer({ columns, unitPx, columnGap, bottom }: ColumnsLayerProps) {
   const { x, y, zoom } = useViewport();
   return (
     <div
@@ -28,6 +33,7 @@ export function ColumnsLayer({ columns, unitPx, columnGap }: ColumnsLayerProps) 
               spanEndX(col.to, columns, unitPx, columnGap) -
                 timeToX(col.from, columns, unitPx, columnGap),
             ),
+            height: bottom,
           }}
         >
           <div className="bp-column__header">{col.label}</div>
