@@ -115,6 +115,7 @@
 }
 
 .bp-node__header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -250,8 +251,9 @@
 }
 
 /* ---- Von/Bis resize handles ----
-   Sit just inside the node's rounded box, distinct from the pins (which sit
-   just outside it at -6/-7px), so grabbing one never fights the other. */
+   Confined to the header, not the full node height: the body rows carry the
+   in/out pins at the very same left/right edges, and a full-height strip
+   would sit on top of their hitboxes. */
 .bp-node__resize {
   position: absolute;
   top: 0;
@@ -264,12 +266,12 @@
 
 .bp-node__resize--left {
   left: 0;
-  border-radius: 12px 0 0 12px;
+  border-radius: 11px 0 0 0;
 }
 
 .bp-node__resize--right {
   right: 0;
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 11px 0 0;
 }
 
 .bp-node__resize:hover {

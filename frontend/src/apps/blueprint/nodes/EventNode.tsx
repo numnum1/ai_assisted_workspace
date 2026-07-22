@@ -65,19 +65,19 @@ export function EventNode({ id, data, selected }: NodeProps) {
     <div
       className={`bp-node bp-node--${node.status}${node.subGraphId ? " bp-node--container" : ""}${selected ? " is-selected" : ""}`}
     >
-      {spanDrag && (
-        <>
-          <div
-            className="bp-node__resize bp-node__resize--left"
-            onPointerDown={startSpanResize("from")}
-          />
-          <div
-            className="bp-node__resize bp-node__resize--right"
-            onPointerDown={startSpanResize("to")}
-          />
-        </>
-      )}
       <div className="bp-node__header">
+        {spanDrag && (
+          <>
+            <div
+              className="bp-node__resize bp-node__resize--left"
+              onPointerDown={startSpanResize("from")}
+            />
+            <div
+              className="bp-node__resize bp-node__resize--right"
+              onPointerDown={startSpanResize("to")}
+            />
+          </>
+        )}
         <div className="bp-node__heading">
           <span className="bp-node__title">{node.title || "Ereignis"}</span>
           {sub && <span className="bp-node__subtitle">{sub}</span>}
