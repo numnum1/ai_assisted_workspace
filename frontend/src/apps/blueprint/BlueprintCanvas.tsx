@@ -663,14 +663,16 @@ function BlueprintCanvasInner() {
     [nodes, updateNodeData, enterSubGraph],
   );
 
+  /** Double-click always jumps in — creating the sub-graph on the fly if the
+   * node doesn't have one yet, the same as the details panel's button. */
   const onNodeDoubleClick = useCallback(
     (_event: unknown, node: Node) => {
       const current = node.data as unknown as BlueprintNode;
-      if (current.kind === "event" && current.subGraphId) {
-        enterSubGraph(node.id, current.subGraphId, current.title);
+      if (current.kind === "event") {
+        createAndEnterSubGraph(node.id);
       }
     },
-    [enterSubGraph],
+    [createAndEnterSubGraph],
   );
 
   /** Navigate up to an ancestor breadcrumb, deriving and propagating each
