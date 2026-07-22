@@ -2,7 +2,11 @@
   display: flex;
   width: 100%;
   height: 100vh;
-  background: #1f1f23;
+  background:
+    radial-gradient(ellipse 900px 560px at 14% -8%, rgba(122, 92, 255, 0.16), transparent 60%),
+    radial-gradient(ellipse 900px 620px at 92% 108%, rgba(31, 189, 126, 0.12), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(56, 214, 214, 0.08), transparent 55%),
+    #16161a;
   color: #e8e8e8;
 }
 
@@ -79,7 +83,10 @@
   pointer-events: none;
 }
 
-/* ---- Node ---- */
+/* ---- Node ----
+   Each status carries an accent pair (--accent / --accent-soft) that the
+   header, border and ambient glow all derive from, so recoloring a status
+   only ever means changing these two custom properties in one place. */
 .bp-node {
   position: relative;
   /* The width comes from React Flow's node style, computed in layout.ts from
@@ -87,16 +94,24 @@
      pin label push the node past its own time range. */
   width: 100%;
   box-sizing: border-box;
-  background: linear-gradient(180deg, #34343a 0%, #232328 16%, #1b1b20 100%);
-  border: 1px solid #0c0c0d;
+  --accent: #8b6bff;
+  --accent-soft: rgba(139, 107, 255, 0.4);
+  background:
+    radial-gradient(140% 70% at 18% 0%, var(--accent-soft) 0%, transparent 62%),
+    linear-gradient(165deg, #302f3a 0%, #232229 45%, #1a1920 100%);
+  border: 1px solid var(--accent-soft);
   border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 22px -10px var(--accent-soft);
   font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .bp-node.is-selected {
   border-color: #ffb02e;
-  box-shadow: 0 0 0 2px #ffb02e, 0 6px 22px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 2px #ffb02e, 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 26px -8px #ffb02e;
 }
 
 .bp-node__header {
@@ -106,26 +121,34 @@
   padding: 10px 16px;
   border-radius: 11px 11px 0 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.4);
-  background: linear-gradient(180deg, #3f8fd6 0%, #2668b3 52%, #1a4d93 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 82%, white) 0%,
+    var(--accent) 55%,
+    color-mix(in srgb, var(--accent) 78%, black) 100%
+  );
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
-.bp-node--kanon .bp-node__header {
-  background: linear-gradient(180deg, #35c07a 0%, #1f9d5c 52%, #157a45 100%);
+.bp-node--kanon {
+  --accent: #22c98a;
+  --accent-soft: rgba(34, 201, 138, 0.38);
 }
 
-.bp-node--idee .bp-node__header {
-  background: linear-gradient(180deg, #7a5cff 0%, #5a3ee0 52%, #4429b8 100%);
+.bp-node--idee {
+  --accent: #8b6bff;
+  --accent-soft: rgba(139, 107, 255, 0.4);
 }
 
-/* Container nodes (own a sub-graph) read like UE collapsed graphs: blue,
+/* Container nodes (own a sub-graph) read like UE collapsed graphs: cyan,
  * regardless of status — the status still shows in the details panel. */
-.bp-node--container .bp-node__header {
-  background: linear-gradient(180deg, #3f8fd6 0%, #2668b3 52%, #1a4d93 100%);
+.bp-node--container {
+  --accent: #3fc9e6;
+  --accent-soft: rgba(63, 201, 230, 0.4);
 }
 
 .bp-node:hover:not(.is-selected) {
-  border-color: #3f3f46;
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .bp-node__heading {
@@ -226,18 +249,47 @@
   background: #ffb02e;
 }
 
+/* ---- Von/Bis resize handles ----
+   Sit just inside the node's rounded box, distinct from the pins (which sit
+   just outside it at -6/-7px), so grabbing one never fights the other. */
+.bp-node__resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+.bp-node__resize--left {
+  left: 0;
+  border-radius: 12px 0 0 12px;
+}
+
+.bp-node__resize--right {
+  right: 0;
+  border-radius: 0 12px 12px 0;
+}
+
+.bp-node__resize:hover {
+  background: rgba(255, 176, 46, 0.35);
+}
+
 /* ---- Reroute node ---- */
 .bp-reroute {
   position: relative;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #3a3a40;
-  border: 2px solid #8a8a90;
+  background: radial-gradient(circle at 35% 30%, #5fe3e3 0%, #1f9e9e 70%, #157777 100%);
+  border: 2px solid #38d6d6;
+  box-shadow: 0 0 10px -2px rgba(56, 214, 214, 0.8);
 }
 
 .bp-reroute.is-selected {
   border-color: #ffb02e;
+  box-shadow: 0 0 10px -1px #ffb02e;
 }
 
 .bp-reroute .bp-pin--in {
@@ -252,7 +304,9 @@
   transform: translateY(-50%);
 }
 
-/* ---- Tunnel nodes (entry/exit) ---- */
+/* ---- Tunnel nodes (entry/exit) ----
+   Entry and exit get opposite hues (cool green in, warm amber out) so the
+   direction of flow reads at a glance even before following a wire. */
 .bp-tunnel {
   position: relative;
   display: flex;
@@ -262,18 +316,23 @@
   padding: 0 14px;
   border-radius: 15px;
   background: linear-gradient(#33333a, #29292e);
-  border: 1px solid #55555c;
+  border: 1px solid var(--tunnel-accent, #55555c);
+  box-shadow: 0 0 12px -4px var(--tunnel-accent-soft, transparent);
   font-size: 12px;
   color: #d8d8dc;
 }
 
 .bp-tunnel--entry {
   justify-content: flex-start;
+  --tunnel-accent: #22c98a;
+  --tunnel-accent-soft: rgba(34, 201, 138, 0.65);
 }
 
 .bp-tunnel--exit {
   justify-content: flex-end;
   text-align: right;
+  --tunnel-accent: #ff9a4d;
+  --tunnel-accent-soft: rgba(255, 154, 77, 0.65);
 }
 
 .bp-tunnel.is-selected {
@@ -295,13 +354,13 @@
 
 /* ---- Edges ---- */
 .bp-root .react-flow__edge-path {
-  stroke: #d8d8dc;
+  stroke: #9c8dfd;
   stroke-width: 2.5;
   stroke-linecap: round;
 }
 
 .bp-root .react-flow__edge:hover .react-flow__edge-path {
-  stroke: #ffffff;
+  stroke: #cfc6ff;
 }
 
 .bp-root .react-flow__edge.selected .react-flow__edge-path {
@@ -317,8 +376,11 @@
 
 /* ---- MiniMap + Controls ---- */
 .bp-root .react-flow__minimap {
-  background: #17171a;
-  border: 1px solid #3a3a3d;
+  background:
+    radial-gradient(120% 100% at 15% 0%, rgba(122, 92, 255, 0.14), transparent 65%),
+    radial-gradient(120% 100% at 100% 100%, rgba(34, 201, 138, 0.1), transparent 65%),
+    #131317;
+  border: 1px solid rgba(122, 92, 255, 0.28);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -342,7 +404,7 @@
 }
 
 .bp-root .react-flow__minimap-mask {
-  fill: rgba(10, 10, 12, 0.65);
+  fill: rgba(18, 14, 28, 0.6);
 }
 
 .bp-root .react-flow__controls {
@@ -380,9 +442,9 @@
 .bp-column {
   position: absolute;
   top: 0;
-  background: rgba(255, 255, 255, 0.055);
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(139, 107, 255, 0.09) 0%, rgba(63, 201, 230, 0.04) 100%);
+  border-left: 1px solid rgba(159, 140, 255, 0.22);
+  border-right: 1px solid rgba(159, 140, 255, 0.22);
   border-radius: 6px 6px 0 0;
 }
 
@@ -392,8 +454,8 @@
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 600;
-  color: #b8b8be;
-  background: rgba(40, 40, 44, 0.85);
+  color: #cfc6ff;
+  background: rgba(42, 36, 58, 0.85);
   white-space: nowrap;
 }
 

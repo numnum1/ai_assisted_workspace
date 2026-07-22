@@ -53,6 +53,7 @@ import { BlueprintColumnsPanel } from "./BlueprintColumnsPanel.tsx";
 import { BlueprintDetailsPanel } from "./BlueprintDetailsPanel.tsx";
 import { BlueprintBreadcrumbs, type BreadcrumbEntry } from "./BlueprintBreadcrumbs.tsx";
 import { ArcRegistryProvider } from "./arcRegistry.tsx";
+import { NodeSpanContext, type NodeSpanDrag } from "./nodeSpanContext.ts";
 import {
   assignLanes,
   laneTops,
@@ -83,13 +84,14 @@ const nodeTypes: NodeTypes = {
   exit: ExitNode,
 };
 
-/** MiniMap swatch per node — mirrors the header gradients' mid tones. */
+/** MiniMap swatch per node — mirrors the node accents in BlueprintCanvas.css. */
 function miniMapNodeColor(rf: Node): string {
   const node = rf.data as unknown as BlueprintNode;
-  if (node.kind === "reroute") return "#55555c";
-  if (node.kind === "entry" || node.kind === "exit") return "#47474e";
-  if (node.subGraphId) return "#2668b3";
-  return node.status === "kanon" ? "#1f9d5c" : "#5a3ee0";
+  if (node.kind === "reroute") return "#38d6d6";
+  if (node.kind === "entry") return "#22c98a";
+  if (node.kind === "exit") return "#ff9a4d";
+  if (node.subGraphId) return "#3fc9e6";
+  return node.status === "kanon" ? "#22c98a" : "#8b6bff";
 }
 
 interface GridScale {
@@ -460,6 +462,30 @@ function BlueprintCanvasInner() {
     [updateNodeData, autoArrange],
   );
 
+  /** Flow-space X for a client (screen) coordinate — the node resize handles
+   * use this to turn pointer position into a time via `xToTime`, the same
+   * inverse the drop-to-create flow already relies on. */
+  const toFlowX = useCallback(
+    (clientX: number) => screenToFlowPosition({ x: clientX, y: 0 }).x,
+    [screenToFlowPosition],
+  );
+
+  /** Dragging a node's own left/right edge is a from/to edit grabbed directly
+   * off the node: preview re-derives position/width per pointermove without
+   * touching lanes, and the single `onCommit` on pointer up re-settles them —
+   * mirroring `updateNodeTime`'s details-panel counterpart. */
+  const nodeSpanDrag: NodeSpanDrag = useMemo(
+    () => ({
+      columns,
+      unitPx,
+      columnGap,
+      toFlowX,
+      onPreview: updateNodeData,
+      onCommit: autoArrange,
+    }),
+    [columns, unitPx, columnGap, toFlowX, updateNodeData, autoArrange],
+  );
+
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     setSelectedNodeId(params.nodes.length === 1 ? params.nodes[0].id : null);
   }, []);
@@ -715,6 +741,7 @@ function BlueprintCanvasInner() {
   return (
     <div className="bp-root">
       <div className="bp-canvas-wrap">
+        <NodeSpanContext.Provider value={nodeSpanDrag}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -739,16 +766,11 @@ function BlueprintCanvasInner() {
           deleteKeyCode={["Backspace", "Delete"]}
         >
           <Background
-            id="bp-grid-minor"
-            variant={BackgroundVariant.Lines}
-            gap={28}
-            color="#242428"
-          />
-          <Background
-            id="bp-grid-major"
-            variant={BackgroundVariant.Lines}
-            gap={140}
-            color="#2e2e34"
+            id="bp-grid-dots"
+            variant={BackgroundVariant.Dots}
+            gap={32}
+            size={1.4}
+            color="rgba(159, 140, 255, 0.24)"
           />
           <MiniMap
             pannable
@@ -771,6 +793,7 @@ function BlueprintCanvasInner() {
             bottom={columnsBottom}
           />
         </ReactFlow>
+        </NodeSpanContext.Provider>
         <BlueprintBreadcrumbs items={breadcrumbs} onNavigate={goToBreadcrumb} />
         {!hasEventNodes && (
           <div className="bp-empty-hint">
