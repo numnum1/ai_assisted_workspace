@@ -132,6 +132,10 @@ export function useConversationModel(p: UseConversationModelParams) {
         conversationId: c?.id ?? activeConversationId,
         sessionKind: (c?.sessionKind ?? 'navi') as ChatSessionKind,
         isThread: c?.isThread ?? false,
+        naviStateId: c?.naviStateId ?? null,
+        ...(c?.naviFacts ? { naviFacts: c.naviFacts } : {}),
+        ...(c?.naviCoveredTips?.length ? { naviCoveredTips: c.naviCoveredTips } : {}),
+        ...(c?.simulationConfig ? { simulationConfig: c.simulationConfig } : {}),
         rulesDisabled,
       });
       patchConversation(activeConversationId, { mode: modeId });

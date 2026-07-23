@@ -30,6 +30,11 @@ export interface EditMessageSendParams {
   isThread?: boolean;
   /** When true, project-level KI-Regeln are not injected into the system prompt. */
   rulesDisabled?: boolean;
+  /** Current navi state id; without this, a regenerated/edited message resets Navi to greeting. */
+  naviStateId?: string | null;
+  naviFacts?: NaviFacts;
+  naviCoveredTips?: string[];
+  simulationConfig?: SimulationConfig;
 }
 
 /** Active conversation id + session kind; sent with each chat request for Navi state / plan persistence. */
@@ -358,6 +363,10 @@ export function useChat(onMessagesChange?: (messages: ChatMessage[]) => void, op
           conversationId: sendParams.conversationId,
           sessionKind: sendParams.sessionKind,
           isThread: sendParams.isThread,
+          naviStateId: sendParams.naviStateId,
+          naviFacts: sendParams.naviFacts,
+          naviCoveredTips: sendParams.naviCoveredTips,
+          simulationConfig: sendParams.simulationConfig,
         }),
         ...(sendParams.rulesDisabled ? { rulesDisabled: true } : {}),
       };
