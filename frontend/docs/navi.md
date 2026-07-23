@@ -133,11 +133,11 @@ Optionale Hinweise, die Navi natürlich im Gespräch einstreuen soll – derzeit
 |---|---|
 | `ai_web_accessibility` | Webseite für KI-Assistenten (z. B. ChatGPT) auffindbar machen |
 
-**Mechanismus:**
+**Mechanismus (In-Turn, Stand seit Grok 4.5):**
 - Jeder Tip hat eine `instruction` (wann/wie erwähnen) und `coveredWhen`-Kriterium
-- Offene Tips werden in den System-Prompt von Full-Persona-States injiziert
-- Nach jeder Antwort: nicht-streamender LLM-Call prüft, ob ein Tip als „abgedeckt" gilt
-- Abgedeckte Tip-IDs werden in `conversation.naviCoveredTips` gespeichert und nicht mehr injiziert
+- Offene Tips werden – mit ihrer id – in den System-Prompt von Full-Persona-States injiziert
+- Das Modell markiert einen Tip **im selben Turn** als abgedeckt, in dem es ihn einbringt, per stillem Tool `mark_tip_covered({ tipIds })` (angeboten nur, solange offene Tips existieren). Kein separater Klassifizierer-Call mehr – das folgt derselben Konsolidierung wie beim entfallenen Redirect-Klassifizierer. Nebeneffekt: Anders als der frühere Nachlauf-Call (der die *vorherige* Antwort prüfte) erfasst das In-Turn-Marking auch die letzte Antwort eines Gesprächs.
+- Abgedeckte Tip-IDs werden in `conversation.naviCoveredTips` gespeichert (Event `navi_tips_covered`) und nicht mehr injiziert
 
 ---
 
@@ -170,11 +170,12 @@ Händler schickt Nachricht
       1. Modell antwortet mit Tool-Call(s): update_facts (Fakten-Blatt aktualisieren),
          advance_phase({ to }) (Phasenwechsel – Ziel muss gültig sein; Slot-Gate greift nur
          beim primären Vorwärts-Übergang eines States mit workPlan),
-         und/oder sichtbares Antwort-Tool (ask_clarification/ask_yes_no)
+         mark_tip_covered({ tipIds }) (eingebrachten Hinweis abhaken; nur angeboten, solange
+         offene Tips existieren), und/oder sichtbares Antwort-Tool (ask_clarification/ask_yes_no)
          bzw. freier Text (kein Tool erzwungen)
-      2. Stille Tool-Calls (update_facts/advance_phase) werden sofort ausgeführt
-         (Fakten-Blatt/Phase aktualisiert, navi_facts/navi_state Events emittiert);
-         ohne sichtbare Antwort läuft die Schleife mit frisch gerendertem Prompt
+      2. Stille Tool-Calls (update_facts/advance_phase/mark_tip_covered) werden sofort ausgeführt
+         (Fakten-Blatt/Phase/Tip-Abdeckung aktualisiert, navi_facts/navi_state/navi_tips_covered
+         Events emittiert); ohne sichtbare Antwort läuft die Schleife mit frisch gerendertem Prompt
          (neue Phase + aktualisiertes Fakten-Blatt) weiter
       3. Sobald ein sichtbares Antwort-Tool oder freier Text vorliegt: Turn endet (`done`)
 ```

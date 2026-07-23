@@ -117,6 +117,34 @@ function buildAdvancePhaseTool(state: NaviState): ToolDefinition {
   };
 }
 
+/**
+ * Silent, in-turn tool: the model calls this in the same turn it actually weaves one of the pending
+ * tips into its visible answer, so the tip is not offered again on later turns. Replaces the former
+ * separate, lagging tips-classifier request (runTipsCheck), which spent a full extra LLM call per
+ * turn against the *previous* answer — and therefore never checked the final answer of a chat.
+ */
+function buildMarkTipCoveredTool(pendingTipIds: string[]): ToolDefinition {
+  return {
+    type: "function",
+    function: {
+      name: "mark_tip_covered",
+      description:
+        "Markiere einen Hinweis als abgedeckt, sobald du ihn in deiner Antwort dieses Zuges tatsächlich eingebracht hast — damit er nicht erneut vorgeschlagen wird. Rufe es nur für Hinweise auf, die du wirklich erwähnt hast.",
+      parameters: {
+        type: "object",
+        properties: {
+          tipIds: {
+            type: "array",
+            items: { type: "string", enum: pendingTipIds },
+            description: "Die id(s) der gerade eingebrachten Hinweise.",
+          },
+        },
+        required: ["tipIds"],
+      },
+    },
+  };
+}
+
 /** The state's visible-reply tool(s) (ask_clarification / ask_yes_no), if any — always optional, never forced. */
 function buildReplyTools(state: NaviState): ToolDefinition[] {
   if (!state.tools || state.tools.length === 0) return [];
@@ -133,11 +161,16 @@ function buildReplyTools(state: NaviState): ToolDefinition[] {
   return tools;
 }
 
-function buildToolSet(state: NaviState, includeSilent: boolean): { tools: ToolDefinition[] } {
+function buildToolSet(
+  state: NaviState,
+  includeSilent: boolean,
+  pendingTipIds: string[],
+): { tools: ToolDefinition[] } {
   const tools: ToolDefinition[] = [];
   if (includeSilent) {
     tools.push(UPDATE_FACTS_TOOL);
     if (state.transitions.length > 0) tools.push(buildAdvancePhaseTool(state));
+    if (pendingTipIds.length > 0) tools.push(buildMarkTipCoveredTool(pendingTipIds));
   }
   tools.push(...buildReplyTools(state));
   return { tools };
@@ -219,8 +252,8 @@ function buildNaviSystemPrompt(
   const tipsPromptSection =
     pendingTips.length > 0
       ? [
-          "Folgende Hinweise solltest du einmalig einbringen, sobald sie natürlich in das Gespräch passen – danach nicht wiederholen:",
-          ...pendingTips.map((t) => `- ${t.instruction}`),
+          "Folgende Hinweise solltest du einmalig einbringen, sobald sie natürlich in das Gespräch passen. Sobald du einen Hinweis in deiner Antwort tatsächlich eingebracht hast, rufe im selben Zug mark_tip_covered mit seiner id auf, damit er nicht erneut vorgeschlagen wird:",
+          ...pendingTips.map((t) => `- ${t.id}: ${t.instruction}`),
         ].join("\n")
       : "";
 
@@ -432,15 +465,6 @@ function applyUpdateFacts(facts: NaviFacts, argsJson: string): boolean {
   return changed;
 }
 
-function findPreviousAssistantText(history: ChatMessage[]): string {
-  for (let i = history.length - 1; i >= 0; i--) {
-    const m = history[i];
-    if (m.hidden) continue;
-    if (m.role === "assistant" && typeof m.content === "string" && m.content.trim()) return m.content.trim();
-  }
-  return "";
-}
-
 export async function runNaviChatStream(
   streamId: string,
   request: ChatRequest,
@@ -484,7 +508,12 @@ export async function runNaviChatStream(
 
     const history = Array.isArray(request.history) ? request.history : [];
 
-    const tipsPromise = runTipsCheck(request, tips, findPreviousAssistantText(history), endpoint, emit);
+    // Tip coverage is now marked in-turn by the model (mark_tip_covered) rather than by a separate
+    // classifier call; this set accumulates coverage as the turn's rounds progress so later rounds
+    // and the next prompt no longer offer an already-covered tip.
+    const coveredTipIds = new Set<string>(request.naviCoveredTips ?? []);
+    const pendingTipIds = () => tips.filter((t) => !coveredTipIds.has(t.id)).map((t) => t.id);
+
     const finishTurn = async (fullAssistantText: string, replyStateId: string) => {
       const labels = getAllSlotLabels(states);
       const factsChanged = Object.entries(facts.slots)
@@ -503,7 +532,6 @@ export async function runNaviChatStream(
           ...(advancePhaseAttempts.length > 0 ? { advancePhaseAttempts } : {}),
         },
       });
-      await tipsPromise;
       if (!isStreamActive(streamId)) return;
       emit({ type: "done", data: { fullAssistantText } });
     };
@@ -511,7 +539,7 @@ export async function runNaviChatStream(
     let activeStateId = currentStateId;
     let activeState = currentState;
     const messages: OpenAiMessage[] = buildNaviMessages(
-      buildNaviSystemPrompt(activeState, facts, states, persona, tips, request.naviCoveredTips),
+      buildNaviSystemPrompt(activeState, facts, states, persona, tips, [...coveredTipIds]),
       history,
       userMessage,
     );
@@ -520,7 +548,7 @@ export async function runNaviChatStream(
     let tokenCount = 0;
     const maxRounds = 4;
     let round = 0;
-    const { tools: initialTools } = buildToolSet(activeState, true);
+    const { tools: initialTools } = buildToolSet(activeState, true, pendingTipIds());
     let currentResponsePromise: Promise<Response> = startNaviResponseFetch(endpoint, messages, initialTools);
 
     while (round < maxRounds) {
@@ -529,14 +557,30 @@ export async function runNaviChatStream(
       const roundResult = await readStreamRound(streamId, await currentResponsePromise, emit);
       tokenCount += roundResult.tokenCount;
 
-      const silentCalls = roundResult.toolCalls.filter(
+      const bookkeepingCalls = roundResult.toolCalls.filter(
         (tc) => tc.function.name === "update_facts" || tc.function.name === "advance_phase",
       );
+      const tipCalls = roundResult.toolCalls.filter((tc) => tc.function.name === "mark_tip_covered");
       const otherReplyCalls = roundResult.toolCalls.filter(
         (tc) => tc.function.name === "ask_clarification" || tc.function.name === "ask_yes_no",
       );
 
-      for (const call of silentCalls) {
+      for (const call of tipCalls) {
+        let ids: string[] = [];
+        try {
+          const args = JSON.parse(call.function.arguments) as { tipIds?: unknown };
+          if (Array.isArray(args.tipIds)) {
+            ids = args.tipIds.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim());
+          }
+        } catch {
+          ids = [];
+        }
+        const newlyCovered = ids.filter((id) => tips.some((t) => t.id === id) && !coveredTipIds.has(id));
+        for (const id of newlyCovered) coveredTipIds.add(id);
+        if (newlyCovered.length > 0) emit({ type: "navi_tips_covered", data: { coveredIds: newlyCovered } });
+      }
+
+      for (const call of bookkeepingCalls) {
         if (call.function.name === "update_facts") {
           const applied = applyUpdateFacts(facts, call.function.arguments);
           if (applied) emit({ type: "navi_facts", data: cloneFacts(facts) });
@@ -589,7 +633,14 @@ export async function runNaviChatStream(
         return;
       }
 
-      if (silentCalls.length === 0) {
+      // Rounds that only did silent bookkeeping (facts/phase) — or only marked a tip before the
+      // visible answer exists yet — continue the loop with a freshly rendered prompt. Any round
+      // that produced visible text (free-form) ends the turn, mirroring the pre-tips behaviour.
+      const producedText = !!roundResult.roundAssistantText.trim();
+      const continuationCalls = [...bookkeepingCalls, ...tipCalls];
+      const shouldContinue = bookkeepingCalls.length > 0 || (tipCalls.length > 0 && !producedText);
+
+      if (!shouldContinue) {
         // Free-form text round (full-persona phases) or an empty completion.
         fullAssistantText += roundResult.roundAssistantText;
         if (tokenCount === 0 && !fullAssistantText.trim()) {
@@ -601,29 +652,29 @@ export async function runNaviChatStream(
         return;
       }
 
-      // Only silent tool calls happened this round — continue the loop with a fresh fetch
-      // reflecting the (possibly changed) phase and updated facts.
+      // Continue the loop with a fresh fetch reflecting the (possibly changed) phase, updated facts
+      // and remaining pending tips.
       messages.push({
         role: "assistant",
         content: roundResult.roundAssistantText,
-        tool_calls: silentCalls.map((tc) => ({
+        tool_calls: continuationCalls.map((tc) => ({
           id: tc.id,
           type: "function" as const,
           function: { name: tc.function.name, arguments: tc.function.arguments },
         })),
       });
-      for (const call of silentCalls) {
+      for (const call of continuationCalls) {
         messages.push({ role: "tool", tool_call_id: call.id, content: "ok" });
       }
       messages[0] = {
         role: "system",
-        content: buildNaviSystemPrompt(activeState, facts, states, persona, tips, request.naviCoveredTips),
+        content: buildNaviSystemPrompt(activeState, facts, states, persona, tips, [...coveredTipIds]),
       };
 
       round += 1;
       if (!isStreamActive(streamId)) return;
       const nextIsLastRound = round === maxRounds - 1;
-      const { tools: nextTools } = buildToolSet(activeState, !nextIsLastRound);
+      const { tools: nextTools } = buildToolSet(activeState, !nextIsLastRound, pendingTipIds());
       currentResponsePromise = startNaviResponseFetch(endpoint, messages, nextTools);
     }
 
@@ -640,62 +691,5 @@ export async function runNaviChatStream(
       type: "error",
       data: { message: error instanceof Error ? error.message : "NAVI_STREAM_FAILED" },
     });
-  }
-}
-
-/** Checks which Navi tips were covered in the response and emits navi_tips_covered. */
-async function runTipsCheck(
-  request: ChatRequest,
-  tips: NaviTip[],
-  fullAssistantText: string,
-  endpoint: { apiUrl: string; apiKey: string; model: string },
-  emit: (event: ChatStreamEvent) => void,
-): Promise<void> {
-  const coveredTipsSet = new Set(request.naviCoveredTips ?? []);
-  const stillPendingTips = tips.filter((t) => !coveredTipsSet.has(t.id));
-  if (stillPendingTips.length === 0 || !fullAssistantText.trim()) return;
-
-  try {
-    const tipsCheckPrompt = [
-      "Du prüfst, ob eine Antwort bestimmte Themen angesprochen hat.",
-      "",
-      `Antwort:\n"${fullAssistantText.slice(0, 800)}"`,
-      "",
-      "Welche der folgenden Themen wurden in der Antwort angesprochen?",
-      ...stillPendingTips.map((t) => `- ${t.id}: ${t.coveredWhen}`),
-      "",
-      'Antworte NUR mit einer kommaseparierten Liste der IDs der angesprochenen Themen, oder "keine". Keine Erklärung.',
-    ].join("\n");
-
-    const tipsCheckResponse = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-      body: JSON.stringify({
-        model: endpoint.model,
-        stream: false,
-        max_tokens: 256,
-        temperature: 0,
-        reasoning_effort: "low",
-        messages: [{ role: "user", content: tipsCheckPrompt }],
-      }),
-    });
-
-    if (tipsCheckResponse.ok) {
-      const tipsCheckJson = (await tipsCheckResponse.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const raw = normalizeText(tipsCheckJson?.choices?.[0]?.message?.content ?? "");
-      if (raw && raw !== "keine") {
-        const coveredIds = raw
-          .split(",")
-          .map((s) => s.trim().toLowerCase())
-          .filter((id) => stillPendingTips.some((t) => t.id === id));
-        if (coveredIds.length > 0) {
-          emit({ type: "navi_tips_covered", data: { coveredIds } });
-        }
-      }
-    }
-  } catch {
-    // Tips classifier failed — non-fatal
   }
 }
