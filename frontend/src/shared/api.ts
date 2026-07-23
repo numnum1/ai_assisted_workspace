@@ -926,10 +926,13 @@ export const windowApi = {
       | "storyboard"
       | "chat"
       | "settings"
-      | "blueprint",
+      | "blueprint"
+      | "wiki"
+      | "wikiEntry",
+    params?: { path?: string },
   ): Promise<{ status: string }> => {
     const api = getElectronApi();
-    if (api?.window) return api.window.open(kind);
+    if (api?.window) return api.window.open(kind, params);
     throw new Error("Electron bridge not available");
   },
   onWorkspaceChanged: (

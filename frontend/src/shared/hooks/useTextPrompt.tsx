@@ -1,5 +1,5 @@
 import { useState, useCallback, type ReactElement } from 'react';
-import { TextPromptDialog } from '../../../shared/components/shared/TextPromptDialog.tsx';
+import { TextPromptDialog } from '../components/shared/TextPromptDialog.tsx';
 
 interface PromptState {
   title: string;

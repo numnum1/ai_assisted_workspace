@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronDown, FolderOpen } from 'lucide-react';
 import type { ChapterSummary, ChapterNode, MetaSelection, OutlinerLevelConfig, ScrollTarget } from '../../../../shared/types.ts';
 import { OutlinerIcon } from './outlinerIcons.tsx';
-import { useTextPrompt } from '../../hooks/useTextPrompt.tsx';
+import { useTextPrompt } from '../../../../shared/hooks/useTextPrompt.tsx';
 
 interface OutlinerProps {
   levelConfig: OutlinerLevelConfig;

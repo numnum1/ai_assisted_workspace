@@ -7,7 +7,12 @@ import { OutlinerIcon } from './outlinerIcons.tsx';
 import { SubprojectInlineOutline } from './SubprojectInlineOutline.tsx';
 import { resolveLevelConfig } from '../../hooks/useWorkspaceLevelConfigMap.ts';
 import { readExpandedPaths, writeExpandedPaths } from '../../hooks/outlinerExpandedStorage.ts';
-import { useTextPrompt } from '../../hooks/useTextPrompt.tsx';
+import { useTextPrompt } from '../../../../shared/hooks/useTextPrompt.tsx';
+import {
+  FILE_TREE_INTERNAL_DRAG_MIME,
+  canDropTreeItemOntoFolder,
+  setFileTreeNativeDragCursor,
+} from '../../../../shared/utils/fileTreeDrag.ts';
 
 function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
   if (root.path === targetPath) return root;
@@ -21,29 +26,6 @@ function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
 
 function isWikiFolder(node: FileNode): boolean {
   return Boolean(node.directory && node.name.toLowerCase() === 'wiki');
-}
-
-const FILE_TREE_NATIVE_DRAGGING_CLASS = 'file-tree-native-dragging';
-
-/** Internal tree move payload (separate from `text/plain` for chat). */
-const FILE_TREE_INTERNAL_DRAG_MIME = 'application/x-markdown-editor-file-tree';
-
-function pathTrimSlashes(p: string): string {
-  if (p === '.' || p === '') return '.';
-  const t = p.replace(/\/+$/, '');
-  return t === '' ? '.' : t;
-}
-
-function canDropTreeItemOntoFolder(sourcePath: string, sourceIsDir: boolean, targetParentPath: string): boolean {
-  const src = pathTrimSlashes(sourcePath);
-  const tgt = pathTrimSlashes(targetParentPath);
-  if (src === tgt) return false;
-  if (sourceIsDir && (tgt === src || tgt.startsWith(`${src}/`))) return false;
-  return true;
-}
-
-function setFileTreeNativeDragCursor(active: boolean) {
-  document.body.classList.toggle(FILE_TREE_NATIVE_DRAGGING_CLASS, active);
 }
 
 function normalizeTreeItemName(raw: string): string | null {

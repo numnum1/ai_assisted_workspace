@@ -7,6 +7,8 @@ import { StoryboardWindow } from './apps/storyboard/StoryboardWindow.tsx'
 import { ChatWindow } from './apps/chat/ChatWindow.tsx'
 import { SettingsWindow } from './apps/settings/SettingsWindow.tsx'
 import { BlueprintWindow } from './apps/blueprint/BlueprintWindow.tsx'
+import { WikiWindow } from './apps/wiki/WikiWindow.tsx'
+import { WikiEntryWindow } from './apps/wiki/WikiEntryWindow.tsx'
 
 const kind = new URLSearchParams(window.location.search).get('window')
 const Root =
@@ -18,7 +20,11 @@ const Root =
         ? SettingsWindow
         : kind === 'blueprint'
           ? BlueprintWindow
-          : App
+          : kind === 'wiki'
+            ? WikiWindow
+            : kind === 'wikiEntry'
+              ? WikiEntryWindow
+              : App
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

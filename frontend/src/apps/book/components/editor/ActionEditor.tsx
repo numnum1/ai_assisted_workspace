@@ -1,5 +1,5 @@
 import { memo, useMemo, forwardRef } from 'react';
-import { UnifiedMarkdownEditor, type MarkdownEditorHandle, type CommentAnchorSpec } from './UnifiedMarkdownEditor';
+import { UnifiedMarkdownEditor, type MarkdownEditorHandle, type CommentAnchorSpec } from '../../../../shared/components/editor/UnifiedMarkdownEditor';
 import type { SelectionContext, AltVersionSession } from '../../../../shared/types.ts';
 
 export interface ActionEditorColors {

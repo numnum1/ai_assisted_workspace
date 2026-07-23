@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ActionEditor } from './ActionEditor';
-import type { MarkdownEditorHandle, CommentAnchorSpec } from './UnifiedMarkdownEditor';
+import type { MarkdownEditorHandle, CommentAnchorSpec } from '../../../../shared/components/editor/UnifiedMarkdownEditor';
 import { ChapterHistoryModal } from '../git/ChapterHistoryModal.tsx';
 import { CommentSidebar, type PositionedComment } from './CommentSidebar.tsx';
 import { ChapterOutlinePanel, META_ZONE_WIDTH } from './ChapterOutlinePanel.tsx';

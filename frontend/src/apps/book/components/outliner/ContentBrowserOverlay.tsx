@@ -10,7 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { wikiApi } from "../../../../shared/api.ts";
-import { useTextPrompt } from "../../hooks/useTextPrompt.tsx";
+import { useTextPrompt } from "../../../../shared/hooks/useTextPrompt.tsx";
 import "./ContentBrowserOverlay.css";
 
 interface WikiAsset {

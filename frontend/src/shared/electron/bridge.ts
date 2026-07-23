@@ -465,7 +465,8 @@ export interface AppBridge {
     minimize: () => Promise<void>;
     close: () => Promise<void>;
     open: (
-      kind: "book" | "storyboard" | "chat" | "settings" | "blueprint",
+      kind: "book" | "storyboard" | "chat" | "settings" | "blueprint" | "wiki" | "wikiEntry",
+      params?: { path?: string },
     ) => Promise<{ status: string }>;
     onWorkspaceChanged: (
       listener: (payload: unknown) => void,

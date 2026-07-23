@@ -10,7 +10,7 @@ import {
   LayoutList,
 } from "lucide-react";
 import { typedFilesApi } from "../../../shared/api.ts";
-import { useTextPrompt } from "../hooks/useTextPrompt.tsx";
+import { useTextPrompt } from "../../../shared/hooks/useTextPrompt.tsx";
 
 interface OutlinerScene {
   path: string;

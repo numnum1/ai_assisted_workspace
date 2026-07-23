@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { filesApi } from '../../../shared/api.ts';
+import { filesApi } from '../api.ts';
 
 export function useFileEditor(projectPath: string | null) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);

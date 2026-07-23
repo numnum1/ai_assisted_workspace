@@ -12,7 +12,7 @@ import { hideMarksExtension } from './hideMarksExtension';
 import { wikiReferenceDisplayExtension } from './wikiReferenceDisplayExtension';
 import { scrollLineWithoutCursorKeymap } from './codemirrorScrollLineKeymap.ts';
 import type { ReadingThemeConfig } from './readingTheme';
-import type { SelectionContext, AltVersionSession } from '../../../../shared/types.ts';
+import type { SelectionContext, AltVersionSession } from '../../types.ts';
 import type { Extension } from '@codemirror/state';
 
 export interface MarkdownEditorConfig {

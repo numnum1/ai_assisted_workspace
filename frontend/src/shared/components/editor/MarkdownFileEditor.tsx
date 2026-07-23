@@ -1,6 +1,6 @@
 import { Save, X } from 'lucide-react';
 import { UnifiedMarkdownEditor } from './UnifiedMarkdownEditor';
-import type { SelectionContext, AltVersionSession } from '../../../../shared/types.ts';
+import type { SelectionContext, AltVersionSession } from '../../types.ts';
 
 interface MarkdownFileEditorProps {
   path: string | null;

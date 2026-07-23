@@ -3,7 +3,7 @@ import { EditorTabs } from "../editor/EditorTabs.tsx";
 import { SearchPanel } from "../editor/SearchPanel.tsx";
 import { FieldEditorPanel } from "../editor/FieldEditorPanel.tsx";
 import { MetaPanel } from "../meta/MetaPanel.tsx";
-import { MarkdownFileEditor } from "../editor/MarkdownFileEditor.tsx";
+import { MarkdownFileEditor } from "../../../../shared/components/editor/MarkdownFileEditor.tsx";
 import { WriterOverlays } from "./WriterOverlays.tsx";
 import type { MediaProjectEditorProps } from "../../mediaProjectRegistry.ts";
 import type { useFileTabs } from "../../hooks/useFileTabs.ts";

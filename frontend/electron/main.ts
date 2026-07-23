@@ -229,8 +229,8 @@ function registerIpcHandlers(): void {
     return { status: "ok" };
   });
 
-  ipcMain.handle("window:open", (_event, kind: WindowKind) => {
-    openWindow(kind);
+  ipcMain.handle("window:open", (_event, kind: WindowKind, params?: OpenWindowParams) => {
+    openWindow(kind, params);
     return { status: "ok" };
   });
 
@@ -878,7 +878,9 @@ type WindowKind =
   | "storyboard"
   | "chat"
   | "settings"
-  | "blueprint";
+  | "blueprint"
+  | "wiki"
+  | "wikiEntry";
 
 const WINDOW_CONFIG: Record<
   WindowKind,
@@ -889,14 +891,20 @@ const WINDOW_CONFIG: Record<
   chat: { width: 900, height: 800, title: "KI-Chat" },
   settings: { width: 640, height: 720, title: "Einstellungen" },
   blueprint: { width: 1400, height: 900, title: "Blueprint" },
+  wiki: { width: 520, height: 860, title: "Wiki" },
+  wikiEntry: { width: 900, height: 900, title: "Wiki-Eintrag" },
 };
+
+interface OpenWindowParams {
+  path?: string;
+}
 
 const appIconPath = app.isPackaged
   ? path.join(process.resourcesPath, "icon.png")
   : path.join(__dirname, "../../build/icon.png");
 
-/** One live OS window per kind; reused/focused instead of duplicated. */
-const windows = new Map<WindowKind, BrowserWindow>();
+/** One live OS window per kind (or per kind+path for per-file windows); reused/focused instead of duplicated. */
+const windows = new Map<string, BrowserWindow>();
 
 /** Fan-out a main→renderer event to every open window (multi-window sync). */
 function broadcast(channel: string, payload?: unknown): void {
@@ -905,18 +913,22 @@ function broadcast(channel: string, payload?: unknown): void {
   }
 }
 
-function openWindow(kind: WindowKind): void {
-  const existing = windows.get(kind);
+function openWindow(kind: WindowKind, openParams?: OpenWindowParams): void {
+  const windowKey = openParams?.path ? `${kind}:${openParams.path}` : kind;
+  const existing = windows.get(windowKey);
   if (existing && !existing.isDestroyed()) {
     if (existing.isMinimized()) existing.restore();
     existing.focus();
     return;
   }
   const cfg = WINDOW_CONFIG[kind];
+  const title = openParams?.path
+    ? `${cfg.title} – ${path.basename(openParams.path)}`
+    : cfg.title;
   const win = new BrowserWindow({
     width: cfg.width,
     height: cfg.height,
-    title: cfg.title,
+    title,
     icon: appIconPath,
     webPreferences: {
       /** CJS-Bundle (`preload.cjs` via esbuild): `tsc`-ESM-Preload + `"type":"module"` führt oft dazu, dass der Preload nicht läuft → kein `window.appBridge`. */
@@ -926,9 +938,9 @@ function openWindow(kind: WindowKind): void {
       sandbox: false,
     },
   });
-  windows.set(kind, win);
+  windows.set(windowKey, win);
   win.on("closed", () => {
-    if (windows.get(kind) === win) windows.delete(kind);
+    if (windows.get(windowKey) === win) windows.delete(windowKey);
   });
   win.webContents.on("preload-error", (_event, preloadPath, error) => {
     console.error(
@@ -1008,9 +1020,15 @@ function openWindow(kind: WindowKind): void {
     }
   });
 
-  const query = kind === "book" ? undefined : { window: kind };
+  let query: Record<string, string> | undefined;
+  if (kind !== "book") {
+    query = { window: kind };
+    if (openParams?.path) query.path = openParams.path;
+  }
   if (!app.isPackaged) {
-    const suffix = query ? `/?window=${kind}` : "";
+    const suffix = query
+      ? `/?${new URLSearchParams(query).toString()}`
+      : "";
     void win.loadURL(`http://localhost:5173${suffix}`);
   } else {
     /** `main` liegt unter `dist-electron/electron/`; Vite-Build ist `dist/` neben `dist-electron/`. */
@@ -1034,6 +1052,7 @@ function buildTrayMenu(): Menu {
   return Menu.buildFromTemplate([
     { label: "Buch-Schreibtool", click: () => openWindow("book") },
     { label: "Pinnwand", click: () => openWindow("storyboard") },
+    { label: "Wiki", click: () => openWindow("wiki") },
     { label: "KI-Chat", click: () => openWindow("chat") },
     { label: "Blueprint", click: () => openWindow("blueprint") },
     { label: "Einstellungen", click: () => openWindow("settings") },
