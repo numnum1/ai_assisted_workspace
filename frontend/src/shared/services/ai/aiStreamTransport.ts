@@ -125,6 +125,14 @@ export function startChatStream(
     return controller;
   }
 
+  console.info(
+    `[ai/ui] startChatStream: llmId=${
+      request.llmId ? `"${request.llmId}"` : "(none → main process auto-selects a provider)"
+    } mode="${request.mode}" useReasoning=${request.useReasoning === true} ` +
+      `effort=${request.reasoningEffort ?? "(none)"} quickChat=${request.quickChat === true} ` +
+      `history=${request.history?.length ?? 0} referencedFiles=${request.referencedFiles?.length ?? 0}`,
+  );
+
   const chatBridge = bridge.chat;
   let errorHandled = false;
   let tokenCount = 0;

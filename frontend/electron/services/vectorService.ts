@@ -189,6 +189,11 @@ async function fetchEmbeddings(
   const baseUrl = config.apiUrl.replace(/\/$/, "");
   const url = `${baseUrl}/v1/embeddings`;
 
+  console.info(
+    `[ai] embeddings -> POST ${url} model="${model}" inputs=${texts.length} ` +
+      `totalChars=${texts.reduce((sum, t) => sum + t.length, 0)}`,
+  );
+
   const response = await fetch(url, {
     method: "POST",
     headers: {

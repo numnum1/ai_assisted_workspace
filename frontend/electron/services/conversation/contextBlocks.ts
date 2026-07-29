@@ -5,9 +5,14 @@ import {
   readProjectConfig,
   buildFileTreeListing,
   readReferencedProjectFile,
+  isWikiRelativePath,
   type ProjectConfigData,
 } from "./projectContext.js";
-import { TOOLKIT_TOOL_DEFINITIONS } from "./systemPrompt.js";
+import {
+  TOOLKIT_IDS_WITH_TOOLS,
+  getDisabledToolkitIds,
+  isToolkitEnabled,
+} from "./systemPrompt.js";
 
 export interface ContextBlock {
   type: string;
@@ -87,26 +92,13 @@ export function buildHistoryBlock(request: ChatRequest): ContextBlock | null {
 export function buildToolkitBlock(request: ChatRequest): ContextBlock | null {
   if (request.quickChat) return null;
 
-  const disabled = new Set(
-    Array.isArray(request.disabledToolkits)
-      ? request.disabledToolkits.map((v) => normalizeText(v)).filter(Boolean)
-      : [],
-  );
-  const allToolkits = Object.keys(TOOLKIT_TOOL_DEFINITIONS);
-  const activeToolkits = allToolkits.filter((id) => !disabled.has(id));
-  const disabledToolkits = allToolkits.filter((id) => disabled.has(id));
+  // Only the active toolkits are named — listing a disabled one (e.g. "wiki") would
+  // itself tell the model about a capability it must not know exists.
+  const disabled = getDisabledToolkitIds(request);
+  const activeToolkits = TOOLKIT_IDS_WITH_TOOLS.filter((id) => !disabled.has(id));
+  if (activeToolkits.length === 0) return null;
 
-  const lines: string[] = [];
-  if (activeToolkits.length > 0) {
-    lines.push(`Aktive Toolkits: ${activeToolkits.join(", ")}`);
-  }
-  if (disabledToolkits.length > 0) {
-    lines.push(`Deaktivierte Toolkits: ${disabledToolkits.join(", ")}`);
-  }
-
-  if (lines.length === 0) return null;
-
-  const content = lines.join("\n");
+  const content = `Aktive Toolkits: ${activeToolkits.join(", ")}`;
   return {
     type: "toolkits",
     label: "Toolkits",
@@ -162,8 +154,13 @@ export async function buildPreviewContext(
     if (fileTreeBlock) blocks.push(fileTreeBlock);
   }
 
+  // With the wiki toolkit off, no wiki content reaches the model — not even a file the
+  // user attached explicitly or pinned via alwaysInclude.
+  const wikiEnabled = isToolkitEnabled(request, "wiki");
+
   const alwaysInclude = projectConfig?.alwaysInclude ?? [];
   for (const relativePath of alwaysInclude) {
+    if (!wikiEnabled && isWikiRelativePath(relativePath)) continue;
     const referenced = await readReferencedProjectFile(
       projectPath,
       relativePath,
@@ -182,6 +179,7 @@ export async function buildPreviewContext(
 
   for (const reference of referencedFiles) {
     if (includedFiles.has(reference)) continue;
+    if (!wikiEnabled && isWikiRelativePath(reference)) continue;
     const fileData = await readReferencedProjectFile(projectPath, reference);
     if (!fileData) {
       console.warn(

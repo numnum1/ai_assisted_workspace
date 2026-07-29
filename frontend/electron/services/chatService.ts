@@ -17,6 +17,7 @@ import {
 import {
   buildSystemPrompt,
   getActiveToolDefinitions,
+  isToolkitEnabled,
   resolveModeSystemPrompt,
 } from "./conversation/systemPrompt.js";
 import { buildWikiIndex, formatWikiIndex } from "./wikiService.js";
@@ -26,6 +27,9 @@ import {
   resolveAiProvider,
   resolveProviderEndpoint,
   ensureChatCompletionsUrl,
+  normalizeReasoningEffort,
+  logAiRequest,
+  logAiResponseModel,
   extractContentToken,
   extractFinishReason,
   accumulateToolCallChunks,
@@ -132,10 +136,12 @@ export async function previewChatContext(
     `[chat] previewChatContext: mode=${normalizeText(request.mode)}, project=${projectPath ?? "(none)"}`,
   );
   const previewContext = await buildPreviewContext(projectPath, request);
+  const wikiEnabled = isToolkitEnabled(request, "wiki");
 
-  // Wiki inventory — the writing equivalent of a source tree. Skipped for quick chat (ephemeral).
+  // Wiki inventory — the writing equivalent of a source tree. Skipped for quick chat
+  // (ephemeral) and whenever the wiki toolkit is off (the model must not learn it exists).
   let wikiIndex = "";
-  if (!request.quickChat) {
+  if (!request.quickChat && wikiEnabled) {
     try {
       wikiIndex = formatWikiIndex(await buildWikiIndex(projectPath));
     } catch (error) {
@@ -146,7 +152,9 @@ export async function previewChatContext(
   let chapterIndex = "";
   if (!request.quickChat) {
     try {
-      chapterIndex = await buildBookChapterIndex(projectPath ?? "");
+      chapterIndex = await buildBookChapterIndex(projectPath ?? "", {
+        includeMetafiles: wikiEnabled,
+      });
     } catch (error) {
       console.warn(`[chat] chapter index build failed: ${String(error)}`);
     }
@@ -244,20 +252,31 @@ async function runChatStream(
           `last role="${conversationMessages.at(-1)?.role}"`,
       );
 
-      const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+      const requestUrl = ensureChatCompletionsUrl(endpoint.apiUrl);
+      const requestBody = {
+        model: endpoint.model,
+        stream: true,
+        messages: conversationMessages,
+        ...(request.useReasoning && request.reasoningEffort
+          ? { reasoning_effort: normalizeReasoningEffort(endpoint.model, request.reasoningEffort) }
+          : {}),
+        ...(getActiveToolDefinitions(request).length > 0
+          ? { tools: getActiveToolDefinitions(request) }
+          : {}),
+      };
+
+      logAiRequest(`chat stream (toolRound=${toolRound})`, {
+        requestedLlmId: request.llmId,
+        provider,
+        endpoint,
+        url: requestUrl,
+        body: requestBody,
+      });
+
+      const response = await fetch(requestUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-        body: JSON.stringify({
-          model: endpoint.model,
-          stream: true,
-          messages: conversationMessages,
-          ...(request.useReasoning && request.reasoningEffort
-            ? { reasoning_effort: request.reasoningEffort }
-            : {}),
-          ...(getActiveToolDefinitions(request).length > 0
-            ? { tools: getActiveToolDefinitions(request) }
-            : {}),
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -278,6 +297,7 @@ async function runChatStream(
       let buffer = "";
       let currentEvent = "";
       let roundAssistantText = "";
+      let responseModelLogged = false;
       const collectedToolCalls = new Map<number, ToolCall>();
 
       while (true) {
@@ -309,6 +329,11 @@ async function runChatStream(
           }
           if (!parsed) { currentEvent = ""; continue; }
 
+          if (!responseModelLogged) {
+            responseModelLogged = true;
+            logAiResponseModel(`chat stream (toolRound=${toolRound})`, endpoint.model, parsed.model);
+          }
+
           const token = extractContentToken(parsed);
           if (token) {
             tokenCount += 1;
@@ -335,6 +360,24 @@ async function runChatStream(
         `[chat] toolRound=${toolRound} stream ended: toolCalls=${toolCalls.length}, ` +
           `tokenCount=${tokenCount}, roundText.length=${roundAssistantText.length}`,
       );
+      if (roundAssistantText.trim()) {
+        const preview = roundAssistantText.slice(0, 200).replace(/\s+/g, " ");
+        console.info(
+          `[ai] chat stream (toolRound=${toolRound}) response preview ` +
+            `(requested="${endpoint.model}"): ${preview}${roundAssistantText.length > 200 ? "…" : ""}`,
+        );
+        if (/\b(ich bin|i am|i'm)\b[^.!?\n]{0,60}\b(auto|router|agent-router|cursor|claude|gpt|gemini)\b/i.test(
+          roundAssistantText,
+        )) {
+          console.warn(
+            `[ai] chat stream (toolRound=${toolRound}) SELF-REPORTED MODEL MISMATCH: ` +
+              `requested="${endpoint.model}" via provider "${provider.name}", but the response text ` +
+              `claims to be a different model/router. The API's response "model" field said ` +
+              `"${endpoint.model}" but cannot be trusted here — the backend appears to be substituting ` +
+              `a different model while reporting the requested one.`,
+          );
+        }
+      }
       for (const tc of toolCalls) {
         console.debug(
           `[chat]   toolCall id="${tc.id}" name="${tc.function.name}" ` +
@@ -508,10 +551,20 @@ export async function generateThreadSummary(
     { role: "user" as const, content: `${userLead}${contextSection}` },
   ];
 
-  const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+  const summaryUrl = ensureChatCompletionsUrl(endpoint.apiUrl);
+  const summaryBody = { model: endpoint.model, stream: false, messages: requestMessages };
+  logAiRequest("thread summary", {
+    requestedLlmId: llmId,
+    provider,
+    endpoint,
+    url: summaryUrl,
+    body: summaryBody,
+  });
+
+  const response = await fetch(summaryUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-    body: JSON.stringify({ model: endpoint.model, stream: false, messages: requestMessages }),
+    body: JSON.stringify(summaryBody),
   });
 
   if (!response.ok) {
@@ -525,7 +578,11 @@ export async function generateThreadSummary(
     throw new Error(detail);
   }
 
-  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const json = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    model?: string;
+  };
+  logAiResponseModel("thread summary", endpoint.model, json?.model);
   const raw = json?.choices?.[0]?.message?.content?.trim() ?? "";
 
   const jsonText = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -615,10 +672,20 @@ export async function generateChapterComments(
     { role: "user" as const, content: `=== Kapiteltext ===\n\n${chapterText}` },
   ];
 
-  const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+  const commentsUrl = ensureChatCompletionsUrl(endpoint.apiUrl);
+  const commentsBody = { model: endpoint.model, stream: false, messages: requestMessages };
+  logAiRequest("chapter comments", {
+    requestedLlmId: llmId,
+    provider,
+    endpoint,
+    url: commentsUrl,
+    body: commentsBody,
+  });
+
+  const response = await fetch(commentsUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey}` },
-    body: JSON.stringify({ model: endpoint.model, stream: false, messages: requestMessages }),
+    body: JSON.stringify(commentsBody),
   });
 
   if (!response.ok) {
@@ -632,7 +699,11 @@ export async function generateChapterComments(
     throw new Error(detail);
   }
 
-  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const json = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    model?: string;
+  };
+  logAiResponseModel("chapter comments", endpoint.model, json?.model);
   const raw = json?.choices?.[0]?.message?.content?.trim() ?? "";
   const jsonText = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 

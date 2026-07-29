@@ -15,8 +15,16 @@ export interface ToolDefinition {
   };
 }
 
-export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
-  dateisystem: [
+/** Toolkit ids that contribute tool definitions (the UI also offers ids without tools, e.g. web/wiki). */
+export const TOOLKIT_IDS_WITH_TOOLS = ["dateisystem", "assistant"] as const;
+
+/**
+ * Tool definitions for the dateisystem toolkit. When the wiki toolkit is off, every
+ * hint that a wiki exists is stripped from the descriptions — the model must not learn
+ * about it through a tool schema.
+ */
+function buildDateisystemTools(wikiEnabled: boolean): ToolDefinition[] {
+  return [
     {
       type: "function",
       function: {
@@ -50,12 +58,18 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
           "Exact regular-expression search across project files. Returns WHERE a " +
           "pattern occurs (path:line: text), not whole files — then use read_file " +
           "with offset/limit to read just that slice. " +
-          "Deterministic and exact: the right tool for resolving a name or alias to " +
-          "the wiki file that defines it (e.g. grep '\\\\bWill\\\\b' in wiki/), where " +
-          "semantic_search would be unreliable. " +
+          (wikiEnabled
+            ? "Deterministic and exact: the right tool for resolving a name or alias to " +
+              "the wiki file that defines it (e.g. grep '\\\\bWill\\\\b' in wiki/), where " +
+              "semantic_search would be unreliable. "
+            : "Deterministic and exact: the right tool for resolving a name or alias to " +
+              "the file that defines it (e.g. grep '\\\\bWill\\\\b'), where " +
+              "semantic_search would be unreliable. ") +
           "output_mode 'files_with_matches' (default-ish) lists matching files, " +
           "'content' lists matching lines, 'count' lists match counts per file. " +
-          "Use glob to restrict files (e.g. 'wiki/**/*.md' or '*.md').",
+          (wikiEnabled
+            ? "Use glob to restrict files (e.g. 'wiki/**/*.md' or '*.md')."
+            : "Use glob to restrict files (e.g. '*.md' or 'kapitel/**/*.md')."),
         parameters: {
           type: "object",
           properties: {
@@ -65,8 +79,9 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
             },
             glob: {
               type: "string",
-              description:
-                "Optional path glob filter, e.g. '*.md' or 'wiki/**/*.md'. A pattern without '/' matches the file name in any directory.",
+              description: wikiEnabled
+                ? "Optional path glob filter, e.g. '*.md' or 'wiki/**/*.md'. A pattern without '/' matches the file name in any directory."
+                : "Optional path glob filter, e.g. '*.md' or 'kapitel/**/*.md'. A pattern without '/' matches the file name in any directory.",
             },
             output_mode: {
               type: "string",
@@ -96,17 +111,21 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
       function: {
         name: "semantic_search",
         description:
-          "Search project files and wiki by meaning, not just exact keywords. " +
+          (wikiEnabled
+            ? "Search project files and wiki by meaning, not just exact keywords. "
+            : "Search project files by meaning, not just exact keywords. ") +
           "Finds thematically relevant content even if the exact words differ. " +
-          "Use scope='wiki' to limit to wiki files, 'project' for project files only, " +
-          "or 'all' (default) to search everything.",
+          (wikiEnabled
+            ? "Use scope='wiki' to limit to wiki files, 'project' for project files only, " +
+              "or 'all' (default) to search everything."
+            : "Use scope='project' to limit to project files, or 'all' (default) to search everything."),
         parameters: {
           type: "object",
           properties: {
             query: { type: "string" },
             scope: {
               type: "string",
-              enum: ["all", "project", "wiki"],
+              enum: wikiEnabled ? ["all", "project", "wiki"] : ["all", "project"],
             },
             limit: { type: "number" },
           },
@@ -120,8 +139,8 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
         name: "write_file",
         description:
           "Create or overwrite a file inside the current project (full content). " +
-          "For small targeted changes to an existing file, prefer edit_file. " +
-          "Works on any path, including wiki/ entries.",
+          "For small targeted changes to an existing file, prefer edit_file." +
+          (wikiEnabled ? " Works on any path, including wiki/ entries." : ""),
         parameters: {
           type: "object",
           properties: {
@@ -139,8 +158,8 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
         description:
           "Make a targeted edit to an existing project file by replacing an exact string. " +
           "Safer than write_file for small changes — only touches what you specify. " +
-          "'old' must appear EXACTLY ONCE in the file (copy verbatim from read_file output). " +
-          "Works on any file, including wiki/ entries.",
+          "'old' must appear EXACTLY ONCE in the file (copy verbatim from read_file output)." +
+          (wikiEnabled ? " Works on any file, including wiki/ entries." : ""),
         parameters: {
           type: "object",
           properties: {
@@ -155,74 +174,92 @@ export const TOOLKIT_TOOL_DEFINITIONS: Record<string, ToolDefinition[]> = {
         },
       },
     },
-  ],
-  assistant: [
-    {
-      type: "function",
-      function: {
-        name: "ask_clarification",
-        description:
-          "Ask the user one or more clarifying questions before proceeding. " +
-          "Set allow_multiple: true on a question to let the user select multiple options at once (e.g. 'which of these do you use?' where several may apply).",
-        parameters: {
-          type: "object",
-          properties: {
-            questions: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  question: { type: "string" },
-                  options: { type: "array", items: { type: "string" } },
-                  allow_multiple: {
-                    type: "boolean",
-                    description:
-                      "If true, the user may select multiple options. Use when several answers can apply simultaneously (e.g. which channels does the user use).",
-                  },
+  ];
+}
+
+const ASSISTANT_TOOLS: ToolDefinition[] = [
+  {
+    type: "function",
+    function: {
+      name: "ask_clarification",
+      description:
+        "Ask the user one or more clarifying questions before proceeding. " +
+        "Set allow_multiple: true on a question to let the user select multiple options at once (e.g. 'which of these do you use?' where several may apply).",
+      parameters: {
+        type: "object",
+        properties: {
+          questions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                question: { type: "string" },
+                options: { type: "array", items: { type: "string" } },
+                allow_multiple: {
+                  type: "boolean",
+                  description:
+                    "If true, the user may select multiple options. Use when several answers can apply simultaneously (e.g. which channels does the user use).",
                 },
-                required: ["question", "options"],
               },
+              required: ["question", "options"],
             },
           },
-          required: ["questions"],
         },
+        required: ["questions"],
       },
     },
-    {
-      type: "function",
-      function: {
-        name: "ask_yes_no",
-        description:
-          "MANDATORY: Call this tool whenever you want to ask the user any yes/no question. " +
-          "NEVER ask a yes/no question as plain text — ALWAYS use this tool instead. " +
-          "The app renders two buttons (Ja / Nein) for the user to click. " +
-          "Only use this for decisions with exactly two options (yes or no). " +
-          "For questions with more than two options, use ask_clarification instead.",
-        parameters: {
-          type: "object",
-          properties: {
-            question: {
-              type: "string",
-              description: "The yes/no question to display to the user.",
-            },
+  },
+  {
+    type: "function",
+    function: {
+      name: "ask_yes_no",
+      description:
+        "MANDATORY: Call this tool whenever you want to ask the user any yes/no question. " +
+        "NEVER ask a yes/no question as plain text — ALWAYS use this tool instead. " +
+        "The app renders two buttons (Ja / Nein) for the user to click. " +
+        "Only use this for decisions with exactly two options (yes or no). " +
+        "For questions with more than two options, use ask_clarification instead.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: {
+            type: "string",
+            description: "The yes/no question to display to the user.",
           },
-          required: ["question"],
         },
+        required: ["question"],
       },
     },
-  ],
-};
+  },
+];
+
+export function buildToolkitToolDefinitions(
+  wikiEnabled: boolean,
+): Record<string, ToolDefinition[]> {
+  return {
+    dateisystem: buildDateisystemTools(wikiEnabled),
+    assistant: ASSISTANT_TOOLS,
+  };
+}
+
+export function getDisabledToolkitIds(request: ChatRequest): Set<string> {
+  return new Set(
+    Array.isArray(request.disabledToolkits)
+      ? request.disabledToolkits.map((v) => normalizeText(v)).filter(Boolean)
+      : [],
+  );
+}
+
+export function isToolkitEnabled(request: ChatRequest, toolkitId: string): boolean {
+  return !getDisabledToolkitIds(request).has(toolkitId);
+}
 
 export function getActiveToolDefinitions(
   request: ChatRequest,
 ): ToolDefinition[] {
   if (request.quickChat) return [];
-  const disabled = new Set(
-    Array.isArray(request.disabledToolkits)
-      ? request.disabledToolkits.map((v) => normalizeText(v)).filter(Boolean)
-      : [],
-  );
-  return Object.entries(TOOLKIT_TOOL_DEFINITIONS)
+  const disabled = getDisabledToolkitIds(request);
+  return Object.entries(buildToolkitToolDefinitions(isToolkitEnabled(request, "wiki")))
     .filter(([toolkitId]) => !disabled.has(toolkitId))
     .flatMap(([, tools]) => tools);
 }
@@ -244,6 +281,8 @@ export function buildSystemPrompt(
   modeSystemPrompt: string,
 ): string {
   const sections: string[] = [];
+  const wikiEnabled = isToolkitEnabled(request, "wiki");
+  const fileToolsEnabled = isToolkitEnabled(request, "dateisystem");
 
   // 1. Core mode instructions
   const modeGuidance = normalizeText(modeSystemPrompt);
@@ -265,8 +304,16 @@ export function buildSystemPrompt(
   // 1c. Working method — baseline persistence behavior, independent of the chosen mode.
   // The mode only personalizes the persona/task framing; HOW the app works (chat is
   // disposable, durable facts go to files) is defined here for every writing session.
-  // Skipped for quick chat (ephemeral) sessions.
-  if (!request.quickChat) {
+  // Skipped for quick chat (ephemeral) sessions. The wiki variant requires both the
+  // wiki toolkit (may the model know about the wiki at all?) and the dateisystem toolkit
+  // (it names edit_file/write_file/grep, which only exist while that toolkit is active).
+  if (!request.quickChat && !(wikiEnabled && fileToolsEnabled)) {
+    sections.push(
+      "ARBEITSWEISE (gilt unabhängig vom gewählten Modus):\n" +
+        "- Der Chat ist flüchtig. Antworte im Chat als Prosa.\n" +
+        "- Lege keine Dateien an und ändere keine, außer der Nutzer bittet ausdrücklich darum.",
+    );
+  } else if (!request.quickChat) {
     sections.push(
       "ARBEITSWEISE (gilt unabhängig vom gewählten Modus):\n" +
         "- Der Chat ist flüchtig und KEIN Wissensspeicher. Dauerhaftes gehört ins Wiki (Markdown unter wiki/).\n" +
@@ -334,14 +381,16 @@ export function buildSystemPrompt(
   // 3b. Wiki inventory — the structural overview that lets the AI work like a
   // coding agent: it sees what already exists before creating or editing, so it
   // avoids duplicates and notices contradictions instead of forking canon.
-  if (!request.quickChat) {
+  if (!request.quickChat && wikiEnabled) {
     const wikiIndex = normalizeText(context.wikiIndex ?? "");
     if (wikiIndex) {
       sections.push(
         "WIKI-BESTAND (bereits vorhandene Einträge — verschaffe dir hiermit einen Überblick, BEVOR du anlegst oder änderst):\n" +
           wikiIndex +
-          "\n\nLege KEINE Dublette an, wenn ein Eintrag (auch unter einem Alias) bereits existiert — bearbeite stattdessen den bestehenden mit edit_file. " +
-          "Diese Liste ist nur eine Übersicht; für den vollständigen Inhalt eines Eintrags read_file nutzen.",
+          (fileToolsEnabled
+            ? "\n\nLege KEINE Dublette an, wenn ein Eintrag (auch unter einem Alias) bereits existiert — bearbeite stattdessen den bestehenden mit edit_file. " +
+              "Diese Liste ist nur eine Übersicht; für den vollständigen Inhalt eines Eintrags read_file nutzen."
+            : "\n\nDiese Liste ist nur eine Übersicht und enthält nicht den vollständigen Inhalt der Einträge."),
       );
     }
   }
@@ -352,13 +401,19 @@ export function buildSystemPrompt(
     const chapterIndex = normalizeText(context.chapterIndex ?? "");
     if (chapterIndex) {
       sections.push(
-        "BUCHSTRUKTUR (Kapitel und Szenen mit Inhaltspfaden für read_file):\n" +
+        (fileToolsEnabled
+          ? "BUCHSTRUKTUR (Kapitel und Szenen mit Inhaltspfaden für read_file):\n"
+          : "BUCHSTRUKTUR (Kapitel und Szenen):\n") +
           chapterIndex +
           "\n\nDer Text nach '—' ist die hinterlegte Beschreibung/Absicht des Abschnitts — nutze sie, " +
           "um den Inhalt einzuordnen, ohne die Prosa lesen zu müssen. " +
-          "Eine '↳ Metafile'-Zeile verweist auf einen ausführlicheren, verlinkten Wiki-Eintrag zu diesem " +
-          "Abschnitt (Absicht, Notizen); lies ihn bei Bedarf mit read_file und pflege ihn mit edit_file/write_file. " +
-          "Um den Prosa-Inhalt einer Szene zu lesen: read_file mit dem angegebenen Pfad aufrufen. " +
+          (wikiEnabled && fileToolsEnabled
+            ? "Eine '↳ Metafile'-Zeile verweist auf einen ausführlicheren, verlinkten Wiki-Eintrag zu diesem " +
+              "Abschnitt (Absicht, Notizen); lies ihn bei Bedarf mit read_file und pflege ihn mit edit_file/write_file. "
+            : "") +
+          (fileToolsEnabled
+            ? "Um den Prosa-Inhalt einer Szene zu lesen: read_file mit dem angegebenen Pfad aufrufen. "
+            : "") +
           "Leere Szenen ('(leer)') enthalten noch keinen Text.",
       );
     }

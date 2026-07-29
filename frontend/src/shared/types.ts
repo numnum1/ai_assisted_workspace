@@ -1,5 +1,5 @@
 /** Ids match backend {@code ToolkitIds}; used for {@link ChatRequest#disabledToolkits}. */
-export const CHAT_TOOLKIT_IDS = ['web', 'dateisystem', 'assistant'] as const;
+export const CHAT_TOOLKIT_IDS = ['web', 'dateisystem', 'assistant', 'wiki'] as const;
 
 /** One character in an ensemble scene run (played by its own LLM agent). */
 export interface EnsembleCharacterInput {

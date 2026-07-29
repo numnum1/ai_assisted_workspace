@@ -6,6 +6,8 @@ import {
   resolveAiProvider,
   resolveProviderEndpoint,
   ensureChatCompletionsUrl,
+  logAiRequest,
+  logAiResponseModel,
   type OpenAiMessage,
 } from "./openAiClient.js";
 
@@ -96,19 +98,29 @@ async function chatCompletion(
   const provider = await resolveAiProvider(llmId);
   const endpoint = resolveProviderEndpoint(provider, false);
 
-  const response = await fetch(ensureChatCompletionsUrl(endpoint.apiUrl), {
+  const url = ensureChatCompletionsUrl(endpoint.apiUrl);
+  const requestBody = {
+    model: endpoint.model,
+    stream: false,
+    max_tokens: opts.maxTokens ?? 400,
+    temperature: opts.temperature ?? 0.8,
+    messages,
+  };
+  logAiRequest("ensemble completion", {
+    requestedLlmId: llmId,
+    provider,
+    endpoint,
+    url,
+    body: requestBody,
+  });
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${endpoint.apiKey}`,
     },
-    body: JSON.stringify({
-      model: endpoint.model,
-      stream: false,
-      max_tokens: opts.maxTokens ?? 400,
-      temperature: opts.temperature ?? 0.8,
-      messages,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -124,7 +136,9 @@ async function chatCompletion(
 
   const json = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    model?: string;
   };
+  logAiResponseModel("ensemble completion", endpoint.model, json?.model);
   return normalizeText(json?.choices?.[0]?.message?.content ?? "");
 }
 

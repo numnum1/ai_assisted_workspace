@@ -38,6 +38,15 @@ export function normalizeText(value: string | null | undefined): string {
   return value.trim();
 }
 
+/** Wiki entries live under `wiki/` — the same prefix buildWikiIndex emits for every entry. */
+export function isWikiRelativePath(reference: string): boolean {
+  const normalized = normalizeText(reference)
+    .replace(/\\/g, "/")
+    .replace(/^\.?\/+/, "")
+    .toLowerCase();
+  return normalized === "wiki" || normalized.startsWith("wiki/");
+}
+
 export function estimateTokens(text: string): number {
   const normalized = normalizeText(text);
   if (!normalized) return 0;
@@ -365,11 +374,17 @@ function renderChapterLines(chapters: IndexChapter[], indent: string): string[] 
   return lines;
 }
 
-export async function buildBookChapterIndex(projectPath: string): Promise<string> {
+export async function buildBookChapterIndex(
+  projectPath: string,
+  options: { includeMetafiles?: boolean } = {},
+): Promise<string> {
   if (!projectPath) return "";
 
   const lines: string[] = [];
-  const attached = await buildAttachedNoteMap(projectPath);
+  const attached =
+    options.includeMetafiles === false
+      ? new Map<string, string>()
+      : await buildAttachedNoteMap(projectPath);
 
   // Root project book
   const root = await buildBookIndexModel(projectPath, null, attached);

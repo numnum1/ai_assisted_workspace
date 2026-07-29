@@ -13,11 +13,12 @@ import {
   FolderOpen,
   Sparkles,
   ListChecks,
+  Library,
 } from "lucide-react";
 import { FileChip } from "../common/FileChip.tsx";
 import { getAppBridge } from "../../electron/bridge.ts";
 import { wikiApi } from "../../api.ts";
-import type { ReasoningEffort, SelectionContext } from "../../types.ts";
+import type { ChatToolkitId, ReasoningEffort, SelectionContext } from "../../types.ts";
 import { CHAT_TOOLKIT_IDS } from "../../types.ts";
 
 const EMPTY_DISABLED_TOOLKITS = new Set<string>();
@@ -62,10 +63,11 @@ function ReasoningEffortSelector({
   );
 }
 
-const TOOLKIT_ROWS: { id: string; label: string; icon: LucideIcon }[] = [
+const TOOLKIT_ROWS: { id: ChatToolkitId; label: string; icon: LucideIcon }[] = [
   { id: "web", label: "Web-Suche", icon: Globe },
   { id: "dateisystem", label: "Dateisystem", icon: FolderOpen },
   { id: "assistant", label: "Assistent", icon: Sparkles },
+  { id: "wiki", label: "Wiki", icon: Library },
 ];
 
 function ToolkitMenuButton({
@@ -269,6 +271,8 @@ export function ChatInput({
     selectedIdx: number;
   } | null>(null);
 
+  const wikiMentionsEnabled = !disabledToolkits.has("wiki");
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const expandTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -421,7 +425,8 @@ export function ChatInput({
 
     if (atMatch) {
       const query = atMatch[1];
-      if (query.includes("/") || query.startsWith(".")) {
+      // The @-picker only lists wiki entries — with the wiki toolkit off it offers nothing.
+      if (!wikiMentionsEnabled || query.includes("/") || query.startsWith(".")) {
         setAc(null);
         return;
       }
